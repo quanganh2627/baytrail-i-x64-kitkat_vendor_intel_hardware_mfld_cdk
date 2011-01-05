@@ -18,6 +18,7 @@ LOCAL_CFLAGS += -DTIWLAN
 endif
 
 LOCAL_MODULE := wifi.$(TARGET_DEVICE)
+LOCAL_MODULE_TAGS := optional
 include $(BUILD_SHARED_LIBRARY)
 endif
 

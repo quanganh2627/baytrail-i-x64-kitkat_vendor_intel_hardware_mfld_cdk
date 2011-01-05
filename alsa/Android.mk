@@ -23,6 +23,7 @@ endif
   	liblog
 
   LOCAL_MODULE:= alsa.$(TARGET_DEVICE)
+  LOCAL_MODULE_TAGS := optional
 
   include $(BUILD_SHARED_LIBRARY)
 

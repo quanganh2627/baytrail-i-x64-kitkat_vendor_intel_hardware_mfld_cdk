@@ -17,7 +17,7 @@
 
 #define LOG_TAG "ALSAModule"
 #include <utils/Log.h>
-
+#include "bridgeapp.h"
 #include "AudioHardwareALSA.h"
 #include <media/AudioRecord.h>
 
@@ -33,9 +33,10 @@
 #define ALSA_DEFAULT_SAMPLE_RATE 44100 // in Hz
 #endif
 
+int voice_activated = 0;
 namespace android
 {
-
+//BridgeApp bapp;
 static int s_device_open(const hw_module_t*, const char*, hw_device_t**);
 static int s_device_close(hw_device_t*);
 static status_t s_init(alsa_device_t *, ALSAHandleList &);
@@ -488,11 +489,26 @@ static status_t s_close(alsa_handle_t *handle)
 
 static status_t s_route(alsa_handle_t *handle, uint32_t devices, int mode)
 {
+	status_t err = NO_ERROR;
     LOGD("route called for devices %08x in mode %d...", devices, mode);
 
     if (handle->handle && handle->curDev == devices && handle->curMode == mode) return NO_ERROR;
 
-    return s_open(handle, devices, mode);
+	if(mode == AudioSystem::MODE_IN_CALL){
+		err = asf_start();
+			voice_activated = 1;
+			return err;	
+	}	
+	else if (mode == AudioSystem::MODE_NORMAL && voice_activated ==1 ){
+				err = asf_stop();
+				voice_activated = 0;
+				return err;
+			}
+	else{ 
+	return s_open(handle, devices, mode);}
+
+
 }
+
 
 }

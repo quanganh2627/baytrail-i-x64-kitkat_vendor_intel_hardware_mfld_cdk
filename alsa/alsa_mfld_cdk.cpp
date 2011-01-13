@@ -282,7 +282,7 @@ status_t setHardwareParams(alsa_handle_t *handle)
     err = snd_pcm_hw_params_get_buffer_time_max(hardwareParams,
 					    &buffer_time, 0);
     if (buffer_time > 500000)
-	buffer_time = 500000;
+	buffer_time = 80000;
     period_time = buffer_time / 4;
 
     err = snd_pcm_hw_params_set_period_time_near(handle->handle, hardwareParams,

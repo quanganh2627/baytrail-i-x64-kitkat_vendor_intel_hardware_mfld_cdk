@@ -1,4 +1,4 @@
-ifeq ($(CUSTOM_BOARD),mfld_cdk)
+ifeq ($(CUSTOM_BOARD),mfld_cdk mfld_pr1)
 
 LOCAL_PATH := $(call my-dir)
 

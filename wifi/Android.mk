@@ -2,7 +2,7 @@ LOCAL_PATH := $(call my-dir)
 
 # HAL module implemenation, not prelinked and stored in
 # hw/<SENSORS_HARDWARE_MODULE_ID>.<ro.hardware>.so
-ifneq (,$(findstring $(CUSTOM_BOARD),mfld_cdk))
+ifneq (,$(findstring $(CUSTOM_BOARD),mfld_cdk mfld_pr1))
 
 include $(CLEAR_VARS)
 LOCAL_PRELINK_MODULE := false

@@ -1,4 +1,4 @@
-ifneq (,$(findstring $(CUSTOM_BOARD),mfld_cdk mfld_pr1))
+ifneq (,$(findstring $(CUSTOM_BOARD),mfld_cdk))
 
 LOCAL_PATH := $(call my-dir)
 

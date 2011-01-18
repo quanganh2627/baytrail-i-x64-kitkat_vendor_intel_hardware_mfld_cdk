@@ -547,6 +547,9 @@ int asf_start (void)
 
 int asf_stop (void){
 	state_play = 11;
+	if(ssp_iface.fd < 0 ) {
+		return -1;
+	}
 	close(ssp_iface.fd);
 	SRCExitDownsamp48to8(tx_voice.SRCHandle24in_16out);
 	SRCExitUpsamp8to48(rx_voice.SRCHandle16in_24out);

@@ -28,7 +28,7 @@
 #define LOGV LOGD
 // This is supposed to work for displaying verbose logs, but doesn't for some reason
 // so we use the undef/define combination above for LOGV.
-#define LOG_NDEBUG 1
+#define LOG_NDEBUG 1 
 
 
 
@@ -65,6 +65,7 @@ typedef int bool;
 bool read_modem_start = false; 
 static char *device = "hw";
 
+struct sigaction act;
 enum codec_type {
 	CODEC_NB,
 	CODEC_WB
@@ -172,7 +173,7 @@ void set_pcm_params (snd_pcm_t *handle, int nb_frames)
 				       2,
 				      // 8000,
 				       48000,
-				       0, 320000)) < 0) {
+				       0, 80000)) < 0) {
 		LOGV ("open error: %s\n", snd_strerror (err));
 		exit (EXIT_FAILURE);
 	}
@@ -200,7 +201,7 @@ void *pcm_tx (void *arg)
 
 	
 	while (signal_end == 0) {
-	//	LOGV("pcm_tx before sem_wait\n");
+		LOGV("pcm_tx before sem_wait\n");
 		sem_wait (&tx_voice.sem_buf);
 		if (tx_voice.num_read < tx_voice.num_write) {
 		address = (unsigned short *) (ssp_iface.mmap_base + ssp_iface.mmap_cfg->tx_offsets[ssp_iface.tx_slot]);
@@ -208,7 +209,7 @@ void *pcm_tx (void *arg)
 		msg = CS_TX_DATA_READY;
 		msg |= ssp_iface.tx_slot;
 		write(ssp_iface.fd, &msg, sizeof(msg));
-	//	LOGV("WRITE %d\n", ssp_iface.tx_slot);
+		LOGV("WRITE %d\n", ssp_iface.tx_slot);
 		ssp_iface.tx_slot++;
 		ssp_iface.tx_slot %= NB_TX_BUFS;
 		tx_voice.num_read++;
@@ -253,7 +254,7 @@ void *pcm_capture (void *arg)
 		frames_avail = snd_pcm_avail_update(handle);
 		if (frames < 0) {
 			frames = snd_pcm_recover (handle, frames, 0);
-			//LOGV ("pcm_capture recover %d\n", tx_voice.num_write);
+			LOGV ("pcm_capture recover %d\n", tx_voice.num_write);
 		} else {
 			tx_voice.num_write++;
 		}
@@ -358,7 +359,7 @@ void *pcm_play (void *arg)
  		snd_pcm_hwsync(handle);
  		frames_avail_update = snd_pcm_avail_update(handle);
 	}
-	while (0 == state_play) {
+	while (0 == state_play ) {
 		sem_wait (&rx_voice.sem_buf);
 		frames_avail = snd_pcm_avail(handle);
 		snd_pcm_hwsync(handle);
@@ -439,16 +440,38 @@ void *pcm_play (void *arg)
 
 int asf_start (void)
 {
+	struct cs_buffer_config buf_cfg;
+	int ret;
+	struct sigaction action;
+	action.sa_handler = sighandler;
+	sigaction (SIGINT, &action, NULL);
+	static unsigned int buffer[1920];
 	pthread_t thread_capture;
 	pthread_t thread_tx;
 	pthread_t thread_play;
 	pthread_t thread_rx;
-	struct cs_buffer_config buf_cfg;
-	int ret;
-	struct sigaction action; 
-	action.sa_handler = sighandler;
-	sigaction (SIGINT, &action, NULL);
-	static unsigned int buffer[1920];
+
+	/* Our process ID and Session ID */
+	pid_t pid, sid;
+	/* Signal handling structure */
+	struct sigaction sigact;
+	sigset_t waitset;
+	int sig;
+
+	/* Fork off the parent process */
+	pid = fork();
+	if (pid < 0)
+		exit(EXIT_FAILURE);
+
+	if (pid > 0)
+		return pid;
+
+	/* Change the file mode mask */
+	umask(0);
+
+	/*-------------------------------------*/
+	LOGV("BRIDGEAPP\n");
+
 	memset(&ssp_iface, 0, sizeof(ssp_iface));
 	memset(&action, 0, sizeof(action));
 	sigaction(SIGINT, &action, NULL);
@@ -529,7 +552,7 @@ int asf_start (void)
 	start_thread_with_priority_max (&thread_rx, &pcm_rx, NULL);
 
 	start_thread_with_priority_max (&thread_capture, &pcm_capture, NULL);
-	while (state_play < 10) {
+	while (state_play < 10 ) {
 	state_play = 0;
 	alsa_errors = 0;	
 	LOGV(" START capture and play\n");
@@ -541,19 +564,7 @@ int asf_start (void)
 	pthread_join (thread_capture, NULL);
 	pthread_join (thread_tx, NULL);
 	pthread_join (thread_rx, NULL);
+	LOGV(" STOP\n");
 	return 0;
 	
-}
-
-int asf_stop (void){
-	state_play = 11;
-	if(ssp_iface.fd < 0 ) {
-		return -1;
-	}
-	close(ssp_iface.fd);
-	SRCExitDownsamp48to8(tx_voice.SRCHandle24in_16out);
-	SRCExitUpsamp8to48(rx_voice.SRCHandle16in_24out);
-	LOGV("STOP AUDIO\n");
-
-	return 0;
 }

@@ -7,23 +7,7 @@ extern "C"
 {
 #endif
 
-
-//namespace android
-//{
-
-//class BridgeApp
-//{
-//public:
-
-//	BridgeApp();
-//	~BridgeApp();
-	int asf_start(void);
-	int asf_stop(void);
-// protected:
-
-// private:
-//};
-//};
+int asf_start(void);
 #ifdef __cplusplus
 }
 #endif

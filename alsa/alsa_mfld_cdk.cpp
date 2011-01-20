@@ -20,6 +20,7 @@
 #include "bridgeapp.h"
 #include "AudioHardwareALSA.h"
 #include <media/AudioRecord.h>
+#include <signal.h>
 
 #undef DISABLE_HARWARE_RESAMPLING
 
@@ -33,6 +34,12 @@
 #define ALSA_DEFAULT_SAMPLE_RATE 44100 // in Hz
 #endif
 
+#undef LOGV
+#define LOGV LOGD
+// This is supposed to work for displaying verbose logs, but doesn't for some reason
+// so we use the undef/define combination above for LOGV.
+#define LOG_NDEBUG 1
+
 int voice_activated = 0;
 namespace android
 {
@@ -43,6 +50,7 @@ static status_t s_init(alsa_device_t *, ALSAHandleList &);
 static status_t s_open(alsa_handle_t *, uint32_t, int);
 static status_t s_close(alsa_handle_t *);
 static status_t s_route(alsa_handle_t *, uint32_t, int);
+static status_t s_config(alsa_handle_t *, int);
 
 static hw_module_methods_t s_module_methods = {
     open            : s_device_open
@@ -465,10 +473,9 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
     if (err == NO_ERROR) err = setSoftwareParams(handle);
 
     LOGI("Initialized ALSA %s device %s", stream, devName);
-
+	s_config(handle,mode);
     handle->curDev = devices;
     handle->curMode = mode;
-
     return err;
 }
 
@@ -489,26 +496,40 @@ static status_t s_close(alsa_handle_t *handle)
 
 static status_t s_route(alsa_handle_t *handle, uint32_t devices, int mode)
 {
-	status_t err = NO_ERROR;
+
     LOGD("route called for devices %08x in mode %d...", devices, mode);
 
     if (handle->handle && handle->curDev == devices && handle->curMode == mode) return NO_ERROR;
 
-	if(mode == AudioSystem::MODE_IN_CALL){
-		err = asf_start();
-			voice_activated = 1;
-			return err;	
-	}	
-	else if (mode == AudioSystem::MODE_NORMAL && voice_activated ==1 ){
-				err = asf_stop();
-				voice_activated = 0;
-				return err;
-			}
-	else{ 
-	return s_open(handle, devices, mode);}
-
-
+	return s_open(handle, devices, mode);
 }
 
 
+static status_t s_config(alsa_handle_t *handle, int mode)
+{
+	status_t err = NO_ERROR;
+	int pid=0;
+	if(mode == AudioSystem::MODE_IN_CALL ){
+	    s_close(handle);
+		voice_activated = 1;		
+		pid = asf_start();
+		LOGD("PID BRIDGEAPP %d\n",pid);
+		return NO_ERROR;	
+	}	
+	else if (mode == 0/*  AudioSystem::MODE_NORMAL*/){
+		if(voice_activated == 1){
+	    LOGD("HANGUP\n");		
+		voice_activated = 0;
+		kill(pid,SIGTERM);
+		return NO_ERROR;
+		}
+		else{ 
+		snd_pcm_reset(handle->handle);
+		return NO_ERROR;
+		}
+
+	}
+	else 
+		return NO_ERROR;
+}
 }

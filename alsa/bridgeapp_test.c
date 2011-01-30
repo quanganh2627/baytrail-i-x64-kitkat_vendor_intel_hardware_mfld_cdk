@@ -201,7 +201,7 @@ void *pcm_tx (void *arg)
 
 	
 	while (signal_end == 0) {
-		LOGV("pcm_tx before sem_wait\n");
+		//LOGV("pcm_tx before sem_wait\n");
 		sem_wait (&tx_voice.sem_buf);
 		if (tx_voice.num_read < tx_voice.num_write) {
 		address = (unsigned short *) (ssp_iface.mmap_base + ssp_iface.mmap_cfg->tx_offsets[ssp_iface.tx_slot]);
@@ -209,7 +209,7 @@ void *pcm_tx (void *arg)
 		msg = CS_TX_DATA_READY;
 		msg |= ssp_iface.tx_slot;
 		write(ssp_iface.fd, &msg, sizeof(msg));
-		LOGV("WRITE %d\n", ssp_iface.tx_slot);
+		//LOGV("WRITE %d\n", ssp_iface.tx_slot);
 		ssp_iface.tx_slot++;
 		ssp_iface.tx_slot %= NB_TX_BUFS;
 		tx_voice.num_read++;
@@ -249,12 +249,12 @@ void *pcm_capture (void *arg)
 		for (i=0; i<960; i++) {
 			*sptr++ = ((*samples++)<<8);
 			samples++;
-		}		
+		}
 		snd_pcm_hwsync(handle);
 		frames_avail = snd_pcm_avail_update(handle);
 		if (frames < 0) {
 			frames = snd_pcm_recover (handle, frames, 0);
-			LOGV ("pcm_capture recover %d\n", tx_voice.num_write);
+			//LOGV ("pcm_capture recover %d\n", tx_voice.num_write);
 		} else {
 			tx_voice.num_write++;
 		}
@@ -283,7 +283,7 @@ void *pcm_rx (void *arg)
     	pfd.events = POLLIN;
     	pfd.revents = 0;
 		short *address = NULL;
-		
+
 		while(signal_end == 0){
 		ret = poll(&pfd, 1, -1 /* no timeout */);
 		if(ret ){
@@ -293,7 +293,7 @@ void *pcm_rx (void *arg)
 					read_modem_start = true;
 					if ((msg & CS_CMD_MASK) == CS_RX_DATA_RECEIVED) {
 						ssp_iface.rx_slot = (msg & CS_PARAM_MASK);
-						LOGV("READ %d\n", ssp_iface.rx_slot);
+						//LOGV("READ %d\n", ssp_iface.rx_slot);
 						address = (unsigned short *) (ssp_iface.mmap_base + ssp_iface.mmap_cfg->rx_offsets[ssp_iface.rx_slot]);
 
 						if (ssp_iface.burst_mode) {
@@ -301,7 +301,7 @@ void *pcm_rx (void *arg)
 							unsigned short *ptr_dl_ctrl = (address + PCM_BM_SIG_SIZE);
 							ssp_iface.codec = DL_CTRL_CODEC(ptr_dl_ctrl);
 							ssp_iface.pcm_data_size = ssp_iface.codec == CODEC_NB ? 320 : 640;
-							LOGV("codec %d\n", ssp_iface.codec);
+						//	LOGV("codec %d\n", ssp_iface.codec);
 
 							/* pcm data address */
 							address += PCM_BM_CTRL_SIZE;
@@ -315,7 +315,7 @@ void *pcm_rx (void *arg)
 			}
 		}
 		else {
-            LOGV("ERROR: poll%d\n",ret);
+     //       LOGV("ERROR: poll%d\n",ret);
         	}
 	}
 	return NULL;
@@ -340,11 +340,11 @@ void *pcm_play (void *arg)
 		LOGV ("Playback open error: %s\n", snd_strerror (err));
 		exit (EXIT_FAILURE);
 	}
-	
+
 	set_pcm_params (handle, NB_FRAMES_PER_PLAY);
 
     while(read_modem_start == false) {
-		LOGV("FIRST WRITE\n");
+//		LOGV("FIRST WRITE\n");
 	   	
  		samples = (unsigned int*)&buffer;
  		sptr = (unsigned int*)SRCGetOutputReadPtrUpsamp8to48(rx_voice.SRCHandle16in_24out,960);
@@ -354,7 +354,7 @@ void *pcm_play (void *arg)
  			sptr++;
  		}
 		frames = snd_pcm_writei (handle, &buffer, 960);
-		frames = snd_pcm_writei (handle, &buffer, 960);	
+		frames = snd_pcm_writei (handle, &buffer, 960);
 		frames_avail = snd_pcm_avail(handle);
  		snd_pcm_hwsync(handle);
  		frames_avail_update = snd_pcm_avail_update(handle);
@@ -369,12 +369,12 @@ void *pcm_play (void *arg)
 		if (frames_avail < 0){
 			LOGV("frames avail error %s\n", snd_strerror(frames_avail));
 			frames = snd_pcm_recover (handle, frames, 0);
-			alsa_errors++;			
+			alsa_errors++;
 		}
 
 		/* if pcm play thread has les than one frame to play we double write the current one */
 		if ( frames_avail >= 3300 ) {
-		LOGV ("pcm_play above %d\n", frames_avail );	
+	//	LOGV ("pcm_play above %d\n", frames_avail );
 		samples = (unsigned int*)&buffer[0];
  		sptr = (unsigned int*)SRCGetOutputReadPtrUpsamp8to48(rx_voice.SRCHandle16in_24out,960);
  		for (k=0; k<960; k++) {
@@ -383,23 +383,23 @@ void *pcm_play (void *arg)
  			sptr++;
  		}
 		frames = snd_pcm_writei (handle, &buffer[0], 960);
-		LOGV ("RX num_read1=%d->%d (%ld)\n", rx_voice.num_read-NB_FRAMES_PER_PLAY, rx_voice.num_read, frames);		
+	//	LOGV ("RX num_read1=%d->%d (%ld)\n", rx_voice.num_read-NB_FRAMES_PER_PLAY, rx_voice.num_read, frames);
 		frames = snd_pcm_writei (handle, &buffer[0], 960);
-		LOGV ("RX num_read2=%d->%d (%ld)\n", rx_voice.num_read-NB_FRAMES_PER_PLAY, rx_voice.num_read, frames);
+	//	LOGV ("RX num_read2=%d->%d (%ld)\n", rx_voice.num_read-NB_FRAMES_PER_PLAY, rx_voice.num_read, frames);
 		if (frames < 0) {
 			frames = snd_pcm_recover (handle, frames, 0);
-			LOGV ("pcm_play recover %d (%ld)\n", rx_voice.num_read, frames);
+	//		LOGV ("pcm_play recover %d (%ld)\n", rx_voice.num_read, frames);
 			alsa_errors++;
 		} 
 		else {
-		    LOGV ("RX num_read=%d->%d (%ld)\n", rx_voice.num_read-NB_FRAMES_PER_PLAY, rx_voice.num_read, frames);	
+	//	    LOGV ("RX num_read=%d->%d (%ld)\n", rx_voice.num_read-NB_FRAMES_PER_PLAY, rx_voice.num_read, frames);
 		}
 		}
 		/* If pcm play thread is late to write sample more than 2 frames we reset the queue */
 		
 		else if ( frames_avail <= 1000 ) {
         alsa_errors++;
-		LOGV ("pcm_play below %d\n",frames_avail) ;
+	//	LOGV ("pcm_play below %d\n",frames_avail) ;
 		frames = snd_pcm_recover (handle,frames, 0);
 
 		}
@@ -412,24 +412,24 @@ void *pcm_play (void *arg)
  				*samples++ = *sptr;
  			sptr++;
  		}
-		LOGV("before writei normal case\n");
+	//	LOGV("before writei normal case\n");
 		frames = snd_pcm_writei (handle, &buffer[0], 960);
-		LOGV ("frame avail %d\n",frames_avail) ;
+	//	LOGV ("frame avail %d\n",frames_avail) ;
 		
 		if (frames < 0) {
 			frames = snd_pcm_recover (handle, frames, 0);
-			LOGV ("pcm_play recover %d (%ld)\n", rx_voice.num_read, frames);
+	//		LOGV ("pcm_play recover %d (%ld)\n", rx_voice.num_read, frames);
 			alsa_errors++;
 		} 
 		else {
-		    LOGV ("RX num_read=%d->%d (%ld)\n", rx_voice.num_read-NB_FRAMES_PER_PLAY, rx_voice.num_read, frames);
+	//	    LOGV ("RX num_read=%d->%d (%ld)\n", rx_voice.num_read-NB_FRAMES_PER_PLAY, rx_voice.num_read, frames);
 		}
 		}
 		if (alsa_errors > 0){
         	state_play++;
 			}
-		}	
-	
+		}
+
 	snd_pcm_close (handle);
 	return 0;
 }
@@ -509,14 +509,14 @@ int asf_start (void)
 		LOGV("error with open /dev/cmt_speech\n");
 		return 0;
 	}
-	
+
 	/* Narrow Band => 320 */
 	/* Wide Band   => 640 */
 	/* we start by default in NB. Then driver will automatically detects */
 	//ssp_iface.burst_mode = 1;
 
 	ssp_iface.pcm_data_size = 320;
-	
+
 	/* MMAP */
 	ssp_iface.mmap_size = MAP_SIZE; /* map one page */
 	ssp_iface.mmap_base = mmap(0, MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, ssp_iface.fd, 0);
@@ -537,7 +537,7 @@ int asf_start (void)
 	LOGV("before ioctl\n"); 
 	ret = ioctl(ssp_iface.fd, CS_CONFIG_BUFS, &buf_cfg);
 	LOGV("after ioctl\n");
-   	
+
 	if (ret < 0) {
 		LOGV("error %d with ioctl\n", ret);
 		return 0;
@@ -546,15 +546,18 @@ int asf_start (void)
 	rx_voice.SRCHandle16in_24out = SRCInitUpsamp8to48(ssp_iface.mmap_base + ssp_iface.mmap_cfg->rx_offsets[ssp_iface.rx_slot], NB_RX_BUFS*(160+PCM_BM_CTRL_SIZE), 960);
 	else 
 	rx_voice.SRCHandle16in_24out = SRCInitUpsamp8to48(ssp_iface.mmap_base + ssp_iface.mmap_cfg->rx_offsets[ssp_iface.rx_slot], NB_RX_BUFS*160, 960);
-  	tx_voice.SRCHandle24in_16out = SRCInitDownsamp48to8(4*960, NB_TX_BUFS*160);
-	
+
+	tx_voice.SRCHandle24in_16out = SRCInitDownsamp48to8(4*960, NB_TX_BUFS*160);
+
 	start_thread_with_priority_max (&thread_tx, &pcm_tx, NULL);
 	start_thread_with_priority_max (&thread_rx, &pcm_rx, NULL);
 
 	start_thread_with_priority_max (&thread_capture, &pcm_capture, NULL);
+
+	state_play=0;
 	while (state_play < 10 ) {
 	state_play = 0;
-	alsa_errors = 0;	
+	alsa_errors = 0;
 	LOGV(" START capture and play\n");
 	sem_init (&rx_voice.sem_buf, 0, 0);
 	pthread_create(&thread_play, NULL, &pcm_play, NULL);
@@ -566,5 +569,5 @@ int asf_start (void)
 	pthread_join (thread_rx, NULL);
 	LOGV(" STOP\n");
 	return 0;
-	
+
 }

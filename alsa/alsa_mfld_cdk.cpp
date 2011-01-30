@@ -473,7 +473,7 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
     if (err == NO_ERROR) err = setSoftwareParams(handle);
 
     LOGI("Initialized ALSA %s device %s", stream, devName);
-	s_config(handle,mode);
+//	s_config(handle,mode);
     handle->curDev = devices;
     handle->curMode = mode;
     return err;
@@ -499,6 +499,8 @@ static status_t s_route(alsa_handle_t *handle, uint32_t devices, int mode)
 
     LOGD("route called for devices %08x in mode %d...", devices, mode);
 
+	s_config(handle,mode);
+	if(handle->curDev == devices || mode == AudioSystem::MODE_IN_CALL) return NO_ERROR;
     if (handle->handle && handle->curDev == devices && handle->curMode == mode) return NO_ERROR;
 
 	return s_open(handle, devices, mode);
@@ -509,23 +511,24 @@ static status_t s_config(alsa_handle_t *handle, int mode)
 {
 	status_t err = NO_ERROR;
 	int pid=0;
-	if(mode == AudioSystem::MODE_IN_CALL ){
+	if(mode == AudioSystem::MODE_IN_CALL && voice_activated == 0 ){
 	    s_close(handle);
 		voice_activated = 1;		
 		pid = asf_start();
-		LOGD("PID BRIDGEAPP %d\n",pid);
+		LOGD("Start call  ~~~~~~~~~~~ %d\n",pid);
+		sleep(1); //wait for call to start up
 		return NO_ERROR;	
 	}	
 	else if (mode == 0/*  AudioSystem::MODE_NORMAL*/){
 		if(voice_activated == 1){
-	    LOGD("HANGUP\n");		
-		voice_activated = 0;
-		kill(pid,SIGTERM);
-		return NO_ERROR;
+			LOGD("HANGUP call ~~~~~~~~~~~\n");
+			voice_activated = 0;
+			kill(pid,SIGTERM);
+			return NO_ERROR;
 		}
 		else{ 
-		snd_pcm_reset(handle->handle);
-		return NO_ERROR;
+			snd_pcm_reset(handle->handle);
+			return NO_ERROR;
 		}
 
 	}

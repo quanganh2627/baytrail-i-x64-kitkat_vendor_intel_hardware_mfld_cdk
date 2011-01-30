@@ -451,6 +451,8 @@ int asf_start (void)
 	pthread_t thread_play;
 	pthread_t thread_rx;
 
+	system("alsa_amixer cset numid=1 0");
+	system("alsa_amixer cset numid=2 0");
 	/* Our process ID and Session ID */
 	pid_t pid, sid;
 	/* Signal handling structure */

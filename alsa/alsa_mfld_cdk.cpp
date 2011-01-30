@@ -115,7 +115,7 @@ static alsa_handle_t _defaultsOut = {
     format      : SND_PCM_FORMAT_S16_LE, // AudioSystem::PCM_16_BIT
     channels    : 2,
     sampleRate  : DEFAULT_SAMPLE_RATE,
-    latency     : 100000, // Desired Delay in usec
+    latency     : 200000, // Desired Delay in usec
     bufferSize  : DEFAULT_SAMPLE_RATE / 5, // Desired Number of samples
     modPrivate  : 0,
 };
@@ -291,7 +291,7 @@ status_t setHardwareParams(alsa_handle_t *handle)
     err = snd_pcm_hw_params_get_buffer_time_max(hardwareParams,
 					    &buffer_time, 0);
     if (buffer_time > 500000)
-	buffer_time = 80000;
+	buffer_time = 500000;
     period_time = buffer_time / 4;
 
     err = snd_pcm_hw_params_set_period_time_near(handle->handle, hardwareParams,
@@ -509,13 +509,14 @@ static status_t s_route(alsa_handle_t *handle, uint32_t devices, int mode)
 
 static status_t s_config(alsa_handle_t *handle, int mode)
 {
+	static int asf_pid = 0;
+
 	status_t err = NO_ERROR;
-	int pid=0;
 	if(mode == AudioSystem::MODE_IN_CALL && voice_activated == 0 ){
 	    s_close(handle);
 		voice_activated = 1;		
-		pid = asf_start();
-		LOGD("Start call  ~~~~~~~~~~~ %d\n",pid);
+		asf_pid = asf_start();
+		LOGD("Start call  ~~~~~~~~~~~ %d\n",asf_pid);
 		sleep(1); //wait for call to start up
 		return NO_ERROR;	
 	}	
@@ -523,7 +524,7 @@ static status_t s_config(alsa_handle_t *handle, int mode)
 		if(voice_activated == 1){
 			LOGD("HANGUP call ~~~~~~~~~~~\n");
 			voice_activated = 0;
-			kill(pid,SIGTERM);
+			kill(asf_pid,SIGTERM);
 			return NO_ERROR;
 		}
 		else{ 

@@ -17,7 +17,6 @@
 
 #define LOG_TAG "ALSAModule"
 #include <utils/Log.h>
-#include "bridgeapp.h"
 #include "AudioHardwareALSA.h"
 #include <media/AudioRecord.h>
 #include <signal.h>
@@ -145,8 +144,12 @@ static const device_suffix_t deviceSuffix[] = {
         {AudioSystem::DEVICE_OUT_EARPIECE,       "_Earpiece"},
         {AudioSystem::DEVICE_OUT_SPEAKER,        "_Speaker"},
         {AudioSystem::DEVICE_OUT_BLUETOOTH_SCO,  "_Bluetooth"},
+	{AudioSystem::DEVICE_OUT_WIRED_HEADPHONE,"_Headphone"},
         {AudioSystem::DEVICE_OUT_WIRED_HEADSET,  "_Headset"},
         {AudioSystem::DEVICE_OUT_BLUETOOTH_A2DP, "_Bluetooth-A2DP"},
+	{AudioSystem::DEVICE_IN_BUILTIN_MIC,           "_BuiltinMic"},
+	{AudioSystem::DEVICE_IN_BLUETOOTH_SCO_HEADSET, "_BluetoothScoHeadset"},
+	{AudioSystem::DEVICE_IN_WIRED_HEADSET,         "_Headset"},
 };
 
 static const int deviceSuffixLen = (sizeof(deviceSuffix)
@@ -473,7 +476,6 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
     if (err == NO_ERROR) err = setSoftwareParams(handle);
 
     LOGI("Initialized ALSA %s device %s", stream, devName);
-//	s_config(handle,mode);
     handle->curDev = devices;
     handle->curMode = mode;
     return err;
@@ -509,31 +511,6 @@ static status_t s_route(alsa_handle_t *handle, uint32_t devices, int mode)
 
 static status_t s_config(alsa_handle_t *handle, int mode)
 {
-	static int asf_pid = 0;
-
-	status_t err = NO_ERROR;
-	if(mode == AudioSystem::MODE_IN_CALL && voice_activated == 0 ){
-	    s_close(handle);
-		voice_activated = 1;		
-		asf_pid = asf_start();
-		LOGD("Start call  ~~~~~~~~~~~ %d\n",asf_pid);
-		sleep(1); //wait for call to start up
-		return NO_ERROR;	
-	}	
-	else if (mode == 0/*  AudioSystem::MODE_NORMAL*/){
-		if(voice_activated == 1){
-			LOGD("HANGUP call ~~~~~~~~~~~\n");
-			voice_activated = 0;
-			kill(asf_pid,SIGTERM);
-			return NO_ERROR;
-		}
-		else{ 
-			snd_pcm_reset(handle->handle);
-			return NO_ERROR;
-		}
-
-	}
-	else 
-		return NO_ERROR;
+	return NO_ERROR;
 }
 }

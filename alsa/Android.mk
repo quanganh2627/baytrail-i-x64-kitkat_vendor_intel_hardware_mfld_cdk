@@ -20,8 +20,6 @@ LOCAL_C_INCLUDES += external/alsa-lib/include hardware/alsa_sound hardware/intel
 
   LOCAL_SRC_FILES:= \
 	alsa_mfld_cdk.cpp \
-  	bridgeapp_test.c \
-	src24bit_cmtspeech.c 
 
   LOCAL_SHARED_LIBRARIES := \
   	libasound \

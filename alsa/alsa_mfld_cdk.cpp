@@ -434,10 +434,6 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
     //
     s_close(handle);
 
-#ifdef OSPM_DEBUG
-    return NO_INIT;
-#endif
-
     LOGD("open called for devices %08x in mode %d...", devices, mode);
 
     const char *stream = streamName(handle);

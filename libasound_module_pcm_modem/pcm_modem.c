@@ -5,10 +5,10 @@
 #include <alsa/asoundlib.h>
 #include <alsa/pcm_external.h>
 #include <amc.h>
+#include <alsa/asoundlib.h>
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
-
-#include <alsa/asoundlib.h>
+#define MEDFIELDAUDIO "medfieldaudio"
 
 typedef struct snd_pcm_modem {
     snd_pcm_ioplug_t io;
@@ -452,7 +452,10 @@ SND_PCM_PLUGIN_DEFINE_FUNC(modem)
 
     *pcmp = pcm->io.pcm;
 
-    static char *device_v = "hw:1,4,0";
+    int card = snd_card_get_index(MEDFIELDAUDIO);
+    char device_v[128];
+    sprintf(device_v, "hw:%d,4", card);
+    SNDERR("%s \n",device_v);
 
     if ((err = snd_pcm_open(&pcm->phandle, device_v, SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
         SNDERR("Playback open error: %s\n", snd_strerror(err));

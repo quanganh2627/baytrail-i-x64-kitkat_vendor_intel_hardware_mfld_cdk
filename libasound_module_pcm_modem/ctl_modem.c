@@ -36,6 +36,8 @@ typedef struct snd_ctl_modem {
 #define UPDATE_HEADSET  0x10
 #define UPDATE_BT  0x20
 
+#define MEDFIELDAUDIO "medfieldaudio"
+
 static int modem_update_volume(snd_ctl_modem_t * ctl)
 {
     int err;
@@ -172,31 +174,113 @@ finish:
     return err;
 }
 
+
+static bool modem_set_param(snd_ctl_t *handle, const char *name,
+                            unsigned int value, int index)
+{
+    int err, i;
+    snd_ctl_elem_id_t *id;
+    snd_ctl_elem_info_t *info;
+
+    snd_ctl_elem_id_alloca(&id);
+    snd_ctl_elem_info_alloca(&info);
+
+    snd_ctl_elem_id_set_interface(id, SND_CTL_ELEM_IFACE_MIXER);
+    snd_ctl_elem_id_set_name(id, name);
+    snd_ctl_elem_info_set_id(info, id);
+
+    err = snd_ctl_elem_info(handle, info);
+    if (err < 0) {
+        SNDERR("Control '%s' cannot get element info: %d", name, err);
+        goto err;
+    }
+
+    int count = snd_ctl_elem_info_get_count(info);
+    if (index >= count) {
+        SNDERR("Control '%s' index is out of range (%d >= %d)", name, index, count);
+        goto err;
+    }
+
+    if (index == -1)
+        index = 0;
+    else
+        count = index + 1;
+
+    snd_ctl_elem_type_t type = snd_ctl_elem_info_get_type(info);
+
+    snd_ctl_elem_value_t *control;
+    snd_ctl_elem_value_alloca(&control);
+
+    snd_ctl_elem_info_get_id(info, id);
+    snd_ctl_elem_value_set_id(control, id);
+
+    for (i = index; i < count; i++)
+        switch (type) {
+        case SND_CTL_ELEM_TYPE_BOOLEAN:
+            snd_ctl_elem_value_set_boolean(control, i, value);
+            break;
+        case SND_CTL_ELEM_TYPE_INTEGER:
+            snd_ctl_elem_value_set_integer(control, i, value);
+            break;
+        case SND_CTL_ELEM_TYPE_INTEGER64:
+            snd_ctl_elem_value_set_integer64(control, i, value);
+            break;
+        case SND_CTL_ELEM_TYPE_ENUMERATED:
+            snd_ctl_elem_value_set_enumerated(control, i, value);
+            break;
+        case SND_CTL_ELEM_TYPE_BYTES:
+            snd_ctl_elem_value_set_byte(control, i, value);
+            break;
+        default:
+            break;
+        }
+
+    err = snd_ctl_elem_write(handle, control);
+    if (err < 0) {
+        SNDERR("Control '%s' write error", name);
+        goto err;
+    }
+    return true;
+
+err:
+    return false;
+}
+
 static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
                                long *value)
 {
     snd_ctl_modem_t *ctl = ext->private_data;
     int err = 0, i;
-    SNDERR("file = %s, func = %s, line = %d, value = %d", __FILE__, __func__, __LINE__,*value);
 
     assert(ctl);
+
+    int card = snd_card_get_index(MEDFIELDAUDIO);
+    snd_ctl_t *handle;
+    char str[64];
+    sprintf(str, "hw:CARD=%d", card);
+
+    if ((err = snd_ctl_open(&handle, str, 0)) < 0) {
+        SNDERR("Open error:%s\n", snd_strerror(err));
+        goto finish;
+    }
+    int index = 0;
 
     switch (key) {
     case 0://earpiece
         SNDERR("voice route to earpiece \n");
-        system("alsa_amixer -c1 cset numid=8 0");
-        system("alsa_amixer -c1 cset numid=10 0");
-        system("alsa_amixer -c1 cset numid=12 1");
-        system("alsa_amixer -c1 cset numid=11 0,0");
-        system("alsa_amixer -c1 cset numid=1 0");
-        system("alsa_amixer -c1 cset numid=16 0");
-        system("alsa_amixer -c1 cset numid=6 3");
+        modem_set_param(handle, "Playback Switch", 0, index);
+        modem_set_param(handle, "Headset Playback Route", 0, index);
+        modem_set_param(handle, "Mode Playback Route", 1, index);
+        modem_set_param(handle, "Speaker Mux Playback Route", 0, -1);
+        modem_set_param(handle, "Mic1Mode Capture Route", 0, index);
+        modem_set_param(handle, "Txpath1 Capture Route", 0, index);
+        modem_set_param(handle, "Mic1 Capture Volume", 3, index);
         break;
     case 1: //speaker
         SNDERR("voice route to Speaker \n");
-        system("alsa_amixer -c1 cset numid=11 1");
-        system("alsa_amixer -c1 cset numid=12 1");
-        system("alsa_amixer -c1 cset numid=10 1");
+        modem_set_param(handle, "Speaker Mux Playback Route", 1, index);
+        modem_set_param(handle, "Mode Playback Route", 1, index);
+        modem_set_param(handle, "Headset Playback Route", 1, index);
         if (!!ctl->source_muted == !*value)
             goto finish;
         ctl->source_muted = !*value;
@@ -210,15 +294,15 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
         break;
     case 4: // headset
         SNDERR("voice route to headset \n");
-        system("alsa_amixer -c1 cset numid=8 1");
-        system("alsa_amixer -c1 cset numid=10 0");
-        system("alsa_amixer -c1 cset numid=12 1");
-        system("alsa_amixer -c1 cset numid=11 0,0");
-        system("alsa_amixer -c1 cset numid=1 0");
-        system("alsa_amixer -c1 cset numid=18 0");
-        system("alsa_amixer -c1 cset numid=17 0");
-        system("alsa_amixer -c1 cset numid=16 6");
-        system("alsa_amixer -c1 cset numid=6 3");
+        modem_set_param(handle, "Playback Switch", 1, index);
+        modem_set_param(handle, "Headset Playback Route", 0, index);
+        modem_set_param(handle, "Mode Playback Route", 1, index);
+        modem_set_param(handle, "Speaker Mux Playback Route", 0, -1);
+        modem_set_param(handle, "Mic1Mode Capture Route", 0, index);
+        modem_set_param(handle, "Mic_InputL Capture Route", 0, index);
+        modem_set_param(handle, "Mic_InputR Capture Route", 0, index);
+        modem_set_param(handle, "Txpath1 Capture Route", 6, index);
+        modem_set_param(handle, "Mic1 Capture Volume", 3, index);
         break;
     case 5: // bt
         SNDERR("voice route to BT \n");
@@ -227,6 +311,8 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
         err = -EINVAL;
         goto finish;
     }
+
+    snd_ctl_close(handle);
 
     if (err < 0)
         goto finish;

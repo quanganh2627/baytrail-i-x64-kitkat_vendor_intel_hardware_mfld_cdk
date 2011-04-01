@@ -112,6 +112,7 @@ static int modem_start(snd_pcm_ioplug_t * io)
 
     assert(pcm);
 
+    pcm->ptr = 0;
     return err;
 }
 
@@ -136,6 +137,7 @@ static snd_pcm_sframes_t modem_pointer(snd_pcm_ioplug_t * io)
     snd_pcm_sframes_t ret = 0;
 
     assert(pcm);
+    ret = pcm->ptr;
 
     return ret;
 }
@@ -156,8 +158,11 @@ static snd_pcm_sframes_t modem_write(snd_pcm_ioplug_t * io,
     snd_pcm_modem_t *pcm = io->private_data;
     const char *buf;
     snd_pcm_sframes_t ret = size;
-    usleep(10000);
-    return -EIO;
+    int bytes = snd_pcm_format_physical_width(io->format);
+    int consume = (size * 1000 * 1000 * 1000) / (bytes * io->rate * io->channels);
+    usleep(consume);
+    pcm->ptr = (pcm->ptr + size) % io->buffer_size;
+    return ret;
 }
 
 static snd_pcm_sframes_t modem_read(snd_pcm_ioplug_t * io,

@@ -454,7 +454,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(modem)
 
     int card = snd_card_get_index(MEDFIELDAUDIO);
     char device_v[128];
-    sprintf(device_v, "hw:%d,4", card);
+    sprintf(device_v, "hw:%d,2", card);
     SNDERR("%s \n",device_v);
 
     if ((err = snd_pcm_open(&pcm->phandle, device_v, SND_PCM_STREAM_PLAYBACK, 0)) < 0) {

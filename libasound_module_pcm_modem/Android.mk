@@ -1,3 +1,5 @@
+ifeq ($(strip $(BOARD_USES_ALSA_AUDIO)),true)
+
 LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
@@ -48,3 +50,4 @@ LOCAL_MODULE := libasound_module_ctl_modem
 LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_SHARED_LIBRARY)
+endif

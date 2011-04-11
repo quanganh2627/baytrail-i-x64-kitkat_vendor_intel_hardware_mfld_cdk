@@ -451,10 +451,6 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
     // changes, but we might be recovering from an error or manipulating
     // mixer settings (see asound.conf).
     //
-    if (direction(handle) == SND_PCM_STREAM_PLAYBACK)
-        open_write_lock.lock();
-    else
-        open_read_lock.lock();
     s_close(handle);
 
     LOGD("open called for devices %08x in mode %d...", devices, mode);
@@ -488,10 +484,6 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
     if (err < 0) {
         LOGE("Failed to Initialize any ALSA %s device: %s",
              stream, strerror(err));
-        if (direction(handle) == SND_PCM_STREAM_PLAYBACK)
-            open_write_lock.unlock();
-        else
-            open_read_lock.unlock();
         return NO_INIT;
     }
 
@@ -502,10 +494,6 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
     LOGI("Initialized ALSA %s device %s", stream, devName);
     handle->curDev = devices;
     handle->curMode = mode;
-    if (direction(handle) == SND_PCM_STREAM_PLAYBACK)
-        open_write_lock.unlock();
-    else
-        open_read_lock.unlock();
     return err;
 }
 
@@ -518,7 +506,7 @@ static status_t s_standby(alsa_handle_t *handle)
         snd_pcm_drain(h);
         err = snd_pcm_close(h);
     }
-	LOGD("S_STANDBY\n");
+    LOGD("S_STANDBY\n");
     return err;
 }
 

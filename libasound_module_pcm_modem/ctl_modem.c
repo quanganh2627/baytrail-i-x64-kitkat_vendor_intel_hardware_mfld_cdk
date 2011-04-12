@@ -1,3 +1,5 @@
+#define LOG_TAG "ALSAModule"
+#include <utils/Log.h>
 #include <sys/poll.h>
 #define _POSIX_C_SOURCE
 
@@ -89,6 +91,7 @@ static snd_ctl_ext_key_t modem_find_elem(snd_ctl_ext_t * ext,
         return numid - 1;
 
     name = snd_ctl_elem_id_get_name(id);
+    LOGD("%s : name = %s\n", __func__, name);
 
     if (strcmp(name, VOICE_EARPIECE) == 0)
         return 0;
@@ -286,10 +289,11 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
         ctl->source_muted = !*value;
         break;
     case 2: //modem setup
-        SNDERR("voice enbale \n");
+        SNDERR("modem voice route to MSIC \n");
         amc_voice();
         break;
     case 3://modem setup for bt call
+        SNDERR("modem voice route to BT \n");
         amc_bt();
         break;
     case 4: // headset

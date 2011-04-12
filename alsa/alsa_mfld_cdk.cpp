@@ -126,7 +126,7 @@ format      :
     channels    : 2,
 sampleRate  :
     DEFAULT_SAMPLE_RATE,
-    latency     : 100000, // Desired Delay in usec
+    latency     : 50000, // Desired Delay in usec
 bufferSize  :
     DEFAULT_SAMPLE_RATE / 5, // Desired Number of samples
     modPrivate  : 0,

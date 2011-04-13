@@ -17,3 +17,4 @@
 int amc_voice();
 int amc_bt();
 int amc_adjust_volume(int volume);
+int amc_mixing();

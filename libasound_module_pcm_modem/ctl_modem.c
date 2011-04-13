@@ -297,7 +297,7 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
         break;
     case 2: //modem setup
         SNDERR("modem voice route to MSIC \n");
-        amc_voice();
+        amc_mixing();
         break;
     case 3://modem setup for bt call
         SNDERR("modem voice route to BT \n");

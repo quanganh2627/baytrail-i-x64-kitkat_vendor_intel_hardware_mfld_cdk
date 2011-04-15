@@ -6,7 +6,7 @@
  ** you may not use this file except in compliance with the License.
  ** You may obtain a copy of the License at
  **
- **     http://www.apache.org/licenses/LICENSE-2.0
+ **     http://www.apache.org/licenses/LICENSE-2.0 
  **
  ** Unless required by applicable law or agreed to in writing, software
  ** distributed under the License is distributed on an "AS IS" BASIS,
@@ -31,6 +31,10 @@
 
 #ifndef ALSA_DEFAULT_SAMPLE_RATE
 #define ALSA_DEFAULT_SAMPLE_RATE 44100 // in Hz
+#endif
+
+#ifndef HDMI_DEFAULT_SAMPLE_RATE
+#define HDMI_DEFAULT_SAMPLE_RATE 48000 // in Hz
 #endif
 
 #undef LOGV
@@ -169,6 +173,7 @@ static const device_suffix_t deviceSuffix[] = {
     {AudioSystem::DEVICE_OUT_WIRED_HEADPHONE,"_Headphone"},
     {AudioSystem::DEVICE_OUT_WIRED_HEADSET,  "_Headset"},
     {AudioSystem::DEVICE_OUT_BLUETOOTH_A2DP, "_Bluetooth-A2DP"},
+    {AudioSystem::DEVICE_OUT_HDMI,           "_HDMI"},
     {AudioSystem::DEVICE_IN_BUILTIN_MIC,           "_BuiltinMic"},
     {AudioSystem::DEVICE_IN_BLUETOOTH_SCO_HEADSET, "_BluetoothScoHeadset"},
     {AudioSystem::DEVICE_IN_WIRED_HEADSET,         "_Headset"},
@@ -192,12 +197,13 @@ const char *deviceName(alsa_handle_t *handle, uint32_t device, int mode)
 
     strcpy(devString, devicePrefix[direction(handle)]);
 
-    for (int dev = 0; device && dev < deviceSuffixLen; dev++)
+    for (int dev = 0; device && dev < deviceSuffixLen; dev++) {
         if (device & deviceSuffix[dev].device) {
             ALSA_STRCAT (devString, deviceSuffix[dev].suffix);
             device &= ~deviceSuffix[dev].device;
             hasDevExt = 1;
         }
+    }
 
     if (hasDevExt) switch (mode) {
         case AudioSystem::MODE_NORMAL:
@@ -214,6 +220,7 @@ const char *deviceName(alsa_handle_t *handle, uint32_t device, int mode)
             break;
         };
 
+    LOGD("returning deviceName = %s", devString);
     return devString;
 }
 
@@ -493,6 +500,10 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
         return NO_INIT;
     }
 
+    if (devices & AudioSystem::DEVICE_OUT_HDMI) {
+        LOGD("Detected HDMI device, setting sample rate to %d", HDMI_DEFAULT_SAMPLE_RATE);
+        handle->sampleRate = HDMI_DEFAULT_SAMPLE_RATE;
+    }
     err = setHardwareParams(handle);
 
     if (err == NO_ERROR) err = setSoftwareParams(handle);
@@ -535,7 +546,6 @@ static status_t s_close(alsa_handle_t *handle)
 
 static status_t s_route(alsa_handle_t *handle, uint32_t devices, int mode)
 {
-
     LOGD("route called for devices %08x in mode %d...", devices, mode);
     if(!handle->openFlag) {
         LOGD("s_route handle->handle is NULL.");

@@ -159,7 +159,9 @@ struct device_suffix_t {
 static const device_suffix_t deviceSuffix[] = {
     {AudioSystem::DEVICE_OUT_EARPIECE,       "_Earpiece"},
     {AudioSystem::DEVICE_OUT_SPEAKER,        "_Speaker"},
-    {AudioSystem::DEVICE_OUT_BLUETOOTH_SCO,  "_Bluetooth"},
+    {AudioSystem::DEVICE_OUT_BLUETOOTH_SCO,         "_Bluetooth"},
+    {AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET, "_Bluetooth"},
+    {AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_CARKIT,  "_Bluetooth"},
     {AudioSystem::DEVICE_OUT_WIRED_HEADPHONE,"_Headphone"},
     {AudioSystem::DEVICE_OUT_WIRED_HEADSET,  "_Headset"},
     {AudioSystem::DEVICE_OUT_BLUETOOTH_A2DP, "_Bluetooth-A2DP"},

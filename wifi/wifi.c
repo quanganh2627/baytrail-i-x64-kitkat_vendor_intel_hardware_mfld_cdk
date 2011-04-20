@@ -41,8 +41,8 @@ extern int ifc_init();
 extern void ifc_close();
 extern char *dhcp_lasterror();
 extern void get_dhcp_info();
-extern int init_module(void *, unsigned long, const char *);
-extern int delete_module(const char *, unsigned int);
+int init_module(void *, unsigned long, const char *);
+int delete_module(const char *, unsigned int);
 
 static char iface[PROPERTY_VALUE_MAX];
 // TODO: use new ANDROID_SOCKET mechanism, once support for multiple
@@ -63,6 +63,7 @@ static char iface[PROPERTY_VALUE_MAX];
 #define WIFI_TEST_INTERFACE		"sta"
 
 #define WIFI_DRIVER_LOADER_DELAY	2000000
+#define AP_WIFI_DRIVER_LOADER_DELAY	500000
 
 static const char IFACE_DIR[]           = "/data/system/wpa_supplicant";
 static const char DRIVER_MODULE_NAME[]  = WIFI_DRIVER_MODULE_NAME;
@@ -71,11 +72,37 @@ static const char DRIVER_MODULE_PATH[]  = WIFI_DRIVER_MODULE_PATH;
 static const char DRIVER_MODULE_ARG[]   = WIFI_DRIVER_MODULE_ARG;
 static const char FIRMWARE_LOADER[]     = WIFI_FIRMWARE_LOADER;
 static const char DRIVER_PROP_NAME[]    = "wlan.driver.status";
+
+#ifndef AP_WIFI_DRIVER_MODULE_PATH
+#define AP_WIFI_DRIVER_MODULE_PATH      "/lib/modules/tiap_drv.ko"
+#endif
+#ifndef AP_WIFI_DRIVER_MODULE_NAME
+#define AP_WIFI_DRIVER_MODULE_NAME      "tiap_drv"
+#endif
+#ifndef AP_WIFI_DRIVER_MODULE_ARG
+#define AP_WIFI_DRIVER_MODULE_ARG       ""
+#endif
+#ifndef AP_WIFI_FIRMWARE_LOADER
+#define AP_WIFI_FIRMWARE_LOADER         "tiap_loader"
+#endif
+
+
+static const char AP_DRIVER_MODULE_NAME[]  = AP_WIFI_DRIVER_MODULE_NAME;
+static const char AP_DRIVER_MODULE_TAG[]   = AP_WIFI_DRIVER_MODULE_NAME " ";
+static const char AP_DRIVER_MODULE_PATH[]  = AP_WIFI_DRIVER_MODULE_PATH;
+static const char AP_DRIVER_MODULE_ARG[]   = AP_WIFI_DRIVER_MODULE_ARG;
+static const char AP_FIRMWARE_LOADER[]     = AP_WIFI_FIRMWARE_LOADER;
+static const char AP_DRIVER_PROP_NAME[]    = "wlan.ap.driver.status";
+
+
 static const char SUPPLICANT_NAME[]     = "wpa_supplicant";
 static const char SUPP_PROP_NAME[]      = "init.svc.wpa_supplicant";
 static const char SUPP_CONFIG_TEMPLATE[]= "/system/etc/wifi/wpa_supplicant.conf";
 static const char SUPP_CONFIG_FILE[]    = "/data/misc/wifi/wpa_supplicant.conf";
 static const char MODULE_FILE[]         = "/proc/modules";
+
+static struct wifi_device_t *dev ;
+
 
 static int insmod(const char *filename, const char *args)
 {
@@ -84,9 +111,18 @@ static int insmod(const char *filename, const char *args)
     int ret;
 
     module = load_file(filename, &size);
-    if (!module)
+    if (!module) {
+        LOGE("Unable to load_file driver module \"%s\": %s\n",
+             filename, strerror(errno));
         return -1;
+    }
+
     ret = init_module(module, size, args);
+
+    if (ret != 0) {
+        LOGE("Unable to init_module module \"%s\": %s\n",
+             filename, strerror(errno));
+    }
 
     free(module);
 
@@ -107,7 +143,7 @@ static int rmmod(const char *modname)
     }
 
     if (ret != 0)
-        LOGD("Unable to unload driver module \"%s\": %s\n",
+        LOGE("Unable to unload driver module \"%s\": %s\n",
              modname, strerror(errno));
     return ret;
 }
@@ -134,6 +170,116 @@ const char *get_dhcp_error_string() {
     return dhcp_lasterror();
 }
 
+int wifi_enable() {
+	LOGD("wifi_enable : STA mode set");
+	return wifi_load_driver();
+}
+
+int wifi_disable() {
+	LOGD("wifi_disable : In STA, now unloading it");
+	return wifi_unload_driver();
+
+}
+int wifi_ap_enable() {
+	LOGD("wifi_ap_enable : AP mode set");
+	return hotspot_load_driver();
+}
+int wifi_ap_disable() {
+	LOGD("wifi_ap_disable : In AP, now unloading it");
+	return hotspot_unload_driver();
+}
+
+static int check_hotspot_driver_loaded() {
+    char driver_status[PROPERTY_VALUE_MAX];
+    FILE *proc;
+    char line[sizeof(AP_DRIVER_MODULE_TAG)+10];
+
+    if (!property_get(AP_DRIVER_PROP_NAME, driver_status, NULL)
+            || strcmp(driver_status, "ok") != 0) {
+        return 0;  /* driver not loaded */
+    }
+    /*
+     * If the property says the driver is loaded, check to
+     * make sure that the property setting isn't just left
+     * over from a previous manual shutdown or a runtime
+     * crash.
+     */
+    if ((proc = fopen(MODULE_FILE, "r")) == NULL) {
+        LOGE("Could not open %s: %s", MODULE_FILE, strerror(errno));
+        property_set(AP_DRIVER_PROP_NAME, "unloaded");
+        return 0;
+    }
+    while ((fgets(line, sizeof(line), proc)) != NULL) {
+        if (strncmp(line, AP_DRIVER_MODULE_TAG, strlen(AP_DRIVER_MODULE_TAG)) == 0) {
+            fclose(proc);
+            return 1;
+        }
+    }
+    fclose(proc);
+    property_set(AP_DRIVER_PROP_NAME, "unloaded");
+    return 0;
+}
+
+int hotspot_load_driver()
+{
+    char driver_status[PROPERTY_VALUE_MAX];
+    int count = 100; /* wait at most 20 seconds for completion */
+
+    if (check_hotspot_driver_loaded()) {
+        return 0;
+    }
+
+    if (insmod(AP_DRIVER_MODULE_PATH, AP_DRIVER_MODULE_ARG) < 0)
+        return -1;
+
+    if (strcmp(AP_FIRMWARE_LOADER,"") == 0) {
+        usleep(AP_WIFI_DRIVER_LOADER_DELAY);
+        property_set(AP_DRIVER_PROP_NAME, "ok");
+    }
+    else {
+        LOGD("Start firmware");
+        property_set("ctl.start", AP_FIRMWARE_LOADER);
+        usleep(AP_WIFI_DRIVER_LOADER_DELAY);
+    }
+    sched_yield();
+    while (count-- > 0) {
+        if (property_get(AP_DRIVER_PROP_NAME, driver_status, NULL)) {
+            if (strcmp(driver_status, "ok") == 0) {
+                LOGD("Firmware status  : ok");
+                return 0;
+			}
+            else if (strcmp(AP_DRIVER_PROP_NAME, "failed") == 0) {
+                hotspot_unload_driver();
+                return -1;
+            }
+        }
+		else { LOGE("Can't get property of %s",AP_DRIVER_PROP_NAME); }
+        usleep(200000);
+    }
+    property_set(AP_DRIVER_PROP_NAME, "timeout");
+    hotspot_unload_driver();
+    return -1;
+}
+
+
+int hotspot_unload_driver()
+{
+    int count = 20; /* wait at most 10 seconds for completion */
+
+    if (rmmod(AP_DRIVER_MODULE_NAME) == 0) {
+        while (count-- > 0) {
+            if (!check_hotspot_driver_loaded())
+                break;
+            usleep(500000);
+        }
+        if (count) {
+            return 0;
+        }
+        return -1;
+    } else
+        return -1;
+}
+
 static int check_driver_loaded() {
     char driver_status[PROPERTY_VALUE_MAX];
     FILE *proc;
@@ -150,7 +296,7 @@ static int check_driver_loaded() {
      * crash.
      */
     if ((proc = fopen(MODULE_FILE, "r")) == NULL) {
-        LOGW("Could not open %s: %s", MODULE_FILE, strerror(errno));
+        LOGE("Could not open %s: %s", MODULE_FILE, strerror(errno));
         property_set(DRIVER_PROP_NAME, "unloaded");
         return 0;
     }
@@ -503,7 +649,7 @@ static int open_wifi(const struct hw_module_t* module,
 
     LOGD("%s: name=%s", __FUNCTION__, name);
 
-    struct wifi_device_t *dev = malloc(sizeof(*dev));
+    dev = malloc(sizeof(*dev));
 
     memset(dev, 0, sizeof(*dev));
 
@@ -514,8 +660,10 @@ static int open_wifi(const struct hw_module_t* module,
 
     dev->do_dhcp_request = do_dhcp_request;
     dev->get_dhcp_error_string = get_dhcp_error_string;
-    dev->wifi_enable = wifi_load_driver;
-    dev->wifi_disable = wifi_unload_driver;
+    dev->wifi_enable = wifi_enable;
+    dev->wifi_disable = wifi_disable;
+    dev->wifi_ap_enable = wifi_ap_enable;
+    dev->wifi_ap_disable = wifi_ap_disable;
     dev->wifi_start_supplicant = wifi_start_supplicant;
     dev->wifi_stop_supplicant = wifi_stop_supplicant;
     dev->wifi_open_supplicant = wifi_open_supplicant;

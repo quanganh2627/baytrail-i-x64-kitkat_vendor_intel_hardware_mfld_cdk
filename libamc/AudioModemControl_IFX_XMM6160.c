@@ -214,7 +214,7 @@ AMC_STATUS amc_setGainsourceUnBlocking(
 	/* Remind: Modem AT API integer 0 to 100, 0=mute, 100:+6dB, ssize: 0.5dB.*/
 	int gainIndex;
 	char cmdStr[AT_MAX_CMD_LENGTH];
-	gainIndex = gainDDB / volumeCTRL.gainStepSizeDDB + 88;
+	gainIndex = gainDDB / volumeCTRL.gainStepSizeDDB + 40;
 	gainIndex = (gainIndex > 100) ? 100 : gainIndex;
 	gainIndex = (gainIndex < 0) ? 0 : gainIndex;
 	sprintf(cmdStr, SET_SRC_VOL, source, gainIndex);
@@ -229,7 +229,7 @@ AMC_STATUS amc_setGaindestUnBlocking(
 	/* Remind: Modem AT API integer 0 to 100, 0=mute, 100:+6dB, ssize: 0.5dB.*/
 	int gainIndex;
 	char cmdStr[AT_MAX_CMD_LENGTH];
-	gainIndex = gainDDB / volumeCTRL.gainStepSizeDDB + 88;
+	gainIndex = gainDDB / volumeCTRL.gainStepSizeDDB + 40;
 	gainIndex = (gainIndex > 100) ? 100 : gainIndex;
 	gainIndex = (gainIndex < 0) ? 0 : gainIndex;
 	sprintf(cmdStr, SET_DEST_VOL, dest, gainIndex);

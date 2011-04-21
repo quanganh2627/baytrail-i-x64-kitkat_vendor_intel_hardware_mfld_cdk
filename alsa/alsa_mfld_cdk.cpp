@@ -51,6 +51,7 @@ static status_t s_standby(alsa_handle_t *);
 static status_t s_close(alsa_handle_t *);
 static status_t s_route(alsa_handle_t *, uint32_t, int);
 static status_t s_config(alsa_handle_t *, int);
+static status_t s_volume(alsa_handle_t *, uint32_t, float);
 
 static hw_module_methods_t s_module_methods = {
 open            :
@@ -94,6 +95,7 @@ static int s_device_open(const hw_module_t* module, const char* name,
     dev->standby = s_standby;
     dev->close = s_close;
     dev->route = s_route;
+    dev->volume = s_volume;
 
     *device = &dev->common;
     return 0;
@@ -535,6 +537,34 @@ static status_t s_route(alsa_handle_t *handle, uint32_t devices, int mode)
 
     return s_open(handle, devices, mode);
 }
+
+static status_t s_volume(alsa_handle_t *handle, uint32_t devices, float volume)
+{
+    int volume_value = volume * 300;
+    snd_ctl_t *ctl;
+    int err;
+    if(handle->handle && handle->curDev == devices) {
+        err = snd_ctl_open(&ctl, "modem", 0);
+        if (err < 0) {
+            SNDERR("Cannot open CTL modem");
+            return err;
+        }
+        snd_ctl_elem_value_t * control;
+        snd_ctl_elem_value_malloc(&control);
+
+        snd_ctl_elem_value_set_name(control,"AMC Adjust Volume");
+        snd_ctl_elem_value_set_integer(control, 0, volume_value);
+        err = snd_ctl_elem_write(ctl, control);
+        if (err < 0) {
+            SNDERR("Control AMC ADJUST Volume  write error");
+            return err;
+        }
+
+        snd_ctl_close(ctl);
+    }
+    return NO_ERROR;
+}
+
 
 
 static status_t s_config(alsa_handle_t *handle, int mode)

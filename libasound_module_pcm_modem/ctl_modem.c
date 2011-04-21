@@ -30,6 +30,7 @@ typedef struct snd_ctl_modem {
 #define AMC_VOICE_BT "AMC voice BT"
 #define VOICE_HEADSET "Voice Headset"
 #define VOICE_BT "Voice BT"
+#define AMC_ADJUST_VOLUME "AMC Adjust Volume"
 
 #define UPDATE_AMC_VOICE     0x01
 #define UPDATE_AMC_VOICE_BT    0x02
@@ -37,6 +38,7 @@ typedef struct snd_ctl_modem {
 #define UPDATE_SPEAKER  0x08
 #define UPDATE_HEADSET  0x10
 #define UPDATE_BT  0x20
+#define UPDATE_AMC_ADJUST_VOLUME 0x40
 
 #define MEDFIELDAUDIO "medfieldaudio"
 
@@ -87,7 +89,7 @@ static snd_ctl_ext_key_t modem_find_elem(snd_ctl_ext_t * ext,
     unsigned int numid;
 
     numid = snd_ctl_elem_id_get_numid(id);
-    if (numid > 0 && numid <= 6)
+    if (numid > 0 && numid <= 7)
         return numid - 1;
 
     name = snd_ctl_elem_id_get_name(id);
@@ -105,6 +107,8 @@ static snd_ctl_ext_key_t modem_find_elem(snd_ctl_ext_t * ext,
         return 4;
     if (strcmp(name, VOICE_BT) == 0)
         return 5;
+    if (strcmp(name, AMC_ADJUST_VOLUME) == 0)
+        return 6;
 
     return SND_CTL_EXT_KEY_NOT_FOUND;
 }
@@ -166,6 +170,8 @@ static int modem_read_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
     case 4:
         break;
     case 5:
+        break;
+    case 6:
         break;
     default:
         err = -EINVAL;
@@ -267,6 +273,7 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
         goto finish;
     }
     int index = 0;
+    int volume = 200;
 
     switch (key) {
     case 0://earpiece
@@ -310,6 +317,10 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
         break;
     case 5: // bt
         SNDERR("voice route to BT \n");
+        break;
+    case 6: //volume control
+        volume = * value;
+        amc_adjust_volume(volume);
         break;
     default:
         err = -EINVAL;
@@ -362,6 +373,8 @@ static int modem_read_event(snd_ctl_ext_t * ext, snd_ctl_elem_id_t * id,
         ctl->updated &= ~UPDATE_HEADSET;
     } else if (ctl->updated & UPDATE_BT) {
         ctl->updated &= ~UPDATE_BT;
+    } else if (ctl->updated & UPDATE_AMC_ADJUST_VOLUME) {
+        ctl->updated &= ~UPDATE_AMC_ADJUST_VOLUME;
     }
 
     *event_mask = SND_CTL_EVENT_MASK_VALUE;

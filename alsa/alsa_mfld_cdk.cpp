@@ -132,6 +132,7 @@ sampleRate  :
 bufferSize  :
     DEFAULT_SAMPLE_RATE / 5, // Desired Number of samples
     modPrivate  : 0,
+    openFlag    : 0,
 };
 
 static alsa_handle_t _defaultsIn = {
@@ -141,12 +142,15 @@ devices     :
     curDev      : 0,
     curMode     : 0,
     handle      : 0,
-    format      : SND_PCM_FORMAT_S16_LE, // AudioSystem::PCM_16_BIT
+format      :
+    SND_PCM_FORMAT_S16_LE, // AudioSystem::PCM_16_BIT
     channels    : 2,
-    sampleRate  : AudioRecord::DEFAULT_SAMPLE_RATE,
+sampleRate  :
+    AudioRecord::DEFAULT_SAMPLE_RATE,
     latency     : 250000, // Desired Delay in usec
     bufferSize  : 2048, // Desired Number of samples
     modPrivate  : 0,
+    openFlag    : 0,
 };
 
 struct device_suffix_t {
@@ -496,6 +500,7 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
     LOGI("Initialized ALSA %s device %s", stream, devName);
     handle->curDev = devices;
     handle->curMode = mode;
+    handle->openFlag = 1;
     return err;
 }
 
@@ -519,6 +524,7 @@ static status_t s_close(alsa_handle_t *handle)
     handle->handle = 0;
     handle->curDev = 0;
     handle->curMode = 0;
+    handle->openFlag = 0;
     if (h) {
         snd_pcm_drain(h);
         err = snd_pcm_close(h);
@@ -531,9 +537,13 @@ static status_t s_route(alsa_handle_t *handle, uint32_t devices, int mode)
 {
 
     LOGD("route called for devices %08x in mode %d...", devices, mode);
+    if(!handle->openFlag) {
+        LOGD("s_route handle->handle is NULL.");
+        return NO_ERROR;
+    }
 
     s_config(handle,mode);
-    if (handle->handle && handle->curDev == devices && handle->curMode == mode) return NO_ERROR;
+    if (handle->openFlag && handle->curDev == devices && handle->curMode == mode) return NO_ERROR;
 
     return s_open(handle, devices, mode);
 }

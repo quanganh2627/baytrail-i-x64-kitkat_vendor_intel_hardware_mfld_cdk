@@ -12,7 +12,7 @@
 #include <fcntl.h>
 #include <ctype.h>
 #include <errno.h>
-#define AUDIO_AT_CHANNEL_NAME "/dev/gsmtty5"
+#define AUDIO_AT_CHANNEL_NAME "/dev/gsmtty13"
 
 int amc_voice();
 int amc_bt();

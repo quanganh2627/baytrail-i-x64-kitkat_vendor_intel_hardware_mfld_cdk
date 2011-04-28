@@ -38,7 +38,9 @@ LOCAL_CFLAGS += -DPIC #-DLOG_NDEBUG=0
 
 LOCAL_C_INCLUDES:= \
         $(TOP)/external/alsa-lib/include \
-	$(TOP)/hardware/intel/mfld_cdk/libamc
+	$(TOP)/hardware/intel/mfld_cdk/libamc \
+	$(TOP)/hardware/intel/mfld_cdk/libaudience
+	
 
 
 LOCAL_STATIC_LIBRARIES := libamc

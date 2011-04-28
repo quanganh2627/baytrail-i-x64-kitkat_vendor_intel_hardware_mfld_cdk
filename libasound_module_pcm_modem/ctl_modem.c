@@ -297,11 +297,11 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
         break;
     case 2: //modem setup
         SNDERR("modem voice route to MSIC \n");
-        amc_mixing();
+        //amc_voice();
         break;
     case 3://modem setup for bt call
         SNDERR("modem voice route to BT \n");
-        amc_bt();
+        //amc_bt();
         break;
     case 4: // headset
         SNDERR("voice route to headset \n");
@@ -320,7 +320,7 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
         break;
     case 6: //volume control
         volume = * value;
-        amc_adjust_volume(volume);
+        //amc_adjust_volume(volume);
         break;
     default:
         err = -EINVAL;

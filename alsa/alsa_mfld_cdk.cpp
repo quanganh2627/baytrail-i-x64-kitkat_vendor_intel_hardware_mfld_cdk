@@ -132,7 +132,7 @@ format      :
     channels    : 2,
 sampleRate  :
     DEFAULT_SAMPLE_RATE,
-    latency     : 50000, // Desired Delay in usec
+    latency     : 80000, // Desired Delay in usec
 bufferSize  :
     DEFAULT_SAMPLE_RATE / 5, // Desired Number of samples
     modPrivate  : 0,
@@ -322,7 +322,7 @@ status_t setHardwareParams(alsa_handle_t *handle)
 
     err = snd_pcm_hw_params_get_buffer_time_max(hardwareParams,
             &buffer_time, 0);
-    if (buffer_time > 500000)
+    if (buffer_time > 80000)
         buffer_time = 80000;
     period_time = buffer_time / 4;
 

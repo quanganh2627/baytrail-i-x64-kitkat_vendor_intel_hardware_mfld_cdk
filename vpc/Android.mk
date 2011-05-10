@@ -1,4 +1,4 @@
-ifneq (,$(findstring $(CUSTOM_BOARD),mfld_cdk))
+ifneq (,$(findstring $(CUSTOM_BOARD),mfld_cdk,mfld_pr1))
 
 LOCAL_PATH := $(call my-dir)
 
@@ -15,7 +15,7 @@ ifneq ($(ALSA_DEFAULT_SAMPLE_RATE),)
 endif
 
 LOCAL_C_INCLUDES += external/alsa-lib/include hardware/alsa_sound hardware/intel/include hardware/intel/mfld_cdk/vpc hardware/intel/mfld_cdk/libamc system/core/include/cutils
-					  
+
 
 
   LOCAL_SRC_FILES:= \
@@ -24,9 +24,9 @@ LOCAL_C_INCLUDES += external/alsa-lib/include hardware/alsa_sound hardware/intel
   LOCAL_STATIC_LIBRARIES := libamc
 
   LOCAL_SHARED_LIBRARIES := \
-  	libasound \
-  	liblog \
-	libaudio
+		libasound \
+		liblog \
+		libaudio
 
 
   LOCAL_MODULE:= vpc.$(TARGET_DEVICE)

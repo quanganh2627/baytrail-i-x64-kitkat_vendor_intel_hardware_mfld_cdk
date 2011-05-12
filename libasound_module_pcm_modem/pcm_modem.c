@@ -171,8 +171,10 @@ static int modem_stop(snd_pcm_ioplug_t *io)
     LOGD("%s in \n", __func__);
 
     assert(modem);
-
-    snd_pcm_drain(modem->pcm_md_handle);
+    if(modem->pcm_md_handle) {
+        snd_pcm_close(modem->pcm_md_handle);
+        modem->pcm_md_handle = NULL;
+    }
 
     return 0;
 }
@@ -185,7 +187,8 @@ static int modem_drain(snd_pcm_ioplug_t *io)
 
     assert(modem);
 
-    snd_pcm_drain(modem->pcm_md_handle);
+    if(modem->pcm_md_handle)
+        snd_pcm_drain(modem->pcm_md_handle);
 
     return 0;
 }
@@ -486,7 +489,8 @@ static int modem_close(snd_pcm_ioplug_t *io)
     snd_pcm_modem_t *modem = io->private_data;
 
     LOGD("%s in \n", __func__);
-    snd_pcm_close(modem->pcm_md_handle);
+    if(modem->pcm_md_handle)
+        snd_pcm_close(modem->pcm_md_handle);
 
     modem_disable_msic(modem);
 

@@ -6,7 +6,7 @@
  ** you may not use this file except in compliance with the License.
  ** You may obtain a copy of the License at
  **
- **     http://www.apache.org/licenses/LICENSE-2.0 
+ **     http://www.apache.org/licenses/LICENSE-2.0
  **
  ** Unless required by applicable law or agreed to in writing, software
  ** distributed under the License is distributed on an "AS IS" BASIS,
@@ -382,7 +382,7 @@ status_t setSoftwareParams(alsa_handle_t *handle)
     if (handle->devices & AudioSystem::DEVICE_OUT_ALL) {
         // For playback, configure ALSA to start the transfer when the
         // buffer is full.
-        startThreshold = bufferSize - 1;
+        startThreshold = periodSize - 1;
         stopThreshold = bufferSize;
     } else {
         // For recording, configure ALSA to start the transfer on the
@@ -521,8 +521,12 @@ static status_t s_standby(alsa_handle_t *handle)
     snd_pcm_t *h = handle->handle;
     handle->handle = 0;
     if (h) {
-        snd_pcm_drain(h);
-        err = snd_pcm_close(h);
+        if(handle->curMode == AudioSystem::MODE_IN_CALL) {
+            snd_pcm_drop(h);
+        } else {
+            snd_pcm_drain(h);
+            err = snd_pcm_close(h);
+        }
     }
     LOGD("S_STANDBY\n");
     return err;

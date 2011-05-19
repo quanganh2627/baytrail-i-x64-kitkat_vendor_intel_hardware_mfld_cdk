@@ -200,13 +200,13 @@ static bool modem_set_param(snd_ctl_t *handle, const char *name,
 
     err = snd_ctl_elem_info(handle, info);
     if (err < 0) {
-        SNDERR("Control '%s' cannot get element info: %d", name, err);
+        LOGE("Control '%s' cannot get element info: %d", name, err);
         goto err;
     }
 
     int count = snd_ctl_elem_info_get_count(info);
     if (index >= count) {
-        SNDERR("Control '%s' index is out of range (%d >= %d)", name, index, count);
+        LOGE("Control '%s' index is out of range (%d >= %d)", name, index, count);
         goto err;
     }
 
@@ -246,7 +246,7 @@ static bool modem_set_param(snd_ctl_t *handle, const char *name,
 
     err = snd_ctl_elem_write(handle, control);
     if (err < 0) {
-        SNDERR("Control '%s' write error", name);
+        LOGE("Control '%s' write error", name);
         goto err;
     }
     return true;
@@ -269,7 +269,7 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
     sprintf(str, "hw:CARD=%d", card);
 
     if ((err = snd_ctl_open(&handle, str, 0)) < 0) {
-        SNDERR("Open error:%s\n", snd_strerror(err));
+        LOGE("Open error:%s\n", snd_strerror(err));
         goto finish;
     }
     int index = 0;
@@ -277,7 +277,7 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
 
     switch (key) {
     case 0://earpiece
-        SNDERR("voice route to earpiece \n");
+        LOGD("voice route to earpiece \n");
         modem_set_param(handle, "Playback Switch", 0, index);
         modem_set_param(handle, "Headset Playback Route", 0, index);
         modem_set_param(handle, "Mode Playback Route", 1, index);
@@ -287,7 +287,7 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
         modem_set_param(handle, "Mic1 Capture Volume", 3, index);
         break;
     case 1: //speaker
-        SNDERR("voice route to Speaker \n");
+        LOGD("voice route to Speaker \n");
         modem_set_param(handle, "Speaker Mux Playback Route", 1, index);
         modem_set_param(handle, "Mode Playback Route", 1, index);
         modem_set_param(handle, "Headset Playback Route", 1, index);
@@ -296,15 +296,13 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
         ctl->source_muted = !*value;
         break;
     case 2: //modem setup
-        SNDERR("modem voice route to MSIC \n");
-        //amc_voice();
+        LOGD("modem voice route to MSIC \n");
         break;
     case 3://modem setup for bt call
-        SNDERR("modem voice route to BT \n");
-        //amc_bt();
+        LOGD("modem voice route to BT \n");
         break;
     case 4: // headset
-        SNDERR("voice route to headset \n");
+        LOGD("voice route to headset \n");
         modem_set_param(handle, "Playback Switch", 1, index);
         modem_set_param(handle, "Headset Playback Route", 0, index);
         modem_set_param(handle, "Mode Playback Route", 1, index);
@@ -316,11 +314,10 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
         modem_set_param(handle, "Mic1 Capture Volume", 3, index);
         break;
     case 5: // bt
-        SNDERR("voice route to BT \n");
+        LOGD("voice route to BT \n");
         break;
     case 6: //volume control
         volume = * value;
-        //amc_adjust_volume(volume);
         break;
     default:
         err = -EINVAL;
@@ -452,33 +449,33 @@ SND_CTL_PLUGIN_DEFINE_FUNC(modem)
             continue;
         if (strcmp(id, "server") == 0) {
             if (snd_config_get_string(n, &server) < 0) {
-                SNDERR("Invalid type for %s", id);
+                LOGE("Invalid type for %s", id);
                 return -EINVAL;
             }
             continue;
         }
         if (strcmp(id, "device") == 0) {
             if (snd_config_get_string(n, &device) < 0) {
-                SNDERR("Invalid type for %s", id);
+                LOGE("Invalid type for %s", id);
                 return -EINVAL;
             }
             continue;
         }
         if (strcmp(id, "source") == 0) {
             if (snd_config_get_string(n, &source) < 0) {
-                SNDERR("Invalid type for %s", id);
+                LOGE("Invalid type for %s", id);
                 return -EINVAL;
             }
             continue;
         }
         if (strcmp(id, "sink") == 0) {
             if (snd_config_get_string(n, &sink) < 0) {
-                SNDERR("Invalid type for %s", id);
+                LOGE("Invalid type for %s", id);
                 return -EINVAL;
             }
             continue;
         }
-        SNDERR("Unknown field %s", id);
+        LOGE("Unknown field %s", id);
         return -EINVAL;
     }
 

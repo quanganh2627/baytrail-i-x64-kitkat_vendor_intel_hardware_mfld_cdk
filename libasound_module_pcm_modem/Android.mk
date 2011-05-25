@@ -10,7 +10,7 @@ LOCAL_SRC_FILES := \
 
 LOCAL_MODULE_PATH := $(TARGET_OUT)/usr/lib/alsa-lib
 
-LOCAL_CFLAGS += -DPIC -UNDEBUG -DDEBUG=1 -DLOG_NDEBUG=1
+LOCAL_CFLAGS += -DPIC -UNDEBUG
 
 LOCAL_C_INCLUDES:= \
 	$(TOP)/external/alsa-lib/include \
@@ -34,11 +34,14 @@ LOCAL_SRC_FILES := \
 LOCAL_MODULE_PATH := $(TARGET_OUT)/usr/lib/alsa-lib
 
 #enable log
-LOCAL_CFLAGS += -DPIC -UNDEBUG -DDEBUG=1 -DLOG_NDEBUG=1
+LOCAL_CFLAGS += -DPIC #-DLOG_NDEBUG=0
 
 LOCAL_C_INCLUDES:= \
         $(TOP)/external/alsa-lib/include \
-	$(TOP)/hardware/intel/mfld_cdk/libamc
+	$(TOP)/hardware/intel/mfld_cdk/libamc \
+	$(TOP)/hardware/intel/mfld_cdk/libaudience
+	
+
 
 LOCAL_STATIC_LIBRARIES := libamc
 LOCAL_SHARED_LIBRARIES :=       \

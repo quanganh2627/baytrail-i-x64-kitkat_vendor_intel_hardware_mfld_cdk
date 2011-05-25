@@ -8,9 +8,13 @@
 #define LOG_TAG "ALSAModemModule"
 #include <utils/Log.h>
 #include <sys/time.h>
+#define LOG_NDEBUG 5
+#define LOGD SNDERR
+#define LOGE SNDERR
 
 #define MEDFIELDAUDIO "medfieldaudio"
 #define MELFIELDALSAIFX "IntelALSAIFX"
+
 
 typedef struct snd_pcm_modem {
     snd_pcm_ioplug_t io;
@@ -48,8 +52,6 @@ static int xrun_recovery(snd_pcm_t *handle, int err);
 static int setHardwareParams(struct alsa_handle_t *handle);
 static int modem_enable_msic (snd_pcm_modem_t *modem);
 static int modem_disable_msic (snd_pcm_modem_t *modem);
-static int modem_ifx_open(snd_pcm_ioplug_t *io);
-static int modem_ifx_close(snd_pcm_ioplug_t *io);
 
 static ssize_t pcm_write(snd_pcm_t *pcm_handle, const char *data, size_t count,size_t bytes_per_frame)
 {
@@ -89,20 +91,18 @@ static snd_pcm_sframes_t modem_write(snd_pcm_ioplug_t *io,
                                      snd_pcm_uframes_t size)
 {
     snd_pcm_modem_t *modem = io->private_data;
-    int err;
     const char *buf;
     ssize_t result;
     int bytes_per_frame=io->channels*2; //only support 16 bits format
 
-    if(!modem->pcm_md_handle)
-        err = modem_ifx_open(io);
+    assert(modem);
 
     /* we handle only an interleaved buffer */
     buf = (char *)areas->addr + (areas->first + areas->step * offset) / 8;
 
     result = pcm_write (modem->pcm_md_handle, buf, size, bytes_per_frame );
     if (result <= 0) {
-        LOGE("%s out error \n", __func__);
+        LOGD("%s out error \n", __func__);
         return result;
     }
 
@@ -118,11 +118,14 @@ static snd_pcm_sframes_t modem_read(snd_pcm_ioplug_t *io,
     char *buf;
     ssize_t result;
 
+
+    assert(modem);
+
     /* we handle only an interleaved buffer */
     buf = (char *)areas->addr + (areas->first + areas->step * offset) / 8;
     result = snd_pcm_readi(modem->pcm_md_handle, buf, size);
     if (result <= 0) {
-        LOGE("%s out error \n", __func__);
+        LOGD("%s out error \n", __func__);
         return result;
     }
 
@@ -132,12 +135,10 @@ static snd_pcm_sframes_t modem_read(snd_pcm_ioplug_t *io,
 static snd_pcm_sframes_t modem_pointer(snd_pcm_ioplug_t *io)
 {
     snd_pcm_modem_t *modem = io->private_data;
-    int err, ptr, size;
+    int ptr;
+    int size;
 
     assert(modem);
-
-    if(!modem->pcm_md_handle)
-        err = modem_ifx_open(io);
 
     size = snd_pcm_avail(modem->pcm_md_handle);
     if(size < 0)
@@ -155,12 +156,10 @@ static snd_pcm_sframes_t modem_pointer(snd_pcm_ioplug_t *io)
 static int modem_start(snd_pcm_ioplug_t *io)
 {
     snd_pcm_modem_t *modem = io->private_data;
-    int err;
 
-    LOGD("%s in \n", __func__);
+    SNDERR("%s in \n", __func__);
 
-    if(!modem->pcm_md_handle)
-        err = modem_ifx_open(io);
+    assert(modem);
 
     return 0;
 }
@@ -171,7 +170,11 @@ static int modem_stop(snd_pcm_ioplug_t *io)
 
     LOGD("%s in \n", __func__);
 
-    modem_ifx_close(io);
+    assert(modem);
+    if(modem->pcm_md_handle) {
+        snd_pcm_close(modem->pcm_md_handle);
+        modem->pcm_md_handle = NULL;
+    }
 
     return 0;
 }
@@ -181,6 +184,8 @@ static int modem_drain(snd_pcm_ioplug_t *io)
     snd_pcm_modem_t *modem = io->private_data;
 
     LOGD("%s in \n", __func__);
+
+    assert(modem);
 
     if(modem->pcm_md_handle)
         snd_pcm_drain(modem->pcm_md_handle);
@@ -194,6 +199,8 @@ static int modem_prepare(snd_pcm_ioplug_t *io)
     int tmp;
     LOGD("%s in \n", __func__);
 
+    assert(modem);
+
     if(io->stream == SND_PCM_STREAM_PLAYBACK) {
         modem->ptr = 0;
         modem->last_size = 0;
@@ -204,8 +211,8 @@ static int modem_prepare(snd_pcm_ioplug_t *io)
 
     LOGD("%s  modem-ptr = %d io->bufsize = %d in \n", __func__, (int)modem->ptr, (int)io->buffer_size);
 
-    if (modem->pcm_md_handle && snd_pcm_prepare (modem->pcm_md_handle) < 0) {
-        LOGE ("cannot prepare audio interface for use \n");
+    if (snd_pcm_prepare (modem->pcm_md_handle) < 0) {
+        LOGD ("cannot prepare audio interface for use \n");
     }
 
     return 0;
@@ -215,8 +222,35 @@ static int modem_hw_params(snd_pcm_ioplug_t *io,
                            snd_pcm_hw_params_t *params ATTRIBUTE_UNUSED)
 {
     snd_pcm_modem_t *modem = io->private_data;
+    int i, tmp, err;
+    unsigned int period_bytes;
+    struct alsa_handle_t handle;
 
     LOGD("%s in \n", __func__);
+
+    memset(&handle, 0, sizeof(struct alsa_handle_t));
+
+    if(io->stream == SND_PCM_STREAM_PLAYBACK) {
+        handle.bufferSize = io->buffer_size;
+        handle.sampleRate = io->rate;
+        handle.latency = 100000;
+        handle.handle = modem->pcm_md_handle;
+        handle.format =  SND_PCM_FORMAT_S16_LE;
+        handle.channels = io->channels;
+        LOGD("io->channels = %d \n",io->channels);
+    } else {
+        handle.bufferSize = io->buffer_size;
+        handle.sampleRate = io->rate;
+        handle.latency = 25000;
+        handle.handle = modem->pcm_md_handle;
+        handle.format = SND_PCM_FORMAT_S16_LE;
+        handle.channels = io->channels;
+    }
+
+    err = setHardwareParams(&handle);
+    if(err < 0) {
+        LOGE("Set Hareware Params failed\n");
+    }
 
     return 0;
 }
@@ -230,7 +264,7 @@ static void  xrun(snd_pcm_t *handle)
     int err;
     err = snd_pcm_prepare(handle);
     if (err < 0)
-        LOGE("Can't recovery from underrun, prepare failed: %s\n", snd_strerror(err));
+        printf("Can't recovery from underrun, prepare failed: %s\n", snd_strerror(err));
     return;
 }
 
@@ -324,7 +358,7 @@ static int setHardwareParams(struct alsa_handle_t *handle)
 
     err = snd_pcm_hw_params_get_rate(hardwareParams, &val, 0);
     if(err <0)
-        LOGE("err!!!!!! Set sample rate to %u HZ",  requestedRate);
+        LOGD("err!!!!!! Set sample rate to %u HZ",  requestedRate);
     LOGD("Get sample rate to %u HZ",  val);
 #ifdef DISABLE_HARWARE_RESAMPLING
     // Disable hardware re-sampling.
@@ -342,7 +376,7 @@ static int setHardwareParams(struct alsa_handle_t *handle)
 
     err = snd_pcm_hw_params_get_buffer_time_max(hardwareParams,
             &buffer_time, 0);
-    if (buffer_time > 80000)
+    if (buffer_time > 500000)
         buffer_time = 80000;
     period_time = buffer_time / 4;
 
@@ -369,7 +403,7 @@ static int setHardwareParams(struct alsa_handle_t *handle)
     err = snd_pcm_hw_params(handle->handle, hardwareParams);
     if (err < 0) LOGE("Unable to set hardware parameters: %s", snd_strerror(err));
 
-    LOGD("%s  out ", __func__);
+    SNDERR("%s  out ", __func__);
 done:
     snd_pcm_hw_params_free(hardwareParams);
 
@@ -443,6 +477,7 @@ static int setSoftwareParams(struct alsa_handle_t *handle)
     if (err < 0) LOGE("Unable to configure software parameters: %s",
                           snd_strerror(err));
 
+    SNDERR("%s 6", __func__);
 done:
     snd_pcm_sw_params_free(softwareParams);
 
@@ -454,12 +489,10 @@ static int modem_close(snd_pcm_ioplug_t *io)
     snd_pcm_modem_t *modem = io->private_data;
 
     LOGD("%s in \n", __func__);
-
     if(modem->pcm_md_handle)
         snd_pcm_close(modem->pcm_md_handle);
 
-    if(io->stream == SND_PCM_STREAM_PLAYBACK)
-        modem_disable_msic(modem);
+    modem_disable_msic(modem);
 
     free(modem->device);
     free(modem);
@@ -515,72 +548,9 @@ static int modem_hw_constraint(snd_pcm_modem_t * pcm)
     return 0;
 }
 
-static int modem_ifx_open(snd_pcm_ioplug_t *io)
-{
-    snd_pcm_modem_t *modem = io->private_data;
-    int i, tmp, err, card;
-    unsigned int period_bytes;
-    struct alsa_handle_t handle;
-    char device_ifx[128];
-
-    card = snd_card_get_index(MELFIELDALSAIFX);
-    sprintf(device_ifx, "hw:%d,0", card);
-
-    err = snd_pcm_open(&modem->pcm_md_handle, device_ifx, io->stream, 0);
-
-    if (!modem->pcm_md_handle) {
-        err = -errno;
-        LOGE("Cannot open device %s, direction = %d \n", device_ifx, io->stream);
-    }
-
-    LOGD("open alsa ifx(hw:1,0): dir = %d ~~~~~~~ \n", io->stream);
-
-    io->private_data = modem;
-
-    memset(&handle, 0, sizeof(struct alsa_handle_t));
-
-    if(io->stream == SND_PCM_STREAM_PLAYBACK) {
-        handle.bufferSize = io->buffer_size;
-        handle.sampleRate = io->rate;
-        handle.latency = 50000;
-        handle.handle = modem->pcm_md_handle;
-        handle.format =  SND_PCM_FORMAT_S16_LE;
-        handle.channels = io->channels;
-        LOGD("io->channels = %d \n",io->channels);
-    } else {
-        handle.bufferSize = io->buffer_size;
-        handle.sampleRate = io->rate;
-        handle.latency = 50000;
-        handle.handle = modem->pcm_md_handle;
-        handle.format = SND_PCM_FORMAT_S16_LE;
-        handle.channels = io->channels;
-    }
-
-    err = setHardwareParams(&handle);
-    if(err < 0) {
-        LOGE("Set Hareware Params failed\n");
-    }
-
-    return 0;
-}
-
-static int modem_ifx_close(snd_pcm_ioplug_t *io)
-{
-    snd_pcm_modem_t *modem = io->private_data;
-
-    LOGD("%s in \n", __func__);
-
-    if(modem->pcm_md_handle) {
-        snd_pcm_close(modem->pcm_md_handle);
-        modem->pcm_md_handle = NULL;
-        LOGD("%s close alsa ifx(hw:1,0) ~~~~~~ %d\n", __func__, gettid());
-    }
-
-    return 0;
-}
-
 static int modem_enable_msic (snd_pcm_modem_t *modem)
 {
+
     char device_v[128];
     int card = snd_card_get_index(MEDFIELDAUDIO);
     int err;
@@ -588,21 +558,16 @@ static int modem_enable_msic (snd_pcm_modem_t *modem)
     if(!modem)
         return -1;
 
-    if(modem->phandle)
-        return 0;
-
-    LOGD("Enable msic ~~~");
-
     sprintf(device_v, "hw:%d,2", card);
-    LOGD("%s \n",device_v);
+    SNDERR("%s \n",device_v);
 
     if ((err = snd_pcm_open(&modem->phandle, device_v, SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
-        LOGE("Playback open error: %s, ignore this\n", snd_strerror(err));
+        SNDERR("Playback open error: %s\n", snd_strerror(err));
         return 0;
     }
 
     if ((err = snd_pcm_open(&modem->chandle, device_v, SND_PCM_STREAM_CAPTURE, 0)) < 0) {
-        LOGE("Capture open error: %s, ignore this\n", snd_strerror(err));
+        SNDERR("Capture open error: %s\n", snd_strerror(err));
         return 0;
     }
 
@@ -623,7 +588,7 @@ static int modem_enable_msic (snd_pcm_modem_t *modem)
                                   48000,
                                   1,
                                   500000)) < 0) { /* 0.5sec */
-        LOGE("Capture open error: %s\n", snd_strerror(err));
+        SNDERR("Capture open error: %s\n", snd_strerror(err));
         return 0;
     }
 
@@ -634,8 +599,6 @@ static int modem_disable_msic (snd_pcm_modem_t *modem)
 {
     if(!modem)
         return -1;
-
-    LOGD("Disable msic ~~~");
 
     if(modem->phandle)
         snd_pcm_close(modem->phandle);
@@ -691,27 +654,40 @@ SND_PCM_PLUGIN_DEFINE_FUNC(modem)
             continue;
         if (strcmp(id, "device") == 0) {
             if (snd_config_get_string(n, &device) < 0) {
-                LOGE("Invalid type for %s", id);
+                SNDERR("Invalid type for %s", id);
                 return -EINVAL;
             }
             continue;
         }
-        LOGE("Unknown field %s", id);
+        SNDERR("Unknown field %s", id);
         return -EINVAL;
     }
 
     modem = calloc(1, sizeof(*modem));
     if (! modem) {
-        LOGE("cannot allocate");
+        SNDERR("cannot allocate");
         return -ENOMEM;
     }
 
     modem->device = strdup(device);
     if (modem->device == NULL) {
-        LOGE("cannot allocate");
+        SNDERR("cannot allocate");
         free(modem);
         return -ENOMEM;
     }
+
+    card = snd_card_get_index(MELFIELDALSAIFX);
+    sprintf(device_ifx, "hw:%d,0", card);
+
+    err = snd_pcm_open(&modem->pcm_md_handle, device_ifx, stream, mode);
+
+    if (!modem->pcm_md_handle) {
+        err = -errno;
+        SNDERR("Cannot open device %s, direction = %d \n", device_ifx, stream);
+        goto error;
+    }
+
+    SNDERR("pcm_md_handle = %d dir = %d , mode = %d\n", modem->pcm_md_handle,stream, mode);
 
     modem->io.version = SND_PCM_IOPLUG_VERSION;
     modem->io.name = "ALSA <-> modem PCM I/O Plugin";

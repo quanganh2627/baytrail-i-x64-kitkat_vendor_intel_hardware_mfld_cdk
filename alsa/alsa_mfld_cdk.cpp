@@ -33,10 +33,6 @@
 #define ALSA_DEFAULT_SAMPLE_RATE 44100 // in Hz
 #endif
 
-#ifndef HDMI_DEFAULT_SAMPLE_RATE
-#define HDMI_DEFAULT_SAMPLE_RATE 48000 // in Hz
-#endif
-
 #undef LOGV
 #define LOGV LOGD
 // This is supposed to work for displaying verbose logs, but doesn't for some reason
@@ -500,10 +496,6 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
         return NO_INIT;
     }
 
-    if (devices & AudioSystem::DEVICE_OUT_HDMI) {
-        LOGD("Detected HDMI device, setting sample rate to %d", HDMI_DEFAULT_SAMPLE_RATE);
-        handle->sampleRate = HDMI_DEFAULT_SAMPLE_RATE;
-    }
     err = setHardwareParams(handle);
 
     if (err == NO_ERROR) err = setSoftwareParams(handle);

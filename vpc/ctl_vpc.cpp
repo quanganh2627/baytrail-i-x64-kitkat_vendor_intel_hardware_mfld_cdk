@@ -235,73 +235,25 @@ static status_t amc(int Mode, uint32_t devices)
                 LOGD("AT thread start\n");
             }
             switch (devices) {
-                /* Earpiece device Set Earpiece acoustic parameters */
             case AudioSystem::DEVICE_OUT_EARPIECE:
+            case AudioSystem::DEVICE_OUT_SPEAKER:
+            case AudioSystem::DEVICE_OUT_WIRED_HEADSET:
                 if (prev_mode!=AudioSystem::MODE_IN_CALL || prev_dev==AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET) {
-                    amc_disable(AMC_I2S1_RX);
-                    amc_disable(AMC_I2S2_RX);
-                }
+                amc_disable(AMC_I2S1_RX);
+                amc_disable(AMC_I2S2_RX);
                 amc_configure_source(AMC_I2S1_RX, IFX_CLK1, IFX_MASTER,  IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_HANDSET_S);
                 amc_configure_source(AMC_I2S2_RX, IFX_CLK0, IFX_MASTER,  IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_DEFAULT_S);
                 amc_configure_dest(AMC_I2S1_TX, IFX_CLK1, IFX_MASTER,  IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_HANDSET_D);
                 amc_configure_dest(AMC_I2S2_TX, IFX_CLK0, IFX_MASTER,  IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_DEFAULT_D);
-                if (prev_mode!=AudioSystem::MODE_IN_CALL || prev_dev==AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET) {
-                    amc_route(AMC_RADIO_RX, AMC_I2S1_TX, AMC_ENDD);
-                    amc_route(AMC_I2S1_RX, AMC_RADIO_TX, AMC_ENDD);
-                    amc_route(AMC_I2S2_RX, AMC_I2S1_TX, AMC_ENDD);
-                    if (beg_call == 0)
-                        amc_enable(AMC_I2S1_RX);
-                    amc_enable(AMC_I2S2_RX);
+                amc_route(AMC_RADIO_RX, AMC_I2S1_TX, AMC_ENDD);
+                amc_route(AMC_I2S1_RX, AMC_RADIO_TX, AMC_ENDD);
+                amc_route(AMC_I2S2_RX, AMC_I2S1_TX, AMC_ENDD);
+                amc_enable(AMC_I2S2_RX);
+                amc_enable(AMC_I2S1_RX);
                 }
                 new_pathid = A1026_PATH_INCALL_RECEIVER;
                 doAudience_A1026_Control(new_pathid);
-                beg_call = 1;
                 break;
-                /* Speaker device Set Speaker acoustic parameters */
-            case AudioSystem::DEVICE_OUT_SPEAKER:
-                if (prev_mode!=AudioSystem::MODE_IN_CALL || prev_dev==AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET) {
-                    amc_disable(AMC_I2S1_RX);
-                    amc_disable(AMC_I2S2_RX);
-                }
-                amc_configure_source(AMC_I2S1_RX, IFX_CLK1, IFX_MASTER,  IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_HF_S);
-                amc_configure_source(AMC_I2S2_RX, IFX_CLK0, IFX_MASTER,  IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_DEFAULT_S);
-                amc_configure_dest(AMC_I2S1_TX, IFX_CLK1, IFX_MASTER,  IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_BACKSPEAKER_D);
-                amc_configure_dest(AMC_I2S2_TX, IFX_CLK0, IFX_MASTER,  IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_DEFAULT_D);
-                if (prev_mode!=AudioSystem::MODE_IN_CALL || prev_dev==AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET) {
-                    amc_route(AMC_RADIO_RX, AMC_I2S1_TX, AMC_ENDD);
-                    amc_route(AMC_I2S1_RX, AMC_RADIO_TX, AMC_ENDD);
-                    amc_route(AMC_I2S2_RX, AMC_I2S1_TX, AMC_ENDD);
-                    if (beg_call == 0)
-                        amc_enable(AMC_I2S1_RX);
-                    amc_enable(AMC_I2S2_RX);
-                }
-                new_pathid = A1026_PATH_INCALL_SPEAKER;
-                doAudience_A1026_Control(new_pathid);
-                beg_call = 1;
-                break;
-                /* Headset device set the headset acoustic parameters */
-            case AudioSystem::DEVICE_OUT_WIRED_HEADSET:
-                if (prev_mode!=AudioSystem::MODE_IN_CALL || prev_dev==AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET) {
-                    amc_disable(AMC_I2S1_RX);
-                    amc_disable(AMC_I2S2_RX);
-                }
-                amc_configure_source(AMC_I2S1_RX, IFX_CLK1, IFX_MASTER,  IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_HEADSET_S);
-                amc_configure_source(AMC_I2S2_RX, IFX_CLK0, IFX_MASTER,  IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_DEFAULT_S);
-                amc_configure_dest(AMC_I2S1_TX, IFX_CLK1, IFX_MASTER,  IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_HEADSET_D);
-                amc_configure_dest(AMC_I2S2_TX, IFX_CLK0, IFX_MASTER,  IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_DEFAULT_D);
-                if (prev_mode!=AudioSystem::MODE_IN_CALL || prev_dev==AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET) {
-                    amc_route(AMC_RADIO_RX, AMC_I2S1_TX, AMC_ENDD);
-                    amc_route(AMC_I2S1_RX, AMC_RADIO_TX, AMC_ENDD);
-                    amc_route(AMC_I2S2_RX, AMC_I2S1_TX, AMC_ENDD);
-                    if (beg_call == 0)
-                        amc_enable(AMC_I2S1_RX);
-                    amc_enable(AMC_I2S2_RX);
-                }
-                new_pathid = A1026_PATH_INCALL_HEADSET;
-                doAudience_A1026_Control(new_pathid);
-                beg_call = 1;
-                break;
-                /* BT device set the bt acoustic parameters */
             case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO:
             case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET:
             case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_CARKIT:
@@ -314,12 +266,10 @@ static status_t amc(int Mode, uint32_t devices)
                 amc_route(AMC_RADIO_RX, AMC_I2S1_TX, AMC_ENDD);
                 amc_route(AMC_I2S1_RX, AMC_RADIO_TX, AMC_ENDD);
                 amc_route(AMC_I2S2_RX, AMC_I2S1_TX, AMC_ENDD);
-                if (beg_call == 0)
-                    amc_enable(AMC_I2S1_RX);
                 amc_enable(AMC_I2S2_RX);
+                amc_enable(AMC_I2S1_RX);
                 new_pathid = A1026_PATH_INCALL_BT;
                 doAudience_A1026_Control(new_pathid);
-                beg_call = 1;
                 break;
             default:
                 break;
@@ -337,7 +287,6 @@ static status_t amc(int Mode, uint32_t devices)
             doAudience_A1026_Control(new_pathid);
             prev_mode = Mode;
             prev_dev = devices;
-            beg_call = 0;
             return NO_ERROR;
         }
         else {

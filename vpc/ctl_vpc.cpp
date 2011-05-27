@@ -238,7 +238,8 @@ static status_t amc(int Mode, uint32_t devices)
             case AudioSystem::DEVICE_OUT_EARPIECE:
             case AudioSystem::DEVICE_OUT_SPEAKER:
             case AudioSystem::DEVICE_OUT_WIRED_HEADSET:
-                if (prev_mode!=AudioSystem::MODE_IN_CALL || prev_dev==AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET) {
+            case AudioSystem::DEVICE_OUT_WIRED_HEADPHONE:
+                if (prev_mode!=AudioSystem::MODE_IN_CALL || prev_dev==AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET || beg_call == 0) {
                 amc_disable(AMC_I2S1_RX);
                 amc_disable(AMC_I2S2_RX);
                 amc_configure_source(AMC_I2S1_RX, IFX_CLK1, IFX_MASTER,  IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_HANDSET_S);
@@ -250,6 +251,7 @@ static status_t amc(int Mode, uint32_t devices)
                 amc_route(AMC_I2S2_RX, AMC_I2S1_TX, AMC_ENDD);
                 amc_enable(AMC_I2S2_RX);
                 amc_enable(AMC_I2S1_RX);
+                beg_call = 1;
                 }
                 new_pathid = A1026_PATH_INCALL_RECEIVER;
                 doAudience_A1026_Control(new_pathid);
@@ -282,9 +284,10 @@ static status_t amc(int Mode, uint32_t devices)
         if (prev_mode == AudioSystem::MODE_IN_CALL && Mode == AudioSystem::MODE_NORMAL) {
             LOGD("AMC FROM IN CALL TO NORMAL\n");
             amc_disable(AMC_I2S1_RX);
-            amc_disable(AMC_I2S2_RX);
+            //amc_disable(AMC_I2S2_RX);
             new_pathid = A1026_PATH_SUSPEND;
             doAudience_A1026_Control(new_pathid);
+            beg_call = 0;
             prev_mode = Mode;
             prev_dev = devices;
             return NO_ERROR;
@@ -320,8 +323,6 @@ static status_t volume(float volume)
 
 static status_t disable_mixing(int mode)
 {
-    if (mode==AudioSystem::MODE_IN_CALL)
-        amc_disable(AMC_I2S2_RX);
     return NO_ERROR;
 }
 /*------------------*/
@@ -330,8 +331,6 @@ static status_t disable_mixing(int mode)
 
 static status_t enable_mixing(int mode)
 {
-    if (mode==AudioSystem::MODE_IN_CALL)
-        amc_enable(AMC_I2S2_RX);
     return NO_ERROR;
 }
 

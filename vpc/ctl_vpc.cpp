@@ -284,7 +284,7 @@ static status_t amc(int Mode, uint32_t devices)
         if (prev_mode == AudioSystem::MODE_IN_CALL && Mode == AudioSystem::MODE_NORMAL) {
             LOGD("AMC FROM IN CALL TO NORMAL\n");
             amc_disable(AMC_I2S1_RX);
-            //amc_disable(AMC_I2S2_RX);
+            amc_disable(AMC_I2S2_RX);
             new_pathid = A1026_PATH_SUSPEND;
             doAudience_A1026_Control(new_pathid);
             beg_call = 0;

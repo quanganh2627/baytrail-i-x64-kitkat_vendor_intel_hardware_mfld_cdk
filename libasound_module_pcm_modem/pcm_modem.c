@@ -25,8 +25,6 @@ typedef struct snd_pcm_modem {
     unsigned int periods;
     unsigned int frame_bytes;
     unsigned int last_size;
-    snd_pcm_t *phandle;
-    snd_pcm_t *chandle;
 } snd_pcm_modem_t;
 
 struct alsa_handle_t {
@@ -42,12 +40,14 @@ struct alsa_handle_t {
     void *              modPrivate;
 };
 
+static snd_pcm_t *phandle;
+static snd_pcm_t *chandle;
 static int period_frames_t;
 static void  xrun(snd_pcm_t *handle);
 static int xrun_recovery(snd_pcm_t *handle, int err);
 static int setHardwareParams(struct alsa_handle_t *handle);
-static int modem_enable_msic (snd_pcm_modem_t *modem);
-static int modem_disable_msic (snd_pcm_modem_t *modem);
+static int modem_enable_msic ();
+static int modem_disable_msic ();
 static int modem_ifx_open(snd_pcm_ioplug_t *io);
 static int modem_ifx_close(snd_pcm_ioplug_t *io);
 
@@ -55,6 +55,7 @@ static ssize_t pcm_write(snd_pcm_t *pcm_handle, const char *data, size_t count,s
 {
     ssize_t r;
     ssize_t result = 0;
+    int err;
     size_t frame_num = count;
 
     while (frame_num > 0) {
@@ -69,9 +70,9 @@ static ssize_t pcm_write(snd_pcm_t *pcm_handle, const char *data, size_t count,s
             continue;
         } else if (r < 0) {
             LOGE("OTHER xrun r is %d\n",(int)r);
-            if (xrun_recovery(pcm_handle, r) < 0) {
-                printf("write error\n");
-                exit(0);
+            if ((err = xrun_recovery(pcm_handle, r)) < 0) {
+                LOGE("xrun_recovery failed\n");
+                return err;
             }
             continue;
         }
@@ -579,16 +580,13 @@ static int modem_ifx_close(snd_pcm_ioplug_t *io)
     return 0;
 }
 
-static int modem_enable_msic (snd_pcm_modem_t *modem)
+static int modem_enable_msic ()
 {
     char device_v[128];
     int card = snd_card_get_index(MEDFIELDAUDIO);
-    int err;
+    int err = 0;;
 
-    if(!modem)
-        return -1;
-
-    if(modem->phandle)
+    if(phandle)
         return 0;
 
     LOGD("Enable msic ~~~");
@@ -596,55 +594,66 @@ static int modem_enable_msic (snd_pcm_modem_t *modem)
     sprintf(device_v, "hw:%d,2", card);
     LOGD("%s \n",device_v);
 
-    if ((err = snd_pcm_open(&modem->phandle, device_v, SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
-        LOGE("Playback open error: %s, ignore this\n", snd_strerror(err));
-        return 0;
+    if ((err = snd_pcm_open(&phandle, device_v, SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
+        LOGE("Playback open error: %s\n", snd_strerror(err));
+        return err;
     }
 
-    if ((err = snd_pcm_open(&modem->chandle, device_v, SND_PCM_STREAM_CAPTURE, 0)) < 0) {
-        LOGE("Capture open error: %s, ignore this\n", snd_strerror(err));
-        return 0;
+    if ((err = snd_pcm_open(&chandle, device_v, SND_PCM_STREAM_CAPTURE, 0)) < 0) {
+        LOGE("Capture open error: %s\n", snd_strerror(err));
+        goto error;
     }
 
-    if ((err = snd_pcm_set_params(modem->phandle,
+    if ((err = snd_pcm_set_params(phandle,
                                   SND_PCM_FORMAT_S16_LE,
                                   SND_PCM_ACCESS_RW_INTERLEAVED,
                                   2,
                                   48000,
                                   0,
                                   500000)) < 0) {	/* 0.5sec */
-        return 0;
+        LOGE("[P]set params error: %s\n", snd_strerror(err));
+        goto error;
     }
 
-    if ((err = snd_pcm_set_params(modem->chandle,
+    if ((err = snd_pcm_set_params(chandle,
                                   SND_PCM_FORMAT_S16_LE,
                                   SND_PCM_ACCESS_RW_INTERLEAVED,
                                   1,
                                   48000,
                                   1,
                                   500000)) < 0) { /* 0.5sec */
-        LOGE("Capture open error: %s\n", snd_strerror(err));
-        return 0;
+        LOGE("[C]set params error: %s\n", snd_strerror(err));
+        goto error;
     }
 
-    return 0;
+    LOGD("Enable msic ~~~ success");
+
+    return err;
+
+error:
+    if(phandle)
+        snd_pcm_close(phandle);
+
+    if(chandle)
+        snd_pcm_close(chandle);
+
+    return err;
 }
 
-static int modem_disable_msic (snd_pcm_modem_t *modem)
+static int modem_disable_msic ()
 {
-    if(!modem)
-        return -1;
-
     LOGD("Disable msic ~~~");
 
-    if(modem->phandle)
-        snd_pcm_close(modem->phandle);
-
-    if(modem->chandle)
-        snd_pcm_close(modem->chandle);
-
-    modem->phandle= NULL;
-    modem->chandle= NULL;
+    if(phandle) {
+        snd_pcm_close(phandle);
+        LOGD("%s : snd_pcm_close(phandle)",__func__);
+    }
+    if(chandle) {
+        snd_pcm_close(chandle);
+        LOGD("%s : snd_pcm_close(chandle)",__func__);
+    }
+    phandle= NULL;
+    chandle= NULL;
 
     return 0;
 }

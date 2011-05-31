@@ -249,6 +249,7 @@ static status_t amc(int Mode, uint32_t devices)
                 amc_route(AMC_RADIO_RX, AMC_I2S1_TX, AMC_ENDD);
                 amc_route(AMC_I2S1_RX, AMC_RADIO_TX, AMC_ENDD);
                 amc_route(AMC_I2S2_RX, AMC_I2S1_TX, AMC_ENDD);
+                amc_route(AMC_SIMPLE_TONES, AMC_I2S1_TX, AMC_ENDD);
                 amc_enable(AMC_I2S2_RX);
                 amc_enable(AMC_I2S1_RX);
                 beg_call = 1;
@@ -268,6 +269,7 @@ static status_t amc(int Mode, uint32_t devices)
                 amc_route(AMC_RADIO_RX, AMC_I2S1_TX, AMC_ENDD);
                 amc_route(AMC_I2S1_RX, AMC_RADIO_TX, AMC_ENDD);
                 amc_route(AMC_I2S2_RX, AMC_I2S1_TX, AMC_ENDD);
+                amc_route(AMC_SIMPLE_TONES, AMC_I2S1_TX, AMC_ENDD);
                 amc_enable(AMC_I2S2_RX);
                 amc_enable(AMC_I2S1_RX);
                 new_pathid = A1026_PATH_INCALL_BT;

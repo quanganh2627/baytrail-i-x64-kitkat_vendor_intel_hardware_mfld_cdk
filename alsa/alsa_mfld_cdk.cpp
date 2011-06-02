@@ -178,6 +178,9 @@ static const device_suffix_t deviceSuffix[] = {
     {AudioSystem::DEVICE_OUT_WIRED_HEADSET,  "_Headset"},
     {AudioSystem::DEVICE_OUT_BLUETOOTH_A2DP, "_Bluetooth-A2DP"},
     {AudioSystem::DEVICE_OUT_HDMI,           "_HDMI"},
+#ifdef INTEL_WIDI
+    {AudioSystem::DEVICE_OUT_WIDI_LOOPBACK,  "_Widi-Loopback"},
+#endif
     {AudioSystem::DEVICE_IN_BUILTIN_MIC,           "_BuiltinMic"},
     {AudioSystem::DEVICE_IN_BLUETOOTH_SCO_HEADSET, "_BluetoothScoHeadset"},
     {AudioSystem::DEVICE_IN_WIRED_HEADSET,         "_Headset"},

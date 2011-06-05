@@ -15,6 +15,7 @@
 
 LOCAL_PATH := $(call my-dir)
 
+ifeq ($(ENABLE_IMG_GRAPHICS), true)
 # HAL module implemenation, not prelinked and stored in
 # hw/<OVERLAY_HARDWARE_MODULE_ID>.<ro.product.board>.so
 include $(CLEAR_VARS)
@@ -45,3 +46,4 @@ LOCAL_MODULE := overlay.$(TARGET_DEVICE)
 LOCAL_MODULE_TAGS := eng
 LOCAL_SHARED_LIBRARIES := liblog libcutils libdrm libpvr2d libdrm libwsbm
 include $(BUILD_SHARED_LIBRARY)
+endif

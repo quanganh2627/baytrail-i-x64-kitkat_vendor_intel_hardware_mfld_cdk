@@ -25,7 +25,7 @@ LOCAL_PRELINK_MODULE := false
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
 LOCAL_CFLAGS:= -Wno-unused-parameter
 LOCAL_C_INCLUDES := $(addprefix $(LOCAL_PATH)/../../, $(SGX_INCLUDES)) \
-            $(LOCAL_PATH)/../../PRIVATE/pvr/eurasia/pvr2d \
+            hardware/intel/include/eurasia/pvr2d \
             hardware/intel/libdrm/libdrm \
             hardware/intel/libdrm/shared-core \
             hardware/intel/libwsbm/src \

@@ -534,8 +534,8 @@ void PVROverlayDataDevice::coordinateSetup(struct pvr_overlay_buffer_t * buf)
     //case OVERLAY_FORMAT_CbYCrY_420_I:     /*YV12*/
     case OVERLAY_FORMAT_YCbCr_420_SP:       /*NV12*/
         break;
-        case OVERLAY_FORMAT_YCbYCr_422_I:   /*YUY2*/
-        case OVERLAY_FORMAT_CbYCrY_422_I:   /*UYVY*/
+    case OVERLAY_FORMAT_YCbYCr_422_I:   /*YUY2*/
+    case OVERLAY_FORMAT_CbYCrY_422_I:   /*UYVY*/
         width <<= 1;
         break;
     default:
@@ -983,7 +983,7 @@ void PVROverlayDataDevice::setStride(int stride)
 
     switch (format) {
     case OVERLAY_FORMAT_YCbYCr_420_I:       /*I420*/
-        uvStride = uvStride >> 1;
+        uvStride = yStride >> 1;
         break;
     case OVERLAY_FORMAT_YCbCr_420_SP:       /*NV12*/
         uvStride = yStride;

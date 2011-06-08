@@ -13,10 +13,6 @@ ifneq ($(ALSA_DEFAULT_SAMPLE_RATE),)
     LOCAL_CFLAGS += -DALSA_DEFAULT_SAMPLE_RATE=$(ALSA_DEFAULT_SAMPLE_RATE)
 endif
 
-ifeq ($(INTEL_WIDI), true)
-  LOCAL_CFLAGS += -DINTEL_WIDI=1
-endif
-
 LOCAL_C_INCLUDES += external/alsa-lib/include hardware/alsa_sound hardware/intel/include hardware/intel/mfld_cdk/alsa
 					  
 

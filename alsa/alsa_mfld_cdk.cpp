@@ -33,10 +33,6 @@
 #define ALSA_DEFAULT_SAMPLE_RATE 44100 // in Hz
 #endif
 
-#ifndef MODEM_DEFAULT_SAMPLE_RATE
-#define MODEM_DEFAULT_SAMPLE_RATE 48000 // in Hz
-#endif
-
 #undef LOGV
 #define LOGV LOGD
 // This is supposed to work for displaying verbose logs, but doesn't for some reason
@@ -132,8 +128,6 @@ format      :
     channels    : 2,
 sampleRate  :
     DEFAULT_SAMPLE_RATE,
-expectedSampleRate:
-    DEFAULT_SAMPLE_RATE,
     latency     : 50000, // Desired Delay in usec
 bufferSize  :
     DEFAULT_SAMPLE_RATE / 5, // Desired Number of samples
@@ -152,8 +146,6 @@ format      :
     SND_PCM_FORMAT_S16_LE, // AudioSystem::PCM_16_BIT
     channels    : 2,
 sampleRate  :
-    AudioRecord::DEFAULT_SAMPLE_RATE,
-expectedSampleRate:
     AudioRecord::DEFAULT_SAMPLE_RATE,
     latency     : 250000, // Desired Delay in usec
     bufferSize  : 2048, // Desired Number of samples
@@ -239,7 +231,7 @@ status_t setHardwareParams(alsa_handle_t *handle)
     status_t err;
 
     snd_pcm_uframes_t bufferSize = handle->bufferSize;
-    unsigned int requestedRate = handle->expectedSampleRate;
+    unsigned int requestedRate = handle->sampleRate;
     unsigned int latency = handle->latency;
 
     unsigned int buffer_time = 0;
@@ -300,13 +292,13 @@ status_t setHardwareParams(alsa_handle_t *handle)
 
     if (err < 0)
         LOGE("Unable to set %s sample rate to %u: %s",
-             streamName(handle), handle->expectedSampleRate, snd_strerror(err));
-    else if (requestedRate != handle->expectedSampleRate)
+             streamName(handle), handle->sampleRate, snd_strerror(err));
+    else if (requestedRate != handle->sampleRate)
         // Some devices have a fixed sample rate, and can not be changed.
         // This may cause resampling problems; i.e. PCM playback will be too
         // slow or fast.
         LOGW("Requested rate (%u HZ) does not match actual rate (%u HZ)",
-             handle->expectedSampleRate, requestedRate);
+             handle->sampleRate, requestedRate);
     else
         LOGV("Set %s sample rate to %u HZ", streamName(handle), requestedRate);
 
@@ -502,11 +494,6 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
         LOGE("Failed to Initialize any ALSA %s device: %s",
              stream, strerror(err));
         return NO_INIT;
-    }
-
-    handle->expectedSampleRate = DEFAULT_SAMPLE_RATE;
-    if (mode == AudioSystem::MODE_IN_CALL) {
-        handle->expectedSampleRate = MODEM_DEFAULT_SAMPLE_RATE;
     }
 
     err = setHardwareParams(handle);

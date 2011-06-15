@@ -57,14 +57,10 @@ struct alsa_handle_t {
     void *              modPrivate;
 };
 
-static snd_pcm_t *phandle;
-static snd_pcm_t *chandle;
 static int period_frames_t;
 static void  xrun(snd_pcm_t *handle);
 static int xrun_recovery(snd_pcm_t *handle, int err);
 static int setHardwareParams(struct alsa_handle_t *handle);
-static int modem_enable_msic ();
-static int modem_disable_msic ();
 static int modem_ifx_open(snd_pcm_ioplug_t *io);
 static int modem_ifx_close(snd_pcm_ioplug_t *io);
 
@@ -470,14 +466,10 @@ done:
 static int modem_close(snd_pcm_ioplug_t *io)
 {
     snd_pcm_modem_t *modem = io->private_data;
-
     LOGD("%s in \n", __func__);
 
     if(modem->pcm_md_handle)
         snd_pcm_close(modem->pcm_md_handle);
-
-    if(io->stream == SND_PCM_STREAM_PLAYBACK)
-        modem_disable_msic(modem);
 
     free(modem->device);
     free(modem);
@@ -597,83 +589,6 @@ static int modem_ifx_close(snd_pcm_ioplug_t *io)
     return 0;
 }
 
-static int modem_enable_msic ()
-{
-    char device_v[128];
-    int card = snd_card_get_index(MEDFIELDAUDIO);
-    int err = 0;;
-
-    if(phandle)
-        return 0;
-
-    LOGD("Enable msic ~~~");
-
-    sprintf(device_v, "hw:%d,2", card);
-    LOGD("%s \n",device_v);
-
-    if ((err = snd_pcm_open(&phandle, device_v, SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
-        LOGE("Playback open error: %s\n", snd_strerror(err));
-        return err;
-    }
-
-    if ((err = snd_pcm_open(&chandle, device_v, SND_PCM_STREAM_CAPTURE, 0)) < 0) {
-        LOGE("Capture open error: %s\n", snd_strerror(err));
-        goto error;
-    }
-
-    if ((err = snd_pcm_set_params(phandle,
-                                  SND_PCM_FORMAT_S16_LE,
-                                  SND_PCM_ACCESS_RW_INTERLEAVED,
-                                  2,
-                                  48000,
-                                  0,
-                                  500000)) < 0) {	/* 0.5sec */
-        LOGE("[P]set params error: %s\n", snd_strerror(err));
-        goto error;
-    }
-
-    if ((err = snd_pcm_set_params(chandle,
-                                  SND_PCM_FORMAT_S16_LE,
-                                  SND_PCM_ACCESS_RW_INTERLEAVED,
-                                  1,
-                                  48000,
-                                  1,
-                                  500000)) < 0) { /* 0.5sec */
-        LOGE("[C]set params error: %s\n", snd_strerror(err));
-        goto error;
-    }
-
-    LOGD("Enable msic ~~~ success");
-
-    return err;
-
-error:
-    if(phandle)
-        snd_pcm_close(phandle);
-
-    if(chandle)
-        snd_pcm_close(chandle);
-
-    return err;
-}
-
-static int modem_disable_msic ()
-{
-    LOGD("Disable msic ~~~");
-
-    if(phandle) {
-        snd_pcm_close(phandle);
-        LOGD("%s : snd_pcm_close(phandle)",__func__);
-    }
-    if(chandle) {
-        snd_pcm_close(chandle);
-        LOGD("%s : snd_pcm_close(chandle)",__func__);
-    }
-    phandle= NULL;
-    chandle= NULL;
-
-    return 0;
-}
 static const snd_pcm_ioplug_callback_t modem_playback_callback = {
     .start = modem_start,
     .stop = modem_stop,
@@ -759,7 +674,6 @@ SND_PCM_PLUGIN_DEFINE_FUNC(modem)
 
     *pcmp = modem->io.pcm;
 
-    modem_enable_msic(modem);
 
     LOGD("%s out \n", __func__);
 

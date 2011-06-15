@@ -40,6 +40,11 @@ typedef struct snd_ctl_modem {
     int updated;
 } snd_ctl_modem_t;
 
+static snd_pcm_t *phandle;
+static snd_pcm_t *chandle;
+
+static int modem_enable_msic();
+static int modem_disable_msic();
 
 #define VOICE_EARPIECE "Voice Earpiece"
 #define VOICE_SPEAKER "Voice Speaker"
@@ -295,6 +300,7 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
     switch (key) {
     case 0://earpiece
         LOGD("voice route to earpiece \n");
+        err = modem_enable_msic();
         modem_set_param(handle, "Playback Switch", 0, index);
         modem_set_param(handle, "Headset Playback Route", 0, index);
         modem_set_param(handle, "Mode Playback Route", 1, index);
@@ -305,6 +311,7 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
         break;
     case 1: //speaker
         LOGD("voice route to Speaker \n");
+        err = modem_enable_msic();
         modem_set_param(handle, "Speaker Mux Playback Route", 1, index);
         modem_set_param(handle, "Mode Playback Route", 1, index);
         modem_set_param(handle, "Headset Playback Route", 1, index);
@@ -313,13 +320,15 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
         ctl->source_muted = !*value;
         break;
     case 2: //modem setup
-        LOGD("modem voice route to MSIC \n");
+        LOGD("modem setup \n");
         break;
     case 3://modem setup for bt call
         LOGD("modem voice route to BT \n");
+        modem_disable_msic();
         break;
     case 4: // headset
         LOGD("voice route to headset \n");
+        err = modem_enable_msic();
         modem_set_param(handle, "Playback Switch", 1, index);
         modem_set_param(handle, "Headset Playback Route", 0, index);
         modem_set_param(handle, "Mode Playback Route", 1, index);
@@ -332,6 +341,7 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
         break;
     case 5: // bt
         LOGD("voice route to BT \n");
+        modem_disable_msic ();
         break;
     case 6: //volume control
         volume = * value;
@@ -426,6 +436,9 @@ static void modem_close(snd_ctl_ext_t * ext)
     snd_ctl_modem_t *ctl = ext->private_data;
 
     assert(ctl);
+
+    LOGD("modem close in ctl_modem");
+    modem_disable_msic();
 
     free(ctl->source);
     free(ctl->sink);
@@ -548,5 +561,83 @@ error:
 
     return err;
 }
+static int modem_enable_msic ()
+{
+    char device_v[128];
+    int card = snd_card_get_index(MEDFIELDAUDIO);
+    int err = 0;;
 
+    if(phandle)
+        return 0;
+
+    LOGD("Enable msic ~~~");
+
+    sprintf(device_v, "hw:%d,2", card);
+    LOGD("%s \n",device_v);
+
+    if ((err = snd_pcm_open(&phandle, device_v, SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
+        LOGE("Playback open error: %s\n", snd_strerror(err));
+        return err;
+    }
+
+    if ((err = snd_pcm_open(&chandle, device_v, SND_PCM_STREAM_CAPTURE, 0)) < 0) {
+        LOGE("Capture open error: %s\n", snd_strerror(err));
+        goto error;
+    }
+
+    if ((err = snd_pcm_set_params(phandle,
+                                  SND_PCM_FORMAT_S16_LE,
+                                  SND_PCM_ACCESS_RW_INTERLEAVED,
+                                  2,
+                                  48000,
+                                  0,
+                                  500000)) < 0) {	/* 0.5sec */
+        LOGE("[P]set params error: %s\n", snd_strerror(err));
+        goto error;
+    }
+
+    if ((err = snd_pcm_set_params(chandle,
+                                  SND_PCM_FORMAT_S16_LE,
+                                  SND_PCM_ACCESS_RW_INTERLEAVED,
+                                  1,
+                                  48000,
+                                  1,
+                                  500000)) < 0) { /* 0.5sec */
+        LOGE("[C]set params error: %s\n", snd_strerror(err));
+        goto error;
+    }
+
+    LOGD("Enable msic ~~~ success");
+
+    return err;
+
+error:
+    if(phandle)
+        snd_pcm_close(phandle);
+
+    if(chandle)
+        snd_pcm_close(chandle);
+
+    return err;
+
+}
+
+
+static int modem_disable_msic ()
+{
+    LOGD("Disable msic ~~~");
+
+    if(phandle) {
+        snd_pcm_close(phandle);
+        LOGD("%s : snd_pcm_close(phandle)",__func__);
+    }
+    if(chandle) {
+        snd_pcm_close(chandle);
+        LOGD("%s : snd_pcm_close(chandle)",__func__);
+    }
+    phandle= NULL;
+    chandle= NULL;
+
+    return 0;
+}
 SND_CTL_PLUGIN_SYMBOL(modem);

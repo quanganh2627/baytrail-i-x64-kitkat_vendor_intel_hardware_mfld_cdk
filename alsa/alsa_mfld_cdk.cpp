@@ -33,6 +33,10 @@
 #define ALSA_DEFAULT_SAMPLE_RATE 44100 // in Hz
 #endif
 
+#ifndef MODEM_CAPTURE_DEFAULT_SAMPLE_RATE
+#define MODEM_CAPTURE_DEFAULT_SAMPLE_RATE 48000 // in Hz
+#endif
+
 #undef LOGV
 #define LOGV LOGD
 // This is supposed to work for displaying verbose logs, but doesn't for some reason
@@ -173,6 +177,7 @@ static const device_suffix_t deviceSuffix[] = {
     {AudioSystem::DEVICE_IN_BUILTIN_MIC,           "_BuiltinMic"},
     {AudioSystem::DEVICE_IN_BLUETOOTH_SCO_HEADSET, "_BluetoothScoHeadset"},
     {AudioSystem::DEVICE_IN_WIRED_HEADSET,         "_Headset"},
+    {AudioSystem::DEVICE_IN_VOICE_CALL,            "_VoiceCall"},
 };
 
 static const int deviceSuffixLen = (sizeof(deviceSuffix)
@@ -494,6 +499,14 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
         LOGE("Failed to Initialize any ALSA %s device: %s",
              stream, strerror(err));
         return NO_INIT;
+    }
+
+    //This is a tricky way to change the sample rate.
+    //This is only effective for audio flinger reopen the HAL for each recording. This SRC change will not take effect when device is changed during the recording.
+    //This is not a formal solution and limitation, so maybe we will modify these codes when we find a better way to resolve SRC.
+    if (devices & AudioSystem::DEVICE_IN_VOICE_CALL) {
+        LOGD("Detected modem capture device, setting sample rate to %d", MODEM_CAPTURE_DEFAULT_SAMPLE_RATE);
+        handle->sampleRate = MODEM_CAPTURE_DEFAULT_SAMPLE_RATE;
     }
 
     err = setHardwareParams(handle);

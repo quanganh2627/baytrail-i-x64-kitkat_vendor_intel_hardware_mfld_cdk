@@ -199,6 +199,7 @@ extern "C"
         IFX_USER_DEFINED_3_S = 9,/*Project-specific mode.*/
         IFX_USER_DEFINED_4_S = 10,/*Project-specific mode.*/
         IFX_USER_DEFINED_5_S = 11,/*Project-specific mode.*/
+        IFX_USER_DEFINED_15_S = 21, /*No Processing.*/
     } IFX_TRANSDUCER_MODE_SOURCE;
 
 
@@ -217,6 +218,7 @@ extern "C"
         IFX_USER_DEFINED_3_D = 10,/*Project-specific mode.*/
         IFX_USER_DEFINED_4_D = 11,/*Project-specific mode.*/
         IFX_USER_DEFINED_5_D = 12,
+        IFX_USER_DEFINED_15_D = 22,/*No Processing.*/
     } IFX_TRANSDUCER_MODE_DEST;
 
 

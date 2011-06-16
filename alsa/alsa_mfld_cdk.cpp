@@ -33,8 +33,8 @@
 #define ALSA_DEFAULT_SAMPLE_RATE 44100 // in Hz
 #endif
 
-#ifndef MODEM_CAPTURE_DEFAULT_SAMPLE_RATE
-#define MODEM_CAPTURE_DEFAULT_SAMPLE_RATE 48000 // in Hz
+#ifndef MODEM_DEFAULT_SAMPLE_RATE
+#define MODEM_DEFAULT_SAMPLE_RATE 48000 // in Hz
 #endif
 
 #undef LOGV
@@ -132,6 +132,8 @@ format      :
     channels    : 2,
 sampleRate  :
     DEFAULT_SAMPLE_RATE,
+expectedSampleRate:
+    DEFAULT_SAMPLE_RATE,
     latency     : 50000, // Desired Delay in usec
 bufferSize  :
     DEFAULT_SAMPLE_RATE / 5, // Desired Number of samples
@@ -150,6 +152,8 @@ format      :
     SND_PCM_FORMAT_S16_LE, // AudioSystem::PCM_16_BIT
     channels    : 2,
 sampleRate  :
+    AudioRecord::DEFAULT_SAMPLE_RATE,
+expectedSampleRate:
     AudioRecord::DEFAULT_SAMPLE_RATE,
     latency     : 250000, // Desired Delay in usec
     bufferSize  : 2048, // Desired Number of samples
@@ -236,7 +240,7 @@ status_t setHardwareParams(alsa_handle_t *handle)
     status_t err;
 
     snd_pcm_uframes_t bufferSize = handle->bufferSize;
-    unsigned int requestedRate = handle->sampleRate;
+    unsigned int requestedRate = handle->expectedSampleRate;
     unsigned int latency = handle->latency;
 
     unsigned int buffer_time = 0;
@@ -297,13 +301,13 @@ status_t setHardwareParams(alsa_handle_t *handle)
 
     if (err < 0)
         LOGE("Unable to set %s sample rate to %u: %s",
-             streamName(handle), handle->sampleRate, snd_strerror(err));
-    else if (requestedRate != handle->sampleRate)
+             streamName(handle), handle->expectedSampleRate, snd_strerror(err));
+    else if (requestedRate != handle->expectedSampleRate)
         // Some devices have a fixed sample rate, and can not be changed.
         // This may cause resampling problems; i.e. PCM playback will be too
         // slow or fast.
         LOGW("Requested rate (%u HZ) does not match actual rate (%u HZ)",
-             handle->sampleRate, requestedRate);
+             handle->expectedSampleRate, requestedRate);
     else
         LOGV("Set %s sample rate to %u HZ", streamName(handle), requestedRate);
 
@@ -501,12 +505,24 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
         return NO_INIT;
     }
 
+    if (direction(handle) == SND_PCM_STREAM_PLAYBACK) {
+        handle->sampleRate = DEFAULT_SAMPLE_RATE;
+        handle->expectedSampleRate = DEFAULT_SAMPLE_RATE;
+    } else {
+        handle->sampleRate = AudioRecord::DEFAULT_SAMPLE_RATE;
+        handle->expectedSampleRate = AudioRecord::DEFAULT_SAMPLE_RATE;
+    }
+
+    if (mode == AudioSystem::MODE_IN_CALL) {
+        handle->expectedSampleRate = MODEM_DEFAULT_SAMPLE_RATE;
+    }
+
     //This is a tricky way to change the sample rate.
     //This is only effective for audio flinger reopen the HAL for each recording. This SRC change will not take effect when device is changed during the recording.
     //This is not a formal solution and limitation, so maybe we will modify these codes when we find a better way to resolve SRC.
     if (devices & AudioSystem::DEVICE_IN_VOICE_CALL) {
-        LOGD("Detected modem capture device, setting sample rate to %d", MODEM_CAPTURE_DEFAULT_SAMPLE_RATE);
-        handle->sampleRate = MODEM_CAPTURE_DEFAULT_SAMPLE_RATE;
+        LOGD("Detected modem capture device, setting sample rate to %d", MODEM_DEFAULT_SAMPLE_RATE);
+        handle->sampleRate = MODEM_DEFAULT_SAMPLE_RATE;
     }
 
     err = setHardwareParams(handle);

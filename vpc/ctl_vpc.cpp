@@ -46,6 +46,7 @@ static int prev_mode = 0x0;
 static uint32_t prev_dev = 0x00;
 static int at_thread_init = 0;
 static int beg_call = 0;
+static bool tty_call = false;
 #define A1026_PATH_INCALL_NO_NS_RECEIVER A1026_PATH_VR_NO_NS_RECEIVER
 
 static int s_device_open(const hw_module_t*, const char*, hw_device_t**);
@@ -55,28 +56,23 @@ static status_t volume(float);
 static status_t doA1026_init(void);
 static status_t disable_mixing(int);
 static status_t enable_mixing(int,uint32_t);
+static status_t enable_tty(bool);
 static hw_module_methods_t s_module_methods = {
 open            :
     s_device_open
 };
 
 extern "C" const hw_module_t HAL_MODULE_INFO_SYM = {
-tag             :
-    HARDWARE_MODULE_TAG,
-    version_major   : 1,
-    version_minor   : 0,
-id              :
-    VPC_HARDWARE_MODULE_ID,
-name            : "mfld vpc module"
-    ,
-author          : "Intel Corporation"
-    ,
-methods         :
-    &s_module_methods,
-    dso             : 0,
-reserved        : {
-        0,
-    },
+
+    tag : HARDWARE_MODULE_TAG,
+    version_major : 1,
+    version_minor : 0,
+    id : VPC_HARDWARE_MODULE_ID,
+    name : "mfld vpc module",
+    author : "Intel Corporation",
+    methods : &s_module_methods,
+    dso : 0,
+    reserved : { 0, },
 };
 
 static int s_device_open(const hw_module_t* module, const char* name,
@@ -97,6 +93,7 @@ static int s_device_open(const hw_module_t* module, const char* name,
     dev->amcvolume = volume;
     dev->mix_disable = disable_mixing;
     dev->mix_enable = enable_mixing;
+    dev->tty_enable = enable_tty;
     *device = &dev->common;
     return 0;
 }
@@ -259,10 +256,17 @@ static status_t amc(int Mode, uint32_t devices)
                 if (prev_mode!=AudioSystem::MODE_IN_CALL || prev_dev==AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET || beg_call == 0) {
                 amc_disable(AMC_I2S1_RX);
                 amc_disable(AMC_I2S2_RX);
-                amc_configure_source(AMC_I2S1_RX, IFX_CLK1, IFX_MASTER,  IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
-                amc_configure_source(AMC_I2S2_RX, IFX_CLK0, IFX_MASTER,  IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
-                amc_configure_dest(AMC_I2S1_TX, IFX_CLK1, IFX_MASTER,  IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_D);
-                amc_configure_dest(AMC_I2S2_TX, IFX_CLK0, IFX_MASTER,  IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_D);
+                if (tty_call == false){
+                    amc_configure_source(AMC_I2S1_RX, IFX_CLK1, IFX_MASTER,  IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
+                    amc_configure_source(AMC_I2S2_RX, IFX_CLK0, IFX_MASTER,  IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
+                    amc_configure_dest(AMC_I2S1_TX, IFX_CLK1, IFX_MASTER,  IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_D);
+                    amc_configure_dest(AMC_I2S2_TX, IFX_CLK0, IFX_MASTER,  IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_D);}
+                else if(tty_call == true){
+                    amc_configure_source(AMC_I2S1_RX, IFX_CLK1, IFX_MASTER,  IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_TTY_S);
+                    amc_configure_source(AMC_I2S2_RX, IFX_CLK0, IFX_MASTER,  IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_TTY_S);
+                    amc_configure_dest(AMC_I2S1_TX, IFX_CLK1, IFX_MASTER,  IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_TTY_D);
+                    amc_configure_dest(AMC_I2S2_TX, IFX_CLK0, IFX_MASTER,  IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_TTY_D);
+                }
                 amc_route(AMC_RADIO_RX, AMC_I2S1_TX, AMC_ENDD);
                 amc_route(AMC_I2S1_RX, AMC_RADIO_TX, AMC_ENDD);
                 amc_route(AMC_I2S2_RX, AMC_I2S1_TX, AMC_ENDD);
@@ -344,11 +348,13 @@ static status_t disable_mixing(int mode)
 {
     return NO_ERROR;
 }
+
 /*------------------*/
-/*   IS21 enable   */
+/*   IS1 enable   */
 /*------------------*/
 
-static status_t enable_mixing(int mode,uint32_t device)
+
+static status_t enable_mixing(int mode, uint32_t device)
 {
     if (mode==AudioSystem::MODE_IN_CALL)
         if (device == AudioSystem::DEVICE_IN_VOICE_CALL){
@@ -358,4 +364,14 @@ static status_t enable_mixing(int mode,uint32_t device)
     return NO_ERROR;
 }
 
+
+static status_t enable_tty(bool tty)
+{
+    if (tty == true){
+        tty_call = true;
+        LOGD("TTY TRUE\n");}
+    else
+        tty_call = false;
+    return NO_ERROR;
+}
 }

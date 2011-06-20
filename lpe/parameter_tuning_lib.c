@@ -173,7 +173,7 @@ int recieve_get_parameters(snd_ppp_params_t *ppp_params)
 	retval = ioctl(handle, SNDRV_SST_GET_ALGO, ppp_params);
 	if ( retval != 0){
 		fprintf(stderr, "ioctl cmd GET_ALGO failed : %s\n", strerror(errno));
-		return -1;
+		retval = -1;
 	}
 	close(handle);
 
@@ -196,6 +196,10 @@ int set_generic_config_params(int config_type, int str_id, int config_data_size,
 	snd_sst_tuning_params_t *tuning_params=NULL;
 
 	tuning_params = (snd_sst_tuning_params_t *) malloc(50+config_data_size);
+        if(!tuning_params) {
+                LOGW("malloc tuning_params error");
+                return -1;
+        }
 	tuning_params->type = config_type;
 	tuning_params->str_id = str_id;
 	tuning_params->size = config_data_size;
@@ -234,19 +238,27 @@ int set_runtime_params(int config_type, int str_id, int config_data_size, int co
 	__u64 *addr;
 
 	tuning_params = (snd_sst_tuning_params_t *) malloc(sizeof(snd_sst_tuning_params_t));
+        if(!tuning_params) {
+                LOGW("malloc tuning_params error");
+                return -1;
+        }
 	tuning_params->type = config_type;
 	tuning_params->str_id = str_id;
 	tuning_params->size = config_data_size;
 	tuning_params->rsvd=0;
 
 	addr = (__u64 *)malloc(sizeof(config_data));
+        if(!addr) {
+                LOGW("malloc addr error");
+                return -1;
+        }
 	*addr = config_data;
 
 	tuning_params->addr = (__u64)addr;
 	handle = open("/dev/intel_sst_ctrl", O_RDWR);
 	if ( handle < 0){
 		fprintf(stderr, "/dev/intel_sst_ctrl open failed : %s\n", strerror(errno));
-                LOGE("enter the set runtime params:open error %s",strerror(errno));
+                LOGW("enter the set runtime params:open error %s",strerror(errno));
 		free(addr);
 		free(tuning_params);
 		return -1;
@@ -255,7 +267,7 @@ int set_runtime_params(int config_type, int str_id, int config_data_size, int co
 	retval = ioctl(handle, SNDRV_SST_SET_RUNTIME_PARAMS, tuning_params);
 	if ( retval != 0){
 		fprintf(stderr, "ioctl cmd SNDRV_SST_TUNING_PARAMS failed : %s\n", strerror(errno));
-                LOGE("enter the set runtime params:ioctl error");
+                LOGW("enter the set runtime params:ioctl error");
 		retval = -1;
 	}
 	close(handle);

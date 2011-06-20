@@ -325,8 +325,8 @@ AT_STATUS at_stop()
 	 * No need for mutex: we are in a single thread context.*/
 	while (pFirstRunningATcmd != NULL) {
 		pCur = pFirstRunningATcmd;
-		free(pFirstRunningATcmd);
 		pFirstRunningATcmd = pCur->pNext;
+		free(pCur);
 	}
 	/*Final*/
 	close(fdIn);
@@ -369,6 +369,10 @@ AT_STATUS at_askUnBlocking(const char *pATcmd, const char *pRespPrefix,
 	}
 	/* Log new cmd for reader thread: add it to the running list:*/
 	pNewCmd = (RunningATcmd  *) malloc(sizeof(RunningATcmd));
+	if(!pNewCmd) {
+		LOGW("malloc pNewCmd error");
+		return AT_UNINITIALIZED;
+	}
 	removeCtrlChar(pNewCmd->prefix, pRespPrefix);
 	pNewCmd->pResp = pATresp;
 	pNewCmd->pStatus = pCmdStatus;
@@ -548,8 +552,15 @@ AT_STATUS writeATline(int fd, const char *pATcmd)
 
 	FD_ZERO(&fdSet);
 	FD_SET(fd, &fdSet);
-	strcpy(buf, pATcmd);
-	len = strlen(buf);
+	len = strlen(pATcmd);
+	if(len >= AT_MAX_CMD_LENGTH) {
+		LOGW("AT cmd is too long");
+		return AT_ERROR;
+	}
+
+	strncpy(buf,pATcmd,len);
+	buf[len] = '\0';
+
 	LOGV("*** Writing |%s| ...", pATcmd);
 	/* Remove any unwanted ending control char and append \r*/
 	while (len > 0 && iscntrl(buf[len-1]))

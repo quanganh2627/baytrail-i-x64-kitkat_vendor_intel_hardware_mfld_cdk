@@ -104,7 +104,7 @@ static snd_pcm_sframes_t modem_write(snd_pcm_ioplug_t *io,
 {
     snd_pcm_modem_t *modem = io->private_data;
     int err;
-    const char *buf;
+    const char *buf = NULL;
     ssize_t result;
     int bytes_per_frame=io->channels*2; //only support 16 bits format
 
@@ -615,7 +615,7 @@ static const snd_pcm_ioplug_callback_t modem_capture_callback = {
 SND_PCM_PLUGIN_DEFINE_FUNC(modem)
 {
     snd_config_iterator_t i, next;
-    const char *device;
+    const char *device = NULL;
     int err;
     snd_pcm_modem_t *modem;
     int card;
@@ -625,7 +625,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(modem)
 
     snd_config_for_each(i, next, conf) {
         snd_config_t *n = snd_config_iterator_entry(i);
-        const char *id;
+        const char *id = NULL;
         if (snd_config_get_id(n, &id) < 0)
             continue;
         if (strcmp(id, "comment") == 0 || strcmp(id, "type") == 0 || strcmp(id, "hint") == 0)
@@ -640,18 +640,19 @@ SND_PCM_PLUGIN_DEFINE_FUNC(modem)
         LOGE("Unknown field %s", id);
         return -EINVAL;
     }
-
     modem = calloc(1, sizeof(*modem));
     if (! modem) {
         LOGE("cannot allocate");
         return -ENOMEM;
     }
-
-    modem->device = strdup(device);
-    if (modem->device == NULL) {
-        LOGE("cannot allocate");
-        free(modem);
-        return -ENOMEM;
+    if(device == NULL){
+        LOGW("no modem device name");
+        modem->device = NULL;
+    } else {
+        modem->device = strdup(device);
+        if(!modem->device) {
+            LOGW("modem->device name is NULL");
+        }
     }
 
     modem->io.version = SND_PCM_IOPLUG_VERSION;

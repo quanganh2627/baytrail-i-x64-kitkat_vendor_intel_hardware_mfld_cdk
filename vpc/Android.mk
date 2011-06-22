@@ -1,4 +1,3 @@
-ifneq (,$(findstring $(CUSTOM_BOARD),mfld_cdk,mfld_pr1))
 
 LOCAL_PATH := $(call my-dir)
 
@@ -34,4 +33,3 @@ LOCAL_C_INCLUDES += external/alsa-lib/include hardware/alsa_sound hardware/intel
 
   include $(BUILD_SHARED_LIBRARY)
 
-endif

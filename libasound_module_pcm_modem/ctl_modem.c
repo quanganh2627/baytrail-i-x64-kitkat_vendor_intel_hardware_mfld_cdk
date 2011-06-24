@@ -53,6 +53,7 @@ static int modem_disable_msic();
 #define VOICE_HEADSET "Voice Headset"
 #define VOICE_BT "Voice BT"
 #define AMC_ADJUST_VOLUME "AMC Adjust Volume"
+#define VOICE_HEADPHONE "Voice Headphone"
 
 #define UPDATE_AMC_VOICE     0x01
 #define UPDATE_AMC_VOICE_BT    0x02
@@ -61,6 +62,20 @@ static int modem_disable_msic();
 #define UPDATE_HEADSET  0x10
 #define UPDATE_BT  0x20
 #define UPDATE_AMC_ADJUST_VOLUME 0x40
+#define UPDATE_HEADPHONE  0x80
+typedef enum snd_ctl_ext_incall_key {
+    VOICE_EARPIECE_INCALL = 0x0,
+    VOICE_SPEAKER_INCALL,
+    AMC_VOICE_INCALL,
+    AMC_VOICE_BT_INCALL,
+    VOICE_HEADSET_INCALL,
+    VOICE_BT_INCALL,
+    AMC_ADJUST_VOLUME_INCALL,
+    VOICE_HEADPHONE_INCALL,
+    EXT_INCALL
+}snd_ctl_ext_incall_key_t;
+
+
 
 #define MEDFIELDAUDIO "medfieldaudio"
 
@@ -111,26 +126,28 @@ static snd_ctl_ext_key_t modem_find_elem(snd_ctl_ext_t * ext,
     unsigned int numid;
 
     numid = snd_ctl_elem_id_get_numid(id);
-    if (numid > 0 && numid <= 7)
+    if (numid > 0 && numid <= EXT_INCALL)
         return numid - 1;
 
     name = snd_ctl_elem_id_get_name(id);
     LOGD("%s : name = %s\n", __func__, name);
 
     if (strcmp(name, VOICE_EARPIECE) == 0)
-        return 0;
+        return VOICE_EARPIECE_INCALL;
     if (strcmp(name, VOICE_SPEAKER) == 0)
-        return 1;
+        return VOICE_SPEAKER_INCALL;
     if (strcmp(name, AMC_VOICE) == 0)
-        return 2;
+        return AMC_VOICE_INCALL;
     if (strcmp(name, AMC_VOICE_BT) == 0)
-        return 3;
+        return AMC_VOICE_BT_INCALL;
     if (strcmp(name, VOICE_HEADSET) == 0)
-        return 4;
+        return VOICE_HEADSET_INCALL;
     if (strcmp(name, VOICE_BT) == 0)
-        return 5;
+        return VOICE_BT_INCALL;
     if (strcmp(name, AMC_ADJUST_VOLUME) == 0)
-        return 6;
+        return AMC_ADJUST_VOLUME_INCALL;
+    if (strcmp(name, VOICE_HEADPHONE) == 0)
+        return VOICE_HEADPHONE_INCALL;
 
     return SND_CTL_EXT_KEY_NOT_FOUND;
 }
@@ -142,7 +159,7 @@ static int modem_get_attribute(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
     snd_ctl_modem_t *ctl = ext->private_data;
     int err = 0;
 
-    if (key > 8)
+    if (key > EXT_INCALL + 1)
         return -EINVAL;
 
     assert(ctl);
@@ -179,21 +196,23 @@ static int modem_read_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
     assert(ctl);
 
     switch (key) {
-    case 0:
+    case VOICE_EARPIECE_INCALL:
         break;
-    case 1:
+    case VOICE_SPEAKER_INCALL:
         *value = !ctl->source_muted;
         break;
-    case 2:
+    case AMC_VOICE_INCALL:
         break;
-    case 3:
+    case AMC_VOICE_BT_INCALL:
         *value = !ctl->sink_muted;
         break;
-    case 4:
+    case VOICE_HEADSET_INCALL:
         break;
-    case 5:
+    case VOICE_BT_INCALL:
         break;
-    case 6:
+    case  AMC_ADJUST_VOLUME_INCALL:
+        break;
+    case VOICE_HEADPHONE_INCALL:
         break;
     default:
         err = -EINVAL;
@@ -298,35 +317,40 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
     int volume = 200;
 
     switch (key) {
-    case 0://earpiece
+    case VOICE_EARPIECE_INCALL://earpiece
         LOGD("voice route to earpiece \n");
         err = modem_enable_msic();
         modem_set_param(handle, "Playback Switch", 0, index);
         modem_set_param(handle, "Headset Playback Route", 0, index);
         modem_set_param(handle, "Mode Playback Route", 1, index);
         modem_set_param(handle, "Speaker Mux Playback Route", 0, -1);
-        modem_set_param(handle, "Mic1Mode Capture Route", 0, index);
+        modem_set_param(handle, "DMIC12 Capture Route", 1, index);
         modem_set_param(handle, "Txpath1 Capture Route", 0, index);
-        modem_set_param(handle, "Mic1 Capture Volume", 3, index);
+        modem_set_param(handle, "Txpath2 Capture Route", 1, index);
         break;
-    case 1: //speaker
+    case VOICE_SPEAKER_INCALL: //speaker
         LOGD("voice route to Speaker \n");
         err = modem_enable_msic();
         modem_set_param(handle, "Speaker Mux Playback Route", 1, index);
         modem_set_param(handle, "Mode Playback Route", 1, index);
         modem_set_param(handle, "Headset Playback Route", 1, index);
+        modem_set_param(handle, "DMIC12 Capture Route", 1, index);
+        modem_set_param(handle, "Txpath1 Capture Route", 0, index);
+        modem_set_param(handle, "Txpath2 Capture Route", 1, index);
+
+
         if (!!ctl->source_muted == !*value)
             goto finish;
         ctl->source_muted = !*value;
         break;
-    case 2: //modem setup
-        LOGD("modem setup \n");
+    case AMC_VOICE_INCALL: //modem setup
+        LOGD("modem voice route to MSIC \n");
         break;
-    case 3://modem setup for bt call
+    case AMC_VOICE_BT_INCALL://modem setup for bt call
         LOGD("modem voice route to BT \n");
         modem_disable_msic();
         break;
-    case 4: // headset
+    case VOICE_HEADSET_INCALL: // headset
         LOGD("voice route to headset \n");
         err = modem_enable_msic();
         modem_set_param(handle, "Playback Switch", 1, index);
@@ -335,17 +359,27 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
         modem_set_param(handle, "Speaker Mux Playback Route", 0, -1);
         modem_set_param(handle, "Mic1Mode Capture Route", 0, index);
         modem_set_param(handle, "Mic_InputL Capture Route", 0, index);
-        modem_set_param(handle, "Mic_InputR Capture Route", 0, index);
         modem_set_param(handle, "Txpath1 Capture Route", 6, index);
         modem_set_param(handle, "Mic1 Capture Volume", 3, index);
         break;
-    case 5: // bt
+    case VOICE_BT_INCALL: // bt
         LOGD("voice route to BT \n");
         modem_disable_msic ();
         break;
-    case 6: //volume control
+    case AMC_ADJUST_VOLUME_INCALL: //volume control
         volume = * value;
         break;
+    case VOICE_HEADPHONE_INCALL:// headphone
+        err = modem_enable_msic();
+        modem_set_param(handle, "Playback Switch", 1, index);
+        modem_set_param(handle, "Headset Playback Route", 0, index);
+        modem_set_param(handle, "Mode Playback Route", 1, index);
+        modem_set_param(handle, "Speaker Mux Playback Route", 0, -1);
+        modem_set_param(handle, "DMIC12 Capture Route", 1, index);
+        modem_set_param(handle, "Txpath1 Capture Route", 0, index);
+        modem_set_param(handle, "Txpath2 Capture Route", 1, index);
+        break;
+
     default:
         err = -EINVAL;
         goto finish;
@@ -399,6 +433,8 @@ static int modem_read_event(snd_ctl_ext_t * ext, snd_ctl_elem_id_t * id,
         ctl->updated &= ~UPDATE_BT;
     } else if (ctl->updated & UPDATE_AMC_ADJUST_VOLUME) {
         ctl->updated &= ~UPDATE_AMC_ADJUST_VOLUME;
+    } else if (ctl->updated & UPDATE_HEADPHONE) {
+        ctl->updated &= ~UPDATE_HEADPHONE;
     }
 
     *event_mask = SND_CTL_EVENT_MASK_VALUE;

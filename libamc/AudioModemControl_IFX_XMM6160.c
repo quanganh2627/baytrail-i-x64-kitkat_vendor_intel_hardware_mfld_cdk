@@ -65,8 +65,8 @@
 #define MODIFY_HF "AT+XDRV=40,11,%i,%i,%i"
 #define MODIFY_HF_RESP "+XDRV: 40,11,"
 #define SET_RTD "AT+XDRV = 40,12,"
-#define ATD "ATD%s;"
-#define DIAL_RESP "OK"
+#define AT "AT+COPS?"
+#define AT_RESP "+COPS:"
 
 
 /*------------------------------------------------------------------------------
@@ -225,14 +225,14 @@ AMC_STATUS amc_setAcousticUnBlocking(
                cmdStr, MODIFY_HF_RESP, (AT_STATUS *)pCmdStatus);
 }
 
-AMC_STATUS amc_DialingUnBlocking(
-    char *number, AMC_STATUS *pCmdStatus)
+AMC_STATUS amc_check(AMC_STATUS *pCmdStatus)
 {
     char cmdStr[AT_MAX_CMD_LENGTH];
-    sprintf(cmdStr,ATD, number);
+    sprintf(cmdStr, AT);
     return (AMC_STATUS) at_sendUnBlocking(
-               cmdStr, DIAL_RESP, (AT_STATUS *)pCmdStatus);
+               cmdStr,AT_RESP, (AT_STATUS *)pCmdStatus);
 }
+
 #endif /*MODEM_IFX_XMM6160*/
 
 

@@ -285,7 +285,7 @@ extern "C"
     /* Other:*/
 
     AMC_STATUS amc_setAcoustic(AMC_ACOUSTIC acousticProfile);
-    AMC_STATUS dial(char *number);
+    AMC_STATUS check_tty();
 
     /* Unblocking counter-parts:*/
 
@@ -304,8 +304,7 @@ extern "C"
     AMC_STATUS amc_setAcousticUnBlocking(AMC_ACOUSTIC acousticProfile,
                                          AMC_STATUS *pCmdStatus);
 
-    AMC_STATUS amc_DialingUnBlocking(char *number,
-                                     AMC_STATUS *pCmdStatus);
+    AMC_STATUS amc_check(AMC_STATUS *pCmdStatus);
     /* waiting passively for the completion of unblocking commands:*/
     void amc_waitForCmdCompletion(AMC_STATUS *pCmdStatus);
 

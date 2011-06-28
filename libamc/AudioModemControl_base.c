@@ -147,12 +147,10 @@ AMC_STATUS amc_setAcoustic(AMC_ACOUSTIC acousticProfile)
     at_waitForCmdCompletion((AT_STATUS *) &cmdStatus);
     return cmdStatus;
 }
-AMC_STATUS dial(char *number)
+AMC_STATUS check_tty()
 {
-    char *num;
-    num = number;
     AMC_STATUS cmdStatus;
-    amc_DialingUnBlocking(num,  &cmdStatus);
+    amc_check(&cmdStatus);
     at_waitForCmdCompletion((AT_STATUS *) &cmdStatus);
     return cmdStatus;
 }

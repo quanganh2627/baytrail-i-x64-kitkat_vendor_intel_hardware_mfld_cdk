@@ -346,6 +346,7 @@ static status_t volume(float volume)
 
 static status_t disable_mixing(int mode)
 {
+    amc_disable(AMC_I2S2_RX);
     return NO_ERROR;
 }
 
@@ -356,11 +357,16 @@ static status_t disable_mixing(int mode)
 
 static status_t enable_mixing(int mode, uint32_t device)
 {
-    if (mode==AudioSystem::MODE_IN_CALL)
+    if (mode==AudioSystem::MODE_IN_CALL) {
         if (device == AudioSystem::DEVICE_IN_VOICE_CALL){
+            // Enable voice call record
             amc_route(AMC_RADIO_RX, AMC_I2S1_TX, AMC_I2S2_TX, AMC_ENDD);
             amc_route(AMC_I2S1_RX, AMC_RADIO_TX, AMC_I2S2_TX, AMC_ENDD);
-            amc_route(AMC_I2S2_RX, AMC_I2S1_TX, AMC_ENDD);}
+        } else {
+            // Enable alert mixing
+            amc_enable(AMC_I2S2_RX);
+        }
+    }
     return NO_ERROR;
 }
 

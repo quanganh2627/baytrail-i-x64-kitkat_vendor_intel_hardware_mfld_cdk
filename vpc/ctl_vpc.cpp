@@ -47,6 +47,8 @@ static uint32_t prev_dev = 0x00;
 static int at_thread_init = 0;
 static int beg_call = 0;
 static bool tty_call = false;
+static bool mixing_enable = false;
+static bool voice_call_recording = false;
 #define A1026_PATH_INCALL_NO_NS_RECEIVER A1026_PATH_VR_NO_NS_RECEIVER
 
 static int s_device_open(const hw_module_t*, const char*, hw_device_t**);
@@ -272,6 +274,7 @@ static status_t amc(int Mode, uint32_t devices)
                 amc_route(AMC_I2S2_RX, AMC_I2S1_TX, AMC_ENDD);
                 amc_route(AMC_SIMPLE_TONES, AMC_I2S1_TX, AMC_ENDD);
                 amc_enable(AMC_I2S2_RX);
+                mixing_enable = true;
                 amc_enable(AMC_I2S1_RX);
                 beg_call = 1;
                 }
@@ -292,6 +295,7 @@ static status_t amc(int Mode, uint32_t devices)
                 amc_route(AMC_I2S2_RX, AMC_I2S1_TX, AMC_ENDD);
                 amc_route(AMC_SIMPLE_TONES, AMC_I2S1_TX, AMC_ENDD);
                 amc_enable(AMC_I2S2_RX);
+                mixing_enable = true;
                 amc_enable(AMC_I2S1_RX);
                 new_pathid = A1026_PATH_INCALL_BT;
                 doAudience_A1026_Control(new_pathid);
@@ -308,6 +312,7 @@ static status_t amc(int Mode, uint32_t devices)
             LOGD("AMC FROM IN CALL TO NORMAL\n");
             amc_disable(AMC_I2S1_RX);
             amc_disable(AMC_I2S2_RX);
+            mixing_enable = false;
             new_pathid = A1026_PATH_SUSPEND;
             doAudience_A1026_Control(new_pathid);
             beg_call = 0;
@@ -346,7 +351,14 @@ static status_t volume(float volume)
 
 static status_t disable_mixing(int mode)
 {
-    amc_disable(AMC_I2S2_RX);
+    if(mixing_enable) {
+        LOGD("disable mixing");
+        amc_disable(AMC_I2S2_RX);
+        mixing_enable = false;
+    }
+    if(voice_call_recording) {
+        voice_call_recording = false;
+    }
     return NO_ERROR;
 }
 
@@ -359,12 +371,20 @@ static status_t enable_mixing(int mode, uint32_t device)
 {
     if (mode==AudioSystem::MODE_IN_CALL) {
         if (device == AudioSystem::DEVICE_IN_VOICE_CALL){
-            // Enable voice call record
-            amc_route(AMC_RADIO_RX, AMC_I2S1_TX, AMC_I2S2_TX, AMC_ENDD);
-            amc_route(AMC_I2S1_RX, AMC_RADIO_TX, AMC_I2S2_TX, AMC_ENDD);
+            if(!voice_call_recording) {
+                // Enable voice call record
+                LOGD("voice in call recording");
+                amc_route(AMC_RADIO_RX, AMC_I2S1_TX, AMC_I2S2_TX, AMC_ENDD);
+                amc_route(AMC_I2S1_RX, AMC_RADIO_TX, AMC_I2S2_TX, AMC_ENDD);
+                voice_call_recording = true;
+            }
         } else {
-            // Enable alert mixing
-            amc_enable(AMC_I2S2_RX);
+            if(!mixing_enable) {
+                // Enable alert mixing
+                LOGD("enable mixing");
+                amc_enable(AMC_I2S2_RX);
+                mixing_enable = true;
+            }
         }
     }
     return NO_ERROR;

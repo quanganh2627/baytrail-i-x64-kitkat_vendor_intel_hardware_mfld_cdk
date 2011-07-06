@@ -184,7 +184,7 @@ int overlay_setParameter(struct overlay_data_device_t *dev,
         pvrDataDevice->resetOverlay();
         break;
     case MDFLD_OVERLAY_HDMI_STATUS:
-        if (value != MDFLD_HDMI_STATUS_CONNECTED &&
+        if (value != MDFLD_HDMI_STATUS_CONNECTED_EXTEND &&
             value != MDFLD_HDMI_STATUS_DISCONNECTED) {
             LOGE("%s: invalid hdmi status %d\n", __func__, value);
             return -EINVAL;
@@ -267,8 +267,15 @@ static int overlay_data_close(struct hw_device_t *dev)
     /*delete data device*/
     delete pvrDataDevice;
 
-    /*delete HAL instance*/
-    delete PVROverlayHAL::getInstance();
+
+    /*
+     * delete HAL instance
+     * NOTE: comment this out for super source usage.
+     * overlay usage of super source was not compatible with Android overlay
+     * architecture.
+     * FIXME: uncomment it.
+     */
+    // delete PVROverlayHAL::getInstance();
 
     return 0;
 }
@@ -326,6 +333,14 @@ static overlay_t* overlay_createOverlay(struct overlay_control_device_t *dev,
 
     if(!pvrControlDevice) {
         LOGE("%s: overlay control device is NULL\n", __func__);
+        return NULL;
+    }
+
+    /*check width and height*/
+    if (w <= 0 || w > PVR_OVERLAY_MAX_WIDTH ||
+        h <= 0 || h > PVR_OVERLAY_MAX_HEIGHT) {
+        LOGE("%s: Invalid overlay dimension %d x %d\n",
+                  __func__, w, h);
         return NULL;
     }
 

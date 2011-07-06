@@ -26,11 +26,10 @@ extern "C" {
 #include "xf86drmMode.h"
 }
 
-#define PVR_DRM_DRIVER_NAME	"pvrsrvkm"
+#define PVR_DRM_DRIVER_NAME     "pvrsrvkm"
 
-#define DRM_PSB_GTT_MAP		0x0F
-#define DRM_PSB_GTT_UNMAP	0x10
-#define DRM_BUFFER_CLASS_VIDEO  0x32
+#define DRM_PSB_GTT_MAP         0x0F
+#define DRM_PSB_GTT_UNMAP       0x10
 
 typedef enum {
     PVR_OVERLAY_VSYNC_INIT,
@@ -107,6 +106,7 @@ struct pvr_overlay_buffer_t {
     uint32_t dataSize;
     eVsyncState vsyncState;
     uint32_t gttOffset;
+    uint32_t gttAlign;
     void * overlayCPUAddress;
     void * dataCPUAddress;
     void * overlayBuffer;
@@ -164,6 +164,7 @@ private:
     IntelOverlayHALContext * mSharedContext;
 
     bool mDrmModeChanged;
+    uint32_t mVideoBridgeIoctl;
 private:
     PVROverlayHAL();
     void lock();
@@ -177,6 +178,7 @@ private:
     void sharedContextUnlock();
 
     uint32_t getBufferHandle(uint32_t device, uint32_t handle);
+    bool  getVideoBridgeIoctl();
 public:
     ~PVROverlayHAL();
     static PVROverlayHAL &Instance() {
@@ -198,7 +200,7 @@ public:
     bool initialize();
     bool allocatePVR2DBuffer(uint32_t size, uint32_t align, PVR2DMEMINFO ** buf);
     bool destroyPVR2DBuffer(PVR2DMEMINFO * buf);
-    bool gttMap(PVR2DMEMINFO * buf, int * offset);
+    bool gttMap(PVR2DMEMINFO *buf, int *offset, uint32_t gttAlign);
     bool gttUnmap(PVR2DMEMINFO * buf);
     bool allocateOverlayBuffer(struct pvr_overlay_buffer_t * buf);
     bool destroyOverlayBuffer(struct pvr_overlay_buffer_t * buf);

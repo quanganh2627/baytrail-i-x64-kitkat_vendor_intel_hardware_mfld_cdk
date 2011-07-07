@@ -29,6 +29,7 @@
 #include <sys/types.h>
 #include <dlfcn.h>
 #include <fcntl.h>
+#include <bt.h>
 
 namespace android
 {
@@ -373,6 +374,8 @@ static status_t vpc(int Mode, uint32_t devices)
             case AudioSystem::DEVICE_OUT_WIRED_HEADSET:
             case AudioSystem::DEVICE_OUT_WIRED_HEADPHONE:
                 if (prev_mode!=AudioSystem::MODE_IN_CALL || prev_dev==AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET || beg_call == 0) {
+                LOGD("Disable BT PCM Port\n");
+                bt_pcm_disable();
                 amc_disable(AMC_I2S1_RX);
                 amc_disable(AMC_I2S2_RX);
                 if (tty_call == false){
@@ -413,6 +416,8 @@ static status_t vpc(int Mode, uint32_t devices)
                 amc_enable(AMC_I2S2_RX);
                 mixing_enable = true;
                 amc_enable(AMC_I2S1_RX);
+                LOGD("Enable BT PCM Port\n");
+                bt_pcm_enable();
                 break;
             default:
                 break;
@@ -425,10 +430,14 @@ static status_t vpc(int Mode, uint32_t devices)
         /* Disable modem I2S at the end of the call */
         if (prev_mode == AudioSystem::MODE_IN_CALL && Mode == AudioSystem::MODE_NORMAL) {
             LOGV("VPC from in_call to normal\n");
+            /* Disable PCM if previous dev was BT */
+            if (prev_dev & (AudioSystem::DEVICE_OUT_BLUETOOTH_SCO |
+                            AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET |
+                            AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_CARKIT))
+                bt_pcm_disable();
             amc_disable(AMC_I2S1_RX);
             amc_disable(AMC_I2S2_RX);
             mixing_enable = false;
-
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
             doAudience_A1026_suspend();
 #endif
@@ -467,7 +476,7 @@ static status_t volume(float volume)
 }
 
 /*------------------*/
-/*   IS21 disable   */
+/*   I2S1 disable   */
 /*------------------*/
 
 static status_t disable_mixing(int mode)
@@ -484,7 +493,7 @@ static status_t disable_mixing(int mode)
 }
 
 /*------------------*/
-/*   IS1 enable     */
+/*   I2S1 enable    */
 /*------------------*/
 
 static status_t enable_mixing(int mode, uint32_t device)

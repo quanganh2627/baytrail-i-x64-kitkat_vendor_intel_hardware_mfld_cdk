@@ -37,6 +37,7 @@ PVROverlayHAL::PVROverlayHAL(){
     mSharedContext = NULL;
     drmFD = -1;
     mDrmModeChanged = false;
+    mVideoBridgeIoctl = 0;
 }
 
 PVROverlayHAL:: ~PVROverlayHAL() {
@@ -444,7 +445,7 @@ bool PVROverlayHAL::initialize()
     /*lock the overlay HAL while doing initailize*/
     this->lock();
 
-    if(drmFD < 0) {
+    if (drmFD < 0) {
         ret = drmInit();
         if(ret == false) {
             LOGE("%s: drmInit failed\n", __func__);
@@ -453,7 +454,18 @@ bool PVROverlayHAL::initialize()
         }
     }
 
-    if(!mPVR2DHandle) {
+    /*get video bridge ioctl offset for external YUV buffer*/
+    if (!mVideoBridgeIoctl) {
+        ret = getVideoBridgeIoctl();
+        if (ret == false) {
+            LOGE("%s: failed to video bridge ioctl\n", __func__);
+            drmDestroy();
+            this->unlock();
+            return ret;
+        }
+    }
+
+    if (!mPVR2DHandle) {
         ret = pvr2DInit();
         if(ret == false) {
             LOGE("%s: pvr2DInit failed\n", __func__);
@@ -529,7 +541,7 @@ bool PVROverlayHAL::destroyPVR2DBuffer(PVR2DMEMINFO * buf)
     return true;
 }
 
-bool PVROverlayHAL::gttMap(PVR2DMEMINFO * buf, int * offset)
+bool PVROverlayHAL::gttMap(PVR2DMEMINFO *buf, int *offset, uint32_t gttAlign)
 {
     struct psb_gtt_mapping_arg arg;
     void * hKernelMemInfo = NULL;
@@ -554,6 +566,7 @@ bool PVROverlayHAL::gttMap(PVR2DMEMINFO * buf, int * offset)
     }
 
     arg.hKernelMemInfo = hKernelMemInfo;
+    arg.page_align = gttAlign;
 
     int ret = drmCommandWriteRead(drmFD, DRM_PSB_GTT_MAP, &arg, sizeof(arg));
     if (ret) {
@@ -627,7 +640,7 @@ bool PVROverlayHAL::allocateOverlayBuffer(struct pvr_overlay_buffer_t * buf)
 
     /*map meminfo into gtt*/
     int offset = 0;
-    ret = gttMap(pvrMemInfo, &offset);
+    ret = gttMap(pvrMemInfo, &offset, buf->gttAlign);
 
     if(ret == false) {
         LOGE("%s: mapping failed\n", __func__);
@@ -809,10 +822,50 @@ bool PVROverlayHAL::updateOverlay(struct pvr_overlay_buffer_t * controlBuffer,
     return true;
 }
 
+bool PVROverlayHAL::getVideoBridgeIoctl()
+{
+    union drm_psb_extension_arg arg;
+    /*video bridge ioctl = lnc_video_getparam + 1, I know it's ugly!!*/
+    const char lncExt[] = "lnc_video_getparam";
+    int ret = 0;
+
+    LOGV("%s: get video bridge ioctl num...\n", __func__);
+
+    if(drmFD <= 0) {
+        LOGE("%s: invalid drm fd %d\n", __func__, drmFD);
+        return false;
+    }
+
+    LOGV("%s: DRM_PSB_EXTENSION %d\n", __func__, DRM_PSB_EXTENSION);
+
+    /*get devOffset via drm IOCTL*/
+    strncpy(arg.extension, lncExt, sizeof(lncExt));
+
+    ret = drmCommandWriteRead(drmFD, 6/*DRM_PSB_EXTENSION*/, &arg, sizeof(arg));
+    if(ret || !arg.rep.exists) {
+        LOGE("%s: get device offset failed with error code %d\n",
+                  __func__, ret);
+        return false;
+    }
+
+    LOGV("%s: video ioctl offset 0x%x\n",
+              __func__,
+              arg.rep.driver_ioctl_offset + 1);
+
+    mVideoBridgeIoctl = arg.rep.driver_ioctl_offset + 1;
+
+    return true;
+}
+
 uint32_t PVROverlayHAL::getBufferHandle(uint32_t device, uint32_t handle)
 {
     BC_Video_ioctl_package ioctl_package;
     int ret = 0;
+
+    if (!mVideoBridgeIoctl) {
+        LOGE("%s: invalid video bridge ioctl offset\n", __func__);
+        return 0;
+    }
 
     LOGV("%s: getting kernel handle for 0x%x from BCD device 0x%x\n",
          __func__, handle, device);
@@ -821,7 +874,7 @@ uint32_t PVROverlayHAL::getBufferHandle(uint32_t device, uint32_t handle)
     ioctl_package.device_id = device;
     ioctl_package.inputparam = (int)handle;
     ret = drmCommandWriteRead(drmFD,
-                              DRM_BUFFER_CLASS_VIDEO,
+                              mVideoBridgeIoctl,
                               &ioctl_package,
                               sizeof(ioctl_package));
     if (ret) {
@@ -996,6 +1049,18 @@ int PVROverlayHAL::getPosition(int overlayIndex, int *x, int *y,
         *y = position->y;
         *w = position->width;
         *h = position->height;
+
+        /*check video position*/
+        drmModeModeInfoPtr mipiMode =
+            &mSharedContext->modeInfo.modes[MDFLD_OUTPUT_MIPI0];
+        if (*x < 0)
+            *x = 0;
+        if (*y < 0)
+            *y = 0;
+        if ((*x + *w) > mipiMode->hdisplay)
+            *w = mipiMode->hdisplay - *x;
+        if ((*y + *h) > mipiMode->vdisplay)
+            *h = mipiMode->vdisplay - *y;
     }
 
     sharedContextUnlock();
@@ -1011,6 +1076,9 @@ void PVROverlayHAL::drmModeChanged(struct pvr_overlay_buffer_t * controlBuffer,
     struct drm_psb_register_rw_arg arg;
     uint32_t overlayAPipe = 0;
     bool ret = true;
+
+    if (!mDrmModeChanged)
+        return;
 
     if (!controlBlk || !controlBuffer) {
         LOGE("%s: invalid parameter\n", __func__);

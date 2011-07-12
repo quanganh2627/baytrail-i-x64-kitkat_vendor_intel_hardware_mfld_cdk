@@ -32,6 +32,8 @@ PVROverlayDataDevice::PVROverlayDataDevice()
     /*Allocate overlay control buffer*/
     memset(&mControlBlkBuffer, 0, sizeof(mControlBlkBuffer));
     mControlBlkBuffer.size = sizeof(struct pvr_overlay_control_block_t);
+    /*need align to 64k in TT memory, which is 16 pages*/
+    mControlBlkBuffer.gttAlign = 16;
     bool ret = PVROverlayHAL::Instance().allocateOverlayBuffer(&mControlBlkBuffer);
     if(ret == false) {
         LOGE("%s: allocate overlay buffer failed\n", __func__);
@@ -70,8 +72,14 @@ PVROverlayDataDevice::~PVROverlayDataDevice()
                 __func__, i);
     }
 
-    /*close shared context*/
-    PVROverlayHAL::Instance().destroySharedContext(false);
+    /*
+     * close shared context
+     * NOTE: comment this out for super source usage.
+     * overlay usage of super source was not compatible with Android overlay
+     * architecture.
+     * FIXME: uncomment it.
+     */
+    //PVROverlayHAL::Instance().destroySharedContext(false);
 
     this->unlock();
 
@@ -134,6 +142,7 @@ bool PVROverlayDataDevice::initialize(struct pvr_overlay_handle_t * overlay)
         pvrOverlayBuffer->gttOffset = 0;
         pvrOverlayBuffer->overlayBuffer = NULL;
         pvrOverlayBuffer->overlayIndex = overlay->overlayIndex;
+        pvrOverlayBuffer->gttAlign = 0;
 
         /*request Overlay HAL to allocate overlay buffer. (lock free)*/
         ret = PVROverlayHAL::Instance().allocateOverlayBuffer(pvrOverlayBuffer);
@@ -182,7 +191,7 @@ bool PVROverlayDataDevice::initialize(struct pvr_overlay_handle_t * overlay)
     return true;
 mem_err:
     /*destroy buffers which have been allocated*/
-    for(j=i-1; j<0; j--) {
+    for(j=i-1; j>=0; j--) {
         pvrOverlayBuffer = &mDataBuffers[j];
 
         bool ret = PVROverlayHAL::Instance().destroyOverlayBuffer(pvrOverlayBuffer);

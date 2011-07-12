@@ -18,6 +18,8 @@
 
 /*only one overlay data buffer for testing*/
 #define PVR_OVERLAY_BUFFER_NUM          1
+#define PVR_OVERLAY_MAX_WIDTH           2048
+#define PVR_OVERLAY_MAX_HEIGHT          2048
 
 /* Polyphase filter coefficients */
 #define N_HORIZ_Y_TAPS                  5

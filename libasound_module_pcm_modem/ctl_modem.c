@@ -325,7 +325,7 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
         modem_set_param(handle, "Mode Playback Route", 1, index);
         modem_set_param(handle, "Speaker Mux Playback Route", 0, -1);
         modem_set_param(handle, "DMIC12 Capture Route", 1, index);
-	modem_set_param(handle, "DMIC56 Capture Route", 1, index);
+        modem_set_param(handle, "DMIC56 Capture Route", 1, index);
         modem_set_param(handle, "Txpath1 Capture Route", 0, index);
         modem_set_param(handle, "Txpath2 Capture Route", 4, index);
         break;
@@ -335,10 +335,10 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
         modem_set_param(handle, "Speaker Mux Playback Route", 1, index);
         modem_set_param(handle, "Mode Playback Route", 1, index);
         modem_set_param(handle, "Headset Playback Route", 1, index);
-        modem_set_param(handle, "DMIC12 Capture Route", 1, index);
-	modem_set_param(handle, "DMIC56 Capture Route", 1, index);
-        modem_set_param(handle, "Txpath1 Capture Route", 0, index);
-        modem_set_param(handle, "Txpath2 Capture Route", 4, index);
+        modem_set_param(handle, "DMIC12 Capture Route", 0, index);
+        modem_set_param(handle, "DMIC56 Capture Route", 1, index);
+        modem_set_param(handle, "Txpath1 Capture Route", 4, index);
+        modem_set_param(handle, "Txpath2 Capture Route", 0, index);
 
 
         if (!!ctl->source_muted == !*value)

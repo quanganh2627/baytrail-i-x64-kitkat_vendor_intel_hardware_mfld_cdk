@@ -9,6 +9,10 @@ LOCAL_PATH := $(call my-dir)
 
   LOCAL_CFLAGS := -D_POSIX_SOURCE -Wno-multichar
 
+  ifeq ($(CUSTOM_BOARD),mfld_pr2)
+     LOCAL_CFLAGS += -DCUSTOM_BOARD_PR2
+  endif
+
 ifneq ($(ALSA_DEFAULT_SAMPLE_RATE),)
     LOCAL_CFLAGS += -DALSA_DEFAULT_SAMPLE_RATE=$(ALSA_DEFAULT_SAMPLE_RATE)
 endif

@@ -32,7 +32,6 @@
 
 namespace android
 {
-#define ES305_FIRMWARE_FILE "/system/etc/vpimg.bin"
 #define ES305_DEVICE_PATH "/dev/audience_es305"
 
 static int fd_a1026 = -1;
@@ -47,13 +46,14 @@ static uint32_t prev_dev = 0x00;
 static int at_thread_init = 0;
 static int beg_call = 0;
 static bool tty_call = false;
+static bool bt_call = false;
 static bool mixing_enable = false;
 static bool voice_call_recording = false;
 #define A1026_PATH_INCALL_NO_NS_RECEIVER A1026_PATH_VR_NO_NS_RECEIVER
 
 static int s_device_open(const hw_module_t*, const char*, hw_device_t**);
 static int s_device_close(hw_device_t*);
-static status_t amc(int,uint32_t);
+static status_t vpc(int,uint32_t);
 static status_t volume(float);
 static status_t doA1026_init(void);
 static status_t disable_mixing(int);
@@ -91,7 +91,7 @@ static int s_device_open(const hw_module_t* module, const char* name,
     dev->common.module = (hw_module_t *) module;
     dev->common.close = s_device_close;
     dev->init = doA1026_init;
-    dev->amcontrol = amc;
+    dev->amcontrol = vpc;
     dev->amcvolume = volume;
     dev->mix_disable = disable_mixing;
     dev->mix_enable = enable_mixing;
@@ -117,55 +117,27 @@ static status_t doA1026_init()
     struct stat fw_stat;
     char value[PROPERTY_VALUE_MAX];
 
-    static const char *const fn = ES305_FIRMWARE_FILE;
     static const char *const path = ES305_DEVICE_PATH;
 
     fd_a1026 = open(path, O_RDWR | O_NONBLOCK, 0);
 
     if (fd_a1026 < 0) {
-        LOGD("Cannot open %s %d\n", path, fd_a1026);
+        LOGE("Cannot open %s %d\n", path, fd_a1026);
         support_a1026 = 0;
         rc = -1;
-    } else {
-        fw_fd = open(fn, O_RDONLY);
-        if (fw_fd < 0) {
-            LOGD("Fail to open %s\n", fn);
-            rc = -1;
-        } else {
-            LOGD("Open %s success\n", fn);
-            rc = fstat(fw_fd, &fw_stat);
-            if (rc < 0) {
-                LOGD("Cannot stat file %s: %s\n", fn, strerror(errno));
-            } else {
-                remaining = (int)fw_stat.st_size;
-                LOGD("Firmware %s size %d\n", fn, remaining);
-
-                if (remaining > sizeof(local_vpimg_buf)) {
-                    LOGD("File %s size %d exceeds internal limit %d\n",
-                         fn, remaining, sizeof(local_vpimg_buf));
-                    rc = -1;
-                } else {
-                    nr = read(fw_fd, local_vpimg_buf, remaining);
-                    if (nr != remaining) {
-                        LOGD("Error reading firmware: %s\n", strerror(errno));
-                        rc = -1;
-                    } else {
-                        fwimg.buf = local_vpimg_buf;
-                        fwimg.img_size = nr;
-                        LOGD("Total %d bytes put to user space buffer.\n", fwimg.img_size);
-                        rc = ioctl(fd_a1026, A1026_BOOTUP_INIT, &fwimg);
-                        if (!rc) {
-                            LOGD("audience_a1026 init OK\n");
-                            mA1026Init = 1;
-                        } else {
-                            LOGD("audience_a1026 init failed\n");
-                        }
-                    }
-                }
-            }
-        }
-        close (fw_fd);
     }
+    rc = ioctl(fd_a1026, A1026_ENABLE_CLOCK);
+    if (rc) {
+        LOGE("Enable clock error\n");
+        return -1;
+    }
+    rc = ioctl(fd_a1026, A1026_BOOTUP_INIT);
+    if (!rc) {
+        LOGV("audience_a1026 init OK\n");
+        mA1026Init = 1;
+        }
+    else
+        LOGE("audience_a1026 init failed\n");
     close (fd_a1026);
     fd_a1026 = -1;
     return rc;
@@ -185,7 +157,7 @@ static status_t doAudience_A1026_Control(int path)
     if (fd_a1026 < 0) {
         fd_a1026 = open(ES305_DEVICE_PATH, O_RDWR);
         if (fd_a1026 < 0) {
-            LOGD("Cannot open audience_a1026 device (%d)\n", fd_a1026);
+            LOGE("Cannot open audience_a1026 device (%d)\n", fd_a1026);
             mA1026Lock.unlock();
             return -1;
         }
@@ -205,17 +177,17 @@ static status_t doAudience_A1026_Control(int path)
             /* after doA1026_init(), fd_a1026 is -1*/
             fd_a1026 = open(ES305_DEVICE_PATH, O_RDWR);
             if (fd_a1026 < 0) {
-                LOGD("A1026 Fatal Error: unable to open A1026 after hard reset\n");
+                LOGE("A1026 Fatal Error: unable to open A1026 after hard reset\n");
             } else {
                 rc = ioctl(fd_a1026, A1026_SET_CONFIG, &path);
                 if (!rc) {
-                    LOGD("SET CONFIG OK after Hard Reset\n");
+                    LOGI("Set_config Ok after Hard Reset\n");
                 } else {
-                    LOGD("A1026 Fatal Error: unable to A1026_SET_CONFIG after hard reset\n");
+                    LOGE("A1026 Fatal Error: unable to A1026_SET_CONFIG after hard reset\n");
                 }
             }
         } else
-            LOGD("A1026 Fatal Error: Re-init A1026 Failed\n");
+            LOGE("A1026 Fatal Error: Re-init A1026 Failed\n");
     }
 
     if (fd_a1026 >= 0) {
@@ -227,11 +199,121 @@ static status_t doAudience_A1026_Control(int path)
     return rc;
 
 }
+
+/* -------------------------------- */
+/*     Audience configuration       */
+/* -------------------------------- */
+
+static int set_acoustic(uint32_t param)
+{
+    FILE *fd;
+    unsigned char *i2c_cmd=NULL;
+    int ret;
+    int size,i,rc;
+
+    char device_name[80] = "/system/etc/phonecall_";
+
+    switch (param) {
+        case AudioSystem::DEVICE_OUT_EARPIECE:
+            strcat(device_name,"close_talk.bin");
+            bt_call = false;
+            break;
+        case AudioSystem::DEVICE_OUT_SPEAKER:
+            strcat(device_name,"speaker_far_talk.bin");
+            bt_call = false;
+            break;
+        case AudioSystem::DEVICE_OUT_WIRED_HEADSET:
+            strcat(device_name,"headset_close_talk.bin");
+            bt_call = false;
+            break;
+        case AudioSystem::DEVICE_OUT_WIRED_HEADPHONE:
+            strcat(device_name,"headset_close_talk.bin");
+            bt_call = false;
+            break;
+        case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO:
+        case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET:
+            if(bt_call == true)
+                return 0;
+            strcat(device_name,"bt_hsp.bin");
+            bt_call = true;
+            break;
+        case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_CARKIT:
+            if(bt_call == true)
+                return 0;
+            strcat(device_name,"bt_carkit.bin");
+            bt_call = true;
+            break;
+        case 5:
+            strcat(device_name,"tty.bin");
+        default:
+            break;
+    }
+
+    mA1026Lock.lock();
+
+    fd = fopen(device_name,"r");
+    if (fd < 0){
+            LOGD("Cannot open %s.bin\n",device_name);
+            return -1;}
+
+    fseek(fd,0,SEEK_END);
+    size = ftell(fd);
+    fseek(fd,0,SEEK_SET);
+    i2c_cmd = (unsigned char*)malloc(sizeof(char)*size);
+    if(i2c_cmd == NULL){
+        LOGE("Could not allocate memory\n");
+         return -1;}
+    else
+        memset(i2c_cmd,'\0',size);
+
+    ret = fread(i2c_cmd,1,size,fd);
+    if (ret<size){
+        LOGE("Error while reading config file\n");
+        return -1;}
+
+    if (!mA1026Init) {
+        LOGD("Audience A1026 not initialized.\n");
+        return -1;
+    }
+
+    if (fd_a1026 < 0) {
+        fd_a1026 = open(ES305_DEVICE_PATH, O_RDWR);
+        if (fd_a1026 < 0) {
+            LOGE("Cannot open audience_a1026 device (%d)\n", fd_a1026);
+            mA1026Lock.unlock();
+            return -1;
+        }
+    }
+    if(param&(AudioSystem::DEVICE_OUT_BLUETOOTH_SCO|AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET|AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_CARKIT)){
+        rc = ioctl(fd_a1026, A1026_ENABLE_CLOCK);
+        if (rc) {
+            LOGE("Enable clock error\n");
+            return -1;
+        }
+    }
+    ret = write(fd_a1026,i2c_cmd,size);
+    if(ret!=size){
+         LOGE("Audience write error \n");
+        return -1;
+    }
+    if (fd_a1026 >= 0) {
+        close(fd_a1026);
+    }
+    fd_a1026 = -1;
+    fclose(fd);
+    free(i2c_cmd);
+    mA1026Lock.unlock();
+
+    return ret;
+
+}
 /* --------------------------------------- */
 /* Control of the 2 I2S ports of the modem */
 /* --------------------------------------- */
-static status_t amc(int Mode, uint32_t devices)
+static status_t vpc(int Mode, uint32_t devices)
 {
+    AMC_STATUS rts;
+    int ret=0,tty_call_dev=5;
     /* ------------------------------------------------------------- */
     /* Enter in this loop only if previous mode =! current mode ---- */
     /* or if previous device =! current dive and not capture device- */
@@ -243,13 +325,63 @@ static status_t amc(int Mode, uint32_t devices)
 
         /* Mode IN CALL */
         if (Mode == AudioSystem::MODE_IN_CALL) {
-            LOGD("AMC CALL\n");
+            LOGD("VPC Call\n");
+
+            if(at_thread_init!=0)
+            {
+                rts = check_tty();
+                if (rts == AMC_WRITE_ERROR)
+                {
+                    LOGE("Amc Error\n");
+                    amc_stop();
+                    amc_start(AUDIO_AT_CHANNEL_NAME, NULL);
+                }
+            }
             /* start at thread only once */
             if (prev_mode != Mode && at_thread_init == 0) {
                 amc_start(AUDIO_AT_CHANNEL_NAME, NULL);
                 at_thread_init = 1;
-                LOGD("AT thread start\n");
+                LOGV("AT thread start\n");
             }
+#ifdef CUSTOM_BOARD_PR2
+            /* Audience configurations for each devices */
+            if(tty_call==true)
+                ret=set_acoustic(tty_call_dev);
+            else{
+                switch (devices) {
+                case AudioSystem::DEVICE_OUT_EARPIECE:
+                    LOGD("Audience Earpiece\n");
+                    ret=set_acoustic(devices);
+                    break;
+                case AudioSystem::DEVICE_OUT_SPEAKER:
+                    LOGD("Audience Speaker\n");
+                    ret=set_acoustic(devices);
+                    break;
+                case AudioSystem::DEVICE_OUT_WIRED_HEADSET:
+                    LOGD("Audience headset \n");
+                    ret=set_acoustic(devices);
+                    break;
+                case AudioSystem::DEVICE_OUT_WIRED_HEADPHONE:
+                    LOGD("Audience headphone\n");
+                    ret=set_acoustic(devices);
+                    break;
+                case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO:
+                case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET:
+                    LOGD("Audience BT\n");
+                    ret=set_acoustic(devices);
+                    break;
+                case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_CARKIT:
+                    LOGD("Audience BT car kit\n");
+                    ret=set_acoustic(devices);
+                    break;
+                default:
+                    break;
+                }
+            }
+            if(ret == -1)
+                return NO_INIT;
+#endif
+            /* Modem configuration for each devices */
             switch (devices) {
             case AudioSystem::DEVICE_OUT_EARPIECE:
             case AudioSystem::DEVICE_OUT_SPEAKER:
@@ -276,10 +408,7 @@ static status_t amc(int Mode, uint32_t devices)
                 amc_enable(AMC_I2S2_RX);
                 mixing_enable = true;
                 amc_enable(AMC_I2S1_RX);
-                beg_call = 1;
                 }
-                new_pathid = A1026_PATH_INCALL_RECEIVER;
-                doAudience_A1026_Control(new_pathid);
                 break;
             case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO:
             case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET:
@@ -297,19 +426,18 @@ static status_t amc(int Mode, uint32_t devices)
                 amc_enable(AMC_I2S2_RX);
                 mixing_enable = true;
                 amc_enable(AMC_I2S1_RX);
-                new_pathid = A1026_PATH_INCALL_BT;
-                doAudience_A1026_Control(new_pathid);
                 break;
             default:
                 break;
             }
             prev_mode = Mode;
             prev_dev = devices;
+            beg_call = 1;
             return NO_ERROR;
         }
-        /* Used to disable modem I2S at the end of the call */
+        /* Disable modem I2S at the end of the call */
         if (prev_mode == AudioSystem::MODE_IN_CALL && Mode == AudioSystem::MODE_NORMAL) {
-            LOGD("AMC FROM IN CALL TO NORMAL\n");
+            LOGV("VPC from in_call to normal\n");
             amc_disable(AMC_I2S1_RX);
             amc_disable(AMC_I2S2_RX);
             mixing_enable = false;
@@ -321,18 +449,20 @@ static status_t amc(int Mode, uint32_t devices)
             return NO_ERROR;
         }
         else {
-            LOGD("NOTHING TO DO WITH AMC\n");
+            LOGV("Nothing to do with vpc\n");
             return NO_ERROR;
         }
     }
     else {
-        LOGD("CAPTURE DEVICE NOTHING TO DO\n");
+        LOGV("Capture device nothing to do\n");
         return NO_ERROR;
     }
 }
+
 /* ---------------- */
 /* Volume managment */
 /* ---------------- */
+
 static status_t volume(float volume)
 {
     int gain=0;
@@ -363,9 +493,8 @@ static status_t disable_mixing(int mode)
 }
 
 /*------------------*/
-/*   IS1 enable   */
+/*   IS1 enable     */
 /*------------------*/
-
 
 static status_t enable_mixing(int mode, uint32_t device)
 {
@@ -390,6 +519,9 @@ static status_t enable_mixing(int mode, uint32_t device)
     return NO_ERROR;
 }
 
+/*-----------------*/
+/*    Enable TTY   */
+/*-----------------*/
 
 static status_t enable_tty(bool tty)
 {

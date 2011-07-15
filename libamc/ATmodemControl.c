@@ -31,7 +31,7 @@
 #include <linux/ioctl.h>
 #include <sys/time.h>
 #include "ATmodemControl.h"
-#define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 
 #ifdef AT_DBG_LOG_TIME
 #include <sys/time.h>

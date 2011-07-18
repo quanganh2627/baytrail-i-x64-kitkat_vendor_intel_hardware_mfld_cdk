@@ -332,6 +332,7 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
     case VOICE_SPEAKER_INCALL: //speaker
         LOGD("voice route to Speaker \n");
         err = modem_enable_msic();
+        modem_set_param(handle, "Playback Switch", 1, index);
         modem_set_param(handle, "Speaker Mux Playback Route", 1, index);
         modem_set_param(handle, "Mode Playback Route", 1, index);
         modem_set_param(handle, "Headset Playback Route", 1, index);

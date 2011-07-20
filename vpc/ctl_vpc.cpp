@@ -323,6 +323,10 @@ static status_t vpc(int Mode, uint32_t devices)
 {
     AMC_STATUS rts;
     int ret=0,tty_call_dev=5;
+
+    /* Must be remove when gain will be integrated in the MODEM  (IMC) */
+    int ModemGain = 100;
+
     /* ------------------------------------------------------------- */
     /* Enter in this loop only if previous mode =! current mode ---- */
     /* or if previous device =! current dive and not capture device- */
@@ -386,6 +390,7 @@ static status_t vpc(int Mode, uint32_t devices)
                 amc_route(AMC_I2S1_RX, AMC_RADIO_TX, AMC_ENDD);
                 amc_route(AMC_I2S2_RX, AMC_I2S1_TX, AMC_ENDD);
                 amc_route(AMC_SIMPLE_TONES, AMC_I2S1_TX, AMC_ENDD);
+                amc_setGaindest(AMC_RADIO_TX, ModemGain); /*must be removed when gain will be integrated in MODEM (IMC) */
                 amc_enable(AMC_I2S2_RX);
                 mixing_enable = true;
                 amc_enable(AMC_I2S1_RX);
@@ -404,6 +409,7 @@ static status_t vpc(int Mode, uint32_t devices)
                 amc_route(AMC_I2S1_RX, AMC_RADIO_TX, AMC_ENDD);
                 amc_route(AMC_I2S2_RX, AMC_I2S1_TX, AMC_ENDD);
                 amc_route(AMC_SIMPLE_TONES, AMC_I2S1_TX, AMC_ENDD);
+                amc_setGaindest(AMC_RADIO_TX, ModemGain); /*must be removed when gain will be integrated in MODEM (IMC) */
                 amc_enable(AMC_I2S2_RX);
                 mixing_enable = true;
                 amc_enable(AMC_I2S1_RX);
@@ -450,9 +456,10 @@ static status_t vpc(int Mode, uint32_t devices)
 static status_t volume(float volume)
 {
     int gain=0;
+    int range = 88; /* volume gain control must be remved when integrated in the MODEM */
     if (at_thread_init == 1) {
-        gain = volume * 100;
-        gain = (gain >= 100) ? 100 : gain;
+        gain = volume * range;
+        gain = (gain >= range) ? range : gain;
         gain = (gain <= 0) ? 0 : gain;
         amc_setGaindest(AMC_I2S1_TX, gain);
     }

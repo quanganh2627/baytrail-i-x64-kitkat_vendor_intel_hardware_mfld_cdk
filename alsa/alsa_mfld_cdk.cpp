@@ -31,7 +31,7 @@
 #undef DISABLE_HARWARE_RESAMPLING
 
 #define ALSA_NAME_MAX (128)
-#define PERIOD_TIME   (20)  //ms
+#define PERIOD_TIME   (23220)  //micro seconds
 
 #define ALSA_STRCAT(x, y) \
     do { \
@@ -132,7 +132,7 @@ static alsa_handle_t _defaultsOut = {
     channels           : 2,
     sampleRate         : DEFAULT_SAMPLE_RATE,
     expectedSampleRate : DEFAULT_SAMPLE_RATE, //expected sample rate
-    latency            : PERIOD_TIME * 4 * 1000, // Desired Delay in usec
+    latency            : PERIOD_TIME * 4, // Desired Delay in usec
     bufferSize         : DEFAULT_SAMPLE_RATE / 5, // Desired Number of samples
     modPrivate         : 0,
     openFlag           : 0,
@@ -237,7 +237,7 @@ static status_t setHardwareParams(alsa_handle_t *handle)
     unsigned int requestedRate = handle->expectedSampleRate;
     unsigned int latency = handle->latency;
     unsigned int channels = handle->channels;
-    unsigned int periodTime = PERIOD_TIME * 1000; //us
+    unsigned int periodTime = PERIOD_TIME; //us
 
     // snd_pcm_format_description() and snd_pcm_format_name() do not perform
     // proper bounds checking.

@@ -55,7 +55,7 @@ static int s_device_open(const hw_module_t*, const char*, hw_device_t**);
 static int s_device_close(hw_device_t*);
 static status_t vpc(int,uint32_t);
 static status_t volume(float);
-static status_t doA1026_init(void);
+static status_t es305_init(void);
 static status_t disable_mixing(int);
 static status_t enable_mixing(int,uint32_t);
 static status_t enable_tty(bool);
@@ -90,7 +90,7 @@ static int s_device_open(const hw_module_t* module, const char* name,
     dev->common.version = 0;
     dev->common.module = (hw_module_t *) module;
     dev->common.close = s_device_close;
-    dev->init = doA1026_init;
+    dev->init = es305_init;
     dev->amcontrol = vpc;
     dev->amcvolume = volume;
     dev->mix_disable = disable_mixing;
@@ -106,7 +106,7 @@ static int s_device_close(hw_device_t* device)
     return 0;
 }
 
-static status_t doA1026_init()
+static status_t es305_init()
 {
     struct a1026img fwimg;
     char char_tmp = 0;
@@ -118,7 +118,9 @@ static status_t doA1026_init()
     char value[PROPERTY_VALUE_MAX];
 
     static const char *const path = ES305_DEVICE_PATH;
-#ifdef CUSTOM_BOARD_PR2
+
+#ifdef CUSTOM_BOARD_WITH_AUDIENCE
+
     fd_a1026 = open(path, O_RDWR | O_NONBLOCK, 0);
 
     if (fd_a1026 < 0) {
@@ -144,11 +146,11 @@ static status_t doA1026_init()
     return rc;
 }
 
-static status_t doAudience_A1026_Control(int path)
+static status_t doAudience_A1026_suspend()
 {
     int rc = 0;
     int retry = 4;
-#ifdef CUSTOM_BOARD_PR2
+
     if (!mA1026Init) {
         LOGD("Audience A1026 not initialized.\n");
         return NO_INIT;
@@ -165,7 +167,7 @@ static status_t doAudience_A1026_Control(int path)
     }
 
     do {
-        rc = ioctl(fd_a1026, A1026_SET_CONFIG, &path);
+        rc = ioctl(fd_a1026, A1026_SUSPEND);
         if (!rc) {
             break;
         }
@@ -173,14 +175,14 @@ static status_t doAudience_A1026_Control(int path)
 
     if (rc < 0) {
         LOGD("A1026 do hard reset to recover from error!\n");
-        rc = doA1026_init(); /* A1026 needs to do hard reset! */
+        rc = es305_init(); /* A1026 needs to do hard reset! */
         if (!rc) {
-            /* after doA1026_init(), fd_a1026 is -1*/
+            /* after es305_init(), fd_a1026 is -1*/
             fd_a1026 = open(ES305_DEVICE_PATH, O_RDWR);
             if (fd_a1026 < 0) {
                 LOGE("A1026 Fatal Error: unable to open A1026 after hard reset\n");
             } else {
-                rc = ioctl(fd_a1026, A1026_SET_CONFIG, &path);
+                rc = ioctl(fd_a1026, A1026_SUSPEND);
                 if (!rc) {
                     LOGI("Set_config Ok after Hard Reset\n");
                 } else {
@@ -196,7 +198,7 @@ static status_t doAudience_A1026_Control(int path)
     }
     fd_a1026 = -1;
     mA1026Lock.unlock();
-#endif
+
     return rc;
 
 }
@@ -255,6 +257,7 @@ static int set_acoustic(uint32_t param)
     fd = fopen(device_name,"r");
     if (fd < 0){
             LOGD("Cannot open %s.bin\n",device_name);
+            mA1026Lock.unlock();
             return -1;}
 
     fseek(fd,0,SEEK_END);
@@ -263,17 +266,20 @@ static int set_acoustic(uint32_t param)
     i2c_cmd = (unsigned char*)malloc(sizeof(char)*size);
     if(i2c_cmd == NULL){
         LOGE("Could not allocate memory\n");
-         return -1;}
+        mA1026Lock.unlock();
+        return -1;}
     else
         memset(i2c_cmd,'\0',size);
 
     ret = fread(i2c_cmd,1,size,fd);
     if (ret<size){
         LOGE("Error while reading config file\n");
+        mA1026Lock.unlock();
         return -1;}
 
     if (!mA1026Init) {
         LOGD("Audience A1026 not initialized.\n");
+        mA1026Lock.unlock();
         return -1;
     }
 
@@ -285,16 +291,18 @@ static int set_acoustic(uint32_t param)
             return -1;
         }
     }
-    if(param&(AudioSystem::DEVICE_OUT_BLUETOOTH_SCO|AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET|AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_CARKIT)){
+    if(!beg_call){
         rc = ioctl(fd_a1026, A1026_ENABLE_CLOCK);
         if (rc) {
             LOGE("Enable clock error\n");
+            mA1026Lock.unlock();
             return -1;
         }
     }
     ret = write(fd_a1026,i2c_cmd,size);
     if(ret!=size){
-         LOGE("Audience write error \n");
+        LOGE("Audience write error \n");
+        mA1026Lock.unlock();
         return -1;
     }
     if (fd_a1026 >= 0) {
@@ -344,41 +352,13 @@ static status_t vpc(int Mode, uint32_t devices)
                 at_thread_init = 1;
                 LOGV("AT thread start\n");
             }
-#ifdef CUSTOM_BOARD_PR2
+#ifdef CUSTOM_BOARD_WITH_AUDIENCE
             /* Audience configurations for each devices */
             if(tty_call==true)
                 ret=set_acoustic(tty_call_dev);
-            else{
-                switch (devices) {
-                case AudioSystem::DEVICE_OUT_EARPIECE:
-                    LOGD("Audience Earpiece\n");
-                    ret=set_acoustic(devices);
-                    break;
-                case AudioSystem::DEVICE_OUT_SPEAKER:
-                    LOGD("Audience Speaker\n");
-                    ret=set_acoustic(devices);
-                    break;
-                case AudioSystem::DEVICE_OUT_WIRED_HEADSET:
-                    LOGD("Audience headset \n");
-                    ret=set_acoustic(devices);
-                    break;
-                case AudioSystem::DEVICE_OUT_WIRED_HEADPHONE:
-                    LOGD("Audience headphone\n");
-                    ret=set_acoustic(devices);
-                    break;
-                case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO:
-                case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET:
-                    LOGD("Audience BT\n");
-                    ret=set_acoustic(devices);
-                    break;
-                case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_CARKIT:
-                    LOGD("Audience BT car kit\n");
-                    ret=set_acoustic(devices);
-                    break;
-                default:
-                    break;
-                }
-            }
+            else
+                ret=set_acoustic(devices);
+
             if(ret == -1)
                 return NO_INIT;
 #endif
@@ -442,11 +422,12 @@ static status_t vpc(int Mode, uint32_t devices)
             amc_disable(AMC_I2S1_RX);
             amc_disable(AMC_I2S2_RX);
             mixing_enable = false;
-#ifdef CUSTOM_BOARD_PR2
-            new_pathid = A1026_PATH_SUSPEND;
-            doAudience_A1026_Control(new_pathid);
+
+#ifdef CUSTOM_BOARD_WITH_AUDIENCE
+            doAudience_A1026_suspend();
 #endif
             beg_call = 0;
+            bt_call = false;
             prev_mode = Mode;
             prev_dev = devices;
             return NO_ERROR;

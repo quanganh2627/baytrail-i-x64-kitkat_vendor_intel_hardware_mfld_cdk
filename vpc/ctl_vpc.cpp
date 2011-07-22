@@ -118,7 +118,7 @@ static status_t doA1026_init()
     char value[PROPERTY_VALUE_MAX];
 
     static const char *const path = ES305_DEVICE_PATH;
-
+#ifdef CUSTOM_BOARD_PR2
     fd_a1026 = open(path, O_RDWR | O_NONBLOCK, 0);
 
     if (fd_a1026 < 0) {
@@ -140,6 +140,7 @@ static status_t doA1026_init()
         LOGE("audience_a1026 init failed\n");
     close (fd_a1026);
     fd_a1026 = -1;
+#endif
     return rc;
 }
 
@@ -147,7 +148,7 @@ static status_t doAudience_A1026_Control(int path)
 {
     int rc = 0;
     int retry = 4;
-
+#ifdef CUSTOM_BOARD_PR2
     if (!mA1026Init) {
         LOGD("Audience A1026 not initialized.\n");
         return NO_INIT;
@@ -195,7 +196,7 @@ static status_t doAudience_A1026_Control(int path)
     }
     fd_a1026 = -1;
     mA1026Lock.unlock();
-
+#endif
     return rc;
 
 }
@@ -441,8 +442,10 @@ static status_t vpc(int Mode, uint32_t devices)
             amc_disable(AMC_I2S1_RX);
             amc_disable(AMC_I2S2_RX);
             mixing_enable = false;
+#ifdef CUSTOM_BOARD_PR2
             new_pathid = A1026_PATH_SUSPEND;
             doAudience_A1026_Control(new_pathid);
+#endif
             beg_call = 0;
             prev_mode = Mode;
             prev_dev = devices;

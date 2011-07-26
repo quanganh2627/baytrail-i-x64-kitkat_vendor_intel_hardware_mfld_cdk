@@ -26,7 +26,7 @@
 #include "bt.h"
 #include "msic.h"
 
-#include "../../../alsa_sound/AudioHardwareALSA.h" // where is declared "vpc_device_t"
+#include "vpc_hardware.h"
 
 namespace android
 {
@@ -35,12 +35,14 @@ namespace android
 /* API                                                                       */
 /*===========================================================================*/
 
-static status_t vpc_init(void);
-static status_t vpc(int, uint32_t);
-static status_t volume(float);
-static status_t disable_mixing(int);
-static status_t enable_mixing(int, uint32_t);
-static status_t enable_tty(bool);
+static int vpc_init(void);
+static int vpc_params(int mode, uint32_t device);
+static int vpc_route(void);
+static int vpc_volume(float);
+static int vpc_mixing_disable(int mode);
+static int vpc_mixing_enable(int mode, uint32_t device);
+static int vpc_tty(vpc_tty_t);
+static int vpc_bt_nrec(vpc_bt_nrec_t);
 
 
 /*===========================================================================*/
@@ -56,39 +58,42 @@ static status_t enable_tty(bool);
 
 Mutex vpc_lock;
 
-static int      prev_mode            = 0x0;
-static uint32_t prev_dev             = 0x00;
-static int      at_thread_init       = 0;
-static int      beg_call             = 0;
+static int      prev_mode            = AudioSystem::MODE_NORMAL;
+static int      current_mode         = AudioSystem::MODE_NORMAL;
+static uint32_t prev_device          = 0x0000;
+static uint32_t current_device       = 0x0000;
+static uint32_t device_out_defaut    = 0x8000;
+static bool     at_thread_init       = false;
+static bool     beg_call             = false;
 static bool     tty_call             = false;
 static bool     mixing_enable        = false;
 static bool     voice_call_recording = false;
-static uint32_t device_out_defaut    = 0x8000;
+static bool     bt_acoustic          = true;
 
 
 /*---------------------------------------------------------------------------*/
 /* Initialization                                                            */
 /*---------------------------------------------------------------------------*/
-static status_t vpc_init()
+static int vpc_init(void)
 {
     vpc_lock.lock();
     LOGD("Initialize VPC\n");
 
-    if (at_thread_init == 0)
+    if (at_thread_init == false)
     {
-        AT_STATUS cmdStatus = amc_start(AUDIO_AT_CHANNEL_NAME);
+        AT_STATUS cmd_status = amc_start(AUDIO_AT_CHANNEL_NAME);
         int tries = 0;
-        while (cmdStatus != AT_OK && tries < MODEM_TTY_RETRY)
+        while (cmd_status != AT_OK && tries < MODEM_TTY_RETRY)
         {
-            cmdStatus = amc_start(AUDIO_AT_CHANNEL_NAME);
+            cmd_status = amc_start(AUDIO_AT_CHANNEL_NAME);
             LOGD("AT thread retry\n");
             tries++;
             sleep(1);
         }
-        if (cmdStatus != AT_OK) goto return_error;
+        if (cmd_status != AT_OK) goto return_error;
 
         LOGD("AT thread started\n");
-        at_thread_init = 1;
+        at_thread_init = true;
     }
 
     msic::pcm_init();
@@ -111,30 +116,44 @@ return_error:
 }
 
 /*---------------------------------------------------------------------------*/
+/* State machine parameters                                                  */
+/*---------------------------------------------------------------------------*/
+static int vpc_params(int mode, uint32_t device)
+{
+    vpc_lock.lock();
+
+    current_mode = mode;
+    current_device = device;
+
+    vpc_lock.unlock();
+    return NO_ERROR;
+}
+
+/*---------------------------------------------------------------------------*/
 /* Platform voice paths control                                              */
 /*---------------------------------------------------------------------------*/
-static status_t vpc(int Mode, uint32_t devices)
+static int vpc_route(void)
 {
     vpc_lock.lock();
 
     /* Must be remove when gain will be integrated in the MODEM  (IMC) */
     int ModemGain = 100;
 
-    /* ------------------------------------------------------------- */
-    /* Enter in this loop only if previous mode != current mode      */
-    /* or if previous device != current dive and not capture device  */
-    /* ------------------------------------------------------------- */
-    if ((prev_mode != Mode || prev_dev != devices) && ((devices & AudioSystem::DEVICE_OUT_ALL) != 0x0))
+    /* -------------------------------------------------------------- */
+    /* Enter in this loop only if previous mode != current mode       */
+    /* or if previous device != current device and not capture device */
+    /* -------------------------------------------------------------- */
+    if ((prev_mode != current_mode || prev_device != current_device) && ((current_device & AudioSystem::DEVICE_OUT_ALL) != 0x0))
     {
-        LOGD("mode = %d device = %d\n",Mode, devices);
-        LOGD("previous mode = %d previous device = %d\n",prev_mode, prev_dev);
+        LOGD("mode = %d device = %d\n", current_mode, current_device);
+        LOGD("previous mode = %d previous device = %d\n", prev_mode, prev_device);
 
-        /* Mode IN CALL */
-        if (Mode == AudioSystem::MODE_IN_CALL)
+        /* mode IN CALL */
+        if (current_mode == AudioSystem::MODE_IN_CALL)
         {
             LOGD("VPC IN_CALL\n");
 
-            if (at_thread_init != 0)
+            if (at_thread_init == true)
             {
                 AT_STATUS rts = check_tty();
                 if (rts == AT_WRITE_ERROR || rts == AT_ERROR)
@@ -145,27 +164,33 @@ static status_t vpc(int Mode, uint32_t devices)
                 }
             }
 
-#ifdef CUSTOM_BOARD_WITH_AUDIENCE
-            /* Audience configurations for each devices */
-            uint32_t device_profile = (tty_call == true) ? device_out_defaut : devices;
-            int ret;
-            ret = acoustic::process_profile(device_profile, beg_call);
-
-            if (ret) goto return_error;
-#endif
-
-            /* Modem configuration for each devices */
-            switch (devices)
+            /* Modem configuration for each device */
+            switch (current_device)
             {
             case AudioSystem::DEVICE_OUT_EARPIECE:
             case AudioSystem::DEVICE_OUT_SPEAKER:
             case AudioSystem::DEVICE_OUT_WIRED_HEADSET:
             case AudioSystem::DEVICE_OUT_WIRED_HEADPHONE:
-                if (prev_mode != AudioSystem::MODE_IN_CALL || prev_dev == AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET || beg_call == 0)
+                if (prev_mode != AudioSystem::MODE_IN_CALL || prev_device == AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET || beg_call == false)
                 {
                     bt::pcm_disable();
                     amc_disable(AMC_I2S1_RX);
                     amc_disable(AMC_I2S2_RX);
+                }
+
+#ifdef CUSTOM_BOARD_WITH_AUDIENCE
+                {
+                    /* Audience configurations for each device */
+                    uint32_t device_profile = (tty_call == true) ? device_out_defaut : current_device;
+                    int ret;
+                    ret = acoustic::process_profile(device_profile, beg_call);
+
+                    if (ret) goto return_error;
+                }
+#endif
+
+                if (prev_mode != AudioSystem::MODE_IN_CALL || prev_device == AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET || beg_call == false)
+                {
                     if (tty_call == false)
                     {
                         amc_configure_source(AMC_I2S1_RX, IFX_CLK1, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
@@ -197,6 +222,18 @@ static status_t vpc(int Mode, uint32_t devices)
                 msic::pcm_disable();
                 amc_disable(AMC_I2S1_RX);
                 amc_disable(AMC_I2S2_RX);
+
+#ifdef CUSTOM_BOARD_WITH_AUDIENCE
+                {
+                    /* Audience configurations for each device */
+                    uint32_t device_profile = (bt_acoustic == false) ? device_out_defaut : current_device;
+                    int ret;
+                    ret = acoustic::process_profile(device_profile, beg_call);
+
+                    if (ret) goto return_error;
+                }
+#endif
+
                 amc_configure_source(AMC_I2S1_RX, IFX_CLK1, IFX_MASTER, IFX_SR_8KHZ, IFX_SW_16, IFX_PCM, I2S_SETTING_NORMAL, IFX_MONO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
                 amc_configure_source(AMC_I2S2_RX, IFX_CLK0, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
                 amc_configure_dest(AMC_I2S1_TX, IFX_CLK1, IFX_MASTER, IFX_SR_8KHZ, IFX_SW_16, IFX_PCM, I2S_SETTING_NORMAL, IFX_MONO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_D);
@@ -214,12 +251,12 @@ static status_t vpc(int Mode, uint32_t devices)
             default:
                 break;
             }
-            prev_mode = Mode;
-            prev_dev = devices;
-            beg_call = 1;
+            beg_call = true;
+            prev_mode = current_mode;
+            prev_device = current_device;
         }
         /* Disable modem I2S at the end of the call */
-        else if (prev_mode == AudioSystem::MODE_IN_CALL && Mode == AudioSystem::MODE_NORMAL)
+        else if (prev_mode == AudioSystem::MODE_IN_CALL && current_mode == AudioSystem::MODE_NORMAL)
         {
             LOGD("VPC from IN_CALL to NORMAL\n");
             bt::pcm_disable();
@@ -232,9 +269,9 @@ static status_t vpc(int Mode, uint32_t devices)
             acoustic::process_suspend();
 #endif
 
-            beg_call = 0;
-            prev_mode = Mode;
-            prev_dev = devices;
+            beg_call = false;
+            prev_mode = current_mode;
+            prev_device = current_device;
         }
         else
         {
@@ -258,13 +295,13 @@ return_error:
 /*---------------------------------------------------------------------------*/
 /* Volume managment                                                          */
 /*---------------------------------------------------------------------------*/
-static status_t volume(float volume)
+static int vpc_volume(float volume)
 {
     vpc_lock.lock();
 
     int gain = 0;
     int range = 48; /* volume gain control must be remved when integrated in the MODEM */
-    if (at_thread_init == 1)
+    if (at_thread_init == true)
     {
         gain = volume * range + 40;
         gain = (gain >= 88) ? 88 : gain;
@@ -279,7 +316,7 @@ static status_t volume(float volume)
 /*---------------------------------------------------------------------------*/
 /* I2S2 disable                                                              */
 /*---------------------------------------------------------------------------*/
-static status_t disable_mixing(int mode)
+static int vpc_mixing_disable(int mode)
 {
     vpc_lock.lock();
 
@@ -301,7 +338,7 @@ static status_t disable_mixing(int mode)
 /*---------------------------------------------------------------------------*/
 /* I2S2 enable                                                               */
 /*---------------------------------------------------------------------------*/
-static status_t enable_mixing(int mode, uint32_t device)
+static int vpc_mixing_enable(int mode, uint32_t device)
 {
     vpc_lock.lock();
 
@@ -337,18 +374,38 @@ static status_t enable_mixing(int mode, uint32_t device)
 /*---------------------------------------------------------------------------*/
 /* Enable TTY                                                                */
 /*---------------------------------------------------------------------------*/
-static status_t enable_tty(bool tty)
+static int vpc_tty(vpc_tty_t tty)
 {
     vpc_lock.lock();
 
-    if (tty == true)
-    {
+    if (tty == VPC_TTY_ON) {
+        LOGD("TTY enabled\n");
         tty_call = true;
-        LOGD("TTY TRUE\n");
     }
-    else
-    {
+    else {
+        LOGD("TTY disabled\n");
         tty_call = false;
+    }
+
+    vpc_lock.unlock();
+    return NO_ERROR;
+}
+
+/*---------------------------------------------------------------------------*/
+/* Enable BT acoustic                                                        */
+/*---------------------------------------------------------------------------*/
+
+static int vpc_bt_nrec(vpc_bt_nrec_t bt_nrec)
+{
+    vpc_lock.lock();
+
+    if (bt_nrec == VPC_BT_NREC_ON) {
+        LOGD("BT acoustic On \n");
+        bt_acoustic = true;
+    }
+    else {
+        LOGD("BT acoustic Off \n");
+        bt_acoustic = false;
     }
 
     vpc_lock.unlock();
@@ -395,11 +452,13 @@ static int s_device_open(const hw_module_t* module, const char* name,
     dev->common.module  = (hw_module_t *) module;
     dev->common.close   = s_device_close;
     dev->init           = vpc_init;
-    dev->amcontrol      = vpc;
-    dev->amcvolume      = volume;
-    dev->mix_disable    = disable_mixing;
-    dev->mix_enable     = enable_mixing;
-    dev->tty_enable     = enable_tty;
+    dev->params         = vpc_params;
+    dev->route          = vpc_route;
+    dev->volume         = vpc_volume;
+    dev->mix_disable    = vpc_mixing_disable;
+    dev->mix_enable     = vpc_mixing_enable;
+    dev->tty            = vpc_tty;
+    dev->bt_nrec        = vpc_bt_nrec;
     *device = &dev->common;
     return 0;
 }

@@ -7,6 +7,11 @@ LOCAL_PATH := $(call my-dir)
 
   LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
 
+  LOCAL_COPY_HEADERS_TO := hw
+
+  LOCAL_COPY_HEADERS := \
+    vpc_hardware.h
+
   LOCAL_CFLAGS := -D_POSIX_SOURCE -Wno-multichar
 
 ifeq ($(CUSTOM_BOARD),mfld_pr2)

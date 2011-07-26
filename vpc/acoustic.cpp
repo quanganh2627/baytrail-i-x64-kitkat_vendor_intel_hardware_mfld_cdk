@@ -41,7 +41,7 @@ const char *acoustic::profile_name[device_number] = {
     "headset_close_talk.bin", // Headset
     "bt_hsp.bin",             // BT HSP
     "bt_carkit.bin",          // BT Car Kit
-    "tty.bin"                 // All other devices
+    "no_acoustic.bin"         // All other devices
 };
 
 
@@ -403,7 +403,7 @@ return_error:
 /*---------------------------------------------------------------------------*/
 /* Set profile                                                               */
 /*---------------------------------------------------------------------------*/
-int acoustic::process_profile(uint32_t device, int beg_call)
+int acoustic::process_profile(uint32_t device, bool beg_call)
 {
     a1026_lock.lock();
     LOGD("Audience A1026 set profile\n");

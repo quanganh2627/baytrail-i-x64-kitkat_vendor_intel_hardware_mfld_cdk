@@ -251,6 +251,11 @@ static bool modem_set_param(snd_ctl_t *handle, const char *name,
         goto err;
     }
 
+    if (index == -1)
+        index = 0;
+    else
+        count = index + 1;
+
     snd_ctl_elem_type_t type = snd_ctl_elem_info_get_type(info);
 
     snd_ctl_elem_value_t *control;
@@ -258,14 +263,6 @@ static bool modem_set_param(snd_ctl_t *handle, const char *name,
 
     snd_ctl_elem_info_get_id(info, id);
     snd_ctl_elem_value_set_id(control, id);
-
-    if (count > 1)
-        snd_ctl_elem_read(handle, control);
-
-    if (index == -1)
-        index = 0;
-    else
-        count = index + 1;
 
     for (i = index; i < count; i++)
         switch (type) {
@@ -331,20 +328,19 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
         modem_set_param(handle, "DMIC56 Capture Route", 1, index);
         modem_set_param(handle, "Txpath1 Capture Route", 0, index);
         modem_set_param(handle, "Txpath2 Capture Route", 4, index);
-        modem_set_param(handle, "Headphone Playback Volume", 63, -1);
         break;
     case VOICE_SPEAKER_INCALL: //speaker
         LOGD("voice route to Speaker \n");
         err = modem_enable_msic();
         modem_set_param(handle, "Playback Switch", 1, index);
-        modem_set_param(handle, "Headset Playback Route", 1, index);
+        modem_set_param(handle, "Speaker Mux Playback Route", 1, index);
         modem_set_param(handle, "Mode Playback Route", 1, index);
-        modem_set_param(handle, "Speaker Mux Playback Route", 1, -1);
+        modem_set_param(handle, "Headset Playback Route", 1, index);
         modem_set_param(handle, "DMIC12 Capture Route", 0, index);
         modem_set_param(handle, "DMIC56 Capture Route", 1, index);
         modem_set_param(handle, "Txpath1 Capture Route", 4, index);
         modem_set_param(handle, "Txpath2 Capture Route", 0, index);
-        modem_set_param(handle, "Headphone Playback Volume", 71, -1);
+
 
         if (!!ctl->source_muted == !*value)
             goto finish;
@@ -366,11 +362,9 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
         modem_set_param(handle, "Speaker Mux Playback Route", 0, -1);
         modem_set_param(handle, "Mic1Mode Capture Route", 0, index);
         modem_set_param(handle, "Mic_InputL Capture Route", 0, index);
-        modem_set_param(handle, "DMIC56 Capture Route", 1, index);
         modem_set_param(handle, "Txpath1 Capture Route", 6, index);
-        modem_set_param(handle, "Txpath2 Capture Route", 4, index);
-        modem_set_param(handle, "Mic1 Capture Volume", 1, index);
-        modem_set_param(handle, "Headphone Playback Volume", 60, -1);
+        modem_set_param(handle, "Txpath2 Capture Route", 6, index);
+        modem_set_param(handle, "Mic1 Capture Volume", 3, index);
         break;
     case VOICE_BT_INCALL: // bt
         LOGD("voice route to BT \n");
@@ -380,7 +374,6 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
         volume = * value;
         break;
     case VOICE_HEADPHONE_INCALL:// headphone
-        LOGD("voice route to headphone \n");
         err = modem_enable_msic();
         modem_set_param(handle, "Playback Switch", 1, index);
         modem_set_param(handle, "Headset Playback Route", 0, index);
@@ -390,7 +383,6 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
         modem_set_param(handle, "DMIC56 Capture Route", 1, index);
         modem_set_param(handle, "Txpath1 Capture Route", 0, index);
         modem_set_param(handle, "Txpath2 Capture Route", 4, index);
-        modem_set_param(handle, "Headphone Playback Volume", 60, -1);
         break;
 
     default:
@@ -640,7 +632,7 @@ static int modem_enable_msic ()
                                   2,
                                   48000,
                                   0,
-                                  500000)) < 0) {    /* 0.5sec */
+                                  500000)) < 0) {	/* 0.5sec */
         LOGE("[P]set params error: %s\n", snd_strerror(err));
         goto error;
     }

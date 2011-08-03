@@ -117,9 +117,13 @@ static status_t es305_init()
     size_t remaining;
     struct stat fw_stat;
     char value[PROPERTY_VALUE_MAX];
-
     static const char *const path = ES305_DEVICE_PATH;
 
+    if (at_thread_init == 0) {
+        amc_start(AUDIO_AT_CHANNEL_NAME);
+        at_thread_init = 1;
+        LOGV("AT thread start\n");
+    }
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
 
     fd_a1026 = open(path, O_RDWR | O_NONBLOCK, 0);
@@ -322,7 +326,7 @@ static int set_acoustic(uint32_t param)
 /* --------------------------------------- */
 static status_t vpc(int Mode, uint32_t devices)
 {
-    AMC_STATUS rts;
+    AT_STATUS rts;
     int ret=0,tty_call_dev=5;
 
     /* Must be remove when gain will be integrated in the MODEM  (IMC) */
@@ -344,19 +348,14 @@ static status_t vpc(int Mode, uint32_t devices)
             if(at_thread_init!=0)
             {
                 rts = check_tty();
-                if (rts == AMC_WRITE_ERROR)
+                if (rts == AT_WRITE_ERROR || rts == AT_ERROR)
                 {
                     LOGE("Amc Error\n");
                     amc_stop();
-                    amc_start(AUDIO_AT_CHANNEL_NAME, NULL);
+                    amc_start(AUDIO_AT_CHANNEL_NAME);
                 }
             }
-            /* start at thread only once */
-            if (prev_mode != Mode && at_thread_init == 0) {
-                amc_start(AUDIO_AT_CHANNEL_NAME, NULL);
-                at_thread_init = 1;
-                LOGV("AT thread start\n");
-            }
+
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
             /* Audience configurations for each devices */
             if(tty_call==true)

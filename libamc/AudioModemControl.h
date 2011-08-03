@@ -56,42 +56,6 @@ extern "C"
      * functions used:*/
 #define amc_unsolicitedRespMutex at_unsolicitedRespMutex
 
-    /* Return status:*/
-    typedef enum {
-        AMC_OK = AT_OK,
-        AMC_RUNNING = AT_RUNNING, /*response pending*/
-        AMC_ERROR = AT_ERROR,
-        AMC_UNABLE_TO_CREATE_THREAD = AT_UNABLE_TO_CREATE_THREAD,
-        AMC_UNABLE_TO_OPEN_DEVICE = AT_UNABLE_TO_OPEN_DEVICE,
-        AMC_WRITE_ERROR = AT_WRITE_ERROR,
-        AMC_READ_ERROR = AT_READ_ERROR,
-        AMC_UNINITIALIZED = AT_UNINITIALIZED,
-        AMC_NOT_SUPPORTED,
-        AMC_PARAM_ERROR,
-        AMC_NOT_YET_IMPLEMENTED,
-    }
-    AMC_STATUS;
-
-
-    /*------------------------------------------------------------------------------
-     * API constants / data:
-     *----------------------------------------------------------------------------*/
-
-
-    /* Modem hardware Interfaces that may be configured:*/
-    typedef enum {
-        AMC_I2S1_HW = 0,
-        AMC_I2S2_HW = 1,
-        INTERNAL_HW = 2
-    } AMC_HW_INTERFACE;
-
-    /* Function state:*/
-    typedef enum {
-        AMC_OFF = 0,
-        AMC_ON = 1
-    } AMC_STATE;
-
-
     /* available dest for IFX modem */
     typedef enum {
         AMC_RADIO_TX = 0,/* source(and sink for near-end loop back)*/
@@ -251,7 +215,7 @@ extern "C"
 
     /* Starting, stopping:*/
 
-    AMC_STATUS amc_start(const char *pATchannel, char *pUnsolicitedATresp);
+    AT_STATUS amc_start(const char *pATchannel);
     /* Start the Audio Modem Control library.
      **pATchanne: full path to the char device driver
      * pUnsolicitedATresponse of type char[AMC_MAX_RESP_LENGTH] or NULL.
@@ -261,7 +225,7 @@ extern "C"
      *-start the AT library (open  handles to modem, start the reader thread)
      *-send the default modem config ( call amc_sendDefaultConfig() )*/
 
-    AMC_STATUS amc_stop(void);
+    AT_STATUS amc_stop(void);
     /* Stop the Audio Modem Control library:
      *- Stop the AT library
      *- Free used ressources*/
@@ -269,44 +233,39 @@ extern "C"
 
     /* Configuring/activating hardware interfaces:*/
 
-    AMC_STATUS amc_enable(AMC_SOURCE source);
-    AMC_STATUS amc_disable(AMC_SOURCE source);
+    AT_STATUS amc_enable(AMC_SOURCE source);
+    AT_STATUS amc_disable(AMC_SOURCE source);
 
-    AMC_STATUS amc_configure_dest(AMC_DEST dest, IFX_CLK clk, IFX_MASTER_SLAVE mode, IFX_I2S_SR sr, IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings, IFX_I2S_AUDIO_MODE audio, IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_DEST transducer_dest);
-    AMC_STATUS amc_configure_source(AMC_SOURCE source, IFX_CLK clk, IFX_MASTER_SLAVE mode, IFX_I2S_SR sr, IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings, IFX_I2S_AUDIO_MODE audio, IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_SOURCE transducer_source);
+    AT_STATUS amc_configure_dest(AMC_DEST dest, IFX_CLK clk, IFX_MASTER_SLAVE mode, IFX_I2S_SR sr, IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings, IFX_I2S_AUDIO_MODE audio, IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_DEST transducer_dest);
+    AT_STATUS amc_configure_source(AMC_SOURCE source, IFX_CLK clk, IFX_MASTER_SLAVE mode, IFX_I2S_SR sr, IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings, IFX_I2S_AUDIO_MODE audio, IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_SOURCE transducer_source);
 
 
     /* Configuring/routing/enabling modem internal path & ports:*/
 
-    AMC_STATUS amc_route(AMC_SOURCE source, ...);
-    AMC_STATUS amc_setGainsource(AMC_SOURCE source, int gainDDB);
-    AMC_STATUS amc_setGaindest(AMC_DEST dest, int gainDDB);
+    AT_STATUS amc_route(AMC_SOURCE source, ...);
+    AT_STATUS amc_setGainsource(AMC_SOURCE source, int gainDDB);
+    AT_STATUS amc_setGaindest(AMC_DEST dest, int gainDDB);
 
     /* Other:*/
 
-    AMC_STATUS amc_setAcoustic(AMC_ACOUSTIC acousticProfile);
-    AMC_STATUS check_tty();
+    AT_STATUS amc_setAcoustic(AMC_ACOUSTIC acousticProfile);
+    AT_STATUS check_tty();
 
     /* Unblocking counter-parts:*/
 
-    AMC_STATUS amc_configure_dest_UnBlocking(AMC_DEST dest, IFX_CLK clk, IFX_MASTER_SLAVE mode, IFX_I2S_SR sr, IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings, IFX_I2S_AUDIO_MODE audio, IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_DEST transducer_dest,
-            AMC_STATUS *pCmdStatus);
-    AMC_STATUS amc_configure_source_UnBlocking(AMC_SOURCE source, IFX_CLK clk, IFX_MASTER_SLAVE mode, IFX_I2S_SR sr, IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings, IFX_I2S_AUDIO_MODE audio, IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_SOURCE transducer_source,
-            AMC_STATUS *pCmdStatus);
-    AMC_STATUS amc_enableUnBlocking(AMC_SOURCE source, AMC_STATUS *pCmdStatus);
-    AMC_STATUS amc_disableUnBlocking(AMC_SOURCE source, AMC_STATUS *pCmdStatus);
-    AMC_STATUS amc_routeUnBlocking(AMC_SOURCE source,
-                                   int dest[], int i, AMC_STATUS *pCmdStatus);
-    AMC_STATUS amc_setGainsourceUnBlocking(AMC_SOURCE source, int gainIndex,
-                                           AMC_STATUS *pCmdStatus);
-    AMC_STATUS amc_setGaindestUnBlocking(AMC_DEST dest, int gainIndex,
-                                         AMC_STATUS *pCmdStatus);
-    AMC_STATUS amc_setAcousticUnBlocking(AMC_ACOUSTIC acousticProfile,
-                                         AMC_STATUS *pCmdStatus);
+    AT_STATUS amc_configure_dest_UnBlocking(AMC_DEST dest, IFX_CLK clk, IFX_MASTER_SLAVE mode, IFX_I2S_SR sr, IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings, IFX_I2S_AUDIO_MODE audio, IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_DEST transducer_dest);
+    AT_STATUS amc_configure_source_UnBlocking(AMC_SOURCE source, IFX_CLK clk, IFX_MASTER_SLAVE mode, IFX_I2S_SR sr, IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings, IFX_I2S_AUDIO_MODE audio, IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_SOURCE transducer_source);
+    AT_STATUS amc_enableUnBlocking(AMC_SOURCE source);
+    AT_STATUS amc_disableUnBlocking(AMC_SOURCE source);
+    AT_STATUS amc_routeUnBlocking(AMC_SOURCE source,
+                                   int dest[], int i);
+    AT_STATUS amc_setGainsourceUnBlocking(AMC_SOURCE source, int gainIndex);
+    AT_STATUS amc_setGaindestUnBlocking(AMC_DEST dest, int gainIndex);
+    AT_STATUS amc_setAcousticUnBlocking(AMC_ACOUSTIC acousticProfile);
 
-    AMC_STATUS amc_check(AMC_STATUS *pCmdStatus);
+    AT_STATUS amc_check();
     /* waiting passively for the completion of unblocking commands:*/
-    void amc_waitForCmdCompletion(AMC_STATUS *pCmdStatus);
+    AT_STATUS amc_waitForCmdCompletion();
 
 
     /*------------------------------------------------------------------------------

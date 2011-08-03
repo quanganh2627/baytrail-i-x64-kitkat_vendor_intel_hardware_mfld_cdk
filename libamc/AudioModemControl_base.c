@@ -16,62 +16,41 @@
  */
 
 #include "AudioModemControl.h"
-
-
-/*==============================================================================
- * Audio Modem Control implementation part generic to all Modem types.
- *============================================================================*/
-
-/*------------------------------------------------------------------------------
- * Log Settings:
- *----------------------------------------------------------------------------*/
 #define LOG_TAG "AudiomodemControl_base"
 #include <utils/Log.h>
-
 #include <stdarg.h>
-
-/*---------------------------------------------------------------------------
- * Internal globals and helpers
- *---------------------------------------------------------------------------*/
-
 static bool isInitialized; /*= false Keep track of library initialization*/
 
-
-/*---------------------------------------------------------------------------
- * AudioModemControl API implementation:
- *---------------------------------------------------------------------------*/
-
-/*---- AMC API ---  */
-AMC_STATUS amc_start(const char *pATchannel, char *pUnsolicitedATresp)
+AT_STATUS amc_start(const char *pATchannel)
 {
-    AMC_STATUS cmdStatus;
+    AT_STATUS cmdStatus;
     if (isInitialized) {
         LOGI("Library already started");
-        return AMC_OK;
+        return AT_OK;
     }
-    cmdStatus = at_start(pATchannel, pUnsolicitedATresp);
+    cmdStatus = at_start(pATchannel);
     if (cmdStatus == AT_OK) {
         isInitialized = true;
     }
     return cmdStatus;
 }
 
-AMC_STATUS amc_stop(void)
+AT_STATUS amc_stop(void)
 {
     isInitialized = false;
     return at_stop();
 }
 
-void amc_waitForCmdCompletion(AMC_STATUS *pCmdStatus)
+AT_STATUS amc_waitForCmdCompletion()
 {
-    at_waitForCmdCompletion((AT_STATUS *) pCmdStatus);
+    AT_STATUS cmdStatus;
+    at_waitForCmdCompletion();
+    return cmdStatus;
 }
 
-/* Communication functions, blocking part implementation*/
-
-AMC_STATUS amc_route(AMC_SOURCE source, ...)
+AT_STATUS amc_route(AMC_SOURCE source, ...)
 {
-    AMC_STATUS cmdStatus;
+    AT_STATUS cmdStatus;
     va_list ap;
     int destab[7]={8,8,8,8,8,8,8};
     AMC_DEST nbrdest;
@@ -87,70 +66,61 @@ AMC_STATUS amc_route(AMC_SOURCE source, ...)
         LOGD("ROUTE ARG = %d",nbrdest);
     } while (1);
     va_end(ap);
-    amc_routeUnBlocking(source, destab, i, &cmdStatus);
-    at_waitForCmdCompletion((AT_STATUS *) &cmdStatus);
+    cmdStatus = amc_routeUnBlocking(source, destab, i);
     return cmdStatus;
 }
 
-AMC_STATUS amc_enable(AMC_SOURCE source)
+AT_STATUS amc_enable(AMC_SOURCE source)
 {
-    AMC_STATUS cmdStatus;
-    amc_enableUnBlocking(source, &cmdStatus);
-    at_waitForCmdCompletion((AT_STATUS *) &cmdStatus);
+    AT_STATUS cmdStatus;
+    cmdStatus = amc_enableUnBlocking(source);
     return cmdStatus;
 }
 
-AMC_STATUS amc_disable(AMC_SOURCE source)
+AT_STATUS amc_disable(AMC_SOURCE source)
 {
-    AMC_STATUS cmdStatus;
-    amc_disableUnBlocking(source, &cmdStatus);
-    at_waitForCmdCompletion((AT_STATUS *) &cmdStatus);
+    AT_STATUS cmdStatus;
+    cmdStatus = amc_disableUnBlocking(source);
     return cmdStatus;
 }
-AMC_STATUS amc_configure_dest(AMC_DEST dest, IFX_CLK clk, IFX_MASTER_SLAVE mode, IFX_I2S_SR sr, IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings, IFX_I2S_AUDIO_MODE audio, IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_DEST transducer_dest)
+AT_STATUS amc_configure_dest(AMC_DEST dest, IFX_CLK clk, IFX_MASTER_SLAVE mode, IFX_I2S_SR sr, IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings, IFX_I2S_AUDIO_MODE audio, IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_DEST transducer_dest)
 {
-    AMC_STATUS cmdStatus;
-    amc_configure_dest_UnBlocking(dest,clk,mode,sr,sw,trans,settings,audio,update,transducer_dest,&cmdStatus);
-    at_waitForCmdCompletion((AT_STATUS *) &cmdStatus);
-    return cmdStatus;
-}
-
-AMC_STATUS amc_configure_source(AMC_SOURCE source, IFX_CLK clk, IFX_MASTER_SLAVE mode, IFX_I2S_SR sr, IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings, IFX_I2S_AUDIO_MODE audio, IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_SOURCE transducer_source)
-{
-    AMC_STATUS cmdStatus;
-    amc_configure_source_UnBlocking(source,clk,mode,sr,sw,trans,settings,audio,update,transducer_source,&cmdStatus);
-    at_waitForCmdCompletion((AT_STATUS *) &cmdStatus);
+    AT_STATUS cmdStatus;
+    cmdStatus = amc_configure_dest_UnBlocking(dest,clk,mode,sr,sw,trans,settings,audio,update,transducer_dest);
     return cmdStatus;
 }
 
-AMC_STATUS amc_setGainsource(AMC_SOURCE source, int gainIndex)
+AT_STATUS amc_configure_source(AMC_SOURCE source, IFX_CLK clk, IFX_MASTER_SLAVE mode, IFX_I2S_SR sr, IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings, IFX_I2S_AUDIO_MODE audio, IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_SOURCE transducer_source)
 {
-    AMC_STATUS cmdStatus;
-    amc_setGainsourceUnBlocking(source,  gainIndex, &cmdStatus);
-    at_waitForCmdCompletion((AT_STATUS *) &cmdStatus);
+    AT_STATUS cmdStatus;
+    cmdStatus = amc_configure_source_UnBlocking(source,clk,mode,sr,sw,trans,settings,audio,update,transducer_source);
     return cmdStatus;
 }
 
-AMC_STATUS amc_setGaindest(AMC_DEST dest, int gainIndex)
+AT_STATUS amc_setGainsource(AMC_SOURCE source, int gainIndex)
 {
-    AMC_STATUS cmdStatus;
-    amc_setGaindestUnBlocking(dest,  gainIndex, &cmdStatus);
-    at_waitForCmdCompletion((AT_STATUS *) &cmdStatus);
+    AT_STATUS cmdStatus;
+    cmdStatus = amc_setGainsourceUnBlocking(source,  gainIndex);
+    return cmdStatus;
+}
+
+AT_STATUS amc_setGaindest(AMC_DEST dest, int gainIndex)
+{
+    AT_STATUS cmdStatus;
+    cmdStatus = amc_setGaindestUnBlocking(dest,  gainIndex);
     return cmdStatus;
 }
 
 
-AMC_STATUS amc_setAcoustic(AMC_ACOUSTIC acousticProfile)
+AT_STATUS amc_setAcoustic(AMC_ACOUSTIC acousticProfile)
 {
-    AMC_STATUS cmdStatus;
-    amc_setAcousticUnBlocking(acousticProfile,  &cmdStatus);
-    at_waitForCmdCompletion((AT_STATUS *) &cmdStatus);
+    AT_STATUS cmdStatus;
+    cmdStatus = amc_setAcousticUnBlocking(acousticProfile);
     return cmdStatus;
 }
-AMC_STATUS check_tty()
+AT_STATUS check_tty()
 {
-    AMC_STATUS cmdStatus;
-    amc_check(&cmdStatus);
-    at_waitForCmdCompletion((AT_STATUS *) &cmdStatus);
+    AT_STATUS cmdStatus;
+    cmdStatus = amc_check();
     return cmdStatus;
 }

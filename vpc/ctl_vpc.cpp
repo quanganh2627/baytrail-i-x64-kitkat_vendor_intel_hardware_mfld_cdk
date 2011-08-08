@@ -455,11 +455,11 @@ static status_t vpc(int Mode, uint32_t devices)
 static status_t volume(float volume)
 {
     int gain=0;
-    int range = 88; /* volume gain control must be remved when integrated in the MODEM */
+    int range = 48; /* volume gain control must be remved when integrated in the MODEM */
     if (at_thread_init == 1) {
-        gain = volume * range;
-        gain = (gain >= range) ? range : gain;
-        gain = (gain <= 0) ? 0 : gain;
+        gain = volume * range + 40;
+        gain = (gain >= 88) ? 88 : gain;
+        gain = (gain <= 40) ? 40 : gain;
         amc_setGaindest(AMC_I2S1_TX, gain);
     }
     return NO_ERROR;

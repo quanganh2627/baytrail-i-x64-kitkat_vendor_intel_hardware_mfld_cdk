@@ -15,14 +15,22 @@
  ** limitations under the License.
  */
 
+#include <alsa/asoundlib.h>
+#include <alsa/control_external.h>
+
 namespace android
 {
 
-class bt
+class msic
 {
 public :
+    static int pcm_init();
     static int pcm_enable();
     static int pcm_disable();
+
+private :
+    static snd_pcm_t *handle_playback;
+    static snd_pcm_t *handle_capture;
 };
 
 }

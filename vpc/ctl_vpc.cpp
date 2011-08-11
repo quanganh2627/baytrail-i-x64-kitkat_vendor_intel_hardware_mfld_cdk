@@ -15,21 +15,16 @@
  ** limitations under the License.
  */
 
-#define LOG_TAG "AudienceModule"
-#include <linux/a1026.h>
-#include "AudioHardwareALSA.h"
-#include <media/AudioRecord.h>
-#include <signal.h>
+#define LOG_TAG "VPCModule"
 #include <utils/Log.h>
-#include <utils/List.h>
+
+#include "AudioHardwareALSA.h"
+#include "amc.h"
+#include "bt.h"
+#include "msic.h"
+#include <linux/a1026.h>
 #include <sys/stat.h>
-#include <amc.h>
 #include <properties.h>
-#include <sys/ioctl.h>
-#include <sys/types.h>
-#include <dlfcn.h>
-#include <fcntl.h>
-#include <bt.h>
 
 namespace android
 {
@@ -137,6 +132,8 @@ static status_t es305_init()
         else
             return NO_INIT;
     }
+
+    msic::pcm_init();
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
 
@@ -387,8 +384,7 @@ static status_t vpc(int Mode, uint32_t devices)
             case AudioSystem::DEVICE_OUT_WIRED_HEADSET:
             case AudioSystem::DEVICE_OUT_WIRED_HEADPHONE:
                 if (prev_mode!=AudioSystem::MODE_IN_CALL || prev_dev==AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET || beg_call == 0) {
-                LOGD("Disable BT PCM Port\n");
-                bt_pcm_disable();
+                bt::pcm_disable();
                 amc_disable(AMC_I2S1_RX);
                 amc_disable(AMC_I2S2_RX);
                 if (tty_call == false){
@@ -410,11 +406,13 @@ static status_t vpc(int Mode, uint32_t devices)
                 amc_enable(AMC_I2S2_RX);
                 mixing_enable = true;
                 amc_enable(AMC_I2S1_RX);
+                msic::pcm_enable();
                 }
                 break;
             case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO:
             case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET:
             case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_CARKIT:
+                msic::pcm_disable();
                 amc_disable(AMC_I2S1_RX);
                 amc_disable(AMC_I2S2_RX);
                 amc_configure_source(AMC_I2S1_RX, IFX_CLK1, IFX_MASTER,  IFX_SR_8KHZ, IFX_SW_16, IFX_PCM, I2S_SETTING_NORMAL, IFX_MONO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
@@ -429,8 +427,7 @@ static status_t vpc(int Mode, uint32_t devices)
                 amc_enable(AMC_I2S2_RX);
                 mixing_enable = true;
                 amc_enable(AMC_I2S1_RX);
-                LOGD("Enable BT PCM Port\n");
-                bt_pcm_enable();
+                bt::pcm_enable();
                 break;
             default:
                 break;
@@ -443,11 +440,8 @@ static status_t vpc(int Mode, uint32_t devices)
         /* Disable modem I2S at the end of the call */
         if (prev_mode == AudioSystem::MODE_IN_CALL && Mode == AudioSystem::MODE_NORMAL) {
             LOGV("VPC from in_call to normal\n");
-            /* Disable PCM if previous dev was BT */
-            if (prev_dev & (AudioSystem::DEVICE_OUT_BLUETOOTH_SCO |
-                            AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET |
-                            AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_CARKIT))
-                bt_pcm_disable();
+            bt::pcm_disable();
+            msic::pcm_disable();
             amc_disable(AMC_I2S1_RX);
             amc_disable(AMC_I2S2_RX);
             mixing_enable = false;

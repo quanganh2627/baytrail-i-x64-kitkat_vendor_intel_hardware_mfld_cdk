@@ -15,17 +15,13 @@
  ** limitations under the License.
  */
 
-#define LOG_TAG "ALSAModule"
+#define LOG_TAG "ALSAPlugInModemCTL"
 #include <utils/Log.h>
 #include <sys/poll.h>
 #define _POSIX_C_SOURCE
 
 #include <alsa/asoundlib.h>
 #include <alsa/control_external.h>
-
-#include <amc.h>
-
-#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 
 typedef struct snd_ctl_modem {
     snd_ctl_ext_t ext;
@@ -43,54 +39,35 @@ typedef struct snd_ctl_modem {
 static snd_pcm_t *phandle;
 static snd_pcm_t *chandle;
 
-static int modem_enable_msic();
-static int modem_disable_msic();
-
 #define VOICE_EARPIECE "Voice Earpiece"
 #define VOICE_SPEAKER "Voice Speaker"
-#define AMC_VOICE "AMC Voice"
-#define AMC_VOICE_BT "AMC voice BT"
 #define VOICE_HEADSET "Voice Headset"
 #define VOICE_BT "Voice BT"
-#define AMC_ADJUST_VOLUME "AMC Adjust Volume"
 #define VOICE_HEADPHONE "Voice Headphone"
 
-#define UPDATE_AMC_VOICE     0x01
-#define UPDATE_AMC_VOICE_BT    0x02
-#define UPDATE_EARPIECE   0x04
-#define UPDATE_SPEAKER  0x08
-#define UPDATE_HEADSET  0x10
-#define UPDATE_BT  0x20
-#define UPDATE_AMC_ADJUST_VOLUME 0x40
-#define UPDATE_HEADPHONE  0x80
+#define UPDATE_EARPIECE   0x01
+#define UPDATE_SPEAKER  0x02
+#define UPDATE_HEADSET  0x04
+#define UPDATE_BT  0x08
+#define UPDATE_HEADPHONE  0x10
+
 typedef enum snd_ctl_ext_incall_key {
     VOICE_EARPIECE_INCALL = 0x0,
     VOICE_SPEAKER_INCALL,
-    AMC_VOICE_INCALL,
-    AMC_VOICE_BT_INCALL,
     VOICE_HEADSET_INCALL,
     VOICE_BT_INCALL,
-    AMC_ADJUST_VOLUME_INCALL,
     VOICE_HEADPHONE_INCALL,
     EXT_INCALL
-}snd_ctl_ext_incall_key_t;
-
+} snd_ctl_ext_incall_key_t;
 
 
 #define MEDFIELDAUDIO "medfieldaudio"
 
-static int modem_update_volume(snd_ctl_modem_t * ctl)
-{
-    int err;
-    assert(ctl);
-
-    return 0;
-}
 
 static int modem_elem_count(snd_ctl_ext_t * ext)
 {
     snd_ctl_modem_t *ctl = ext->private_data;
-    int count = 0, err;
+    int count = 0;
 
     assert(ctl);
 
@@ -136,16 +113,10 @@ static snd_ctl_ext_key_t modem_find_elem(snd_ctl_ext_t * ext,
         return VOICE_EARPIECE_INCALL;
     if (strcmp(name, VOICE_SPEAKER) == 0)
         return VOICE_SPEAKER_INCALL;
-    if (strcmp(name, AMC_VOICE) == 0)
-        return AMC_VOICE_INCALL;
-    if (strcmp(name, AMC_VOICE_BT) == 0)
-        return AMC_VOICE_BT_INCALL;
     if (strcmp(name, VOICE_HEADSET) == 0)
         return VOICE_HEADSET_INCALL;
     if (strcmp(name, VOICE_BT) == 0)
         return VOICE_BT_INCALL;
-    if (strcmp(name, AMC_ADJUST_VOLUME) == 0)
-        return AMC_ADJUST_VOLUME_INCALL;
     if (strcmp(name, VOICE_HEADPHONE) == 0)
         return VOICE_HEADPHONE_INCALL;
 
@@ -201,16 +172,10 @@ static int modem_read_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
     case VOICE_SPEAKER_INCALL:
         *value = !ctl->source_muted;
         break;
-    case AMC_VOICE_INCALL:
-        break;
-    case AMC_VOICE_BT_INCALL:
-        *value = !ctl->sink_muted;
-        break;
     case VOICE_HEADSET_INCALL:
         break;
     case VOICE_BT_INCALL:
-        break;
-    case  AMC_ADJUST_VOLUME_INCALL:
+        *value = !ctl->sink_muted;
         break;
     case VOICE_HEADPHONE_INCALL:
         break;
@@ -225,8 +190,8 @@ finish:
 }
 
 
-static bool modem_set_param(snd_ctl_t *handle, const char *name,
-                            unsigned int value, int index)
+static int modem_set_param(snd_ctl_t *handle, const char *name,
+                           unsigned int value, int index)
 {
     int err, i;
     snd_ctl_elem_id_t *id;
@@ -293,10 +258,10 @@ static bool modem_set_param(snd_ctl_t *handle, const char *name,
         LOGE("Control '%s' write error", name);
         goto err;
     }
-    return true;
+    return 1;
 
 err:
-    return false;
+    return 0;
 }
 
 static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
@@ -317,12 +282,10 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
         goto finish;
     }
     int index = 0;
-    int volume = 200;
 
     switch (key) {
     case VOICE_EARPIECE_INCALL://earpiece
         LOGD("voice route to earpiece \n");
-        err = modem_enable_msic();
         modem_set_param(handle, "Playback Switch", 0, index);
         modem_set_param(handle, "Headset Playback Route", 0, index);
         modem_set_param(handle, "Mode Playback Route", 1, index);
@@ -335,7 +298,6 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
         break;
     case VOICE_SPEAKER_INCALL: //speaker
         LOGD("voice route to Speaker \n");
-        err = modem_enable_msic();
         modem_set_param(handle, "Playback Switch", 1, index);
         modem_set_param(handle, "Headset Playback Route", 1, index);
         modem_set_param(handle, "Mode Playback Route", 1, index);
@@ -350,16 +312,8 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
             goto finish;
         ctl->source_muted = !*value;
         break;
-    case AMC_VOICE_INCALL: //modem setup
-        LOGD("modem voice route to MSIC \n");
-        break;
-    case AMC_VOICE_BT_INCALL://modem setup for bt call
-        LOGD("modem voice route to BT \n");
-        modem_disable_msic();
-        break;
     case VOICE_HEADSET_INCALL: // headset
         LOGD("voice route to headset \n");
-        err = modem_enable_msic();
         modem_set_param(handle, "Playback Switch", 1, index);
         modem_set_param(handle, "Headset Playback Route", 0, index);
         modem_set_param(handle, "Mode Playback Route", 1, index);
@@ -374,14 +328,9 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
         break;
     case VOICE_BT_INCALL: // bt
         LOGD("voice route to BT \n");
-        modem_disable_msic ();
-        break;
-    case AMC_ADJUST_VOLUME_INCALL: //volume control
-        volume = * value;
         break;
     case VOICE_HEADPHONE_INCALL:// headphone
         LOGD("voice route to headphone \n");
-        err = modem_enable_msic();
         modem_set_param(handle, "Playback Switch", 1, index);
         modem_set_param(handle, "Headset Playback Route", 0, index);
         modem_set_param(handle, "Mode Playback Route", 1, index);
@@ -436,16 +385,10 @@ static int modem_read_event(snd_ctl_ext_t * ext, snd_ctl_elem_id_t * id,
         ctl->updated &= ~UPDATE_EARPIECE;
     } else if (ctl->updated & UPDATE_SPEAKER) {
         ctl->updated &= ~UPDATE_SPEAKER;
-    } else if (ctl->updated & UPDATE_AMC_VOICE) {
-        ctl->updated &= ~UPDATE_AMC_VOICE;
-    } else if (ctl->updated & UPDATE_AMC_VOICE_BT) {
-        ctl->updated &= ~UPDATE_AMC_VOICE_BT;
     } else if (ctl->updated & UPDATE_HEADSET) {
         ctl->updated &= ~UPDATE_HEADSET;
     } else if (ctl->updated & UPDATE_BT) {
         ctl->updated &= ~UPDATE_BT;
-    } else if (ctl->updated & UPDATE_AMC_ADJUST_VOLUME) {
-        ctl->updated &= ~UPDATE_AMC_ADJUST_VOLUME;
     } else if (ctl->updated & UPDATE_HEADPHONE) {
         ctl->updated &= ~UPDATE_HEADPHONE;
     }
@@ -485,9 +428,6 @@ static void modem_close(snd_ctl_ext_t * ext)
     snd_ctl_modem_t *ctl = ext->private_data;
 
     assert(ctl);
-
-    LOGD("modem close in ctl_modem");
-    modem_disable_msic();
 
     free(ctl->source);
     free(ctl->sink);
@@ -610,83 +550,5 @@ error:
 
     return err;
 }
-static int modem_enable_msic ()
-{
-    char device_v[128];
-    int card = snd_card_get_index(MEDFIELDAUDIO);
-    int err = 0;;
 
-    if(phandle)
-        return 0;
-
-    LOGD("Enable msic ~~~");
-
-    sprintf(device_v, "hw:%d,2", card);
-    LOGD("%s \n",device_v);
-
-    if ((err = snd_pcm_open(&phandle, device_v, SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
-        LOGE("Playback open error: %s\n", snd_strerror(err));
-        return err;
-    }
-
-    if ((err = snd_pcm_open(&chandle, device_v, SND_PCM_STREAM_CAPTURE, 0)) < 0) {
-        LOGE("Capture open error: %s\n", snd_strerror(err));
-        goto error;
-    }
-
-    if ((err = snd_pcm_set_params(phandle,
-                                  SND_PCM_FORMAT_S16_LE,
-                                  SND_PCM_ACCESS_RW_INTERLEAVED,
-                                  2,
-                                  48000,
-                                  0,
-                                  500000)) < 0) {    /* 0.5sec */
-        LOGE("[P]set params error: %s\n", snd_strerror(err));
-        goto error;
-    }
-
-    if ((err = snd_pcm_set_params(chandle,
-                                  SND_PCM_FORMAT_S16_LE,
-                                  SND_PCM_ACCESS_RW_INTERLEAVED,
-                                  1,
-                                  48000,
-                                  1,
-                                  500000)) < 0) { /* 0.5sec */
-        LOGE("[C]set params error: %s\n", snd_strerror(err));
-        goto error;
-    }
-
-    LOGD("Enable msic ~~~ success");
-
-    return err;
-
-error:
-    if(phandle)
-        snd_pcm_close(phandle);
-
-    if(chandle)
-        snd_pcm_close(chandle);
-
-    return err;
-
-}
-
-
-static int modem_disable_msic ()
-{
-    LOGD("Disable msic ~~~");
-
-    if(phandle) {
-        snd_pcm_close(phandle);
-        LOGD("%s : snd_pcm_close(phandle)",__func__);
-    }
-    if(chandle) {
-        snd_pcm_close(chandle);
-        LOGD("%s : snd_pcm_close(chandle)",__func__);
-    }
-    phandle= NULL;
-    chandle= NULL;
-
-    return 0;
-}
 SND_CTL_PLUGIN_SYMBOL(modem);

@@ -13,10 +13,7 @@ LOCAL_MODULE_PATH := $(TARGET_OUT)/usr/lib/alsa-lib
 LOCAL_CFLAGS += -DPIC -UNDEBUG -DDEBUG=1 -DLOG_NDEBUG=1
 
 LOCAL_C_INCLUDES:= \
-	$(TOP)/external/alsa-lib/include \
-	$(TOP)/hardware/intel/mfld_cdk/libamc
-
-LOCAL_STATIC_LIBRARIES := libamc
+	$(TOP)/external/alsa-lib/include
 
 LOCAL_SHARED_LIBRARIES :=       \
 			liblog \
@@ -37,10 +34,8 @@ LOCAL_MODULE_PATH := $(TARGET_OUT)/usr/lib/alsa-lib
 LOCAL_CFLAGS += -DPIC -UNDEBUG -DDEBUG=1 -DLOG_NDEBUG=1
 
 LOCAL_C_INCLUDES:= \
-        $(TOP)/external/alsa-lib/include \
-	$(TOP)/hardware/intel/mfld_cdk/libamc
+        $(TOP)/external/alsa-lib/include
 
-LOCAL_STATIC_LIBRARIES := libamc
 LOCAL_SHARED_LIBRARIES :=       \
                         liblog \
                         libasound

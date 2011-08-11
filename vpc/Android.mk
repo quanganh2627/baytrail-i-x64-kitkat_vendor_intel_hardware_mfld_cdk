@@ -23,7 +23,8 @@ LOCAL_C_INCLUDES += external/alsa-lib/include hardware/alsa_sound hardware/intel
 
   LOCAL_SRC_FILES:= \
 	ctl_vpc.cpp \
-	bt.cpp
+	bt.cpp \
+	msic.cpp
 
   LOCAL_STATIC_LIBRARIES := libamc
 

@@ -19,13 +19,28 @@
 #include "AudioModemControl.h"
 #ifdef MODEM_IFX_XMM6160
 
-#include <sys/types.h>
+#include <sys/types.h>  /* Android needs this on top (size_t for string.h) */
 #include <stdio.h>
 #include <string.h>
 #include "ATmodemControl.h"
+
+
+/*==============================================================================
+ * Audio Modem Control Implementation for IFX XMM6260
+ * ========================================================================== */
+
+/*------------------------------------------------------------------------------
+ * Log Settings:
+ *----------------------------------------------------------------------------*/
+
 #define LOG_TAG "AudiomodemControlIFX"
 #include <utils/Log.h>
-#define TRY_MAX 5
+
+/*------------------------------------------------------------------------------
+ * Internal globals and helpers: AT Commands & I2S configuration
+ *----------------------------------------------------------------------------*/
+
+/* AT API  UTA Audio Commands */
 #define GET_USE_CASE_SRC  "AT+XDRV=40,0,"
 #define GET_USE_CASE_DEST  "AT+XDRV=40,1,"
 #define EN_SRC  "AT+XDRV=40,2,%i"
@@ -54,97 +69,114 @@
 #define AT_RESP "+COPS:"
 
 
-AT_STATUS amc_enableUnBlocking(AMC_SOURCE source)
+/*------------------------------------------------------------------------------
+ * AudioModemControl API implementation:
+ *----------------------------------------------------------------------------*/
+
+
+AMC_STATUS amc_enableUnBlocking(AMC_SOURCE source, AMC_STATUS *pCmdStatus)
 {
     char cmdStr[AT_MAX_CMD_LENGTH];
     char partStr[AT_MAX_CMD_LENGTH];
-    AT_STATUS rts;
+    AMC_STATUS rts;
     int i = 0;
     bool isFirstRoute = true;
     int srcPort;
     int hwSink;
-    int try = 0;
+    /* check for nothing to do: */
+
     sprintf(cmdStr, EN_SRC, source);
     rts = at_send(cmdStr, EN_SRC_RESP);
-    while (rts != AT_OK && try <  TRY_MAX) {
-        LOGW("Partial enable.");
-        rts = at_send(cmdStr, EN_SRC_RESP);
-        try++;
+    if (rts != AMC_OK) {
+        LOGW("Partial(de)activation.");
+        if (pCmdStatus != NULL)
+            (*pCmdStatus) = (AMC_STATUS)rts;
+        return rts;
     }
-    return rts;
+    else
+        return rts;
 }
-AT_STATUS amc_disableUnBlocking(AMC_SOURCE source)
+AMC_STATUS amc_disableUnBlocking(AMC_SOURCE source, AMC_STATUS *pCmdStatus)
 {
     char cmdStr[AT_MAX_CMD_LENGTH];
     char partStr[AT_MAX_CMD_LENGTH];
-    AT_STATUS rts;
+    AMC_STATUS rts;
     int i = 0;
     bool isFirstRoute = true;
     int srcPort;
     int hwSink;
-    int try = 0;
+    /* check for nothing to do: */
+
     sprintf(cmdStr, DIS_SRC, source);
     rts = at_send(cmdStr, DIS_SRC_RESP);
-    while (rts != AT_OK && try <  TRY_MAX) {
-        LOGW("Partial disable.");
-        rts = at_send(cmdStr, DIS_SRC_RESP);
-        try++;
+    if (rts != AMC_OK) {
+        LOGW("Partial(de)activation.");
+        if (pCmdStatus != NULL)
+            (*pCmdStatus) = (AMC_STATUS)rts;
+        return rts;
     }
-    return rts;
+    else
+        return rts;
 }
 
-AT_STATUS amc_configure_dest_UnBlocking(AMC_DEST dest, IFX_CLK clk, IFX_MASTER_SLAVE mode, IFX_I2S_SR sr, IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings, IFX_I2S_AUDIO_MODE audio, IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_DEST transducer_dest)
+AMC_STATUS amc_configure_dest_UnBlocking(AMC_DEST dest, IFX_CLK clk, IFX_MASTER_SLAVE mode, IFX_I2S_SR sr, IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings, IFX_I2S_AUDIO_MODE audio, IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_DEST transducer_dest,
+        AMC_STATUS *pCmdStatus)
 {
     char cmdStr[AT_MAX_CMD_LENGTH];
     char partStr[AT_MAX_CMD_LENGTH];
-    AT_STATUS rts;
+    AMC_STATUS rts;
     int i = 0;
     bool isFirstRoute = true;
     int srcPort;
     int hwSink;
-    int try = 0;
+
     sprintf(cmdStr, SET_DEST_CONF, dest, 0, clk, mode, sr, sw, trans, settings, audio, update, transducer_dest);
     rts = at_send(cmdStr, SET_DEST_CONF_RESP);
-    while (rts != AT_OK && try <  TRY_MAX) {
+    if (rts != AMC_OK) {
         LOGW("Partial configure.");
-        rts = at_send(cmdStr, SET_DEST_CONF_RESP);
-        try++;
+        if (pCmdStatus != NULL)
+            (*pCmdStatus) = (AMC_STATUS)rts;
+        return rts;
     }
+
+    if (pCmdStatus != NULL)
+        (*pCmdStatus) = (AMC_STATUS)rts;
     return rts;
+    LOGW("Error Configure");
+
 }
 
 
-AT_STATUS amc_configure_source_UnBlocking(AMC_SOURCE source, IFX_CLK clk, IFX_MASTER_SLAVE mode, IFX_I2S_SR sr, IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings, IFX_I2S_AUDIO_MODE audio, IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_SOURCE transducer_source)
+AMC_STATUS amc_configure_source_UnBlocking(AMC_SOURCE source, IFX_CLK clk, IFX_MASTER_SLAVE mode, IFX_I2S_SR sr, IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings, IFX_I2S_AUDIO_MODE audio, IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_SOURCE transducer_source, AMC_STATUS *pCmdStatus)
 {
     char cmdStr[AT_MAX_CMD_LENGTH];
     char partStr[AT_MAX_CMD_LENGTH];
-    AT_STATUS rts;
+    AMC_STATUS rts;
     int i = 0;
     bool isFirstRoute = true;
     int srcPort;
     int hwSink;
-    int try = 0;
 
     sprintf(cmdStr, SET_SRC_CONF, source, 0, clk, mode, sr, sw, trans, settings, audio, update, transducer_source);
     rts = at_send(cmdStr, SET_SRC_CONF_RESP);
-    while (rts != AT_OK && try <  TRY_MAX) {
+    if (rts != AMC_OK) {
         LOGW("Partial configure.");
-        rts = at_send(cmdStr, SET_SRC_CONF_RESP);
-        try++;
+        if (pCmdStatus != NULL)
+            (*pCmdStatus) = (AMC_STATUS)rts;
+        return rts;
     }
+    if (pCmdStatus != NULL)
+        (*pCmdStatus) = (AMC_STATUS)rts;
     return rts;
 }
 
-AT_STATUS amc_routeUnBlocking(AMC_SOURCE source,
-                               int dest[], int nbrsrc)
+AMC_STATUS amc_routeUnBlocking(AMC_SOURCE source,
+                               int dest[], int nbrsrc, AMC_STATUS *pCmdStatus)
 {
     char cmdStr[AT_MAX_CMD_LENGTH];
     char cmdStrtemp[AT_MAX_CMD_LENGTH];
     char partStr[AT_MAX_CMD_LENGTH];
     int j=0;
-    AT_STATUS rts;
-    int try = 0;
-
     sprintf(cmdStr, SET_SRC_DEST, source);
     LOGD("ROUTE CMDSTR = %s",cmdStr);
     for (j=0; j<nbrsrc; j++) {
@@ -152,78 +184,53 @@ AT_STATUS amc_routeUnBlocking(AMC_SOURCE source,
         strcat(cmdStr,cmdStrtemp);
         LOGD("ROUTE ARG UNBLOCKING = %s",cmdStrtemp);
     }
-    rts = at_send(cmdStr, SET_SRC_DEST_RESP);
-    while (rts != AT_OK && try <  TRY_MAX) {
-        LOGW("Partial route.");
-        rts = at_send(cmdStr, SET_SRC_DEST_RESP);
-        try++;
-    }
-    return rts;
+    return (AMC_STATUS)at_sendUnBlocking(
+               cmdStr, SET_SRC_DEST_RESP, (AT_STATUS *)pCmdStatus);
 }
 
 
-AT_STATUS amc_setGainsourceUnBlocking(
-    AMC_SOURCE source, int gainDDB)
+AMC_STATUS amc_setGainsourceUnBlocking(
+    AMC_SOURCE source, int gainDDB, AMC_STATUS *pCmdStatus)
 {
     int gainIndex;
     char cmdStr[AT_MAX_CMD_LENGTH];
-    AT_STATUS rts;
-    int try = 0;
     sprintf(cmdStr, SET_SRC_VOL, source, gainDDB);
-    rts = at_send(cmdStr, SET_SRC_VOL_RESP);
-    while (rts != AT_OK && try <  TRY_MAX) {
-        LOGW("Partial gain source");
-        rts = at_send(cmdStr, SET_SRC_VOL_RESP);
-        try++;
-    }
-    return rts;
+    return (AMC_STATUS)at_sendUnBlocking(
+               cmdStr, SET_SRC_VOL_RESP, (AT_STATUS *)pCmdStatus);
+
 }
 
-AT_STATUS amc_setGaindestUnBlocking(
-    AMC_DEST dest, int gainDDB)
+AMC_STATUS amc_setGaindestUnBlocking(
+    AMC_DEST dest, int gainDDB, AMC_STATUS *pCmdStatus)
 {
     int gainIndex;
     char cmdStr[AT_MAX_CMD_LENGTH];
-    AT_STATUS rts;
-    int try = 0;
     sprintf(cmdStr, SET_DEST_VOL, dest, gainDDB);
-    rts = at_send(cmdStr, SET_DEST_VOL_RESP);
-    while (rts != AT_OK && try <  TRY_MAX) {
-        LOGW("Partial gain dest.");
-        rts = at_send(cmdStr, SET_DEST_VOL_RESP);
-        try++;
-    }
-    return rts;
+    return (AMC_STATUS)at_sendUnBlocking(
+               cmdStr, SET_DEST_VOL_RESP, (AT_STATUS *)pCmdStatus);
+
 }
 
 
-AT_STATUS amc_setAcousticUnBlocking(
-    AMC_ACOUSTIC acousticProfile)
+AMC_STATUS amc_setAcousticUnBlocking(
+    AMC_ACOUSTIC acousticProfile, AMC_STATUS *pCmdStatus)
 {
     char cmdStr[AT_MAX_CMD_LENGTH];
-    AT_STATUS rts;
     /*,<allow_echo_canceller>,<allow_agc>,<allow_tx_noise_reduction>*/
     if (acousticProfile == AMC_HANDFREE)
         sprintf(cmdStr, MODIFY_HF,1,1,1);
     else
         sprintf(cmdStr, MODIFY_HF,0,0,0);
-    rts = at_send(cmdStr, MODIFY_HF_RESP);
-    return rts;
+    return (AMC_STATUS) at_sendUnBlocking(
+               cmdStr, MODIFY_HF_RESP, (AT_STATUS *)pCmdStatus);
 }
 
-AT_STATUS amc_check()
+AMC_STATUS amc_check(AMC_STATUS *pCmdStatus)
 {
     char cmdStr[AT_MAX_CMD_LENGTH];
-    AT_STATUS rts;
-    int try = 0;
     sprintf(cmdStr, AT);
-    rts = at_send(cmdStr,AT_RESP);
-    while (rts != AT_OK && try <  TRY_MAX) {
-        LOGW("Partial check.");
-        rts = at_send(cmdStr,AT_RESP);
-        try++;
-    }
-    return rts;
+    return (AMC_STATUS) at_sendUnBlocking(
+               cmdStr,AT_RESP, (AT_STATUS *)pCmdStatus);
 }
 
 #endif /*MODEM_IFX_XMM6160*/

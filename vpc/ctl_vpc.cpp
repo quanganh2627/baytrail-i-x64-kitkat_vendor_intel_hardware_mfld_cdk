@@ -34,6 +34,7 @@
 namespace android
 {
 #define ES305_DEVICE_PATH "/dev/audience_es305"
+#define MODEM_TTY_RETRY 60
 
 static int fd_a1026 = -1;
 static int support_a1026 = 1;
@@ -116,14 +117,27 @@ static status_t es305_init()
     ssize_t nr;
     size_t remaining;
     struct stat fw_stat;
+    AT_STATUS cmdStatus;
+    int tries = 0;
     char value[PROPERTY_VALUE_MAX];
     static const char *const path = ES305_DEVICE_PATH;
 
     if (at_thread_init == 0) {
-        amc_start(AUDIO_AT_CHANNEL_NAME);
-        at_thread_init = 1;
-        LOGV("AT thread start\n");
+        cmdStatus = amc_start(AUDIO_AT_CHANNEL_NAME);
+        while (cmdStatus != AT_OK && tries < MODEM_TTY_RETRY) {
+            cmdStatus = amc_start(AUDIO_AT_CHANNEL_NAME);
+            LOGD("AT thread retry\n");
+            tries++;
+            sleep(1);
+        }
+        if (cmdStatus == AT_OK) {
+            LOGD("AT thread started\n");
+            at_thread_init = 1;
+        }
+        else
+            return NO_INIT;
     }
+
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
 
     fd_a1026 = open(path, O_RDWR | O_NONBLOCK, 0);
@@ -140,7 +154,7 @@ static status_t es305_init()
     }
     rc = ioctl(fd_a1026, A1026_BOOTUP_INIT);
     if (!rc) {
-        LOGV("audience_a1026 init OK\n");
+        LOGD("audience_a1026 init OK\n");
         mA1026Init = 1;
         }
     else

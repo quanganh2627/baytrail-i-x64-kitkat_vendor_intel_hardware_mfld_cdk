@@ -244,6 +244,7 @@ AT_STATUS at_send(const char *pATcmd, const char *pRespPrefix)
     cmdStatus = at_askUnBlocking(pATcmd, pRespPrefix, NULL);
     if(cmdStatus != AT_RUNNING) {
         LOGE("AT Write Error");
+        sem_post(&sem);
         return AT_WRITE_ERROR;
     }
     cmdStatus = at_waitForCmdCompletion();

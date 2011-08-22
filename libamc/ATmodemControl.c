@@ -210,11 +210,12 @@ AT_STATUS at_askUnBlocking(const char *pATcmd, const char *pRespPrefix,
         LOGW("malloc pNewCmd error");
         return AT_UNINITIALIZED;
     }
-
-    cmdStatus = writeATline(fdIn, pATcmd);
-    if (cmdStatus == AT_WRITE_ERROR)
-        return AT_ERROR;
     pthread_mutex_lock(&at_dataMutex);
+    cmdStatus = writeATline(fdIn, pATcmd);
+    if (cmdStatus == AT_WRITE_ERROR) {
+	pthread_mutex_unlock(&at_dataMutex);
+        return AT_ERROR;
+    }
     removeCtrlChar(pNewCmd->prefix, pRespPrefix);
     pNewCmd->pNext = NULL;
     pNewCmd->cmdstatus = cmdStatus;

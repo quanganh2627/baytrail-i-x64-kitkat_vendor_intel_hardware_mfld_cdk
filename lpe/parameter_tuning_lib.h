@@ -18,6 +18,10 @@
 #ifndef __PARAM_TUNIG_APP_H__
 #define __PARAM_TUNIG_APP_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #undef LOG_TAG
 #define LOG_TAG "LPEModule"
 #include <utils/Log.h>
@@ -30,7 +34,7 @@
 #define SAME 0x00
 #define SET 0x00
 #define GET 0x01
-#define DONT_CHANGE_MOD_STATE_OR_GET_REQ 0x02
+#define DONT_CHANGE_MOD_STATE 0x02
 
 #define STREAM_HS        1
 #define STREAM_IHF       2
@@ -71,99 +75,52 @@ typedef enum lpe_algo_types {
     LPE_ALGO_TYPE_SPKR_PROT = 0x6D,
     LPE_ALGO_TYPE_AV_REMOVAL = 0x70,
     LPE_ALGO_TYPE_MONO_EQ = 0x71
-} lpe_algo_types_t;
+}lpe_algo_types_t;
 
 /* Stereo Equalizer module parameters type*/
 typedef enum lpe_param_types_stereo_equalizer {
     ALGO_PARAM_SEQ_DIFF_SAME_2_CHAN = 0x101,
-    ALGO_PARAM_SEQ_FIR_ENABLE_LEFT_SAME,
-    ALGO_PARAM_SEQ_IIR_ENABLE_LEFT_SAME,
-    ALGO_PARAM_SEQ_FIR_FIRST_LEFT_SAME,
-    ALGO_PARAM_SEQ_FIR_COEF_SIZE_LEFT_SAME,
-    ALGO_PARAM_SEQ_FIR_COEF_LEFT_SAME,
-    ALGO_PARAM_SEQ_IIR_COEF_SIZE_LEFT_SAME,
-    ALGO_PARAM_SEQ_IIR_COEF_LEFT_SAME,
-    ALGO_PARAM_SEQ_FIR_ENABLE_RIGHT,
-    ALGO_PARAM_SEQ_IIR_ENABLE_RIGHT,
-    ALGO_PARAM_SEQ_FIR_FIRST_RIGHT,
-    ALGO_PARAM_SEQ_FIR_COEF_SIZE_RIGHT,
+    ALGO_PARAM_SEQ_LEFT_CHANNEL_CONF,
+    ALGO_PARAM_SEQ_FIR_COEF_LEFT,
+    ALGO_PARAM_SEQ_IIR_COEF_LEFT,
+    ALGO_PARAM_SEQ_RIGHT_CHANNEL_CONF,
     ALGO_PARAM_SEQ_FIR_COEF_RIGHT,
-    ALGO_PARAM_SEQ_IIR_COEF_SIZE_RIGHT,
     ALGO_PARAM_SEQ_IIR_COEF_RIGHT
-} lpe_param_types_stereo_equalizer_t;
+}lpe_param_types_stereo_equalizer_t;
 
 /* Mono Equalizer module parameters type*/
 typedef enum lpe_param_types_mono_equalizer {
-    ALGO_PARAM_MEQ_FIR_ENABLE = 0x151,
-    ALGO_PARAM_MEQ_IIR_ENABLE,
-    ALGO_PARAM_MEQ_FIR_FIRST,
-    ALGO_PARAM_MEQ_FIR_COEF_SIZE,
+    ALGO_PARAM_MEQ_CHANNEL_CONF = 0x151,
     ALGO_PARAM_MEQ_FIR_COEF,
-    ALGO_PARAM_MEQ_IIR_COEF_SIZE,
     ALGO_PARAM_MEQ_IIR_COEF
-} lpe_param_types_mono_equalizer_t;
-
-/* Sidetone module parameters type*/
-typedef enum lpe_param_types_sidetone {
-    ALGO_PARAM_STP_DL_MONO_STEREO_SEL = 0x201,
-    ALGO_PARAM_STP_FIR_ENABLE_DISABLE,
-    ALGO_PARAM_STP_AGC_ENABLE_DISABLE,
-    ALGO_PARAM_STP_FIR_COEF_SIZE,
-    ALGO_PARAM_STP_FIR_COEF,
-    ALGO_PARAM_STP_ADAPTIVE_GAIN,
-    ALGO_PARAM_STP_GAIN
-} lpe_param_types_sidetone_t;
+}lpe_param_types_mono_equalizer_t;
 
 /* DC Removal module parameters type*/
 typedef enum lpe_param_types_dcr {
     ALGO_PARAM_DCR_IIR_ENABLE_DISABLE = 0x301,
-    ALGO_PARAM_DCR_IIR_COEF_SIZE,
     ALGO_PARAM_DCR_IIR_COEF,
-} lpe_param_types_dcr_t;
-
-/* Xprot module parameters type*/
-typedef enum lpe_param_types_xprot {
-    ALGO_PARAM_XPORT_PCM_TYPE = 0x401,
-    ALGO_PARAM_XPORT_SFREQ,
-    ALGO_PARAM_XPORT_CHANL_MODE,
-    ALGO_PARAM_XPORT_DISP_LIMIT,
-    ALGO_PARAM_XPORT_TEMP_LIMIT,
-    ALGO_PARAM_XPORT_AMBIENT_TEMP,
-    ALGO_PARAM_XPORT_VOL_LEVEL,
-    ALGO_PARAM_XPORT_FRAME_LENGTH,
-    ALGO_PARAM_XPORT_CONFIG_PARAMS
-} lpe_param_types_xprot_t;
-
-/* Remove Click module parameters type*/
-typedef enum lpe_param_types_RMC {
-    ALGO_PARAM_RMC_PCM_TYPE = 0x501,
-    ALGO_PARAM_RMC_SFREQ,
-    ALGO_PARAM_RMC_EMRGNCY_MODE,
-    ALGO_PARAM_RMC_FRAME_LENGTH,
-    ALGO_PARAM_RMC_CONFIG_PARAMS,
-    ALGO_PARAM_RMC_CHAN_NUM
-} lpe_param_types_RMC_t;
+}lpe_param_types_dcr_t;
 
 /* volume control module parameters type */
 typedef enum lpe_param_types_vol_ctrl {
     ALGO_PARAM_VOL_CTRL_STEREO_MONO = 0x601,
     ALGO_PARAM_VOL_CTRL_GAIN = 0x602
-} lpe_param_types_vol_ctrl_t;
+}lpe_param_types_vol_ctrl_t;
 
 /* mute control module parameters type */
 typedef enum lpe_param_types_mute_ctrl {
     ALGO_PARAM_MUTE_STEREO_MONO = 0x701,
     ALGO_PARAM_MUTE_ENABLE_DISABLE = 0x702,
     ALGO_PARAM_HALF_MUTE_ENABLE_DISABLE = 0x703,
-} lpe_param_types_mute_ctrl_t;
+}lpe_param_types_mute_ctrl_t;
 
-typedef enum fw_param_type {
+typedef enum fw_param_type{
     LOW_LATENCY=0,
     NON_LOW_LATENCY,
     VMIC_CONFIG,
     DMA_INPUT_BUFFER,
     DMA_OUTPUT_BUFFER,
-} fw_param_type_t;
+}fw_param_type_t;
 
 /* General Config Params, vmic, etc */
 typedef struct snd_sst_tuning_params snd_sst_tuning_params_t;
@@ -175,21 +132,20 @@ typedef struct snd_ppp_params snd_ppp_params_t;
 typedef struct ipc_ia_params_block {
     __u32    type;        /*Type of the parameter*/
     __u32    size;        /*size of the parameters in the block*/
-    __u8     params[0];   /*Parameters of the algorithm*/
-} __attribute__ ((packed)) ipc_ia_params_block_t;
+    __u8    params[0];    /*Parameters of the algorithm*/
+}__attribute__ ((packed)) ipc_ia_params_block_t;
 
 /* Function Declarations */
 
 /**********************************************************************************************************************
 Prototype:
-    int prepare_module_header(snd_ppp_params_t *ppp_params, int algo_id, int dev_id, int enable_status, int operation)
+    int prepare_module_header(snd_ppp_params_t *ppp_params, int algo_id, int dev_id, int enable_status)
 
 Parameters:
     IN: snd_ppp_params_t *ppp_params: pointer to the parameter module header
         algo_id: Algorithm ID
         str_id: Device Type
         enable_status: Enable/Disable/Dont change
-        operation: Operation, Get/Set parameter
 
 Returns:
     int: error code return
@@ -198,7 +154,7 @@ Description:
     This function prepares the module header, this is used for both get and set type of operations, as it has the basic
     information about the module.
 ***********************************************************************************************************************/
-int prepare_module_header(snd_ppp_params_t *ppp_params, int algo_id, int dev_id, int enable_status, int operation);
+int prepare_module_header(snd_ppp_params_t *ppp_params, int algo_id, int dev_id, int enable_status);
 
 /**********************************************************************************************************************
 Prototype:
@@ -221,7 +177,7 @@ int add_parameter_blocks(snd_ppp_params_t *ppp_params, int param_type, int param
 
 /**********************************************************************************************************************
 Prototype:
-    int send_set_parameters(snd_ppp_params_t *ppp_params)
+    int set_parameters(snd_ppp_params_t *ppp_params)
 
 Parameters:
     IN: snd_ppp_params_t *ppp_params: pointer to the parameter module header
@@ -234,11 +190,11 @@ Description:
     a successfull call the module header is a must to add, parameter blocks are optional, in case user wants to do only
     enable/disable operation.
 ***********************************************************************************************************************/
-int send_set_parameters(snd_ppp_params_t *ppp_params);
+int set_parameters(snd_ppp_params_t *ppp_params);
 
 /**********************************************************************************************************************
 Prototype:
-    int recieve_get_parameters(snd_ppp_params_t *ppp_params)
+    int get_parameters(snd_ppp_params_t *ppp_params)
 
 Parameters:
     IN: snd_ppp_params_t *ppp_params: pointer to the parameter module header
@@ -250,10 +206,13 @@ Description:
     This function makes a get parameter IOCTL call after adding the required module header. To have a successfull call
     the module header is a must to add.
 ***********************************************************************************************************************/
-int recieve_get_parameters(snd_ppp_params_t *ppp_params);
+int get_parameters(snd_ppp_params_t *ppp_params);
 
 int set_generic_config_params();
 
 int set_runtime_params(int config_type, int str_id, int config_data_size, int config_data);
 
+#ifdef __cplusplus
+}
+#endif
 #endif /* __PARAM_TUNIG_APP_H__ */

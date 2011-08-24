@@ -160,7 +160,7 @@ static status_t set_volume(enum lpe_dev_types dev, char volume, char stereo_mono
     data1[0] = stereo_mono;
     data2[0] = volume;
 
-    retval = prepare_module_header(ppp_params, LPE_ALGO_TYPE_VOL_CTRL, dev, ENABLE, SET);
+    retval = prepare_module_header(ppp_params, LPE_ALGO_TYPE_VOL_CTRL, dev, ENABLE);
     if (retval < 0) {
         LOGE("%d LPE_ALGO_TYPE_VOL_CTRL prepare_module_header failed.\n", dev);
         free(ppp_params);
@@ -184,9 +184,9 @@ static status_t set_volume(enum lpe_dev_types dev, char volume, char stereo_mono
         return BAD_VALUE;
     }
 
-    retval = send_set_parameters(ppp_params);
+    retval = set_parameters(ppp_params);
     if (retval < 0) {
-        LOGE("%d send_set_parameters failed.\n", dev);
+        LOGE("%d set post processing parameters failed.\n", dev);
         free(ppp_params);
         ppp_params = NULL;
         return BAD_VALUE;
@@ -211,13 +211,13 @@ static status_t lpe_set_master_volume(float volume)
 
     retval = set_volume(LPE_DEV_HS, vol, STEREO_MONO_VOLUME);
     if (retval < 0) {
-        LOGE("%d send_set_parameters failed.\n", LPE_DEV_HS);
+        LOGE("%d set post processing parameters failed.\n", LPE_DEV_HS);
         return BAD_VALUE;
     }
 
     retval = set_volume(LPE_DEV_IHF, vol, STEREO_MONO_VOLUME);
     if (retval < 0) {
-        LOGE("%d send_set_parameters failed.\n", LPE_DEV_IHF);
+        LOGE("%d set post processing parameters failed.\n", LPE_DEV_IHF);
         return BAD_VALUE;
     }
     return NO_ERROR;

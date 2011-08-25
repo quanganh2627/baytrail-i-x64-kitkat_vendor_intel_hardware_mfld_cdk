@@ -30,14 +30,11 @@ namespace android
 {
 #define ES305_DEVICE_PATH "/dev/audience_es305"
 #define MODEM_TTY_RETRY 60
-
+#define MAX_LABEL_SIZE 100
 static int fd_a1026 = -1;
 static int support_a1026 = 1;
 bool mA1026Init;
 Mutex mA1026Lock;
-static int enable1026 = 1;
-static bool vr_mode_change = false;
-static int new_pathid = -1;
 static int prev_mode = 0x0;
 static uint32_t prev_dev = 0x00;
 static int at_thread_init = 0;
@@ -46,7 +43,6 @@ static bool tty_call = false;
 static bool bt_call = false;
 static bool mixing_enable = false;
 static bool voice_call_recording = false;
-#define A1026_PATH_INCALL_NO_NS_RECEIVER A1026_PATH_VR_NO_NS_RECEIVER
 
 static int s_device_open(const hw_module_t*, const char*, hw_device_t**);
 static int s_device_close(hw_device_t*);
@@ -56,6 +52,7 @@ static status_t es305_init(void);
 static status_t disable_mixing(int);
 static status_t enable_mixing(int,uint32_t);
 static status_t enable_tty(bool);
+static status_t doAudience_A1026_suspend();
 static hw_module_methods_t s_module_methods = {
 open            :
     s_device_open
@@ -103,15 +100,79 @@ static int s_device_close(hw_device_t* device)
     return 0;
 }
 
+static int get_label()
+{
+    unsigned char firstCharLabel[4] = {0x80, 0x20, 0x00, 0x00};
+    unsigned char nextCharLabel[4] = {0x80, 0x21, 0x00, 0x00};
+    unsigned char label[4] = {0x00, 0x00, 0x00, 0x01};
+    unsigned char *label_name;
+    int i = 1, size = 4, rc;
+
+    label_name = (unsigned char*)malloc(sizeof(char)*MAX_LABEL_SIZE);
+
+    rc = ioctl(fd_a1026, A1026_ENABLE_CLOCK);
+    if (rc) {
+        LOGE("Enable clock error\n");
+        free(label_name);
+        return -1;
+    }
+
+    // get first build label char
+    rc = write(fd_a1026, firstCharLabel, size);
+    if (rc != size)
+    {
+        LOGE("A1026_WRITE_MSG (0x%.2x%.2x%.2x%.2x) error, ret = %d\n", firstCharLabel[0], firstCharLabel[1], firstCharLabel[2], firstCharLabel[3], rc);
+        free(label_name);
+        return -1;
+    }
+    usleep(20000);
+
+    rc = read(fd_a1026, label, size);
+    if (rc != size)
+    {
+        LOGE("A1026_READ_DATA error, ret = %d\n", rc);
+        free(label_name);
+        return -1;
+    }
+    label_name[0] = label[3];
+
+    // get next build label char
+    while (label[3] && (i < MAX_LABEL_SIZE))
+    {
+        rc = write(fd_a1026, nextCharLabel, size);
+        if (rc != 4)
+        {
+            LOGE("A1026_WRITE_MSG (0x%.2x%.2x%.2x%.2x) error, rc = %d\n", nextCharLabel[0], nextCharLabel[1], nextCharLabel[2], nextCharLabel[3], rc);
+            free(label_name);
+            return -1;
+        }
+        usleep(20000);
+
+        rc = read(fd_a1026, label, size);
+        if (rc != 4)
+        {
+            LOGE("A1026_READ_DATA error, ret = %d\n", rc);
+            free(label_name);
+            return -1;
+        }
+        label_name[i] = label[3];
+        i++;
+    }
+
+    if (i < MAX_LABEL_SIZE)
+        LOGD("FW name = %s\n",label_name);
+    else
+        LOGE("FW name not found\n");
+
+    free(label_name);
+
+    return 0;
+}
+
 static status_t es305_init()
 {
-    struct a1026img fwimg;
-    char char_tmp = 0;
-    unsigned char local_vpimg_buf[A1026_MAX_FW_SIZE];
-    int rc = 0, fw_fd = -1;
+    int rc = 0;
     ssize_t nr;
-    size_t remaining;
-    struct stat fw_stat;
     AT_STATUS cmdStatus;
     int tries = 0;
     char value[PROPERTY_VALUE_MAX];
@@ -153,13 +214,19 @@ static status_t es305_init()
     if (!rc) {
         LOGD("audience_a1026 init OK\n");
         mA1026Init = 1;
-        }
+        rc = get_label();
+        if (rc)
+            LOGE("Unable to get FW Label");
+    }
     else
         LOGE("audience_a1026 init failed\n");
+
+    doAudience_A1026_suspend();
+
     close (fd_a1026);
     fd_a1026 = -1;
 #endif
-    return rc;
+    return 0;
 }
 
 static status_t doAudience_A1026_suspend()

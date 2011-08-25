@@ -16,7 +16,6 @@
  */
 
 #include <stdio.h>
-#define LOG_TAG "ALSAModule"
 #include <utils/Log.h>
 #include <signal.h>
 #include "AudioModemControl.h"

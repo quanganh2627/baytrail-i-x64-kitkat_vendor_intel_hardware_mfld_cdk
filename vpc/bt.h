@@ -15,6 +15,9 @@
  ** limitations under the License.
  */
 
+#ifndef __VPC_BT_H__
+#define __VPC_BT_H__
+
 namespace android
 {
 
@@ -26,4 +29,6 @@ public :
 };
 
 }
+
+#endif /* __VPC_BT_H__ */
 

@@ -15,6 +15,9 @@
  ** limitations under the License.
  */
 
+#ifndef __VPC_MSIC_H__
+#define __VPC_MSIC_H__
+
 #include <alsa/asoundlib.h>
 #include <alsa/control_external.h>
 
@@ -34,4 +37,6 @@ private :
 };
 
 }
+
+#endif /* __VPC_MSIC_H__ */
 

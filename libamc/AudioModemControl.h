@@ -27,7 +27,7 @@ extern "C"
 #include <pthread.h>
 
     /*==============================================================================
-    /*                        Audio Modem Control Library.
+     *                        Audio Modem Control Library.
      *============================================================================*/
 
     /* Cross platform modem abstraction library regarding audio.*/

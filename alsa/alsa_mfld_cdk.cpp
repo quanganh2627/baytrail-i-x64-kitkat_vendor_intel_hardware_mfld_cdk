@@ -32,6 +32,7 @@
 
 #define ALSA_NAME_MAX (128)
 #define PERIOD_TIME   (23220)  //microseconds
+#define CAPTURE_PERIOD_TIME (20000) //microseconds
 
 #define ALSA_STRCAT(x, y) \
     do { \
@@ -148,7 +149,7 @@ static alsa_handle_t _defaultsIn = {
     channels           : 2,
     sampleRate         : DEFAULT_SAMPLE_RATE,
     expectedSampleRate : DEFAULT_SAMPLE_RATE, //expected sample rate
-    latency            : PERIOD_TIME * 4 * 1000, // Desired Delay in usec
+    latency            : CAPTURE_PERIOD_TIME * 4, // Desired Delay in usec
     bufferSize         : 2048, // Desired Number of samples
     modPrivate         : 0,
     openFlag           : 0,

@@ -552,24 +552,32 @@ static int modem_ifx_open(snd_pcm_ioplug_t *io)
     if(io->stream == SND_PCM_STREAM_PLAYBACK) {
         handle.bufferSize = io->buffer_size;
         handle.sampleRate = io->rate;
-        handle.latency = 50000;
+        handle.latency = io->buffer_size * 1000 / io->rate;
         handle.handle = modem->pcm_md_handle;
         handle.format =  SND_PCM_FORMAT_S16_LE;
         handle.channels = io->channels;
-        LOGD("io->channels = %d \n",io->channels);
+        LOGD("playback io->channels = %d io->rate = %d\n",io->channels, io->rate);
     } else {
         handle.bufferSize = io->buffer_size;
         handle.sampleRate = io->rate;
-        handle.latency = 50000;
+        handle.latency = io->buffer_size * 1000 / io->rate;
         handle.handle = modem->pcm_md_handle;
         handle.format = SND_PCM_FORMAT_S16_LE;
         handle.channels = io->channels;
+        LOGD("capture io->channels = %d io->rate = %d\n",io->channels, io->rate);
     }
 
     err = setHardwareParams(&handle);
     if(err < 0) {
         LOGE("Set Hareware Params failed\n");
+	return err;
     }
+
+    err = setSoftwareParams(&handle);
+    if(err < 0){
+        LOGE("Set Software Params failed\n");
+	return err;
+   }
 
     return 0;
 }
@@ -589,6 +597,26 @@ static int modem_ifx_close(snd_pcm_ioplug_t *io)
     return 0;
 }
 
+static int modem_poll_descriptors_count(snd_pcm_ioplug_t *io)
+{
+    snd_pcm_modem_t *modem = io->private_data;
+    return snd_pcm_poll_descriptors_count(modem->pcm_md_handle);
+}
+
+static int modem_poll_descriptors(snd_pcm_ioplug_t *io, struct pollfd *pfd,
+                                  unsigned int space)
+{
+    snd_pcm_modem_t *modem = io->private_data;
+    return snd_pcm_poll_descriptors(modem->pcm_md_handle, pfd, space);
+}
+
+static int modem_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
+                              unsigned int nfds, unsigned short *revents)
+{
+   snd_pcm_modem_t *modem = io->private_data;
+   return snd_pcm_poll_descriptors_revents(modem->pcm_md_handle, pfd, nfds, revents);
+}
+
 static const snd_pcm_ioplug_callback_t modem_playback_callback = {
     .start = modem_start,
     .stop = modem_stop,
@@ -598,6 +626,9 @@ static const snd_pcm_ioplug_callback_t modem_playback_callback = {
     .hw_params = modem_hw_params,
     .prepare = modem_prepare,
     .drain = modem_drain,
+    .poll_descriptors_count = modem_poll_descriptors_count,
+    .poll_descriptors = modem_poll_descriptors,
+    .poll_revents = modem_poll_revents,
 };
 
 static const snd_pcm_ioplug_callback_t modem_capture_callback = {
@@ -657,8 +688,6 @@ SND_PCM_PLUGIN_DEFINE_FUNC(modem)
 
     modem->io.version = SND_PCM_IOPLUG_VERSION;
     modem->io.name = "ALSA <-> modem PCM I/O Plugin";
-    modem->io.poll_fd = -1;
-    modem->io.poll_events = stream == SND_PCM_STREAM_PLAYBACK ? POLLOUT : POLLIN;
     modem->io.mmap_rw = 0;
     modem->io.callback = stream == SND_PCM_STREAM_PLAYBACK ?
                          &modem_playback_callback : &modem_capture_callback;

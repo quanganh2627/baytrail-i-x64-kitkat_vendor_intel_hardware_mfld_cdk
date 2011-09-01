@@ -238,7 +238,8 @@ static status_t setHardwareParams(alsa_handle_t *handle)
     unsigned int requestedRate = handle->expectedSampleRate;
     unsigned int latency = handle->latency;
     unsigned int channels = handle->channels;
-    unsigned int periodTime = PERIOD_TIME; //us
+    unsigned int periodTime = (direction(handle) == SND_PCM_STREAM_PLAYBACK) ?
+                                 PERIOD_TIME : CAPTURE_PERIOD_TIME; //us
 
     // snd_pcm_format_description() and snd_pcm_format_name() do not perform
     // proper bounds checking.

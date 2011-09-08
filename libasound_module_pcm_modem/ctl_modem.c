@@ -23,8 +23,12 @@
 #include <alsa/asoundlib.h>
 #include <alsa/control_external.h>
 
+#include "vpc_hardware.h"
+
 typedef struct snd_ctl_modem {
     snd_ctl_ext_t ext;
+
+    vpc_device_t *vpc;
 
     char *source;
     char *sink;
@@ -295,6 +299,7 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
         modem_set_param(handle, "Txpath1 Capture Route", 0, index);
         modem_set_param(handle, "Txpath2 Capture Route", 4, index);
         modem_set_param(handle, "Headphone Playback Volume", 63, -1);
+        ctl->vpc->route();
         break;
     case VOICE_SPEAKER_INCALL: //speaker
         LOGD("voice route to Speaker \n");
@@ -307,6 +312,7 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
         modem_set_param(handle, "Txpath1 Capture Route", 4, index);
         modem_set_param(handle, "Txpath2 Capture Route", 0, index);
         modem_set_param(handle, "Headphone Playback Volume", 71, -1);
+        ctl->vpc->route();
 
         if (!!ctl->source_muted == !*value)
             goto finish;
@@ -325,9 +331,11 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
         modem_set_param(handle, "Txpath2 Capture Route", 4, index);
         modem_set_param(handle, "Mic1 Capture Volume", 1, index);
         modem_set_param(handle, "Headphone Playback Volume", 60, -1);
+        ctl->vpc->route();
         break;
     case VOICE_BT_INCALL: // bt
         LOGD("voice route to BT \n");
+        ctl->vpc->route();
         break;
     case VOICE_HEADPHONE_INCALL:// headphone
         LOGD("voice route to headphone \n");
@@ -340,6 +348,7 @@ static int modem_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
         modem_set_param(handle, "Txpath1 Capture Route", 0, index);
         modem_set_param(handle, "Txpath2 Capture Route", 4, index);
         modem_set_param(handle, "Headphone Playback Volume", 60, -1);
+        ctl->vpc->route();
         break;
 
     default:
@@ -429,6 +438,8 @@ static void modem_close(snd_ctl_ext_t * ext)
 
     assert(ctl);
 
+    ctl->vpc->route();
+
     free(ctl->source);
     free(ctl->sink);
     free(ctl);
@@ -456,6 +467,7 @@ SND_CTL_PLUGIN_DEFINE_FUNC(modem)
     const char *source = NULL;
     const char *sink = NULL;
     int err;
+    hw_device_t* hw_device;
     snd_ctl_modem_t *ctl;
 
     snd_config_for_each(i, next, conf) {
@@ -520,6 +532,21 @@ SND_CTL_PLUGIN_DEFINE_FUNC(modem)
     if ((sink || device) && !ctl->sink) {
         err = -ENOMEM;
         goto error;
+    }
+
+    hw_module_t *module;
+    err = hw_get_module(VPC_HARDWARE_MODULE_ID, (hw_module_t const**)&module);
+
+    if (err == 0) {
+        err = module->methods->open(module, VPC_HARDWARE_NAME, &hw_device);
+        if (err == 0) {
+            LOGD("VPC MODULE OK.");
+            ctl->vpc = (vpc_device_t *) hw_device;
+        }
+        else {
+            LOGE("VPC Module not found");
+            goto error;
+        }
     }
 
     ctl->ext.version = SND_CTL_EXT_VERSION;

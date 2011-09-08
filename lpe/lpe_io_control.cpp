@@ -24,7 +24,7 @@ extern "C" {
 #define STEREO_MONO_VOLUME 0x02
 #define STEREO_MONO_GAIN   0x01
 #define MINVOL 0x0
-#define MAXVOL 0xf
+#define MAXVOL 0x0 //The expected value of IHF and HS gain is 0.
 #define MINGAIN 0x0
 #define MAXGAIN 0xf
 

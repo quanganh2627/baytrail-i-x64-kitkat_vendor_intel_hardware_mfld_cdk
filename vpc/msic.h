@@ -18,6 +18,8 @@
 #ifndef __VPC_MSIC_H__
 #define __VPC_MSIC_H__
 
+#include <sys/types.h>
+
 #include <alsa/asoundlib.h>
 #include <alsa/control_external.h>
 
@@ -28,10 +30,13 @@ class msic
 {
 public :
     static int pcm_init();
-    static int pcm_enable();
+    static int pcm_enable(int mode, uint32_t device);
     static int pcm_disable();
 
 private :
+    static const char *deviceNamePlayback(int mode, uint32_t device);
+    static const char *deviceNameCapture(int mode, uint32_t device);
+
     static snd_pcm_t *handle_playback;
     static snd_pcm_t *handle_capture;
 };

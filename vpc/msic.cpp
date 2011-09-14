@@ -18,6 +18,8 @@
 #define LOG_TAG "VPC_MSIC"
 #include <utils/Log.h>
 
+#include <media/AudioSystem.h>
+
 #include "msic.h"
 
 namespace android
@@ -28,17 +30,72 @@ namespace android
 snd_pcm_t *msic::handle_playback = NULL;
 snd_pcm_t *msic::handle_capture  = NULL;
 
+
+const char *msic::deviceNamePlayback(int mode, uint32_t device)
+{
+    const char *devName;
+
+    if (mode == AudioSystem::MODE_IN_CALL)
+    {
+        switch (device)
+        {
+        case AudioSystem::DEVICE_OUT_EARPIECE :
+            devName = "VoicePlayback_Earpiece_incall";
+            break;
+        case AudioSystem::DEVICE_OUT_SPEAKER :
+            devName = "VoicePlayback_Speaker_incall";
+            break;
+        case AudioSystem::DEVICE_OUT_WIRED_HEADSET :
+            devName = "VoicePlayback_Headset_incall";
+            break;
+        case AudioSystem::DEVICE_OUT_WIRED_HEADPHONE :
+            devName = "VoicePlayback_Headphone_incall";
+            break;
+        default :
+            LOGE("  Device not handled by MSIC Lib: %x\n", device);
+            devName = "";
+            break;
+        };
+    }
+    else
+    {
+        LOGE("  Mode not handled by MSIC Lib: %x\n", device);
+        devName = "";
+    }
+
+    return devName;
+}
+
+const char *msic::deviceNameCapture(int mode, uint32_t device)
+{
+    const char *devName;
+
+    if (mode == AudioSystem::MODE_IN_CALL)
+    {
+        // No distinction as alsa mixer control are set during playback path opening
+        devName = "VoiceCapture_incall";
+    }
+    else
+    {
+        LOGE("  Mode not handled by MSIC Lib: %x\n", device);
+        devName = "";
+    }
+
+    return devName;
+}
+
 int msic::pcm_init()
 {
-    pcm_enable();
+    pcm_enable(AudioSystem::MODE_IN_CALL, AudioSystem::DEVICE_OUT_SPEAKER);
     pcm_disable();
 
     return 0;
 }
 
-int msic::pcm_enable()
+int msic::pcm_enable(int mode, uint32_t device)
 {
-    char device_v[128];
+    const char *device_playback;
+    const char *device_capture;
     int card = snd_card_get_index(MEDFIELDAUDIO);
     int err;
 
@@ -47,14 +104,15 @@ int msic::pcm_enable()
     if (handle_playback || handle_capture)
         pcm_disable();
 
-    sprintf(device_v, "hw:%d,2", card);
-    LOGD("  %s \n", device_v);
+    device_playback = deviceNamePlayback(mode, device);
+    device_capture = deviceNameCapture(mode, device);
+    LOGD("  %s \n", device_playback);
 
-    if ((err = snd_pcm_open(&handle_playback, device_v, SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
+    if ((err = snd_pcm_open(&handle_playback, device_playback, SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
         LOGE("  Playback open error: %s\n", snd_strerror(err));
         pcm_disable();
     }
-    else if ((err = snd_pcm_open(&handle_capture, device_v, SND_PCM_STREAM_CAPTURE, 0)) < 0) {
+    else if ((err = snd_pcm_open(&handle_capture, device_capture, SND_PCM_STREAM_CAPTURE, 0)) < 0) {
         LOGE("  Capture open error: %s\n", snd_strerror(err));
         pcm_disable();
     }

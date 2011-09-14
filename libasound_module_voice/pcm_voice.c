@@ -22,14 +22,14 @@
 #include <alsa/asoundlib.h>
 #include <alsa/pcm_external.h>
 #include <linux/soundcard.h>
-#define LOG_TAG "ALSAModemModule"
+#define LOG_TAG "ALSAPlugInVoicePCM"
 #include <utils/Log.h>
 #include <sys/time.h>
 
 #define MEDFIELDAUDIO "medfieldaudio"
 #define MELFIELDALSAIFX "IntelALSAIFX"
 
-typedef struct snd_pcm_modem {
+typedef struct snd_pcm_voice {
     snd_pcm_ioplug_t io;
     char *device;
     int fd;
@@ -42,7 +42,7 @@ typedef struct snd_pcm_modem {
     unsigned int periods;
     unsigned int frame_bytes;
     unsigned int last_size;
-} snd_pcm_modem_t;
+} snd_pcm_voice_t;
 
 struct alsa_handle_t {
     uint32_t            devices;
@@ -58,11 +58,11 @@ struct alsa_handle_t {
 };
 
 static int period_frames_t;
-static void  xrun(snd_pcm_t *handle);
+static void xrun(snd_pcm_t *handle);
 static int xrun_recovery(snd_pcm_t *handle, int err);
 static int setHardwareParams(struct alsa_handle_t *handle);
-static int modem_ifx_open(snd_pcm_ioplug_t *io);
-static int modem_ifx_close(snd_pcm_ioplug_t *io);
+static int voice_hw_open(snd_pcm_ioplug_t *io);
+static int voice_hw_close(snd_pcm_ioplug_t *io);
 
 static ssize_t pcm_write(snd_pcm_t *pcm_handle, const char *data, size_t count,size_t bytes_per_frame)
 {
@@ -97,19 +97,19 @@ static ssize_t pcm_write(snd_pcm_t *pcm_handle, const char *data, size_t count,s
     return result;
 }
 
-static snd_pcm_sframes_t modem_write(snd_pcm_ioplug_t *io,
+static snd_pcm_sframes_t voice_write(snd_pcm_ioplug_t *io,
                                      const snd_pcm_channel_area_t *areas,
                                      snd_pcm_uframes_t offset,
                                      snd_pcm_uframes_t size)
 {
-    snd_pcm_modem_t *modem = io->private_data;
+    snd_pcm_voice_t *voice = io->private_data;
     int err;
     const char *buf = NULL;
     ssize_t result;
     int bytes_per_frame=io->channels*2; //only support 16 bits format
 
-    if(!modem->pcm_md_handle) {
-        err = modem_ifx_open(io);
+    if(!voice->pcm_md_handle) {
+        err = voice_hw_open(io);
         if(err < 0)
             return err;
     }
@@ -117,7 +117,7 @@ static snd_pcm_sframes_t modem_write(snd_pcm_ioplug_t *io,
     /* we handle only an interleaved buffer */
     buf = (char *)areas->addr + (areas->first + areas->step * offset) / 8;
 
-    result = pcm_write (modem->pcm_md_handle, buf, size, bytes_per_frame );
+    result = pcm_write (voice->pcm_md_handle, buf, size, bytes_per_frame );
     if (result <= 0) {
         LOGE("%s out error \n", __func__);
         return result;
@@ -126,25 +126,25 @@ static snd_pcm_sframes_t modem_write(snd_pcm_ioplug_t *io,
     return result;
 }
 
-static snd_pcm_sframes_t modem_read(snd_pcm_ioplug_t *io,
+static snd_pcm_sframes_t voice_read(snd_pcm_ioplug_t *io,
                                     const snd_pcm_channel_area_t *areas,
                                     snd_pcm_uframes_t offset,
                                     snd_pcm_uframes_t size)
 {
-    snd_pcm_modem_t *modem = io->private_data;
+    snd_pcm_voice_t *voice = io->private_data;
     char *buf;
     ssize_t result;
     int err;
 
-    if(!modem->pcm_md_handle) {
-        err = modem_ifx_open(io);
+    if(!voice->pcm_md_handle) {
+        err = voice_hw_open(io);
         if(err < 0)
             return err;
     }
 
     /* we handle only an interleaved buffer */
     buf = (char *)areas->addr + (areas->first + areas->step * offset) / 8;
-    result = snd_pcm_readi(modem->pcm_md_handle, buf, size);
+    result = snd_pcm_readi(voice->pcm_md_handle, buf, size);
     if (result <= 0) {
         LOGE("%s out error \n", __func__);
         return result;
@@ -153,87 +153,87 @@ static snd_pcm_sframes_t modem_read(snd_pcm_ioplug_t *io,
     return result;
 }
 
-static snd_pcm_sframes_t modem_pointer(snd_pcm_ioplug_t *io)
+static snd_pcm_sframes_t voice_pointer(snd_pcm_ioplug_t *io)
 {
-    snd_pcm_modem_t *modem = io->private_data;
+    snd_pcm_voice_t *voice = io->private_data;
     int err, ptr, size;
 
-    assert(modem);
+    assert(voice);
 
-    if(!modem->pcm_md_handle) {
-        err = modem_ifx_open(io);
+    if(!voice->pcm_md_handle) {
+        err = voice_hw_open(io);
         if(err < 0)
             return err;
     }
 
-    size = snd_pcm_avail(modem->pcm_md_handle);
+    size = snd_pcm_avail(voice->pcm_md_handle);
     if(size < 0)
         return size;
 
-    modem->ptr += size - modem->last_size;
-    modem->ptr %= io->buffer_size;
+    voice->ptr += size - voice->last_size;
+    voice->ptr %= io->buffer_size;
 
-    modem->last_size = size;
-    ptr = modem->ptr;
+    voice->last_size = size;
+    ptr = voice->ptr;
 
     return ptr;
 }
 
-static int modem_start(snd_pcm_ioplug_t *io)
+static int voice_start(snd_pcm_ioplug_t *io)
 {
-    snd_pcm_modem_t *modem = io->private_data;
+    snd_pcm_voice_t *voice = io->private_data;
     int err;
 
     LOGD("%s in \n", __func__);
 
-    if(!modem->pcm_md_handle) {
-        err = modem_ifx_open(io);
+    if(!voice->pcm_md_handle) {
+        err = voice_hw_open(io);
         if(err < 0)
             return err;
     }
     return 0;
 }
 
-static int modem_stop(snd_pcm_ioplug_t *io)
+static int voice_stop(snd_pcm_ioplug_t *io)
 {
-    snd_pcm_modem_t *modem = io->private_data;
+    snd_pcm_voice_t *voice = io->private_data;
 
     LOGD("%s in \n", __func__);
 
-    modem_ifx_close(io);
+    voice_hw_close(io);
 
     return 0;
 }
 
-static int modem_drain(snd_pcm_ioplug_t *io)
+static int voice_drain(snd_pcm_ioplug_t *io)
 {
-    snd_pcm_modem_t *modem = io->private_data;
+    snd_pcm_voice_t *voice = io->private_data;
 
     LOGD("%s in \n", __func__);
 
-    if(modem->pcm_md_handle)
-        snd_pcm_drain(modem->pcm_md_handle);
+    if(voice->pcm_md_handle)
+        snd_pcm_drain(voice->pcm_md_handle);
 
     return 0;
 }
 
-static int modem_prepare(snd_pcm_ioplug_t *io)
+static int voice_prepare(snd_pcm_ioplug_t *io)
 {
-    snd_pcm_modem_t *modem = io->private_data;
+    snd_pcm_voice_t *voice = io->private_data;
     int tmp, err;
     LOGD("%s in \n", __func__);
 
     if(io->stream == SND_PCM_STREAM_PLAYBACK) {
-        modem->ptr = 0;
-        modem->last_size = 0;
+        voice->ptr = 0;
+        voice->last_size = 0;
     } else {
-        modem->ptr = 0;
-        modem->last_size = io->buffer_size;
+        voice->ptr = 0;
+        voice->last_size = io->buffer_size;
     }
 
-    LOGD("%s  modem-ptr = %d io->bufsize = %d in \n", __func__, (int)modem->ptr, (int)io->buffer_size);
+    LOGD("%s  voice-ptr = %d io->bufsize = %d in \n", __func__, (int)voice->ptr, (int)io->buffer_size);
 
-    if (modem->pcm_md_handle && (err = snd_pcm_prepare (modem->pcm_md_handle)) < 0) {
+    if (voice->pcm_md_handle && (err = snd_pcm_prepare (voice->pcm_md_handle)) < 0) {
         LOGE ("cannot prepare audio interface for use \n");
         return err;
     }
@@ -241,10 +241,10 @@ static int modem_prepare(snd_pcm_ioplug_t *io)
     return 0;
 }
 
-static int modem_hw_params(snd_pcm_ioplug_t *io,
+static int voice_hw_params(snd_pcm_ioplug_t *io,
                            snd_pcm_hw_params_t *params ATTRIBUTE_UNUSED)
 {
-    snd_pcm_modem_t *modem = io->private_data;
+    snd_pcm_voice_t *voice = io->private_data;
 
     LOGD("%s in \n", __func__);
 
@@ -480,21 +480,21 @@ done:
     return err;
 }
 
-static int modem_close(snd_pcm_ioplug_t *io)
+static int voice_close(snd_pcm_ioplug_t *io)
 {
-    snd_pcm_modem_t *modem = io->private_data;
+    snd_pcm_voice_t *voice = io->private_data;
     LOGD("%s in \n", __func__);
 
-    if(modem->pcm_md_handle)
-        snd_pcm_close(modem->pcm_md_handle);
+    if(voice->pcm_md_handle)
+        snd_pcm_close(voice->pcm_md_handle);
 
-    free(modem->device);
-    free(modem);
+    free(voice->device);
+    free(voice);
 
     return 0;
 }
 
-static int modem_hw_constraint(snd_pcm_modem_t * pcm)
+static int voice_hw_constraint(snd_pcm_voice_t * pcm)
 {
     snd_pcm_ioplug_t *io = &pcm->io;
 
@@ -542,27 +542,27 @@ static int modem_hw_constraint(snd_pcm_modem_t * pcm)
     return 0;
 }
 
-static int modem_ifx_open(snd_pcm_ioplug_t *io)
+static int voice_hw_open(snd_pcm_ioplug_t *io)
 {
-    snd_pcm_modem_t *modem = io->private_data;
+    snd_pcm_voice_t *voice = io->private_data;
     int i, tmp, err, card;
     unsigned int period_bytes;
     struct alsa_handle_t handle;
-    char device_ifx[128];
+    char device[128];
 
     card = snd_card_get_index(MELFIELDALSAIFX);
-    sprintf(device_ifx, "hw:%d,0", card);
+    sprintf(device, "hw:%d,0", card);
 
-    err = snd_pcm_open(&modem->pcm_md_handle, device_ifx, io->stream, 0);
+    err = snd_pcm_open(&voice->pcm_md_handle, device, io->stream, 0);
 
     if (err < 0) {
-        LOGE("Cannot open device %s, direction = %d \n", device_ifx, io->stream);
+        LOGE("Cannot open device %s, direction = %d \n", device, io->stream);
         return err;
     }
 
-    LOGD("open alsa ifx(hw:1,0): dir = %d ~~~~~~~ \n", io->stream);
+    LOGD("open alsa (hw:1,0): dir = %d ~~~~~~~ \n", io->stream);
 
-    io->private_data = modem;
+    io->private_data = voice;
 
     memset(&handle, 0, sizeof(struct alsa_handle_t));
 
@@ -570,7 +570,7 @@ static int modem_ifx_open(snd_pcm_ioplug_t *io)
         handle.bufferSize = io->buffer_size;
         handle.sampleRate = io->rate;
         handle.latency = io->buffer_size * 1000 / io->rate;
-        handle.handle = modem->pcm_md_handle;
+        handle.handle = voice->pcm_md_handle;
         handle.format =  SND_PCM_FORMAT_S16_LE;
         handle.channels = io->channels;
         LOGD("playback io->channels = %d io->rate = %d\n",io->channels, io->rate);
@@ -578,7 +578,7 @@ static int modem_ifx_open(snd_pcm_ioplug_t *io)
         handle.bufferSize = io->buffer_size;
         handle.sampleRate = io->rate;
         handle.latency = io->buffer_size * 1000 / io->rate;
-        handle.handle = modem->pcm_md_handle;
+        handle.handle = voice->pcm_md_handle;
         handle.format = SND_PCM_FORMAT_S16_LE;
         handle.channels = io->channels;
         LOGD("capture io->channels = %d io->rate = %d\n",io->channels, io->rate);
@@ -599,79 +599,78 @@ static int modem_ifx_open(snd_pcm_ioplug_t *io)
     return 0;
 
 error:
-    snd_pcm_close(modem->pcm_md_handle);
+    snd_pcm_close(voice->pcm_md_handle);
     return err;
 }
 
-static int modem_ifx_close(snd_pcm_ioplug_t *io)
+static int voice_hw_close(snd_pcm_ioplug_t *io)
 {
-    snd_pcm_modem_t *modem = io->private_data;
+    snd_pcm_voice_t *voice = io->private_data;
 
     LOGD("%s in \n", __func__);
 
-    if(modem->pcm_md_handle) {
-        snd_pcm_close(modem->pcm_md_handle);
-        modem->pcm_md_handle = NULL;
-        LOGD("%s close alsa ifx(hw:1,0) ~~~~~~ %d\n", __func__, gettid());
+    if(voice->pcm_md_handle) {
+        snd_pcm_close(voice->pcm_md_handle);
+        voice->pcm_md_handle = NULL;
+        LOGD("%s close alsa (hw:1,0) ~~~~~~ %d\n", __func__, gettid());
     }
 
     return 0;
 }
 
-static int modem_poll_descriptors_count(snd_pcm_ioplug_t *io)
+static int voice_poll_descriptors_count(snd_pcm_ioplug_t *io)
 {
-    snd_pcm_modem_t *modem = io->private_data;
-    return snd_pcm_poll_descriptors_count(modem->pcm_md_handle);
+    snd_pcm_voice_t *voice = io->private_data;
+    return snd_pcm_poll_descriptors_count(voice->pcm_md_handle);
 }
 
-static int modem_poll_descriptors(snd_pcm_ioplug_t *io, struct pollfd *pfd,
+static int voice_poll_descriptors(snd_pcm_ioplug_t *io, struct pollfd *pfd,
                                   unsigned int space)
 {
-    snd_pcm_modem_t *modem = io->private_data;
-    return snd_pcm_poll_descriptors(modem->pcm_md_handle, pfd, space);
+    snd_pcm_voice_t *voice = io->private_data;
+    return snd_pcm_poll_descriptors(voice->pcm_md_handle, pfd, space);
 }
 
-static int modem_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
+static int voice_poll_revents(snd_pcm_ioplug_t *io, struct pollfd *pfd,
                               unsigned int nfds, unsigned short *revents)
 {
-   snd_pcm_modem_t *modem = io->private_data;
-   return snd_pcm_poll_descriptors_revents(modem->pcm_md_handle, pfd, nfds, revents);
+   snd_pcm_voice_t *voice = io->private_data;
+   return snd_pcm_poll_descriptors_revents(voice->pcm_md_handle, pfd, nfds, revents);
 }
 
-static const snd_pcm_ioplug_callback_t modem_playback_callback = {
-    .start = modem_start,
-    .stop = modem_stop,
-    .transfer = modem_write,
-    .pointer = modem_pointer,
-    .close = modem_close,
-    .hw_params = modem_hw_params,
-    .prepare = modem_prepare,
-    .drain = modem_drain,
-    .poll_descriptors_count = modem_poll_descriptors_count,
-    .poll_descriptors = modem_poll_descriptors,
-    .poll_revents = modem_poll_revents,
+static const snd_pcm_ioplug_callback_t voice_playback_callback = {
+    .start = voice_start,
+    .stop = voice_stop,
+    .transfer = voice_write,
+    .pointer = voice_pointer,
+    .close = voice_close,
+    .hw_params = voice_hw_params,
+    .prepare = voice_prepare,
+    .drain = voice_drain,
+    .poll_descriptors_count = voice_poll_descriptors_count,
+    .poll_descriptors = voice_poll_descriptors,
+    .poll_revents = voice_poll_revents,
 };
 
-static const snd_pcm_ioplug_callback_t modem_capture_callback = {
-    .start = modem_start,
-    .stop = modem_stop,
-    .transfer = modem_read,
-    .pointer = modem_pointer,
-    .close = modem_close,
-    .hw_params = modem_hw_params,
-    .prepare = modem_prepare,
-    .drain = modem_drain,
+static const snd_pcm_ioplug_callback_t voice_capture_callback = {
+    .start = voice_start,
+    .stop = voice_stop,
+    .transfer = voice_read,
+    .pointer = voice_pointer,
+    .close = voice_close,
+    .hw_params = voice_hw_params,
+    .prepare = voice_prepare,
+    .drain = voice_drain,
 };
 
 
-SND_PCM_PLUGIN_DEFINE_FUNC(modem)
+SND_PCM_PLUGIN_DEFINE_FUNC(voice)
 {
     snd_config_iterator_t i, next;
     const char *device = NULL;
     int err;
-    snd_pcm_modem_t *modem;
+    snd_pcm_voice_t *voice;
     int card;
-    char device_ifx[128];
 
     LOGD("%s in \n", __func__);
 
@@ -692,38 +691,38 @@ SND_PCM_PLUGIN_DEFINE_FUNC(modem)
         LOGE("Unknown field %s", id);
         return -EINVAL;
     }
-    modem = calloc(1, sizeof(*modem));
-    if (! modem) {
+    voice = calloc(1, sizeof(*voice));
+    if (! voice) {
         LOGE("cannot allocate");
         return -ENOMEM;
     }
     if(device == NULL) {
-        LOGW("no modem device name");
-        modem->device = NULL;
+        LOGW("no voice device name");
+        voice->device = NULL;
     } else {
-        modem->device = strdup(device);
-        if(!modem->device) {
-            LOGW("modem->device name is NULL");
+        voice->device = strdup(device);
+        if(!voice->device) {
+            LOGW("voice->device name is NULL");
         }
     }
 
-    modem->io.version = SND_PCM_IOPLUG_VERSION;
-    modem->io.name = "ALSA <-> modem PCM I/O Plugin";
-    modem->io.mmap_rw = 0;
-    modem->io.callback = stream == SND_PCM_STREAM_PLAYBACK ?
-                         &modem_playback_callback : &modem_capture_callback;
-    modem->io.private_data = modem;
+    voice->io.version = SND_PCM_IOPLUG_VERSION;
+    voice->io.name = "ALSA <-> voice PCM I/O Plugin";
+    voice->io.mmap_rw = 0;
+    voice->io.callback = stream == SND_PCM_STREAM_PLAYBACK ?
+                         &voice_playback_callback : &voice_capture_callback;
+    voice->io.private_data = voice;
 
-    err = snd_pcm_ioplug_create(&modem->io, name, stream, mode);
+    err = snd_pcm_ioplug_create(&voice->io, name, stream, mode);
     if (err < 0)
         goto error;
 
-    if ((err = modem_hw_constraint(modem)) < 0) {
-        snd_pcm_ioplug_delete(&modem->io);
+    if ((err = voice_hw_constraint(voice)) < 0) {
+        snd_pcm_ioplug_delete(&voice->io);
         goto error;
     }
 
-    *pcmp = modem->io.pcm;
+    *pcmp = voice->io.pcm;
 
 
     LOGD("%s out \n", __func__);
@@ -731,12 +730,12 @@ SND_PCM_PLUGIN_DEFINE_FUNC(modem)
     return 0;
 
 error:
-    if (modem->pcm_md_handle )
-        snd_pcm_close(modem->pcm_md_handle);
+    if (voice->pcm_md_handle )
+        snd_pcm_close(voice->pcm_md_handle);
 
-    free(modem->device);
-    free(modem);
+    free(voice->device);
+    free(voice);
     return err;
 }
 
-SND_PCM_PLUGIN_SYMBOL(modem);
+SND_PCM_PLUGIN_SYMBOL(voice);

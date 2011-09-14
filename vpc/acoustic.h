@@ -27,7 +27,7 @@ class acoustic
 {
 public :
     static int process_init();
-    static int process_profile(uint32_t device, bool beg_call);
+    static int process_profile(uint32_t device);
     static int process_wake();
     static int process_suspend();
 

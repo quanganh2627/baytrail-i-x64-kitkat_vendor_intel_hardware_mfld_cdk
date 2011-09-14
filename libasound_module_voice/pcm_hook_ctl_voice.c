@@ -21,19 +21,19 @@
 
 #include <alsa/asoundlib.h>
 
-static int snd_pcm_hook_ctl_modem_hw_params(snd_pcm_hook_t *hook)
+static int snd_pcm_hook_ctl_voice_hw_params(snd_pcm_hook_t *hook)
 {
     snd_sctl_t *h = snd_pcm_hook_get_private(hook);
     return snd_sctl_install(h);
 }
 
-static int snd_pcm_hook_ctl_modem_hw_free(snd_pcm_hook_t *hook)
+static int snd_pcm_hook_ctl_voice_hw_free(snd_pcm_hook_t *hook)
 {
     snd_sctl_t *h = snd_pcm_hook_get_private(hook);
     return snd_sctl_remove(h);
 }
 
-static int snd_pcm_hook_ctl_modem_close(snd_pcm_hook_t *hook)
+static int snd_pcm_hook_ctl_voice_close(snd_pcm_hook_t *hook)
 {
     snd_sctl_t *h = snd_pcm_hook_get_private(hook);
     int err = snd_sctl_free(h);
@@ -47,7 +47,7 @@ static int snd_pcm_hook_ctl_modem_close(snd_pcm_hook_t *hook)
  * \param conf Configuration node with CTL settings
  * \return zero on success otherwise a negative error code
  */
-int _snd_pcm_hook_ctl_modem_install(snd_pcm_t *pcm, snd_config_t *conf)
+int _snd_pcm_hook_ctl_voice_install(snd_pcm_t *pcm, snd_config_t *conf)
 {
     int err;
     int card;
@@ -60,7 +60,7 @@ int _snd_pcm_hook_ctl_modem_install(snd_pcm_t *pcm, snd_config_t *conf)
     assert(conf);
     assert(snd_config_get_type(conf) == SND_CONFIG_TYPE_COMPOUND);
 
-    sprintf(ctl_name, "modem");
+    sprintf(ctl_name, "voice");
     err = snd_ctl_open(&ctl, ctl_name, 0);
     if (err < 0) {
         SNDERR("Cannot open CTL %s", ctl_name);
@@ -73,15 +73,15 @@ int _snd_pcm_hook_ctl_modem_install(snd_pcm_t *pcm, snd_config_t *conf)
     if (err < 0)
         goto _err;
     err = snd_pcm_hook_add(&h_hw_params, pcm, SND_PCM_HOOK_TYPE_HW_PARAMS,
-                           snd_pcm_hook_ctl_modem_hw_params, sctl);
+                           snd_pcm_hook_ctl_voice_hw_params, sctl);
     if (err < 0)
         goto _err;
     err = snd_pcm_hook_add(&h_hw_free, pcm, SND_PCM_HOOK_TYPE_HW_FREE,
-                           snd_pcm_hook_ctl_modem_hw_free, sctl);
+                           snd_pcm_hook_ctl_voice_hw_free, sctl);
     if (err < 0)
         goto _err;
     err = snd_pcm_hook_add(&h_close, pcm, SND_PCM_HOOK_TYPE_CLOSE,
-                           snd_pcm_hook_ctl_modem_close, sctl);
+                           snd_pcm_hook_ctl_voice_close, sctl);
     if (err < 0)
         goto _err;
     snd_config_delete(pcm_conf);
@@ -100,6 +100,6 @@ _err:
     return err;
 }
 #ifndef DOC_HIDDEN
-SND_DLSYM_BUILD_VERSION(_snd_pcm_hook_ctl_modem_install, SND_PCM_DLSYM_VERSION);
+SND_DLSYM_BUILD_VERSION(_snd_pcm_hook_ctl_voice_install, SND_PCM_DLSYM_VERSION);
 #endif
 

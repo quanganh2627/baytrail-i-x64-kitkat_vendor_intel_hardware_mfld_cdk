@@ -181,8 +181,8 @@ int acoustic::private_suspend(int fd)
 /*---------------------------------------------------------------------------*/
 int acoustic::private_get_fw_label(int fd)
 {
-    unsigned char firstCharLabel[4] = {0x80, 0x20, 0x00, 0x00};
-    unsigned char nextCharLabel[4] = {0x80, 0x21, 0x00, 0x00};
+    const unsigned char firstCharLabelCmd[4] = {0x80, 0x20, 0x00, 0x00};
+    const unsigned char nextCharLabelCmd[4] = {0x80, 0x21, 0x00, 0x00};
     unsigned char label[4] = {0x00, 0x00, 0x00, 0x01};
     unsigned char *label_name;
     int i = 1, size = 4, rc;
@@ -192,9 +192,9 @@ int acoustic::private_get_fw_label(int fd)
     label_name = (unsigned char*)malloc(sizeof(unsigned char) * fw_max_label_size);
 
     // Get first build label char
-    rc = write(fd, firstCharLabel, size);
+    rc = write(fd, firstCharLabelCmd, size);
     if (rc != size) {
-        LOGE("A1026_WRITE_MSG (0x%.2x%.2x%.2x%.2x) error, ret = %d\n", firstCharLabel[0], firstCharLabel[1], firstCharLabel[2], firstCharLabel[3], rc);
+        LOGE("A1026_WRITE_MSG (0x%.2x%.2x%.2x%.2x) error, ret = %d\n", firstCharLabelCmd[0], firstCharLabelCmd[1], firstCharLabelCmd[2], firstCharLabelCmd[3], rc);
         goto return_error;
     }
     usleep(20000);
@@ -209,9 +209,9 @@ int acoustic::private_get_fw_label(int fd)
     // Get next build label char
     while (label[3] && (i < fw_max_label_size))
     {
-        rc = write(fd, nextCharLabel, size);
+        rc = write(fd, nextCharLabelCmd, size);
         if (rc != 4) {
-            LOGE("A1026_WRITE_MSG (0x%.2x%.2x%.2x%.2x) error, rc = %d\n", nextCharLabel[0], nextCharLabel[1], nextCharLabel[2], nextCharLabel[3], rc);
+            LOGE("A1026_WRITE_MSG (0x%.2x%.2x%.2x%.2x) error, rc = %d\n", nextCharLabelCmd[0], nextCharLabelCmd[1], nextCharLabelCmd[2], nextCharLabelCmd[3], rc);
             goto return_error;
         }
         usleep(20000);
@@ -302,6 +302,11 @@ int acoustic::process_wake()
 
     int fd_a1026 = -1;
     int rc;
+
+    if (!is_a1026_init) {
+        LOGE("Audience A1026 not initialized, nothing to wake.\n");
+        goto return_error;
+    }
 
     fd_a1026 = open(ES305_DEVICE_PATH, O_RDWR);
     if (fd_a1026 < 0) {
@@ -403,10 +408,10 @@ return_error:
 /*---------------------------------------------------------------------------*/
 /* Set profile                                                               */
 /*---------------------------------------------------------------------------*/
-int acoustic::process_profile(uint32_t device, bool beg_call)
+int acoustic::process_profile(uint32_t device)
 {
     a1026_lock.lock();
-    LOGD("Audience A1026 set profile\n");
+    LOGD("Set Audience A1026 profile\n");
 
     int fd_a1026 = -1;
     int rc;
@@ -421,11 +426,6 @@ int acoustic::process_profile(uint32_t device, bool beg_call)
     if (fd_a1026 < 0) {
         LOGE("Cannot open audience_a1026 device (%d)\n", fd_a1026);
         goto return_error;
-    }
-
-    if (!beg_call) {
-        rc = private_wake(fd_a1026);
-        if (rc) goto return_error;
     }
 
     dev_id = private_get_profile_id(device);

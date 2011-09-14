@@ -25,6 +25,7 @@ extern "C"
 {
 #endif
 
+typedef enum { VPC_ROUTE_OPEN, VPC_ROUTE_CLOSE } vpc_route_t;
 typedef enum { VPC_TTY_OFF, VPC_TTY_ON } vpc_tty_t;
 typedef enum { VPC_BT_NREC_OFF, VPC_BT_NREC_ON } vpc_bt_nrec_t;
 
@@ -37,7 +38,7 @@ typedef struct vpc_device_t {
 
     int (*init)(void);
     int (*params)(int mode, uint32_t device);
-    int (*route)(void);
+    int (*route)(vpc_route_t);
     int (*volume)(float);
     int (*mix_disable)(int mode);
     int (*mix_enable)(int mode, uint32_t device);

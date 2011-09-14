@@ -4,8 +4,8 @@ LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := \
-        pcm_hook_ctl_modem.c \
-        pcm_modem.c
+        pcm_hook_ctl_voice.c \
+        pcm_voice.c
 
 LOCAL_MODULE_PATH := $(TARGET_OUT)/usr/lib/alsa-lib
 
@@ -18,14 +18,14 @@ LOCAL_SHARED_LIBRARIES := \
         liblog \
         libasound
 
-LOCAL_MODULE := libasound_module_pcm_modem
+LOCAL_MODULE := libasound_module_pcm_voice
 LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES := \
-        ctl_modem.c
+        ctl_voice.c
 
 LOCAL_MODULE_PATH := $(TARGET_OUT)/usr/lib/alsa-lib
 
@@ -41,7 +41,7 @@ LOCAL_SHARED_LIBRARIES := \
         libhardware \
         libasound
 
-LOCAL_MODULE := libasound_module_ctl_modem
+LOCAL_MODULE := libasound_module_ctl_voice
 LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_SHARED_LIBRARY)

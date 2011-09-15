@@ -49,13 +49,23 @@
 #define ALSA_DEFAULT_SAMPLE_RATE 44100 // in Hz
 #endif
 
-#ifndef MODEM_DEFAULT_SAMPLE_RATE
-#define MODEM_DEFAULT_SAMPLE_RATE 48000 // in Hz
+#ifndef VOICE_MODEM_DEFAULT_SAMPLE_RATE
+#define VOICE_MODEM_DEFAULT_SAMPLE_RATE 48000 // in Hz
 #endif
 
 #ifndef WIDI_DEFAULT_SAMPLE_RATE
 #define WIDI_DEFAULT_SAMPLE_RATE 48000 // in Hz
 #endif
+
+#ifndef VOICE_CODEC_DEFAULT_SAMPLE_RATE
+#define VOICE_CODEC_DEFAULT_SAMPLE_RATE 48000 // in Hz
+#endif
+
+#ifndef VOICE_BT_DEFAULT_SAMPLE_RATE
+#define VOICE_BT_DEFAULT_SAMPLE_RATE 8000 // in Hz
+#endif
+
+#define DEVICE_OUT_BLUETOOTH_SCO_ALL (AudioSystem::DEVICE_OUT_BLUETOOTH_SCO | AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET | AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_CARKIT)
 
 int voice_activated = 0;
 namespace android
@@ -221,6 +231,9 @@ static const char *deviceName(alsa_handle_t *handle, uint32_t device, int mode)
             break;
         case AudioSystem::MODE_IN_CALL:
             ALSA_STRCAT(devString, "_incall");
+            break;
+        case AudioSystem::MODE_IN_COMMUNICATION:
+            ALSA_STRCAT(devString, "_incommunication");
             break;
         };
 
@@ -545,13 +558,23 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
     handle->sampleRate = DEFAULT_SAMPLE_RATE;
     handle->expectedSampleRate = DEFAULT_SAMPLE_RATE;
 
-    if (mode == AudioSystem::MODE_IN_CALL) {
-        handle->expectedSampleRate = MODEM_DEFAULT_SAMPLE_RATE;
-    }
-
-    if (devices & AudioSystem::DEVICE_OUT_WIDI_LOOPBACK) {
-        LOGV("widi loopback device");
-        handle->expectedSampleRate = WIDI_DEFAULT_SAMPLE_RATE;
+    if (devices & AudioSystem::DEVICE_OUT_ALL) {
+        if (mode == AudioSystem::MODE_IN_CALL) {
+            LOGD("Setting expected sample rate to %d (IN_CALL)", VOICE_MODEM_DEFAULT_SAMPLE_RATE);
+            handle->expectedSampleRate = VOICE_MODEM_DEFAULT_SAMPLE_RATE;
+        }
+        else if (devices & DEVICE_OUT_BLUETOOTH_SCO_ALL) {
+            LOGD("Setting expected sample rate to %d (BT_SCO_ALL)", VOICE_BT_DEFAULT_SAMPLE_RATE);
+            handle->expectedSampleRate = VOICE_BT_DEFAULT_SAMPLE_RATE;
+        }
+        else if (mode == AudioSystem::MODE_IN_COMMUNICATION) {
+            LOGD("Setting expected sample rate to %d (IN_COMM)", VOICE_CODEC_DEFAULT_SAMPLE_RATE);
+            handle->expectedSampleRate = VOICE_CODEC_DEFAULT_SAMPLE_RATE;
+        }
+        else if (devices & AudioSystem::DEVICE_OUT_WIDI_LOOPBACK) {
+            LOGV("Setting expected sample rate to %d (WIDI)", WIDI_DEFAULT_SAMPLE_RATE);
+            handle->expectedSampleRate = WIDI_DEFAULT_SAMPLE_RATE;
+        }
     }
 
     //This is a tricky way to change the sample rate.
@@ -559,9 +582,19 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
     //This SRC change will not take effect when device is changed during the recording.
     //This is not a formal solution and limitation, so maybe we will modify these codes
     //when we find a better way to resolve SRC.
-    if (devices & AudioSystem::DEVICE_IN_VOICE_CALL) {
-        LOGD("Detected modem capture device, setting sample rate to %d", MODEM_DEFAULT_SAMPLE_RATE);
-        handle->sampleRate = MODEM_DEFAULT_SAMPLE_RATE;
+    if (devices & AudioSystem::DEVICE_IN_ALL) {
+        if (mode == AudioSystem::MODE_IN_CALL) {
+            LOGD("Detected voice modem capture device, setting sample rate to %d", VOICE_MODEM_DEFAULT_SAMPLE_RATE);
+            handle->sampleRate = VOICE_MODEM_DEFAULT_SAMPLE_RATE;
+        }
+        else if (devices & AudioSystem::DEVICE_IN_BLUETOOTH_SCO_HEADSET) {
+            LOGD("Detected voice Bluetooth capture device, setting sample rate to %d", VOICE_BT_DEFAULT_SAMPLE_RATE);
+            handle->sampleRate = VOICE_BT_DEFAULT_SAMPLE_RATE;
+        }
+        else if (mode == AudioSystem::MODE_IN_COMMUNICATION) {
+            LOGD("Detected voice codec capture device, setting sample rate to %d", VOICE_CODEC_DEFAULT_SAMPLE_RATE);
+            handle->sampleRate = VOICE_CODEC_DEFAULT_SAMPLE_RATE;
+        }
     }
 
     err = setHardwareParams(handle);

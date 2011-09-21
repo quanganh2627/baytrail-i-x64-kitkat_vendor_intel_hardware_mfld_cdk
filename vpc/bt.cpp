@@ -34,7 +34,9 @@ namespace android
 
 int bt::pcm_enable()
 {
-    int err, dev_id, hci_sk = 0;
+    int err = 0;
+    int dev_id;
+    int hci_sk = -1;
 
     LOGD("Enable BT PCM audio path ~~~ Entry\n");
 
@@ -66,7 +68,9 @@ int bt::pcm_enable()
 
 int bt::pcm_disable()
 {
-    int err, dev_id, hci_sk = 0;
+    int err = 0;
+    int dev_id;
+    int hci_sk = -1;
 
     LOGD("Disable BT audio path ~~~ Entry\n");
 

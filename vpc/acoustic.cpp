@@ -18,6 +18,7 @@
 #define LOG_TAG "VPC_Acoustic"
 #include <utils/Log.h>
 
+#include <cutils/properties.h>
 #include <utils/threads.h>
 #include <fcntl.h>
 #include <linux/a1026.h>
@@ -34,6 +35,7 @@ Mutex a1026_lock;
 bool           acoustic::is_a1026_init = false;
 int            acoustic::profile_size[device_number];
 unsigned char *acoustic::i2c_cmd_device[device_number] = { NULL, };
+char           acoustic::bid[80] = "";
 
 const char *acoustic::profile_name[device_number] = {
     "close_talk.bin",         // EP
@@ -55,6 +57,12 @@ int acoustic::private_cache_profiles()
     for (int i = 0; i < device_number; i++)
     {
         char profile_path[80] = "/system/etc/phonecall_";
+
+        property_get("ro.board.id", bid, "");
+        if(!strcmp(bid,"pr3")) {
+            strcat(profile_path, "es305b_");
+        }
+
         strcat(profile_path, profile_name[i]);
         FILE *fd = fopen(profile_path, "r");
         if (fd == NULL) {

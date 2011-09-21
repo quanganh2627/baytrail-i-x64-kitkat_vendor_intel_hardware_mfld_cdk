@@ -42,7 +42,8 @@ endif
         libasound \
         liblog \
         libaudio \
-        libbluetooth
+        libbluetooth \
+        libcutils
 
   LOCAL_MODULE:= vpc.$(TARGET_DEVICE)
   LOCAL_MODULE_TAGS := optional

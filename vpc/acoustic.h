@@ -43,6 +43,7 @@ private :
     static const int      device_default    = device_number - 1;
     static const int      fw_max_label_size = 100;
 
+    static char           bid[80];
     static bool           is_a1026_init;
     static int            profile_size[device_number];
     static unsigned char *i2c_cmd_device[device_number];

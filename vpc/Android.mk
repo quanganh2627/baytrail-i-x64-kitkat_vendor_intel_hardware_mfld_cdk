@@ -36,14 +36,13 @@ endif
         bt.cpp \
         msic.cpp
 
-  LOCAL_STATIC_LIBRARIES := libamc
-
   LOCAL_SHARED_LIBRARIES := \
         libasound \
         liblog \
         libaudio \
         libbluetooth \
-        libcutils
+        libcutils \
+        libamc
 
   LOCAL_MODULE:= vpc.$(TARGET_DEVICE)
   LOCAL_MODULE_TAGS := optional

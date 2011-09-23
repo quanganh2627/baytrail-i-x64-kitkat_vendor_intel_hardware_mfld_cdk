@@ -30,6 +30,7 @@ extern "C"
 #endif /* #ifndef __cplusplus*/
 #define AT_MAX_CMD_LENGTH 80
 #define AT_MAX_RESP_LENGTH 300
+#define AUDIO_AT_CHANNEL_NAME "/dev/gsmtty13"
 
 /* Return status:*/
 typedef enum {

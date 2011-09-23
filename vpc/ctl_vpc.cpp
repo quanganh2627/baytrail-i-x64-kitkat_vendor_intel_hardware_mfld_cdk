@@ -25,6 +25,7 @@
 #include "amc.h"
 #include "bt.h"
 #include "msic.h"
+#include "AudioModemControl.h"
 
 #include "vpc_hardware.h"
 
@@ -81,17 +82,8 @@ static int vpc_init(void)
 
     if (at_thread_init == false)
     {
-        AT_STATUS cmd_status = amc_start(AUDIO_AT_CHANNEL_NAME);
-        int tries = 0;
-        while (cmd_status != AT_OK && tries < MODEM_TTY_RETRY)
-        {
-            cmd_status = amc_start(AUDIO_AT_CHANNEL_NAME);
-            LOGD("AT thread retry\n");
-            tries++;
-            sleep(1);
-        }
+        AT_STATUS cmd_status = at_start(AUDIO_AT_CHANNEL_NAME);
         if (cmd_status != AT_OK) goto return_error;
-
         LOGD("AT thread started\n");
         at_thread_init = true;
     }
@@ -155,17 +147,6 @@ static int vpc_route(vpc_route_t route)
         {
             LOGD("VPC IN_CALL\n");
 
-            if (at_thread_init == true)
-            {
-                AT_STATUS rts = check_tty();
-                if (rts == AT_WRITE_ERROR || rts == AT_ERROR)
-                {
-                    LOGE("AMC Error\n");
-                    amc_stop();
-                    amc_start(AUDIO_AT_CHANNEL_NAME);
-                }
-            }
-
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
             if (!beg_call) {
                 ret = acoustic::process_wake();
@@ -180,8 +161,7 @@ static int vpc_route(vpc_route_t route)
             case AudioSystem::DEVICE_OUT_SPEAKER:
             case AudioSystem::DEVICE_OUT_WIRED_HEADSET:
             case AudioSystem::DEVICE_OUT_WIRED_HEADPHONE:
-                amc_disable(AMC_I2S1_RX);
-                amc_disable(AMC_I2S2_RX);
+                amc_off();
                 bt::pcm_disable();
                 msic::pcm_disable();
 
@@ -194,25 +174,7 @@ static int vpc_route(vpc_route_t route)
 
                 if (prev_mode != AudioSystem::MODE_IN_CALL || prev_device == AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET || beg_call == false)
                 {
-                    if (tty_call == false)
-                    {
-                        amc_configure_source(AMC_I2S1_RX, IFX_CLK1, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
-                        amc_configure_source(AMC_I2S2_RX, IFX_CLK0, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
-                        amc_configure_dest(AMC_I2S1_TX, IFX_CLK1, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_D);
-                        amc_configure_dest(AMC_I2S2_TX, IFX_CLK0, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_D);
-                    }
-                    else if (tty_call == true)
-                    {
-                        amc_configure_source(AMC_I2S1_RX, IFX_CLK1, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_TTY_S);
-                        amc_configure_source(AMC_I2S2_RX, IFX_CLK0, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_TTY_S);
-                        amc_configure_dest(AMC_I2S1_TX, IFX_CLK1, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_TTY_D);
-                        amc_configure_dest(AMC_I2S2_TX, IFX_CLK0, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_TTY_D);
-                    }
-                    amc_route(AMC_RADIO_RX, AMC_I2S1_TX, AMC_ENDD);
-                    amc_route(AMC_I2S1_RX, AMC_RADIO_TX, AMC_ENDD);
-                    amc_route(AMC_I2S2_RX, AMC_I2S1_TX, AMC_ENDD);
-                    amc_route(AMC_SIMPLE_TONES, AMC_I2S1_TX, AMC_ENDD);
-                    amc_setGaindest(AMC_RADIO_TX, ModemGain); /*must be removed when gain will be integrated in MODEM (IMC) */
+                    amc_modem_conf_msic_dev(tty_call);
                 }
                 msic::pcm_enable(current_mode, current_device);
                 amc_enable(AMC_I2S2_RX);
@@ -222,8 +184,7 @@ static int vpc_route(vpc_route_t route)
             case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO:
             case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET:
             case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_CARKIT:
-                amc_disable(AMC_I2S1_RX);
-                amc_disable(AMC_I2S2_RX);
+                amc_off();
                 msic::pcm_disable();
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
@@ -232,16 +193,7 @@ static int vpc_route(vpc_route_t route)
                 ret = acoustic::process_profile(device_profile);
                 if (ret) goto return_error;
 #endif
-
-                amc_configure_source(AMC_I2S1_RX, IFX_CLK1, IFX_MASTER, IFX_SR_8KHZ, IFX_SW_16, IFX_PCM, I2S_SETTING_NORMAL, IFX_MONO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
-                amc_configure_source(AMC_I2S2_RX, IFX_CLK0, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
-                amc_configure_dest(AMC_I2S1_TX, IFX_CLK1, IFX_MASTER, IFX_SR_8KHZ, IFX_SW_16, IFX_PCM, I2S_SETTING_NORMAL, IFX_MONO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_D);
-                amc_configure_dest(AMC_I2S2_TX, IFX_CLK0, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_D);
-                amc_route(AMC_RADIO_RX, AMC_I2S1_TX, AMC_ENDD);
-                amc_route(AMC_I2S1_RX, AMC_RADIO_TX, AMC_ENDD);
-                amc_route(AMC_I2S2_RX, AMC_I2S1_TX, AMC_ENDD);
-                amc_route(AMC_SIMPLE_TONES, AMC_I2S1_TX, AMC_ENDD);
-                amc_setGaindest(AMC_RADIO_TX, ModemGain); /*must be removed when gain will be integrated in MODEM (IMC) */
+                amc_modem_conf_bt_dev();
                 bt::pcm_enable();
                 amc_enable(AMC_I2S2_RX);
                 mixing_enable = true;
@@ -258,8 +210,7 @@ static int vpc_route(vpc_route_t route)
         else if ((route == VPC_ROUTE_CLOSE) && (current_mode != AudioSystem::MODE_IN_CALL))
         {
             LOGD("VPC from IN_CALL to NORMAL\n");
-            amc_disable(AMC_I2S1_RX);
-            amc_disable(AMC_I2S2_RX);
+            amc_off();
             mixing_enable = false;
             bt::pcm_disable();
             msic::pcm_disable();

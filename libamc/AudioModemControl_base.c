@@ -21,20 +21,6 @@
 #include <stdarg.h>
 static bool isInitialized; /*= false Keep track of library initialization*/
 
-AT_STATUS amc_start(const char *pATchannel)
-{
-    AT_STATUS cmdStatus;
-    if (isInitialized) {
-        LOGI("Library already started");
-        return AT_OK;
-    }
-    cmdStatus = at_start(pATchannel);
-    if (cmdStatus == AT_OK) {
-        isInitialized = true;
-    }
-    return cmdStatus;
-}
-
 AT_STATUS amc_stop(void)
 {
     isInitialized = false;
@@ -116,11 +102,5 @@ AT_STATUS amc_setAcoustic(AMC_ACOUSTIC acousticProfile)
 {
     AT_STATUS cmdStatus;
     cmdStatus = amc_setAcousticUnBlocking(acousticProfile);
-    return cmdStatus;
-}
-AT_STATUS check_tty()
-{
-    AT_STATUS cmdStatus;
-    cmdStatus = amc_check();
     return cmdStatus;
 }

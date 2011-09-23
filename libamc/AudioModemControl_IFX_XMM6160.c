@@ -25,7 +25,6 @@
 #include "ATmodemControl.h"
 #define LOG_TAG "AudiomodemControlIFX"
 #include <utils/Log.h>
-#define TRY_MAX 5
 #define GET_USE_CASE_SRC  "AT+XDRV=40,0,"
 #define GET_USE_CASE_DEST  "AT+XDRV=40,1,"
 #define EN_SRC  "AT+XDRV=40,2,%i"
@@ -66,11 +65,6 @@ AT_STATUS amc_enableUnBlocking(AMC_SOURCE source)
     int try = 0;
     sprintf(cmdStr, EN_SRC, source);
     rts = at_send(cmdStr, EN_SRC_RESP);
-    while (rts != AT_OK && try <  TRY_MAX) {
-        LOGW("Partial enable.");
-        rts = at_send(cmdStr, EN_SRC_RESP);
-        try++;
-    }
     return rts;
 }
 AT_STATUS amc_disableUnBlocking(AMC_SOURCE source)
@@ -85,11 +79,6 @@ AT_STATUS amc_disableUnBlocking(AMC_SOURCE source)
     int try = 0;
     sprintf(cmdStr, DIS_SRC, source);
     rts = at_send(cmdStr, DIS_SRC_RESP);
-    while (rts != AT_OK && try <  TRY_MAX) {
-        LOGW("Partial disable.");
-        rts = at_send(cmdStr, DIS_SRC_RESP);
-        try++;
-    }
     return rts;
 }
 
@@ -105,11 +94,6 @@ AT_STATUS amc_configure_dest_UnBlocking(AMC_DEST dest, IFX_CLK clk, IFX_MASTER_S
     int try = 0;
     sprintf(cmdStr, SET_DEST_CONF, dest, 0, clk, mode, sr, sw, trans, settings, audio, update, transducer_dest);
     rts = at_send(cmdStr, SET_DEST_CONF_RESP);
-    while (rts != AT_OK && try <  TRY_MAX) {
-        LOGW("Partial configure.");
-        rts = at_send(cmdStr, SET_DEST_CONF_RESP);
-        try++;
-    }
     return rts;
 }
 
@@ -127,11 +111,6 @@ AT_STATUS amc_configure_source_UnBlocking(AMC_SOURCE source, IFX_CLK clk, IFX_MA
 
     sprintf(cmdStr, SET_SRC_CONF, source, 0, clk, mode, sr, sw, trans, settings, audio, update, transducer_source);
     rts = at_send(cmdStr, SET_SRC_CONF_RESP);
-    while (rts != AT_OK && try <  TRY_MAX) {
-        LOGW("Partial configure.");
-        rts = at_send(cmdStr, SET_SRC_CONF_RESP);
-        try++;
-    }
     return rts;
 }
 
@@ -153,11 +132,6 @@ AT_STATUS amc_routeUnBlocking(AMC_SOURCE source,
         LOGD("ROUTE ARG UNBLOCKING = %s",cmdStrtemp);
     }
     rts = at_send(cmdStr, SET_SRC_DEST_RESP);
-    while (rts != AT_OK && try <  TRY_MAX) {
-        LOGW("Partial route.");
-        rts = at_send(cmdStr, SET_SRC_DEST_RESP);
-        try++;
-    }
     return rts;
 }
 
@@ -171,11 +145,6 @@ AT_STATUS amc_setGainsourceUnBlocking(
     int try = 0;
     sprintf(cmdStr, SET_SRC_VOL, source, gainDDB);
     rts = at_send(cmdStr, SET_SRC_VOL_RESP);
-    while (rts != AT_OK && try <  TRY_MAX) {
-        LOGW("Partial gain source");
-        rts = at_send(cmdStr, SET_SRC_VOL_RESP);
-        try++;
-    }
     return rts;
 }
 
@@ -188,11 +157,6 @@ AT_STATUS amc_setGaindestUnBlocking(
     int try = 0;
     sprintf(cmdStr, SET_DEST_VOL, dest, gainDDB);
     rts = at_send(cmdStr, SET_DEST_VOL_RESP);
-    while (rts != AT_OK && try <  TRY_MAX) {
-        LOGW("Partial gain dest.");
-        rts = at_send(cmdStr, SET_DEST_VOL_RESP);
-        try++;
-    }
     return rts;
 }
 
@@ -208,21 +172,6 @@ AT_STATUS amc_setAcousticUnBlocking(
     else
         sprintf(cmdStr, MODIFY_HF,0,0,0);
     rts = at_send(cmdStr, MODIFY_HF_RESP);
-    return rts;
-}
-
-AT_STATUS amc_check()
-{
-    char cmdStr[AT_MAX_CMD_LENGTH];
-    AT_STATUS rts;
-    int try = 0;
-    sprintf(cmdStr, AT);
-    rts = at_send(cmdStr,AT_RESP);
-    while (rts != AT_OK && try <  TRY_MAX) {
-        LOGW("Partial check.");
-        rts = at_send(cmdStr,AT_RESP);
-        try++;
-    }
     return rts;
 }
 

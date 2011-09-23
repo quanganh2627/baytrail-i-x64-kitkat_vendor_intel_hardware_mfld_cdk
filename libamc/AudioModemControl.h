@@ -25,54 +25,30 @@ extern "C"
 
 #include "ATmodemControl.h"
 #include <pthread.h>
-
-    /*==============================================================================
-     *                        Audio Modem Control Library.
-     *============================================================================*/
-
-    /* Cross platform modem abstraction library regarding audio.*/
-
-    /* Before use, (un)comment the wanted below customization defines
-     *  - Below "Platform Customization"
-     *  - in ATmodemControl.h "Platform Customization & DEBUG"*/
-
-
-    /*------------------------------------------------------------------------------
-     * Platform Customization
-     *----------------------------------------------------------------------------*/
-
-
 #define MODEM_IFX_XMM6160
-
-
-    /*------------------------------------------------------------------------------
-     * Communication Globals:
-     *----------------------------------------------------------------------------*/
-    /* String length needed to send a message:*/
 #define AMC_MAX_CMD_LENGTH   AT_MAX_CMD_LENGTH
-    /* String length needed to receive a message:*/
 #define AMC_MAX_RESP_LENGTH  AT_MAX_RESP_LENGTH
-    /* Mutex needed to access values returned from modem when unblocking
-     * functions used:*/
+#define MODEMGAIN 100
+#define MODEM_TTY_RETRY 60
+#define AUDIO_AT_CHANNEL_NAME "/dev/gsmtty13"
+
 #define amc_unsolicitedRespMutex at_unsolicitedRespMutex
 
-    /* available dest for IFX modem */
     typedef enum {
-        AMC_RADIO_TX = 0,/* source(and sink for near-end loop back)*/
-        AMC_RADIO_ANALOG_OUT = 1,/* sink(and source for far-end loop back)*/
-        AMC_I2S1_TX = 2,/* source*/
-        AMC_I2S2_TX = 3,/* sink*/
-        AMC_PCM_GENERALD = 4,/* source*/
-        AMC_SPEECH_DL_EXTRACT = 5,/* sink*/
-        AMC_SPEECH_UL_EXTRACT = 6,/* source*/
-        AMC_PROBE_OUT = 7,/* source*/
-        AMC_ENDD = 8/* Nothing*/
+        AMC_RADIO_TX = 0,
+        AMC_RADIO_ANALOG_OUT = 1,
+        AMC_I2S1_TX = 2,
+        AMC_I2S2_TX = 3,
+        AMC_PCM_GENERALD = 4,
+        AMC_SPEECH_DL_EXTRACT = 5,
+        AMC_SPEECH_UL_EXTRACT = 6,
+        AMC_PROBE_OUT = 7,
+        AMC_ENDD = 8
     } AMC_DEST;
 
-    /* available source for IFX modem */
     typedef enum {
-        AMC_RADIO_RX = 0,/* source(and sink for near-end loop back)*/
-        AMC_RADIO_ANALOG_IN = 1,/* sink(and source for far-end loop back)*/
+        AMC_RADIO_RX = 0,
+        AMC_RADIO_ANALOG_IN = 1,
         AMC_DIGITAL_MIC = 2,
         AMC_I2S1_RX = 3,
         AMC_I2S2_RX = 4,
@@ -85,18 +61,16 @@ extern "C"
         AMC_ENDS = 11
     } AMC_SOURCE;
 
-    /* Clock selection */
     typedef enum {
-        IFX_CLK0 = 0,/*Select clock 0 from I2S HW.  */
-        IFX_CLK1 = 1/*Select clock 1 from I2S HW. */
+        IFX_CLK0 = 0,
+        IFX_CLK1 = 1
     } IFX_CLK ;
-    /* master_slave */
+
     typedef enum {
-        IFX_MASTER = 0, /*Master mode(seen from the IFX audio sub system). */
-        IFX_SLAVE = 1   /*Slave mode(seen from the IFX audio sub system)*/
+        IFX_MASTER = 0,
+        IFX_SLAVE = 1
     } IFX_MASTER_SLAVE;
 
-    /* Sample Rate */
     typedef enum   {
         IFX_SR_8KHZ = 0,
         IFX_SR_11KHZ = 1 ,
@@ -109,7 +83,7 @@ extern "C"
         IFX_SR_48KHZ = 8,
         IFX_SR_96KHZ = 9
     } IFX_I2S_SR ;
-    /* word length */
+
     typedef enum   {
         IFX_SW_16 = 0,
         IFX_SW_18 = 1,
@@ -119,22 +93,19 @@ extern "C"
         IFX_SW_END = 5
     } IFX_I2S_SW ;
 
-    /* transmission mode */
     typedef enum {
-        IFX_PCM = 0,  /*Transmit data using normal PCM mode interface*/
-        IFX_NORMAL = 1,  /*Use I2S standard protocol interface to transmit data*/
-        IFX_PCM_BURST = 2 /*Use PCM burst protocol interface to transmit data */
+        IFX_PCM = 0,
+        IFX_NORMAL = 1,
+        IFX_PCM_BURST = 2
     }  IFX_I2S_TRANS_MODE ;
 
-    /* Settings */
     typedef enum {
-        I2S_SETTING_NORMAL = 0, /*Use normal I2S interface.*/
-        I2S_SETTING_SPECIAL_1 = 1, /*Special interface, project-specific.*/
+        I2S_SETTING_NORMAL = 0,
+        I2S_SETTING_SPECIAL_1 = 1,
         I2S_SETTING_SPECIAL_2 = 2,
         I2S_SETTING_END = 3
     } IFX_I2S_SETTINGS;
 
-    /* Stereo/mono */
     typedef enum   {
         IFX_MONO = 0,
         IFX_DUAL_MONO = 1,
@@ -142,60 +113,45 @@ extern "C"
         IFX_END = 3
     } IFX_I2S_AUDIO_MODE ;
 
-    /* update */
     typedef enum  {
-        IFX_UPDATE_ALL = 0, /*Update all configuration parameters.*/
-        IFX_UPDATE_HW = 1,  /*Update only hardware configuration parameters.  */
-        IFX_UPDATE_TRANSDUCER = 2 /*Update only the transducer mode parameter. */
+        IFX_UPDATE_ALL = 0,
+        IFX_UPDATE_HW = 1,
+        IFX_UPDATE_TRANSDUCER = 2
     } IFX_I2S_UPDATES ;
 
-    /* source used */
     typedef enum   {
-        IFX_DEFAULT_S = 0,/*Default value, used when only one transducer exists.*/
-        IFX_HANDSET_S = 1,/*Handset microphone.*/
-        IFX_HEADSET_S = 2,/*Headset microphone.*/
-        IFX_HF_S = 3,/*Hands-free microphone.*/
-        IFX_AUX_S = 4,/*Auxiliary input.*/
-        IFX_TTY_S = 5,/*TTY mode for TTY-enabled calls.*/
-        IFX_BLUETOOTH_S = 6,/*BlueTooth connection.*/
-        IFX_USER_DEFINED_1_S = 7,/*Project-specific mode.*/
-        IFX_USER_DEFINED_2_S = 8,/*Project-specific mode.*/
-        IFX_USER_DEFINED_3_S = 9,/*Project-specific mode.*/
-        IFX_USER_DEFINED_4_S = 10,/*Project-specific mode.*/
-        IFX_USER_DEFINED_5_S = 11,/*Project-specific mode.*/
-        IFX_USER_DEFINED_15_S = 21, /*No Processing.*/
+        IFX_DEFAULT_S = 0,
+        IFX_HANDSET_S = 1,
+        IFX_HEADSET_S = 2,
+        IFX_HF_S = 3,
+        IFX_AUX_S = 4,
+        IFX_TTY_S = 5,
+        IFX_BLUETOOTH_S = 6,
+        IFX_USER_DEFINED_1_S = 7,
+        IFX_USER_DEFINED_2_S = 8,
+        IFX_USER_DEFINED_3_S = 9,
+        IFX_USER_DEFINED_4_S = 10,
+        IFX_USER_DEFINED_5_S = 11,
+        IFX_USER_DEFINED_15_S = 21,
     } IFX_TRANSDUCER_MODE_SOURCE;
 
-
-    /* destination used */
     typedef enum   {
-        IFX_DEFAULT_D = 0,/*Default value, used when only one transducer exists.*/
-        IFX_HANDSET_D = 1,/*Handset microphone.*/
-        IFX_HEADSET_D = 2,/*Headset microphone.*/
-        IFX_BACKSPEAKER_D = 3,/*Hands-free microphone.*/
-        IFX_HEADSET_PLUS_BACKSPEAKER_D = 4,/*Auxiliary input.*/
-        IFX_HEADSET_PLUS_HANDSET_D = 5,/*TTY mode for TTY-enabled calls.*/
-        IFX_TTY_D = 6,/*BlueTooth connection.*/
-        IFX_BLUETOOTH_D = 7,/*Project-specific mode.*/
-        IFX_USER_DEFINED_1_D = 8,/*Project-specific mode.*/
-        IFX_USER_DEFINED_2_D = 9,/*Project-specific mode.*/
-        IFX_USER_DEFINED_3_D = 10,/*Project-specific mode.*/
-        IFX_USER_DEFINED_4_D = 11,/*Project-specific mode.*/
+        IFX_DEFAULT_D = 0,
+        IFX_HANDSET_D = 1,
+        IFX_HEADSET_D = 2,
+        IFX_BACKSPEAKER_D = 3,
+        IFX_HEADSET_PLUS_BACKSPEAKER_D = 4,
+        IFX_HEADSET_PLUS_HANDSET_D = 5,
+        IFX_TTY_D = 6,
+        IFX_BLUETOOTH_D = 7,
+        IFX_USER_DEFINED_1_D = 8,
+        IFX_USER_DEFINED_2_D = 9,
+        IFX_USER_DEFINED_3_D = 10,
+        IFX_USER_DEFINED_4_D = 11,
         IFX_USER_DEFINED_5_D = 12,
-        IFX_USER_DEFINED_15_D = 22,/*No Processing.*/
+        IFX_USER_DEFINED_15_D = 22,
     } IFX_TRANSDUCER_MODE_DEST;
 
-
-    /* Modem Dependent Parameters*/
-    typedef struct {
-        int gainStepSizeDDB;/* gain step size(in 0.1 dB)*/
-        int gainMinDDB;/* minimum gain(in 0.1 dB)*/
-        int gainMaxDDB;/* maximum gain(in 0.1 dB)*/
-    } volume_control;
-
-    extern volume_control volumeCTRL; /*Modem dependent parameters*/
-
-    /* Acoustics:*/
     typedef enum {
         AMC_NORMAL,
         AMC_HANDSET,
@@ -203,58 +159,25 @@ extern "C"
         AMC_HANDFREE
     } AMC_ACOUSTIC;
 
-    /*------------------------------------------------------------------------------
-     * API
-     *----------------------------------------------------------------------------*/
-
-    /* Each function exist in:
-     *- standard mode ( wait up to modem ACK and return response/error code. )
-     *- unblocking mode. A pointer to the modem ackn'ed or NULL should be provided.
-     *synchronisation function should then be used prior accessing the response.
-     *They internally contain a mutex and/or passive wait on signal.*/
-
-    /* Starting, stopping:*/
-
-    AT_STATUS amc_start(const char *pATchannel);
-    /* Start the Audio Modem Control library.
-     **pATchanne: full path to the char device driver
-     * pUnsolicitedATresponse of type char[AMC_MAX_RESP_LENGTH] or NULL.
-     *- Will hold the unsolicited answers.
-     *- Need to be accessed using 'amc_punsolicitedRespMutex'.
-     * amc_start() tasks:
-     *-start the AT library (open  handles to modem, start the reader thread)
-     *-send the default modem config ( call amc_sendDefaultConfig() )*/
-
     AT_STATUS amc_stop(void);
-    /* Stop the Audio Modem Control library:
-     *- Stop the AT library
-     *- Free used ressources*/
-
-
-    /* Configuring/activating hardware interfaces:*/
-
     AT_STATUS amc_enable(AMC_SOURCE source);
     AT_STATUS amc_disable(AMC_SOURCE source);
-
-    AT_STATUS amc_configure_dest(AMC_DEST dest, IFX_CLK clk, IFX_MASTER_SLAVE mode, IFX_I2S_SR sr, IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings, IFX_I2S_AUDIO_MODE audio, IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_DEST transducer_dest);
-    AT_STATUS amc_configure_source(AMC_SOURCE source, IFX_CLK clk, IFX_MASTER_SLAVE mode, IFX_I2S_SR sr, IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings, IFX_I2S_AUDIO_MODE audio, IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_SOURCE transducer_source);
-
-
-    /* Configuring/routing/enabling modem internal path & ports:*/
-
+    AT_STATUS amc_configure_dest(AMC_DEST dest, IFX_CLK clk, IFX_MASTER_SLAVE mode,
+            IFX_I2S_SR sr, IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings,
+            IFX_I2S_AUDIO_MODE audio, IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_DEST transducer_dest);
+    AT_STATUS amc_configure_source(AMC_SOURCE source, IFX_CLK clk, IFX_MASTER_SLAVE mode, IFX_I2S_SR sr,
+            IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings, IFX_I2S_AUDIO_MODE audio,
+            IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_SOURCE transducer_source);
     AT_STATUS amc_route(AMC_SOURCE source, ...);
     AT_STATUS amc_setGainsource(AMC_SOURCE source, int gainDDB);
     AT_STATUS amc_setGaindest(AMC_DEST dest, int gainDDB);
-
-    /* Other:*/
-
     AT_STATUS amc_setAcoustic(AMC_ACOUSTIC acousticProfile);
-    AT_STATUS check_tty();
-
-    /* Unblocking counter-parts:*/
-
-    AT_STATUS amc_configure_dest_UnBlocking(AMC_DEST dest, IFX_CLK clk, IFX_MASTER_SLAVE mode, IFX_I2S_SR sr, IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings, IFX_I2S_AUDIO_MODE audio, IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_DEST transducer_dest);
-    AT_STATUS amc_configure_source_UnBlocking(AMC_SOURCE source, IFX_CLK clk, IFX_MASTER_SLAVE mode, IFX_I2S_SR sr, IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings, IFX_I2S_AUDIO_MODE audio, IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_SOURCE transducer_source);
+    AT_STATUS amc_configure_dest_UnBlocking(AMC_DEST dest, IFX_CLK clk, IFX_MASTER_SLAVE mode,
+            IFX_I2S_SR sr, IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings,
+            IFX_I2S_AUDIO_MODE audio, IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_DEST transducer_dest);
+    AT_STATUS amc_configure_source_UnBlocking(AMC_SOURCE source, IFX_CLK clk, IFX_MASTER_SLAVE mode,
+            IFX_I2S_SR sr, IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings,
+            IFX_I2S_AUDIO_MODE audio, IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_SOURCE transducer_source);
     AT_STATUS amc_enableUnBlocking(AMC_SOURCE source);
     AT_STATUS amc_disableUnBlocking(AMC_SOURCE source);
     AT_STATUS amc_routeUnBlocking(AMC_SOURCE source,
@@ -262,16 +185,10 @@ extern "C"
     AT_STATUS amc_setGainsourceUnBlocking(AMC_SOURCE source, int gainIndex);
     AT_STATUS amc_setGaindestUnBlocking(AMC_DEST dest, int gainIndex);
     AT_STATUS amc_setAcousticUnBlocking(AMC_ACOUSTIC acousticProfile);
-
-    AT_STATUS amc_check();
-    /* waiting passively for the completion of unblocking commands:*/
     AT_STATUS amc_waitForCmdCompletion();
-
-
-    /*------------------------------------------------------------------------------
-     * Internal Modem Specific Implementation
-     *----------------------------------------------------------------------------*/
-
+    int amc_modem_conf_msic_dev(bool tty);
+    int amc_modem_conf_bt_dev();
+    int amc_off();
 #ifdef __cplusplus
 }
 #endif

@@ -26,12 +26,10 @@
 #include <utils/Log.h>
 #include <sys/time.h>
 
-#define MEDFIELDAUDIO "medfieldaudio"
-#define MELFIELDALSAIFX "IntelALSAIFX"
-
 typedef struct snd_pcm_voice {
     snd_pcm_ioplug_t io;
-    char *device;
+    char *card;
+    int device;
     int fd;
     snd_pcm_t *pcm_md_handle;
     int fragment_set;
@@ -488,7 +486,7 @@ static int voice_close(snd_pcm_ioplug_t *io)
     if(voice->pcm_md_handle)
         snd_pcm_close(voice->pcm_md_handle);
 
-    free(voice->device);
+    free(voice->card);
     free(voice);
 
     return 0;
@@ -545,22 +543,21 @@ static int voice_hw_constraint(snd_pcm_voice_t * pcm)
 static int voice_hw_open(snd_pcm_ioplug_t *io)
 {
     snd_pcm_voice_t *voice = io->private_data;
-    int i, tmp, err, card;
+    int i, tmp, err;
     unsigned int period_bytes;
     struct alsa_handle_t handle;
     char device[128];
 
-    card = snd_card_get_index(MELFIELDALSAIFX);
-    sprintf(device, "hw:%d,0", card);
+    sprintf(device, "hw:%d,%d", snd_card_get_index(voice->card), voice->device);
 
     err = snd_pcm_open(&voice->pcm_md_handle, device, io->stream, 0);
 
     if (err < 0) {
-        LOGE("Cannot open device %s, direction = %d \n", device, io->stream);
+        LOGE("Cannot open alsa device(%s): direction = %d \n", device, io->stream);
         return err;
     }
 
-    LOGD("open alsa (hw:1,0): dir = %d ~~~~~~~ \n", io->stream);
+    LOGD("open alsa device(%s): direction = %d ~~~~~~~ \n", device, io->stream);
 
     io->private_data = voice;
 
@@ -667,10 +664,10 @@ static const snd_pcm_ioplug_callback_t voice_capture_callback = {
 SND_PCM_PLUGIN_DEFINE_FUNC(voice)
 {
     snd_config_iterator_t i, next;
-    const char *device = NULL;
+    const char *card = NULL;
+    long device = -1;
     int err;
     snd_pcm_voice_t *voice;
-    int card;
 
     LOGD("%s in \n", __func__);
 
@@ -681,8 +678,15 @@ SND_PCM_PLUGIN_DEFINE_FUNC(voice)
             continue;
         if (strcmp(id, "comment") == 0 || strcmp(id, "type") == 0 || strcmp(id, "hint") == 0)
             continue;
+        if (strcmp(id, "card") == 0) {
+            if (snd_config_get_string(n, &card) < 0) {
+                LOGE("Invalid type for %s", id);
+                return -EINVAL;
+            }
+            continue;
+        }
         if (strcmp(id, "device") == 0) {
-            if (snd_config_get_string(n, &device) < 0) {
+            if (snd_config_get_integer(n, &device) < 0) {
                 LOGE("Invalid type for %s", id);
                 return -EINVAL;
             }
@@ -692,18 +696,26 @@ SND_PCM_PLUGIN_DEFINE_FUNC(voice)
         return -EINVAL;
     }
     voice = calloc(1, sizeof(*voice));
-    if (! voice) {
+    if (!voice) {
         LOGE("cannot allocate");
         return -ENOMEM;
     }
-    if(device == NULL) {
-        LOGW("no voice device name");
-        voice->device = NULL;
+    if (card == NULL) {
+        LOGE("no voice card name");
+        voice->card = NULL;
+        goto error;
     } else {
-        voice->device = strdup(device);
-        if(!voice->device) {
-            LOGW("voice->device name is NULL");
+        voice->card = strdup(card);
+        if (!voice->card) {
+            LOGE("voice->card name is NULL");
+            goto error;
         }
+    }
+    if (device < 0) {
+        LOGW("no voice device number, default = 0");
+        voice->device = 0;
+    } else {
+        voice->device = (int) device;
     }
 
     voice->io.version = SND_PCM_IOPLUG_VERSION;
@@ -730,10 +742,10 @@ SND_PCM_PLUGIN_DEFINE_FUNC(voice)
     return 0;
 
 error:
-    if (voice->pcm_md_handle )
+    if (voice->pcm_md_handle)
         snd_pcm_close(voice->pcm_md_handle);
-
-    free(voice->device);
+    if (voice->card)
+        free(voice->card);
     free(voice);
     return err;
 }

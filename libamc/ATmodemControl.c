@@ -29,6 +29,7 @@
 #include <errno.h>
 #include <cutils/sockets.h>
 #include <sys/socket.h>
+#include <termios.h>
 #include <semaphore.h>
 #include <utils/Log.h>
 #include <errno.h>
@@ -242,14 +243,14 @@ AT_STATUS at_start(const char *pATchannel)
     }
     if (modem_status == MODEM_UP) {
         LOGV("Starting ATmodemControl ...");
-        /* Open handle to modem device.*/
-        fdIn = open(pATchannel, O_WRONLY|O_NONBLOCK);
+        // Open handle to modem device.
+        fdIn = open(pATchannel, O_WRONLY|CLOCAL);
         if (fdIn < 0) {
             LOGW("Unable to open device for writing: %s, error: %s",
             pATchannel, strerror(errno));
             return AT_UNABLE_TO_OPEN_DEVICE;
         }
-        fdOut = open(pATchannel, O_RDONLY|O_NONBLOCK);
+        fdOut = open(pATchannel, O_RDONLY|CLOCAL);
         if (fdOut < 0) {
             LOGW("Unable to open device for reading: %s, error: %s",
             pATchannel, strerror(errno));

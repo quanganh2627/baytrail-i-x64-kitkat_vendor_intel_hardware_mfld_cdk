@@ -281,6 +281,8 @@ AT_STATUS at_stop()
     free(pFirstRunningATcmd);
     pFirstRunningATcmd = NULL;
     isInitialized = false;
+    free(pFirstRunningATcmd);
+    pFirstRunningATcmd = NULL;
     LOGD("*** ATmodemControl stopped.");
     return AT_OK;
 }

@@ -61,7 +61,16 @@ int amc_modem_conf_bt_dev()
 
 int amc_off()
 {
+    amc_disable(AMC_RADIO_RX);
     amc_disable(AMC_I2S1_RX);
     amc_disable(AMC_I2S2_RX);
+    return 0;
+}
+
+int amc_on()
+{
+    amc_enable(AMC_I2S2_RX);
+    amc_enable(AMC_I2S1_RX);
+    amc_enable(AMC_RADIO_RX);
     return 0;
 }

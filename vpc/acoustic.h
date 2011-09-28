@@ -27,28 +27,53 @@ class acoustic
 {
 public :
     static int process_init();
-    static int process_profile(uint32_t device);
+    static int process_profile(uint32_t device, uint32_t mode);
     static int process_wake();
     static int process_suspend();
 
 private :
     static int private_cache_profiles();
-    static int private_get_profile_id(uint32_t device);
+    static int private_get_profile_id(uint32_t device, uint32_t mode);
     static int private_wake(int fd);
     static int private_suspend(int fd);
     static int private_get_fw_label(int fd);
 
+    typedef enum {
+        DEVICE_EARPIECE              = 0,
+        DEVICE_SPEAKER               = 1,
+        DEVICE_WIRED_HEADSET         = 2,
+        DEVICE_WIRED_HEADPHONE       = 3,
+        DEVICE_BLUETOOTH_SCO         = 4,
+        DEVICE_BLUETOOTH_SCO_HEADSET = 5,
+        DEVICE_BLUETOOTH_SCO_CARKIT  = 6,
+        DEVICE_DEFAULT               = 7,
+    } device_id_t;
+
+    typedef enum {
+        PROFILE_EARPIECE         = 0,
+        PROFILE_SPEAKER          = 1,
+        PROFILE_WIRED_HEADSET    = 2,
+        PROFILE_BLUETOOTH_HSP    = 3,
+        PROFILE_BLUETOOTH_CARKIT = 4,
+        PROFILE_DEFAULT          = 5,
+    } profile_id_t;
+
+    typedef enum {
+        PROFILE_MODE_OFFSET_IN_CALL          = 0,
+        PROFILE_MODE_OFFSET_IN_COMMUNICATION = PROFILE_DEFAULT + 1,
+    } profile_mode_offset_t;
+
+    static const int      mode_number       = 2;
     static const uint32_t device_id_max     = 0x40;
-    static const int      device_number     = 6;
-    static const int      device_default    = device_number - 1;
+    static const int      profile_number    = mode_number * (PROFILE_DEFAULT + 1);
     static const int      fw_max_label_size = 100;
 
     static char           bid[80];
     static bool           is_a1026_init;
-    static int            profile_size[device_number];
-    static unsigned char *i2c_cmd_device[device_number];
+    static int            profile_size[profile_number];
+    static unsigned char *i2c_cmd_profile[profile_number];
 
-    static const char    *profile_name[device_number];
+    static const char    *profile_name[profile_number];
 };
 
 }

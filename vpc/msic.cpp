@@ -57,6 +57,28 @@ const char *msic::deviceNamePlayback(int mode, uint32_t device)
             break;
         };
     }
+    else if (mode == AudioSystem::MODE_IN_COMMUNICATION)
+    {
+        switch (device)
+        {
+        case AudioSystem::DEVICE_OUT_EARPIECE :
+            devName = "VoicePlayback_Earpiece_incommunication";
+            break;
+        case AudioSystem::DEVICE_OUT_SPEAKER :
+            devName = "VoicePlayback_Speaker_incommunication";
+            break;
+        case AudioSystem::DEVICE_OUT_WIRED_HEADSET :
+            devName = "VoicePlayback_Headset_incommunication";
+            break;
+        case AudioSystem::DEVICE_OUT_WIRED_HEADPHONE :
+            devName = "VoicePlayback_Headphone_incommunication";
+            break;
+        default :
+            LOGE("  Device not handled by MSIC Lib: %x\n", device);
+            devName = "";
+            break;
+        };
+    }
     else
     {
         LOGE("  Mode not handled by MSIC Lib: %x\n", device);
@@ -74,6 +96,11 @@ const char *msic::deviceNameCapture(int mode, uint32_t device)
     {
         // No distinction as alsa mixer control are set during playback path opening
         devName = "VoiceCapture_incall";
+    }
+    else if (mode == AudioSystem::MODE_IN_COMMUNICATION)
+    {
+        // No distinction as alsa mixer control are set during playback path opening
+        devName = "VoiceCapture_incommunication";
     }
     else
     {

@@ -53,6 +53,10 @@
 #define MODEM_DEFAULT_SAMPLE_RATE 48000 // in Hz
 #endif
 
+#ifndef WIDI_DEFAULT_SAMPLE_RATE
+#define WIDI_DEFAULT_SAMPLE_RATE 48000 // in Hz
+#endif
+
 int voice_activated = 0;
 namespace android
 {
@@ -543,6 +547,12 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
 
     if (mode == AudioSystem::MODE_IN_CALL) {
         handle->expectedSampleRate = MODEM_DEFAULT_SAMPLE_RATE;
+    }
+
+    if (devices & AudioSystem::DEVICE_OUT_WIDI_LOOPBACK) {
+        LOGV("widi loopback device");
+        handle->sampleRate = WIDI_DEFAULT_SAMPLE_RATE;
+        handle->expectedSampleRate = WIDI_DEFAULT_SAMPLE_RATE;
     }
 
     //This is a tricky way to change the sample rate.

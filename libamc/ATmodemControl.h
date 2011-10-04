@@ -1,6 +1,6 @@
 /*
  **
- ** Copyright 2010 Intel Corporation
+ ** Copyright 2011 Intel Corporation
  **
  ** Licensed under the Apache License, Version 2.0 (the "License");
  ** you may not use this file except in compliance with the License.
@@ -28,9 +28,11 @@ extern "C"
 #define true 1
 #define false 0
 #endif /* #ifndef __cplusplus*/
+
 #define AT_MAX_CMD_LENGTH 80
 #define AT_MAX_RESP_LENGTH 300
 #define AUDIO_AT_CHANNEL_NAME "/dev/gsmtty13"
+#define MAX_WAIT_ACK 2
 
 /* Return status:*/
 typedef enum {
@@ -44,16 +46,9 @@ typedef enum {
     AT_UNINITIALIZED,
 } AT_STATUS;
 
-extern pthread_mutex_t at_unsolicitedRespMutex;
 AT_STATUS at_start(const char *pATchannel);
-AT_STATUS at_stop(void);
-AT_STATUS at_askUnBlocking(const char *pATcmd, const char *pRespPrefix,
-            char *pATresp);
-AT_STATUS at_ask(const char *pATcmd, const char *pRespPrefix,
-            char *pATresp);
 AT_STATUS at_send(const char *pATcmd, const char *pRespPrefix);
-AT_STATUS at_waitForCmdCompletion();
-bool at_isCmdCompleted(AT_STATUS *pCmdStatus);
+
 #ifdef __cplusplus
 }
 #endif

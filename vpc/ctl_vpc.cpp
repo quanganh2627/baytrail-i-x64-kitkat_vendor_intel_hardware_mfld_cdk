@@ -376,8 +376,7 @@ static int vpc_mixing_enable(int mode, uint32_t device)
             {
                 // Enable voice call record
                 LOGD("voice in call recording");
-                amc_route(AMC_RADIO_RX, AMC_I2S1_TX, AMC_I2S2_TX, AMC_ENDD);
-                amc_route(AMC_I2S1_RX, AMC_RADIO_TX, AMC_I2S2_TX, AMC_ENDD);
+                amc_voice_record();
                 voice_call_recording = true;
             }
         }

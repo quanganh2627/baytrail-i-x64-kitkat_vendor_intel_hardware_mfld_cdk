@@ -1,6 +1,6 @@
 /*
  **
- ** Copyright 2010 Intel Corporation
+ ** Copyright 2011 Intel Corporation
  **
  ** Licensed under the Apache License, Version 2.0 (the "License");
  ** you may not use this file except in compliance with the License.
@@ -34,34 +34,45 @@
 #include <utils/Log.h>
 #include <errno.h>
 #include "ATmodemControl.h"
+#include "AudioModemControl.h"
 #include "stmd.h"
+
+/*---------------------------------------------------------------------------*/
+/* Definitions                                                               */
+/*---------------------------------------------------------------------------*/
 
 #define LOG_TAG "ATmodemControl"
 #define LOG_NDEBUG 1
 #define MAX_TIME_MODEM_STATUS_CHECK 60
 #define TRY_MAX 5
 
+/*---------------------------------------------------------------------------*/
+/* Global Variables                                                          */
+/*---------------------------------------------------------------------------*/
+
 typedef struct RunningATcmd {
     char prefix[AT_MAX_CMD_LENGTH];
     AT_STATUS cmdstatus;
-    struct RunningATcmd *pNext;
 } RunningATcmd;
 
 static sem_t sem;
-static RunningATcmd *pFirstRunningATcmd = NULL;
 static pthread_mutex_t GsmTtyMutex;
 static pthread_cond_t GsmTtyStatus;
-static unsigned int modem_status = MODEM_DOWN;
 static pthread_mutex_t at_dataMutex;
 static pthread_cond_t newRespReceived;
-
-static bool isInitialized;
-static bool GsmStatusInitialized = false;
 static pthread_t  threadId;
 static pthread_t  GsmTtyThreadId;
 
+static RunningATcmd *pCurrentRunningATcmd = NULL;
+static unsigned int modem_status = MODEM_DOWN;
+static bool GsmStatusInitialized = false;
+static bool isInitialized;
 static int fdIn;
 static int fdOut;
+
+/*---------------------------------------------------------------------------*/
+/* Function declaration                                                      */
+/*---------------------------------------------------------------------------*/
 
 static void removeCtrlChar(char *pDest, const char *pSrc);
 static AT_STATUS readATline(int fd,  char *pStr);
@@ -71,9 +82,13 @@ static AT_STATUS atSendBlocking( const char *pATcmd, const char *pRespPrefix,
 static void propagateATerror(AT_STATUS status);
 static void SetModemStatus(int data);
 
+/*---------------------------------------------------------------------------*/
+/* Modem Status thread                                                       */
+/*---------------------------------------------------------------------------*/
+
 static void *GsmTtyStatusThread(void *arg)
 {
-    int fd_socket, rts, data, ret, data_size;
+    int fd_socket, rts, data, data_size;
     fd_set fdSetTty;
 
     fd_socket = socket_local_client(SOCKET_NAME_MODEM_STATUS,
@@ -120,6 +135,10 @@ static void *GsmTtyStatusThread(void *arg)
     }
 }
 
+/*---------------------------------------------------------------------------*/
+/* Set modem Status                                                          */
+/*---------------------------------------------------------------------------*/
+
 static void SetModemStatus(int data)
 {
     if (data == MODEM_UP)
@@ -133,41 +152,41 @@ static void SetModemStatus(int data)
     pthread_mutex_unlock(&GsmTtyMutex);
 }
 
+/*---------------------------------------------------------------------------*/
+/* AT reader Thread                                                          */
+/*---------------------------------------------------------------------------*/
+
 static void *atReaderThread(void *arg)
 {
     char prefix[AT_MAX_CMD_LENGTH];
     char resp[AT_MAX_RESP_LENGTH];
     char strStatus[AT_MAX_RESP_LENGTH];
-    int *pIntDummy;
     AT_STATUS status;
     AT_STATUS readStatus;
-    RunningATcmd *pRunningATcmdCur = NULL;
 
     LOGD("*** AT Reader thread started");
-
     for (;;) {
         for (;;) {
         LOGV("... Waiting for new prefix to read ...");
         do {
-        readStatus = readATline(fdOut, prefix);
+            readStatus = readATline(fdOut, prefix);
             if (readStatus == AT_ERROR) {
                 propagateATerror(readStatus);
                 return 0;
             }
         } while (readStatus != AT_OK);
         pthread_mutex_lock(&at_dataMutex);
-        if (pFirstRunningATcmd != NULL) {
-            pRunningATcmdCur = pFirstRunningATcmd;
-            if (strpbrk(pRunningATcmdCur->prefix, prefix) != NULL) {
-                LOGV("Prefix OK %s ",pRunningATcmdCur->prefix);
+        if (pCurrentRunningATcmd != NULL) {
+            if (strpbrk(pCurrentRunningATcmd->prefix, prefix) != NULL) {
+                LOGV("Prefix OK %s ",pCurrentRunningATcmd->prefix);
                 pthread_mutex_unlock(&at_dataMutex);
                 break;
             }
             else
-                LOGV("Prefix NOK %s",pRunningATcmdCur->prefix);
+                LOGV("Prefix NOK %s",pCurrentRunningATcmd->prefix);
         }
         else
-            LOGE(" <=> %s(Unsol Resp)", prefix);
+            LOGD(" <=> %s(Unsol Resp)", prefix);
         pthread_mutex_unlock(&at_dataMutex);
     }
     LOGV("... Reading response and/or status ...");
@@ -187,7 +206,7 @@ static void *atReaderThread(void *arg)
             if (status == AT_ERROR) {
                 LOGE("AT_ERROR");
                 pthread_mutex_lock(&at_dataMutex);
-                pRunningATcmdCur->cmdstatus = status;
+                pCurrentRunningATcmd->cmdstatus = status;
                 pthread_cond_broadcast(&newRespReceived);
                 pthread_mutex_unlock(&at_dataMutex);
             }
@@ -199,7 +218,7 @@ static void *atReaderThread(void *arg)
             if (status == AT_ERROR) {
                 LOGE("AT_ERROR");
                 pthread_mutex_lock(&at_dataMutex);
-                pRunningATcmdCur->cmdstatus = status;
+                pCurrentRunningATcmd->cmdstatus = status;
                 pthread_cond_broadcast(&newRespReceived);
                 pthread_mutex_unlock(&at_dataMutex);
             }
@@ -209,13 +228,16 @@ static void *atReaderThread(void *arg)
         if (status != AT_ERROR) {
             LOGE("AT_OK");
             pthread_mutex_lock(&at_dataMutex);
-            pRunningATcmdCur->cmdstatus = status;
+            pCurrentRunningATcmd->cmdstatus = status;
             pthread_cond_broadcast(&newRespReceived);
             pthread_mutex_unlock(&at_dataMutex);
         }
     }
     return(0);
 }
+/*---------------------------------------------------------------------------*/
+/* Initialization                                                            */
+/*---------------------------------------------------------------------------*/
 
 AT_STATUS at_start(const char *pATchannel)
 {
@@ -231,15 +253,14 @@ AT_STATUS at_start(const char *pATchannel)
     if (!GsmStatusInitialized) {
         pthread_mutex_init(&GsmTtyMutex, NULL);
         pthread_cond_init(&GsmTtyStatus, NULL);
-
-    /*  check gsmtty status */
-        if (pthread_create(&GsmTtyThreadId, NULL, GsmTtyStatusThread, NULL) != 0) {
-            LOGW("Unable to start thread Status TTY: error:");
-            return AT_UNABLE_TO_CREATE_THREAD;
-        }
-        pthread_mutex_lock(&GsmTtyMutex);
-        pthread_cond_timedwait(&GsmTtyStatus, &GsmTtyMutex, &to);
-        pthread_mutex_unlock(&GsmTtyMutex);
+    /*check gsmtty status*/
+    if (pthread_create(&GsmTtyThreadId, NULL, GsmTtyStatusThread, NULL) != 0) {
+        LOGW("Unable to start thread Status TTY: error:");
+        return AT_UNABLE_TO_CREATE_THREAD;
+    }
+    pthread_mutex_lock(&GsmTtyMutex);
+    pthread_cond_timedwait(&GsmTtyStatus, &GsmTtyMutex, &to);
+    pthread_mutex_unlock(&GsmTtyMutex);
     }
     if (modem_status == MODEM_UP) {
         LOGV("Starting ATmodemControl ...");
@@ -267,33 +288,40 @@ AT_STATUS at_start(const char *pATchannel)
         }
         isInitialized = true;
         LOGD("*** ATmodemControl started");
+        amc_dest_for_source();
+        LOGV("After dest for source init matrix");
         return AT_OK;
     }
     else
         return AT_UNABLE_TO_OPEN_DEVICE;
 }
 
+/*---------------------------------------------------------------------------*/
+/* LibAmc Deconfigure                                                        */
+/*---------------------------------------------------------------------------*/
 
 AT_STATUS at_stop()
 {
     LOGD("Stopping ATmodemControl ...");
     close(fdIn);
     close(fdOut);
-    free(pFirstRunningATcmd);
-    pFirstRunningATcmd = NULL;
+    free(pCurrentRunningATcmd);
+    pCurrentRunningATcmd = NULL;
     isInitialized = false;
-    free(pFirstRunningATcmd);
-    pFirstRunningATcmd = NULL;
     LOGD("*** ATmodemControl stopped.");
     return AT_OK;
 }
+
+/*---------------------------------------------------------------------------*/
+/* Write AT Cmd, check Status Running                                        */
+/*---------------------------------------------------------------------------*/
 
 AT_STATUS at_askUnBlocking(const char *pATcmd, const char *pRespPrefix,
            char *pATresp)
 {
     assert(pATcmd != NULL);
     assert(pRespPrefix != NULL);
-    RunningATcmd *pNewCmd, *pTempList;
+    RunningATcmd *pNewCmd;
     AT_STATUS cmdStatus;
     /* Allow default initialization: */
     if (!isInitialized) {
@@ -301,7 +329,6 @@ AT_STATUS at_askUnBlocking(const char *pATcmd, const char *pRespPrefix,
         LOGW("AT Modem Control not initialized.");
         return AT_UNINITIALIZED;
     }
-    /* Log new cmd for reader thread: add it to the running list: */
     pNewCmd = (RunningATcmd  *) malloc(sizeof(RunningATcmd));
     if(!pNewCmd) {
         LOGW("malloc pNewCmd error");
@@ -310,14 +337,14 @@ AT_STATUS at_askUnBlocking(const char *pATcmd, const char *pRespPrefix,
     pthread_mutex_lock(&at_dataMutex);
     cmdStatus = writeATline(fdIn, pATcmd);
     if (cmdStatus == AT_WRITE_ERROR) {
-	pthread_mutex_unlock(&at_dataMutex);
+        free(pNewCmd);
+        pthread_mutex_unlock(&at_dataMutex);
         return AT_ERROR;
     }
     removeCtrlChar(pNewCmd->prefix, pRespPrefix);
-    pNewCmd->pNext = NULL;
     pNewCmd->cmdstatus = cmdStatus;
-    if (pFirstRunningATcmd == NULL) {
-        pFirstRunningATcmd = pNewCmd;
+    if (pCurrentRunningATcmd == NULL) {
+        pCurrentRunningATcmd = pNewCmd;
         LOGD("AT RUNNING %s",pNewCmd->prefix);
     /* Send Commend */
         if (cmdStatus != AT_RUNNING)
@@ -326,11 +353,15 @@ AT_STATUS at_askUnBlocking(const char *pATcmd, const char *pRespPrefix,
         return cmdStatus;
     }
     else {
+        free(pNewCmd);
         pthread_mutex_unlock(&at_dataMutex);
         return AT_ERROR;
     }
 }
 
+/*---------------------------------------------------------------------------*/
+/* Send AT Cmd                                                               */
+/*---------------------------------------------------------------------------*/
 
 AT_STATUS at_send(const char *pATcmd, const char *pRespPrefix)
 {
@@ -357,48 +388,40 @@ AT_STATUS at_send(const char *pATcmd, const char *pRespPrefix)
         return AT_WRITE_ERROR;
 }
 
+/*---------------------------------------------------------------------------*/
+/* Acknoledge Waiting                                                        */
+/*---------------------------------------------------------------------------*/
+
 AT_STATUS at_waitForCmdCompletion()
 {
-    RunningATcmd *pNewCmd, *pNewCmd_temp, *pRunningATcmdCur, *pPreviousATcmd;
     struct timespec to;
     int try = 0;
-    to.tv_sec = time(NULL) + 2;
+    to.tv_sec = time(NULL) + MAX_WAIT_ACK;
     to.tv_nsec = 0;
-    pthread_mutex_lock(&at_dataMutex);
 
-    if (pFirstRunningATcmd->pNext == NULL) {
-        pNewCmd = pFirstRunningATcmd;
-        LOGV("Broadcast enter for at cmd%s ",pNewCmd->prefix);
-        while (pNewCmd->cmdstatus == AT_RUNNING  && try < 5) {
-            pthread_cond_timedwait(&newRespReceived, &at_dataMutex, &to);
-            LOGV("Broadcast exit for %s",pNewCmd->prefix);
-            if (pNewCmd->cmdstatus == AT_OK) {
-                LOGV("Release AT CMD %s", pNewCmd->prefix);
-                pNewCmd_temp = pFirstRunningATcmd->pNext;
-                free(pFirstRunningATcmd);
-                pFirstRunningATcmd = pNewCmd_temp;
-            }
-            else if (pNewCmd->cmdstatus == AT_ERROR) {
-                pRunningATcmdCur = pFirstRunningATcmd;
-                while (pRunningATcmdCur->pNext != NULL) {
-                    pPreviousATcmd = pRunningATcmdCur;
-                    pRunningATcmdCur = pRunningATcmdCur->pNext;
-                    free(pPreviousATcmd);
-                }
-                pthread_mutex_unlock(&at_dataMutex);
-                return AT_ERROR;
-            }
-            LOGV("Broadcast exit for %s",pNewCmd->prefix);
-            try++;
+    pthread_mutex_lock(&at_dataMutex);
+    LOGV("Broadcast enter for at cmd%s ",pNewCmd->prefix);
+    while (pCurrentRunningATcmd->cmdstatus == AT_RUNNING  && try < TRY_MAX) {
+        pthread_cond_timedwait(&newRespReceived, &at_dataMutex, &to);
+        LOGV("Broadcast exit for %s",pNewCmd->prefix);
+        if (pCurrentRunningATcmd->cmdstatus == AT_OK) {
+            LOGV("Release AT CMD %s", pNewCmd->prefix);
+            free(pCurrentRunningATcmd);
+            pCurrentRunningATcmd = NULL;
+            break;
         }
-    }
-    else {
-        pthread_mutex_unlock(&at_dataMutex);
-        return AT_ERROR;
+        else if (pCurrentRunningATcmd->cmdstatus == AT_ERROR) {
+            free(pCurrentRunningATcmd);
+            pCurrentRunningATcmd = NULL;
+            pthread_mutex_unlock(&at_dataMutex);
+            return AT_ERROR;
+        }
+        LOGV("Broadcast exit for %s",pCurrentRunningATcmd->prefix);
+        try++;
     }
     LOGV("wait for completion end at cmd handled");
     pthread_mutex_unlock(&at_dataMutex);
-    if (try == 5)
+    if (try == TRY_MAX)
         return AT_READ_ERROR;
     return AT_OK;
 }
@@ -414,6 +437,9 @@ void removeCtrlChar(char *pDest, const char *pSrc)
     pDest[cur] = '\0';
 }
 
+/*---------------------------------------------------------------------------*/
+/* Read for Ack                                                              */
+/*---------------------------------------------------------------------------*/
 
 AT_STATUS readATline(int fd, char *pLine)
 {
@@ -424,8 +450,6 @@ AT_STATUS readATline(int fd, char *pLine)
     bool isLeadingCntrlChar = true;
     ssize_t count;
     int rts;
-    char *p_read = NULL;
-    char *pEndOffLine = NULL;
     fd_set fdSet;
 
     FD_ZERO(&fdSet);
@@ -481,6 +505,10 @@ AT_STATUS readATline(int fd, char *pLine)
     }
 }
 
+/*---------------------------------------------------------------------------*/
+/* Write pATcmd string on gsmtty13                                           */
+/*---------------------------------------------------------------------------*/
+
 AT_STATUS writeATline(int fd, const char *pATcmd)
 {
     int len, written, rts;
@@ -531,20 +559,19 @@ void propagateATerror(AT_STATUS status)
 {
     pthread_mutex_lock(&at_dataMutex);
     LOGD("Propagate AT error");
-    RunningATcmd *pRunningATcmdCur;
-    pRunningATcmdCur = pFirstRunningATcmd;
-    if (pRunningATcmdCur == NULL) {
+    if (pCurrentRunningATcmd == NULL) {
         pthread_mutex_unlock(&at_dataMutex);
         return 0;
     }
-    while (pRunningATcmdCur->pNext != NULL) {
-        pRunningATcmdCur->cmdstatus = AT_ERROR;
-        pRunningATcmdCur = pRunningATcmdCur->pNext;
-    }
+    pCurrentRunningATcmd->cmdstatus = AT_ERROR;
     pthread_cond_broadcast(&newRespReceived);
     pthread_mutex_unlock(&at_dataMutex);
     LOGD("Propagate AT error end");
 }
+
+/*---------------------------------------------------------------------------*/
+/* Send Blocking for ack                                                     */
+/*---------------------------------------------------------------------------*/
 
 AT_STATUS atSendBlocking(const char *pATcmd, const char *pRespPrefix,
            char *pATresp)

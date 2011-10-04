@@ -23,40 +23,14 @@
 #include <stdio.h>
 #include <string.h>
 #include "ATmodemControl.h"
-#define LOG_TAG "AudiomodemControlIFX"
+#include <stdarg.h>
 #include <utils/Log.h>
-#define GET_USE_CASE_SRC  "AT+XDRV=40,0,"
-#define GET_USE_CASE_DEST  "AT+XDRV=40,1,"
-#define EN_SRC  "AT+XDRV=40,2,%i"
-#define EN_SRC_RESP "+XDRV: 40,2,"
-#define DIS_SRC "AT+XDRV=40,3,%i"
-#define DIS_SRC_RESP "+XDRV: 40,3,"
-#define SET_SRC_CONF "AT+XDRV=40,4,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i"
-#define SET_SRC_CONF_RESP "+XDRV: 40,4,"
-#define SET_DEST_CONF "AT+XDRV=40,5,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i"
-#define SET_DEST_CONF_RESP "+XDRV: 40,5,"
-#define SET_RX_SRC_CONF "AT+XDRV=40,4,%i,%i"
-#define SET_RX_SRC_CONF_RESP "+XDRV: 40,4,"
-#define SET_TX_DEST_CONF "AT+XDRV=40,5,%i,%i"
-#define SET_TX_DEST_CONF_RESP "+XDRV: 40,5,"
-#define SET_SRC_DEST "AT+XDRV=40,6,%i"
-#define SET_SRC_DEST_TEMP ",%i"
-#define SET_SRC_DEST_RESP "+XDRV: 40,6,"
-#define SET_SRC_VOL "AT+XDRV=40,7,%i,%i"
-#define SET_SRC_VOL_RESP "+XDRV: 40,7,"
-#define SET_DEST_VOL "AT+XDRV=40,8,%i,%i"
-#define SET_DEST_VOL_RESP "+XDRV: 40,8,"
-#define MODIFY_HF "AT+XDRV=40,11,%i,%i,%i"
-#define MODIFY_HF_RESP "+XDRV: 40,11,"
-#define SET_RTD "AT+XDRV = 40,12,"
-#define AT "AT+COPS?"
-#define AT_RESP "+COPS:"
 
+#define LOG_TAG "AudiomodemControlIFX"
 
-AT_STATUS amc_enableUnBlocking(AMC_SOURCE source)
+AT_STATUS amc_enable(AMC_SOURCE source)
 {
     char cmdStr[AT_MAX_CMD_LENGTH];
-    char partStr[AT_MAX_CMD_LENGTH];
     AT_STATUS rts;
     int i = 0;
     bool isFirstRoute = true;
@@ -67,10 +41,9 @@ AT_STATUS amc_enableUnBlocking(AMC_SOURCE source)
     rts = at_send(cmdStr, EN_SRC_RESP);
     return rts;
 }
-AT_STATUS amc_disableUnBlocking(AMC_SOURCE source)
+AT_STATUS amc_disable(AMC_SOURCE source)
 {
     char cmdStr[AT_MAX_CMD_LENGTH];
-    char partStr[AT_MAX_CMD_LENGTH];
     AT_STATUS rts;
     int i = 0;
     bool isFirstRoute = true;
@@ -82,10 +55,9 @@ AT_STATUS amc_disableUnBlocking(AMC_SOURCE source)
     return rts;
 }
 
-AT_STATUS amc_configure_dest_UnBlocking(AMC_DEST dest, IFX_CLK clk, IFX_MASTER_SLAVE mode, IFX_I2S_SR sr, IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings, IFX_I2S_AUDIO_MODE audio, IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_DEST transducer_dest)
+AT_STATUS amc_configure_dest(AMC_DEST dest, IFX_CLK clk, IFX_MASTER_SLAVE mode, IFX_I2S_SR sr, IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings, IFX_I2S_AUDIO_MODE audio, IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_DEST transducer_dest)
 {
     char cmdStr[AT_MAX_CMD_LENGTH];
-    char partStr[AT_MAX_CMD_LENGTH];
     AT_STATUS rts;
     int i = 0;
     bool isFirstRoute = true;
@@ -98,10 +70,9 @@ AT_STATUS amc_configure_dest_UnBlocking(AMC_DEST dest, IFX_CLK clk, IFX_MASTER_S
 }
 
 
-AT_STATUS amc_configure_source_UnBlocking(AMC_SOURCE source, IFX_CLK clk, IFX_MASTER_SLAVE mode, IFX_I2S_SR sr, IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings, IFX_I2S_AUDIO_MODE audio, IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_SOURCE transducer_source)
+AT_STATUS amc_configure_source(AMC_SOURCE source, IFX_CLK clk, IFX_MASTER_SLAVE mode, IFX_I2S_SR sr, IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings, IFX_I2S_AUDIO_MODE audio, IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_SOURCE transducer_source)
 {
     char cmdStr[AT_MAX_CMD_LENGTH];
-    char partStr[AT_MAX_CMD_LENGTH];
     AT_STATUS rts;
     int i = 0;
     bool isFirstRoute = true;
@@ -114,29 +85,30 @@ AT_STATUS amc_configure_source_UnBlocking(AMC_SOURCE source, IFX_CLK clk, IFX_MA
     return rts;
 }
 
-AT_STATUS amc_routeUnBlocking(AMC_SOURCE source,
-                               int dest[], int nbrsrc)
+AT_STATUS amc_route(destForSourceRoute *destForSource)
 {
     char cmdStr[AT_MAX_CMD_LENGTH];
     char cmdStrtemp[AT_MAX_CMD_LENGTH];
-    char partStr[AT_MAX_CMD_LENGTH];
-    int j=0;
+    int j = 0, nbrdest = 0;
     AT_STATUS rts;
-    int try = 0;
+    if(destForSource == NULL)
+        return AT_ERROR;
+    nbrdest = destForSource->nbrDest;
+    sprintf(cmdStr, SET_SRC_DEST, destForSource->source);
 
-    sprintf(cmdStr, SET_SRC_DEST, source);
-    LOGD("ROUTE CMDSTR = %s",cmdStr);
-    for (j=0; j<nbrsrc; j++) {
-        sprintf(cmdStrtemp,SET_SRC_DEST_TEMP, dest[j]);
-        strcat(cmdStr,cmdStrtemp);
-        LOGD("ROUTE ARG UNBLOCKING = %s",cmdStrtemp);
-    }
+    do {
+        sprintf(cmdStrtemp, SET_SRC_DEST_TEMP, destForSource->dests[j++]);
+        strcat(cmdStr, cmdStrtemp);
+        LOGV("ROUTE ARG = %s", cmdStrtemp);
+    } while(--nbrdest > 0);
+
+    LOGV("ROUTE CMDSTR = %s",cmdStr);
     rts = at_send(cmdStr, SET_SRC_DEST_RESP);
     return rts;
 }
 
 
-AT_STATUS amc_setGainsourceUnBlocking(
+AT_STATUS amc_setGainsource(
     AMC_SOURCE source, int gainDDB)
 {
     int gainIndex;
@@ -148,7 +120,7 @@ AT_STATUS amc_setGainsourceUnBlocking(
     return rts;
 }
 
-AT_STATUS amc_setGaindestUnBlocking(
+AT_STATUS amc_setGaindest(
     AMC_DEST dest, int gainDDB)
 {
     int gainIndex;
@@ -161,7 +133,7 @@ AT_STATUS amc_setGaindestUnBlocking(
 }
 
 
-AT_STATUS amc_setAcousticUnBlocking(
+AT_STATUS amc_setAcoustic(
     AMC_ACOUSTIC acousticProfile)
 {
     char cmdStr[AT_MAX_CMD_LENGTH];

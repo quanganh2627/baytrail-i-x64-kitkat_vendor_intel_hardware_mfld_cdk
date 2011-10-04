@@ -6,7 +6,6 @@ LOCAL_CFLAGS := \
 
 LOCAL_SRC_FILES := \
         ATmodemControl.c \
-        AudioModemControl_base.c \
         AudioModemControl_IFX_XMM6160.c \
         AmcConfDev.c
 

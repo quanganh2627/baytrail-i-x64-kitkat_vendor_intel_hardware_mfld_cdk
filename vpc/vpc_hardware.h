@@ -26,7 +26,7 @@ extern "C"
 #endif
 
 typedef enum { VPC_ROUTE_OPEN, VPC_ROUTE_CLOSE } vpc_route_t;
-typedef enum { VPC_TTY_OFF, VPC_TTY_ON } vpc_tty_t;
+typedef enum { VPC_TTY_OFF, VPC_TTY_FULL, VPC_TTY_VCO, VPC_TTY_HCO } vpc_tty_t;
 typedef enum { VPC_BT_NREC_OFF, VPC_BT_NREC_ON } vpc_bt_nrec_t;
 
 /* VPC module struct */

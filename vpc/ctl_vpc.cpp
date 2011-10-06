@@ -60,17 +60,18 @@ static int vpc_bt_nrec(vpc_bt_nrec_t);
 
 Mutex vpc_lock;
 
-static int      prev_mode            = AudioSystem::MODE_NORMAL;
-static int      current_mode         = AudioSystem::MODE_NORMAL;
-static uint32_t prev_device          = 0x0000;
-static uint32_t current_device       = 0x0000;
-static uint32_t device_out_defaut    = 0x8000;
-static bool     at_thread_init       = false;
-static bool     call_established     = false;
-static bool     tty_call             = false;
-static bool     mixing_enable        = false;
-static bool     voice_call_recording = false;
-static bool     bt_acoustic          = true;
+static int       prev_mode            = AudioSystem::MODE_NORMAL;
+static int       current_mode         = AudioSystem::MODE_NORMAL;
+static uint32_t  prev_device          = 0x0000;
+static uint32_t  current_device       = 0x0000;
+static uint32_t  device_out_defaut    = 0x8000;
+static bool      at_thread_init       = false;
+static bool      call_established     = false;
+static bool      beg_call             = false;
+static vpc_tty_t tty_call             = VPC_TTY_OFF;
+static bool      mixing_enable        = false;
+static bool      voice_call_recording = false;
+static bool      bt_acoustic          = true;
 
 
 /*---------------------------------------------------------------------------*/
@@ -174,9 +175,10 @@ static int vpc_route(vpc_route_t route)
                     msic::pcm_disable();
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
-                    device_profile = (tty_call == true) ? device_out_defaut : current_device;
-                    ret = acoustic::process_profile(device_profile, current_mode);
-                    if (ret) goto return_error;
+                /* Audience configurations for each device */
+                device_profile = (tty_call == VPC_TTY_OFF) ? current_device : device_out_defaut;
+                ret = acoustic::process_profile(device_profile, current_mode);
+                if (ret) goto return_error;
 #endif
 
                     if ((prev_mode != AudioSystem::MODE_IN_CALL) || (prev_device & DEVICE_OUT_BLUETOOTH_SCO_ALL) || (!call_established))
@@ -401,17 +403,9 @@ static int vpc_mixing_enable(int mode, uint32_t device)
 static int vpc_tty(vpc_tty_t tty)
 {
     vpc_lock.lock();
-
-    if (tty == VPC_TTY_ON) {
-        LOGD("TTY enabled\n");
-        tty_call = true;
-    }
-    else {
-        LOGD("TTY disabled\n");
-        tty_call = false;
-    }
-
+    tty_call = tty;
     vpc_lock.unlock();
+
     return NO_ERROR;
 }
 

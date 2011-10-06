@@ -25,6 +25,7 @@ extern "C"
 
 #include "ATmodemControl.h"
 #include <pthread.h>
+#include "vpc_hardware.h"
 #define MODEM_IFX_XMM6160
 #define AMC_MAX_CMD_LENGTH   AT_MAX_CMD_LENGTH
 #define AMC_MAX_RESP_LENGTH  AT_MAX_RESP_LENGTH
@@ -186,7 +187,7 @@ extern "C"
     AT_STATUS amc_setGaindestUnBlocking(AMC_DEST dest, int gainIndex);
     AT_STATUS amc_setAcousticUnBlocking(AMC_ACOUSTIC acousticProfile);
     AT_STATUS amc_waitForCmdCompletion();
-    int amc_modem_conf_msic_dev(bool tty);
+    int amc_modem_conf_msic_dev(vpc_tty_t tty);
     int amc_modem_conf_bt_dev();
     int amc_off();
     int amc_on();

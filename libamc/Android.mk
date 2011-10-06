@@ -13,6 +13,7 @@ LOCAL_SRC_FILES := \
 LOCAL_C_INCLUDES += \
         hardware/intel/rapid_ril/CORE \
         system/core/include/cutils \
+        hardware/intel/mfld_cdk/vpc \
         hardware/intel/IFX-modem
 
 LOCAL_SHARED_LIBRARIES := libcutils

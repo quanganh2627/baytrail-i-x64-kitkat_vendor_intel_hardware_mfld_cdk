@@ -21,22 +21,36 @@
 #include <utils/Log.h>
 #include <stdarg.h>
 
-int amc_modem_conf_msic_dev(bool tty)
+int amc_modem_conf_msic_dev(vpc_tty_t tty)
 {
-    if (tty == false)
+    IFX_TRANSDUCER_MODE_SOURCE modeTtySource;
+    IFX_TRANSDUCER_MODE_DEST modeTtyDest;
+
+    switch (tty)
     {
-        amc_configure_source(AMC_I2S1_RX, IFX_CLK1, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
-        amc_configure_source(AMC_I2S2_RX, IFX_CLK0, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
-        amc_configure_dest(AMC_I2S1_TX, IFX_CLK1, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_D);
-        amc_configure_dest(AMC_I2S2_TX, IFX_CLK0, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_D);
+    case VPC_TTY_OFF:
+        modeTtySource = IFX_USER_DEFINED_15_S;
+        modeTtyDest = IFX_USER_DEFINED_15_D;
+        break;
+    case VPC_TTY_FULL:
+        modeTtySource = IFX_TTY_S;
+        modeTtyDest = IFX_TTY_D;
+        break;
+    case VPC_TTY_VCO:
+        modeTtySource = IFX_USER_DEFINED_15_S;
+        modeTtyDest = IFX_TTY_D;
+        break;
+    case VPC_TTY_HCO:
+        modeTtySource = IFX_TTY_S;
+        modeTtyDest = IFX_USER_DEFINED_15_S;
+        break;
+    default:
+        break;
     }
-    else if (tty == true)
-    {
-        amc_configure_source(AMC_I2S1_RX, IFX_CLK1, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_TTY_S);
-        amc_configure_source(AMC_I2S2_RX, IFX_CLK0, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_TTY_S);
-        amc_configure_dest(AMC_I2S1_TX, IFX_CLK1, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_TTY_D);
-        amc_configure_dest(AMC_I2S2_TX, IFX_CLK0, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_TTY_D);
-    }
+    amc_configure_source(AMC_I2S1_RX, IFX_CLK1, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, modeTtySource);
+    amc_configure_dest(AMC_I2S1_TX, IFX_CLK1, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, modeTtyDest);
+    amc_configure_source(AMC_I2S2_RX, IFX_CLK0, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
+    amc_configure_dest(AMC_I2S2_TX, IFX_CLK0, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
     amc_route(AMC_RADIO_RX, AMC_I2S1_TX, AMC_ENDD);
     amc_route(AMC_I2S1_RX, AMC_RADIO_TX, AMC_ENDD);
     amc_route(AMC_I2S2_RX, AMC_I2S1_TX, AMC_ENDD);

@@ -551,7 +551,6 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
 
     if (devices & AudioSystem::DEVICE_OUT_WIDI_LOOPBACK) {
         LOGV("widi loopback device");
-        handle->sampleRate = WIDI_DEFAULT_SAMPLE_RATE;
         handle->expectedSampleRate = WIDI_DEFAULT_SAMPLE_RATE;
     }
 

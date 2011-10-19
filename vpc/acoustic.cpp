@@ -22,7 +22,6 @@
 #include <utils/threads.h>
 #include <fcntl.h>
 #include <linux/a1026.h>
-#include <media/AudioSystem.h>
 
 #include "acoustic.h"
 
@@ -34,23 +33,17 @@ namespace android
 Mutex a1026_lock;
 
 bool           acoustic::is_a1026_init = false;
-int            acoustic::profile_size[profile_number];
-unsigned char *acoustic::i2c_cmd_profile[profile_number] = { NULL, };
+int            acoustic::profile_size[device_number];
+unsigned char *acoustic::i2c_cmd_device[device_number] = { NULL, };
 char           acoustic::bid[80] = "";
 
-const char *acoustic::profile_name[profile_number] = {
-    "close_talk.bin",              // EP
-    "speaker_far_talk.bin",        // IHF
-    "headset_close_talk.bin",      // Headset
-    "bt_hsp.bin",                  // BT HSP
-    "bt_carkit.bin",               // BT Car Kit
-    "no_acoustic.bin",             // All other devices
-    "close_talk_voip.bin",         // EP VOIP
-    "speaker_far_talk_voip.bin",   // IHF VOIP
-    "headset_close_talk_voip.bin", // Headset VOIP
-    "bt_hsp_voip.bin",             // BT HSP VOIP
-    "bt_carkit_voip.bin",          // BT Car Kit VOIP
-    "no_acoustic_voip.bin"         // All other devices VOIP
+const char *acoustic::profile_name[device_number] = {
+    "close_talk.bin",         // EP
+    "speaker_far_talk.bin",   // IHF
+    "headset_close_talk.bin", // Headset
+    "bt_hsp.bin",             // BT HSP
+    "bt_carkit.bin",          // BT Car Kit
+    "no_acoustic.bin"         // All other devices
 };
 
 
@@ -61,7 +54,7 @@ int acoustic::private_cache_profiles()
 {
     LOGD("Initialize Audience A1026 profiles cache\n");
 
-    for (int i = 0; i < profile_number; i++)
+    for (int i = 0; i < device_number; i++)
     {
         char profile_path[80] = "/system/etc/phonecall_";
 
@@ -83,20 +76,20 @@ int acoustic::private_cache_profiles()
 
         LOGD("Profile %d : size = %d, \t path = %s", i, profile_size[i], profile_path);
 
-        if (i2c_cmd_profile[i] != NULL)
-            free(i2c_cmd_profile[i]);
+        if (i2c_cmd_device[i] != NULL)
+            free(i2c_cmd_device[i]);
 
-        i2c_cmd_profile[i] = (unsigned char*)malloc(sizeof(unsigned char) * profile_size[i]);
-        if (i2c_cmd_profile[i] == NULL) {
+        i2c_cmd_device[i] = (unsigned char*)malloc(sizeof(unsigned char) * profile_size[i]);
+        if (i2c_cmd_device[i] == NULL) {
             LOGE("Could not allocate memory\n");
             fclose(fd);
             goto return_error;
         }
         else
-            memset(i2c_cmd_profile[i], '\0', profile_size[i]);
+            memset(i2c_cmd_device[i], '\0', profile_size[i]);
 
         int rc;
-        rc = fread(&i2c_cmd_profile[i][0], 1, profile_size[i], fd);
+        rc = fread(&i2c_cmd_device[i][0], 1, profile_size[i], fd);
         if (rc < profile_size[i]) {
             LOGE("Error while reading config file\n");
             fclose(fd);
@@ -117,67 +110,47 @@ return_error:
 /*---------------------------------------------------------------------------*/
 /* Get profile ID to access cache                                            */
 /*---------------------------------------------------------------------------*/
-int acoustic::private_get_profile_id(uint32_t device, uint32_t mode)
+int acoustic::private_get_profile_id(uint32_t device)
 {
-    int device_id = 0;
-    int profile_id = PROFILE_DEFAULT;
-
-    if (device <= device_id_max) {
+    // If device above all the handeld device then put no_acoustic
+    int dev_id = 0;
+    if (device > device_id_max)
+        dev_id = device_default;
+    else {
         uint32_t local_device = device;
         while (local_device != 1) {
             local_device = local_device / 2;
-            device_id++;
+            dev_id++;
         }
 
-        // Associate a profile to the detected device
-        switch(device_id)
+        // Exceptions
+        // Same bin file for Headphone/Headset and BT/SCO/HEADSET/CARKIT
+        switch(dev_id)
         {
-        case DEVICE_EARPIECE :
-            LOGD("Earpiece device detected, => force use of Earpiece device profile\n");
-            profile_id = PROFILE_EARPIECE;
-            break;
-        case DEVICE_SPEAKER :
-            LOGD("Speaker device detected, => force use of Speaker device profile\n");
-            profile_id = PROFILE_SPEAKER;
-            break;
-        case DEVICE_WIRED_HEADSET :
-            LOGD("Headset device detected, => force use of Headset device profile\n");
-            profile_id = PROFILE_WIRED_HEADSET;
-            break;
-        case DEVICE_WIRED_HEADPHONE :
+        case 3 :
             LOGD("Headphone device detected, => force use of Headset device profile\n");
-            profile_id = PROFILE_WIRED_HEADSET;
+            dev_id = 2;
             break;
-        case DEVICE_BLUETOOTH_SCO :
+        case 4 :
             LOGD("BT SCO device detected, => force use of BT HSP device profile\n");
-            profile_id = PROFILE_BLUETOOTH_HSP;
+            dev_id = 3;
             break;
-        case DEVICE_BLUETOOTH_SCO_HEADSET :
-            LOGD("BT SCO Headset device detected, => force use of BT HSP device profile\n");
-            profile_id = PROFILE_BLUETOOTH_HSP;
-            break;
-        case DEVICE_BLUETOOTH_SCO_CARKIT :
-            LOGD("BT SCO CarKit device detected, => force use of BT CARKIT device profile\n");
-            profile_id = PROFILE_BLUETOOTH_CARKIT;
-            break;
+        case 5 :
+           LOGD("BT SCO Headset device detected, => force use of BT HSP device profile\n");
+           dev_id = 3;
+           break;
+        case 6 :
+           LOGD("BT SCO CarKit device detected, => force use of BT CARKIT device profile\n");
+           dev_id = 4;
+           break;
         default :
-            LOGD("No device detected, => force use of DEFAULT device profile\n");
-            profile_id = PROFILE_DEFAULT;
-            break;
-        }
-        if (mode == AudioSystem::MODE_IN_CALL)
-        {
-            profile_id += PROFILE_MODE_OFFSET_IN_CALL;
-        }
-        else if (mode == AudioSystem::MODE_IN_COMMUNICATION)
-        {
-            profile_id += PROFILE_MODE_OFFSET_IN_COMMUNICATION;
+           break;
         }
     }
 
-    LOGD("Profile %d : size = %d, name = %s", profile_id, profile_size[profile_id], profile_name[profile_id]);
+    LOGD("Profile %d : size = %d, name = %s", dev_id, profile_size[dev_id], profile_name[dev_id]);
 
-    return profile_id;
+    return dev_id;
 }
 
 /*---------------------------------------------------------------------------*/
@@ -200,8 +173,8 @@ int acoustic::private_suspend(int fd)
 {
     int rc;
 
-    rc = write(fd, &i2c_cmd_profile[PROFILE_DEFAULT][0], profile_size[PROFILE_DEFAULT]);
-    if (rc != profile_size[PROFILE_DEFAULT])
+    rc = write(fd, &i2c_cmd_device[device_default][0], profile_size[device_default]);
+    if (rc != profile_size[device_default])
         LOGE("Audience A1026 write error, pass-through mode failed\n");
 
     rc = ioctl(fd, A1026_SUSPEND);
@@ -443,14 +416,14 @@ return_error:
 /*---------------------------------------------------------------------------*/
 /* Set profile                                                               */
 /*---------------------------------------------------------------------------*/
-int acoustic::process_profile(uint32_t device, uint32_t mode)
+int acoustic::process_profile(uint32_t device)
 {
     a1026_lock.lock();
     LOGD("Set Audience A1026 profile\n");
 
     int fd_a1026 = -1;
     int rc;
-    int profile_id;
+    int dev_id;
 
     if (!is_a1026_init) {
         LOGE("Audience A1026 not initialized.\n");
@@ -463,10 +436,10 @@ int acoustic::process_profile(uint32_t device, uint32_t mode)
         goto return_error;
     }
 
-    profile_id = private_get_profile_id(device, mode);
+    dev_id = private_get_profile_id(device);
 
-    rc = write(fd_a1026, &i2c_cmd_profile[profile_id][0], profile_size[profile_id]);
-    if (rc != profile_size[profile_id]) {
+    rc = write(fd_a1026, &i2c_cmd_device[dev_id][0], profile_size[dev_id]);
+    if (rc != profile_size[dev_id]) {
         LOGE("Audience write error \n");
         goto return_error;
     }

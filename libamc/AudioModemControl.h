@@ -189,7 +189,6 @@ extern "C"
     int amc_modem_conf_msic_dev(bool tty);
     int amc_modem_conf_bt_dev();
     int amc_off();
-    int amc_on();
 #ifdef __cplusplus
 }
 #endif

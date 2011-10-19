@@ -38,12 +38,11 @@ int bt::pcm_enable()
     int dev_id;
     int hci_sk = -1;
 
-    LOGD("Enable BT PCM voice path ~~~ Entry\n");
+    LOGD("Enable BT PCM audio path ~~~ Entry\n");
 
     /* Get hci device id if up */
     if ((dev_id = hci_get_route(NULL)) < 0) {
         LOGD("  Can't get HCI device id: %s (%d)\n", strerror(errno), errno);
-        LOGD("  -> Normal case if the BT chipset is disabled.\n");
         err = dev_id;
     }
     /* Create HCI socket to send HCI cmd */
@@ -62,7 +61,7 @@ int bt::pcm_enable()
     if (hci_sk >= 0)
         hci_close_dev(hci_sk);
 
-    LOGD("Enable BT PCM voice path ~~~ Exit\n");
+    LOGD("Enable BT PCM audio path ~~~ Exit\n");
 
     return err;
 }
@@ -73,12 +72,11 @@ int bt::pcm_disable()
     int dev_id;
     int hci_sk = -1;
 
-    LOGD("Disable BT voice path ~~~ Entry\n");
+    LOGD("Disable BT audio path ~~~ Entry\n");
 
     /* Get hci device id if up */
     if ((dev_id = hci_get_route(NULL)) < 0) {
         LOGD("  Can't get HCI device id: %s (%d)\n", strerror(errno), errno);
-        LOGD("  -> Normal case if the BT chipset is disabled.\n");
         err = dev_id;
     }
     /* Create HCI socket to send HCI cmd */
@@ -97,7 +95,7 @@ int bt::pcm_disable()
     if (hci_sk >= 0)
         hci_close_dev(hci_sk);
 
-    LOGD("Disable BT voice path ~~~ Exit\n");
+    LOGD("Disable BT audio path ~~~ Exit\n");
 
     return err;
 }

@@ -497,7 +497,8 @@ static int voice_hw_constraint(snd_pcm_voice_t * pcm)
     snd_pcm_ioplug_t *io = &pcm->io;
 
     static const snd_pcm_access_t access_list[] = {
-        SND_PCM_ACCESS_RW_INTERLEAVED
+        SND_PCM_ACCESS_MMAP_INTERLEAVED,
+        SND_PCM_ACCESS_RW_INTERLEAVED,
     };
     static const unsigned int formats[] = {
         SND_PCM_FORMAT_S16_LE,
@@ -583,7 +584,7 @@ static int voice_hw_open(snd_pcm_ioplug_t *io)
 
     err = setHardwareParams(&handle);
     if(err < 0) {
-        LOGE("Set Hareware Params failed\n");
+        LOGE("Set Hardware Params failed\n");
         goto error;
     }
 

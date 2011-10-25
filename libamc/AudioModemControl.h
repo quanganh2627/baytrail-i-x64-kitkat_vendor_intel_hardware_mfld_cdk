@@ -30,7 +30,6 @@ extern "C"
 #define MODEM_IFX_XMM6160
 #define AMC_MAX_CMD_LENGTH   AT_MAX_CMD_LENGTH
 #define AMC_MAX_RESP_LENGTH  AT_MAX_RESP_LENGTH
-#define MODEMGAIN 100
 #define MODEM_TTY_RETRY 60
 #define AUDIO_AT_CHANNEL_NAME "/dev/gsmtty13"
 #define GET_USE_CASE_SRC  "AT+XDRV=40,0,"
@@ -224,6 +223,8 @@ int amc_modem_conf_msic_dev(vpc_tty_t tty);
 int amc_modem_conf_bt_dev();
 int amc_off();
 int amc_on();
+int amc_mute();
+int amc_unmute(int gainDL, int gainUL);
 
 #ifdef __cplusplus
 }

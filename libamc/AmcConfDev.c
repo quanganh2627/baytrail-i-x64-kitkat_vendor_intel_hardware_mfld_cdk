@@ -134,11 +134,10 @@ int amc_modem_conf_msic_dev(vpc_tty_t tty)
     amc_configure_dest(AMC_I2S1_TX, IFX_CLK1, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, modeTtyDest);
     amc_configure_source(AMC_I2S2_RX, IFX_CLK0, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
     amc_configure_dest(AMC_I2S2_TX, IFX_CLK0, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
-    amc_route(&pdestForSource[ROUTE_RADIO][0]);
+    amc_route(&pdestForSource[ROUTE_DISCONNECT_RADIO][0]);
     amc_route(&pdestForSource[ROUTE_I2S1][0]);
     amc_route(&pdestForSource[ROUTE_I2S2][0]);
     amc_route(&pdestForSource[ROUTE_TONE][0]);
-    amc_setGaindest(AMC_RADIO_TX, MODEMGAIN); /*must be removed when gain will be integrated in MODEM (IMC) */
     return 0;
 }
 
@@ -148,19 +147,20 @@ int amc_modem_conf_bt_dev()
     amc_configure_source(AMC_I2S2_RX, IFX_CLK0, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
     amc_configure_dest(AMC_I2S1_TX, IFX_CLK1, IFX_MASTER, IFX_SR_8KHZ, IFX_SW_16, IFX_PCM, I2S_SETTING_NORMAL, IFX_MONO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_D);
     amc_configure_dest(AMC_I2S2_TX, IFX_CLK0, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_D);
-    amc_route(&pdestForSource[ROUTE_RADIO][0]);
+    amc_route(&pdestForSource[ROUTE_DISCONNECT_RADIO][0]);
     amc_route(&pdestForSource[ROUTE_I2S1][0]);
     amc_route(&pdestForSource[ROUTE_I2S2][0]);
     amc_route(&pdestForSource[ROUTE_TONE][0]);
-    amc_setGaindest(AMC_RADIO_TX, MODEMGAIN); /*must be removed when gain will be integrated in MODEM (IMC) */
     return 0;
 }
 
 int amc_off()
 {
+    usleep(1000); // Time to disable MSIC...
     amc_route(&pdestForSource[ROUTE_DISCONNECT_RADIO][0]);
     amc_disable(AMC_I2S1_RX);
     amc_disable(AMC_I2S2_RX);
+    usleep(80000); // Time to Disable modem I2S...
     return 0;
 }
 
@@ -169,6 +169,23 @@ int amc_on()
     amc_enable(AMC_I2S2_RX);
     amc_enable(AMC_I2S1_RX);
     amc_route(&pdestForSource[ROUTE_RADIO][0]);
+    usleep(40000); // Time to Enable modem I2S...
+    return 0;
+}
+
+int amc_mute()
+{
+    amc_setGaindest(AMC_I2S1_TX, 0);
+    amc_setGaindest(AMC_RADIO_TX, 0);
+    usleep(1000); // Time to mute
+    return 0;
+}
+
+int amc_unmute(int gainDL, int gainUL)
+{
+    usleep(40000); // Time to have MSIC in a "stable" state...
+    amc_setGaindest(AMC_I2S1_TX, gainDL);
+    amc_setGaindest(AMC_RADIO_TX, gainUL);
     return 0;
 }
 

@@ -22,7 +22,6 @@
 #include <media/AudioSystem.h>
 
 #include "acoustic.h"
-#include "amc.h"
 #include "AudioModemControl.h"
 #include "bt.h"
 #include "msic.h"
@@ -67,11 +66,12 @@ static uint32_t  current_device       = 0x0000;
 static uint32_t  device_out_defaut    = 0x8000;
 static bool      at_thread_init       = false;
 static bool      call_established     = false;
-static bool      beg_call             = false;
 static vpc_tty_t tty_call             = VPC_TTY_OFF;
 static bool      mixing_enable        = false;
 static bool      voice_call_recording = false;
 static bool      bt_acoustic          = true;
+static int       modem_gain_dl        = 0;
+static int       modem_gain_ul        = 88; // 0 dB
 
 
 /*---------------------------------------------------------------------------*/
@@ -133,8 +133,6 @@ static int vpc_route(vpc_route_t route)
     int ret;
     uint32_t device_profile;
 
-    int ModemGain = 100;
-
     /* -------------------------------------------------------------- */
     /* Enter in this loop only if previous mode != current mode       */
     /* or if previous device != current device and not capture device */
@@ -170,15 +168,16 @@ static int vpc_route(vpc_route_t route)
                 case AudioSystem::DEVICE_OUT_SPEAKER:
                 case AudioSystem::DEVICE_OUT_WIRED_HEADSET:
                 case AudioSystem::DEVICE_OUT_WIRED_HEADPHONE:
-                    amc_off();
-                    bt::pcm_disable();
+                    amc_mute();
+
                     msic::pcm_disable();
+                    bt::pcm_disable();
+                    amc_off();
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
-                /* Audience configurations for each device */
-                device_profile = (tty_call == VPC_TTY_OFF) ? current_device : device_out_defaut;
-                ret = acoustic::process_profile(device_profile, current_mode);
-                if (ret) goto return_error;
+                    device_profile = (tty_call == VPC_TTY_OFF) ? current_device : device_out_defaut;
+                    ret = acoustic::process_profile(device_profile, current_mode);
+                    if (ret) goto return_error;
 #endif
 
                     if ((prev_mode != AudioSystem::MODE_IN_CALL) || (prev_device & DEVICE_OUT_BLUETOOTH_SCO_ALL) || (!call_established))
@@ -186,9 +185,11 @@ static int vpc_route(vpc_route_t route)
                         amc_modem_conf_msic_dev(tty_call);
                     }
 
-                    msic::pcm_enable(current_mode, current_device);
                     amc_on();
+                    msic::pcm_enable(current_mode, current_device);
                     mixing_enable = true;
+
+                    amc_unmute(modem_gain_dl, modem_gain_ul);
                     break;
                 /* ------------------------------------ */
                 /* Voice paths control for BT devices   */
@@ -196,8 +197,10 @@ static int vpc_route(vpc_route_t route)
                 case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO:
                 case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET:
                 case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_CARKIT:
-                    amc_off();
+                    amc_mute();
+
                     msic::pcm_disable();
+                    amc_off();
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
                     device_profile = (bt_acoustic == false) ? device_out_defaut : current_device;
@@ -207,9 +210,11 @@ static int vpc_route(vpc_route_t route)
 
                     amc_modem_conf_bt_dev();
 
-                    bt::pcm_enable();
                     amc_on();
+                    bt::pcm_enable();
                     mixing_enable = true;
+
+                    amc_unmute(modem_gain_dl, modem_gain_ul);
                     break;
                 default:
                     break;
@@ -231,12 +236,12 @@ static int vpc_route(vpc_route_t route)
                 case AudioSystem::DEVICE_OUT_SPEAKER:
                 case AudioSystem::DEVICE_OUT_WIRED_HEADSET:
                 case AudioSystem::DEVICE_OUT_WIRED_HEADPHONE:
+                    msic::pcm_disable();
+                    bt::pcm_disable();
                     if (prev_mode == AudioSystem::MODE_IN_CALL)
                     {
                         amc_off();
                     }
-                    bt::pcm_disable();
-                    msic::pcm_disable();
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
                     device_profile = (tty_call == true) ? device_out_defaut : current_device;
@@ -252,11 +257,11 @@ static int vpc_route(vpc_route_t route)
                 case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO:
                 case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET:
                 case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_CARKIT:
+                    msic::pcm_disable();
                     if (prev_mode == AudioSystem::MODE_IN_CALL)
                     {
                         amc_off();
                     }
-                    msic::pcm_disable();
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
                     device_profile = (bt_acoustic == false) ? device_out_defaut : current_device;
@@ -281,15 +286,18 @@ static int vpc_route(vpc_route_t route)
             if (prev_mode == AudioSystem::MODE_IN_CALL)
             {
                 LOGD("VPC from IN_CALL to NORMAL\n");
+                amc_mute();
+                msic::pcm_disable();
+                bt::pcm_disable();
                 amc_off();
                 mixing_enable = false;
             }
             else
             {
                 LOGD("VPC from IN_COMMUNICATION to NORMAL\n");
+                msic::pcm_disable();
+                bt::pcm_disable();
             }
-            bt::pcm_disable();
-            msic::pcm_disable();
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
             acoustic::process_suspend();
@@ -327,13 +335,18 @@ static int vpc_volume(float volume)
 
     int gain = 0;
     int range = 48;
-    if (at_thread_init == true)
+
+    gain = volume * range + 40;
+    gain = (gain >= 88) ? 88 : gain;
+    gain = (gain <= 40) ? 40 : gain;
+
+    if ((at_thread_init == true) && (current_mode == AudioSystem::MODE_IN_CALL))
     {
-        gain = volume * range + 40;
-        gain = (gain >= 88) ? 88 : gain;
-        gain = (gain <= 40) ? 40 : gain;
         amc_setGaindest(AMC_I2S1_TX, gain);
     }
+
+    // Backup modem gain
+    modem_gain_dl = gain;
 
     vpc_lock.unlock();
     return NO_ERROR;

@@ -59,7 +59,7 @@ extern "C"
 #define SET_RTD "AT+XDRV = 40,12,"
 #define NBR_DEST_MAX 6
 #define MAX_SOURCE_FOR_DEST 7
-#define NBR_ROUTE 6
+#define NBR_ROUTE 7
 #define NBR_DEST 3
 
 typedef enum {
@@ -194,6 +194,7 @@ typedef enum {
     ROUTE_TONE,
     ROUTE_RECORD_RADIO,
     ROUTE_RECORD_I2S1,
+    ROUTE_DISCONNECT_RADIO,
 } AMC_ROUTE_ID;
 
 typedef struct destForSourceRoute {

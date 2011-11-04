@@ -94,6 +94,11 @@ void get_route_id(AMC_ROUTE_ID route, destForSourceRoute *pdestForSource)
         pdestForSource->dests[0] = AMC_RADIO_TX;
         pdestForSource->dests[1] = AMC_I2S2_TX;
         break;
+    case ROUTE_DISCONNECT_RADIO:
+        pdestForSource->nbrDest = 1;
+        pdestForSource->source = AMC_RADIO_RX;
+        pdestForSource->dests[0] = AMC_PCM_GENERALD;
+        break;
     default :
         break;
     }
@@ -153,9 +158,7 @@ int amc_modem_conf_bt_dev()
 
 int amc_off()
 {
-#if 0 // ISSUE when baseband modem is set for 2G call !!!!!!!!!!
-    amc_disable(AMC_RADIO_RX);
-#endif
+    amc_route(&pdestForSource[ROUTE_DISCONNECT_RADIO][0]);
     amc_disable(AMC_I2S1_RX);
     amc_disable(AMC_I2S2_RX);
     return 0;
@@ -165,9 +168,7 @@ int amc_on()
 {
     amc_enable(AMC_I2S2_RX);
     amc_enable(AMC_I2S1_RX);
-#if 0 // ISSUE when baseband modem is set for 2G call !!!!!!!!!!
-    amc_enable(AMC_RADIO_RX);
-#endif
+    amc_route(&pdestForSource[ROUTE_RADIO][0]);
     return 0;
 }
 

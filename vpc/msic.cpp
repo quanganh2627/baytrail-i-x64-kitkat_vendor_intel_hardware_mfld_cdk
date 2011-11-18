@@ -18,11 +18,11 @@
 #define LOG_TAG "VPC_MSIC"
 #include <utils/Log.h>
 
-#include <media/AudioSystem.h>
+#include <hardware_legacy/AudioSystemLegacy.h>
 
 #include "msic.h"
 
-namespace android
+namespace android_audio_legacy
 {
 
 #define MEDFIELDAUDIO "medfieldaudio"

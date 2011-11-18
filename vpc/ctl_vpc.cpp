@@ -19,7 +19,7 @@
 #include <utils/Log.h>
 
 #include <utils/threads.h>
-#include <media/AudioSystem.h>
+#include <hardware_legacy/AudioSystemLegacy.h>
 
 #include "acoustic.h"
 #include "AudioModemControl.h"
@@ -28,7 +28,7 @@
 
 #include "vpc_hardware.h"
 
-namespace android
+namespace android_audio_legacy
 {
 
 /*===========================================================================*/
@@ -56,7 +56,7 @@ static int vpc_bt_nrec(vpc_bt_nrec_t);
 /*---------------------------------------------------------------------------*/
 /* Global variables                                                          */
 /*---------------------------------------------------------------------------*/
-
+using android::Mutex;
 Mutex vpc_lock;
 
 static int       prev_mode            = AudioSystem::MODE_NORMAL;

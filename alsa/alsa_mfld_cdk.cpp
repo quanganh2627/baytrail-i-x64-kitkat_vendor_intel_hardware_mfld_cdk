@@ -26,6 +26,7 @@
 #include <utils/Log.h>
 #include <AudioHardwareALSA.h>
 #include <media/AudioRecord.h>
+#include <hardware_legacy/AudioSystemLegacy.h>
 #include <signal.h>
 
 #undef DISABLE_HARWARE_RESAMPLING
@@ -49,6 +50,10 @@
 #define ALSA_DEFAULT_SAMPLE_RATE 44100 // in Hz
 #endif
 
+#ifndef DEFAULT_CAPTURE_RATE
+#define DEFAULT_CAPTURE_RATE 8000 // in Hz
+#endif
+
 #ifndef VOICE_MODEM_DEFAULT_SAMPLE_RATE
 #define VOICE_MODEM_DEFAULT_SAMPLE_RATE 48000 // in Hz
 #endif
@@ -68,7 +73,7 @@
 #define DEVICE_OUT_BLUETOOTH_SCO_ALL (AudioSystem::DEVICE_OUT_BLUETOOTH_SCO | AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET | AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_CARKIT)
 
 int voice_activated = 0;
-namespace android
+namespace android_audio_legacy
 {
 //BridgeApp bapp;
 static int s_device_open(const hw_module_t*, const char*, hw_device_t**);
@@ -185,8 +190,10 @@ static const device_suffix_t deviceSuffix[] = {
     { AudioSystem::DEVICE_OUT_WIRED_HEADPHONE,       "_Headphone" },
     { AudioSystem::DEVICE_OUT_WIRED_HEADSET,         "_Headset" },
     { AudioSystem::DEVICE_OUT_BLUETOOTH_A2DP,        "_Bluetooth-A2DP" },
+#if USE_INTEL_HDMI
     { AudioSystem::DEVICE_OUT_HDMI,                  "_HDMI" },
-#ifdef INTEL_WIDI
+#endif
+#if INTEL_WIDI
     { AudioSystem::DEVICE_OUT_WIDI_LOOPBACK,         "_Widi-Loopback" },
 #endif
     { AudioSystem::DEVICE_IN_BUILTIN_MIC,            "_BuiltinMic" },
@@ -571,10 +578,12 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
             LOGD("Setting expected sample rate to %d (IN_COMM)", VOICE_CODEC_DEFAULT_SAMPLE_RATE);
             handle->expectedSampleRate = VOICE_CODEC_DEFAULT_SAMPLE_RATE;
         }
+#if INTEL_WIDI
         else if (devices & AudioSystem::DEVICE_OUT_WIDI_LOOPBACK) {
             LOGV("Setting expected sample rate to %d (WIDI)", WIDI_DEFAULT_SAMPLE_RATE);
             handle->expectedSampleRate = WIDI_DEFAULT_SAMPLE_RATE;
         }
+#endif
     }
 
     //This is a tricky way to change the sample rate.
@@ -583,6 +592,9 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
     //This is not a formal solution and limitation, so maybe we will modify these codes
     //when we find a better way to resolve SRC.
     if (devices & AudioSystem::DEVICE_IN_ALL) {
+        handle->sampleRate = DEFAULT_CAPTURE_RATE;
+        handle->expectedSampleRate = DEFAULT_CAPTURE_RATE;
+
         if (mode == AudioSystem::MODE_IN_CALL) {
             LOGD("Detected voice modem capture device, setting sample rate to %d", VOICE_MODEM_DEFAULT_SAMPLE_RATE);
             handle->sampleRate = VOICE_MODEM_DEFAULT_SAMPLE_RATE;

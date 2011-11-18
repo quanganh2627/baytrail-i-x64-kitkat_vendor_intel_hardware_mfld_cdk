@@ -28,7 +28,7 @@ extern "C" {
 #define MINGAIN 0x0
 #define MAXGAIN 0xf
 
-namespace android {
+namespace android_audio_legacy {
 static int s_device_open(const hw_module_t*, const char*, hw_device_t**);
 static int s_device_close(hw_device_t*);
 static status_t lpe_control(int,uint32_t);

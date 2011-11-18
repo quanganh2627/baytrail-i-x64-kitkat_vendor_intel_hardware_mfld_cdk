@@ -16,6 +16,11 @@ ifeq ($(INTEL_WIDI), true)
   LOCAL_CFLAGS += -DINTEL_WIDI=1
 endif
 
+ifeq ($(USE_INTEL_HDMI), true)
+  LOCAL_CFLAGS += -DUSE_INTEL_HDMI=1
+endif
+
+
 LOCAL_C_INCLUDES += external/alsa-lib/include hardware/alsa_sound hardware/intel/include hardware/intel/mfld_cdk/alsa hardware/intel/mfld_cdk/vpc
 					  
 
@@ -25,8 +30,7 @@ LOCAL_C_INCLUDES += external/alsa-lib/include hardware/alsa_sound hardware/intel
 
   LOCAL_SHARED_LIBRARIES := \
   	libasound \
-  	liblog \
-	libaudio
+  	liblog
 
 
   LOCAL_MODULE:= alsa.$(TARGET_DEVICE)

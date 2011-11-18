@@ -18,7 +18,7 @@
 #ifndef __VPC_BT_H__
 #define __VPC_BT_H__
 
-namespace android
+namespace android_audio_legacy
 {
 
 class bt

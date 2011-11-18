@@ -17,8 +17,7 @@ LOCAL_SRC_FILES += \
 
 LOCAL_SHARED_LIBRARIES += \
         libasound \
-        liblog \
-        libaudio
+        liblog
 
 LOCAL_MODULE:= lpe.$(TARGET_DEVICE)
 LOCAL_MODULE_TAGS := optional

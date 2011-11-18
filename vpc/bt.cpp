@@ -27,7 +27,7 @@
 
 #include "bt.h"
 
-namespace android
+namespace android_audio_legacy
 {
 
 #define HCI_CMD_TIMEOUT_MS 5000

@@ -22,15 +22,15 @@
 #include <utils/threads.h>
 #include <fcntl.h>
 #include <linux/a1026.h>
-#include <media/AudioSystem.h>
+#include <hardware_legacy/AudioSystemLegacy.h>
 
 #include "acoustic.h"
 
-namespace android
+namespace android_audio_legacy
 {
 
 #define ES305_DEVICE_PATH "/dev/audience_es305"
-
+using android::Mutex;
 Mutex a1026_lock;
 
 bool           acoustic::is_a1026_init = false;

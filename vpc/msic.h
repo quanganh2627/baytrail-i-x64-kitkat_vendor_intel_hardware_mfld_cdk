@@ -23,7 +23,7 @@
 #include <alsa/asoundlib.h>
 #include <alsa/control_external.h>
 
-namespace android
+namespace android_audio_legacy
 {
 
 class msic

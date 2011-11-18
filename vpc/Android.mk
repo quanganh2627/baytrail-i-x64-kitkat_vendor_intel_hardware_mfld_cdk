@@ -39,7 +39,6 @@ endif
   LOCAL_SHARED_LIBRARIES := \
         libasound \
         liblog \
-        libaudio \
         libbluetooth \
         libcutils \
         libamc

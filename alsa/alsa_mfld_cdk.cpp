@@ -592,8 +592,6 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
     //This is not a formal solution and limitation, so maybe we will modify these codes
     //when we find a better way to resolve SRC.
     if (devices & AudioSystem::DEVICE_IN_ALL) {
-        handle->sampleRate = DEFAULT_CAPTURE_RATE;
-        handle->expectedSampleRate = DEFAULT_CAPTURE_RATE;
 
         if (mode == AudioSystem::MODE_IN_CALL) {
             LOGD("Detected voice modem capture device, setting sample rate to %d", VOICE_MODEM_DEFAULT_SAMPLE_RATE);

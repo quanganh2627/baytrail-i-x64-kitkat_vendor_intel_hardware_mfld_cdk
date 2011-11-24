@@ -32,7 +32,7 @@
 #undef DISABLE_HARWARE_RESAMPLING
 
 #define ALSA_NAME_MAX (128)
-#define PERIOD_TIME   (23220)  //microseconds
+#define PERIOD_TIME   (20000)  //microseconds
 #define CAPTURE_PERIOD_TIME (20000) //microseconds
 
 #define ALSA_STRCAT(x, y) \

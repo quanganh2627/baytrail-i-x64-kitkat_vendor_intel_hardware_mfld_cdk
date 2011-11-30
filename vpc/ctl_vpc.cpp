@@ -72,7 +72,7 @@ static bool      mixing_enable        = false;
 static bool      voice_call_recording = false;
 static bool      bt_acoustic          = true;
 static int       modem_gain_dl        = 0;
-static int       modem_gain_ul        = 88; // 0 dB
+static int       modem_gain_ul        = 100; // +6 dB
 
 
 /*---------------------------------------------------------------------------*/

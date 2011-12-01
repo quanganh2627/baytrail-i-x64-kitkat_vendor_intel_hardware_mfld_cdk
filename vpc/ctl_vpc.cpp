@@ -214,14 +214,25 @@ static int vpc_route(vpc_route_t route)
                     amc_mute();
 
                     msic::pcm_disable();
-                    amc_off();
+                   /*
+                    * Awfull Workaround: audience needs a 48k clock to apply its BT
+                    * preset. If the call is not established, needs to start
+                    * the Modem I2S in 48kHz i2s mode
+                    */
+
+                    if(!call_established)
+                    {
+                        amc_modem_conf_msic_dev(tty_call);
+                        amc_on();
+                    }
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
                     device_profile = (bt_acoustic == false) ? device_out_defaut : current_device;
                     ret = acoustic::process_profile(device_profile, current_mode);
                     if (ret) goto return_error;
+                    usleep(50000);
 #endif
-
+                    amc_off();
                     amc_modem_conf_bt_dev();
 
                     amc_on();
@@ -271,17 +282,23 @@ static int vpc_route(vpc_route_t route)
                 case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO:
                 case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET:
                 case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_CARKIT:
-                    msic::pcm_disable();
                     if (prev_mode == AudioSystem::MODE_IN_CALL)
                     {
                         amc_off();
                     }
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
+                    /*
+                     * Awfull Workaround: audience needs a 48k clock to apply its BT
+                     * preset. Needs to start the Modem I2S in 48kHz i2s mode
+                     */
+                    msic::pcm_enable(AudioSystem::MODE_IN_COMMUNICATION, AudioSystem::DEVICE_OUT_EARPIECE);
                     device_profile = (bt_acoustic == false) ? device_out_defaut : current_device;
-                    ret = acoustic::process_profile(device_profile, current_mode);
+                    ret = acoustic::process_profile(current_device, current_mode);
                     if (ret) goto return_error;
+                    usleep(50000);
 #endif
+                    msic::pcm_disable();
 
                     bt::pcm_enable();
                     break;

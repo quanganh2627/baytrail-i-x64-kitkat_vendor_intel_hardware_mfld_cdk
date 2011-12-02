@@ -26,7 +26,7 @@ extern "C" {
 #define MINVOL 0x0
 #define MAXVOL 0x0 //The expected value of IHF and HS gain is 0.
 #define MINGAIN 0x0
-#define MAXGAIN 0xf
+#define MAXGAIN 0x12
 
 namespace android_audio_legacy {
 static int s_device_open(const hw_module_t*, const char*, hw_device_t**);

@@ -55,7 +55,7 @@ typedef struct RunningATcmd {
     AT_STATUS cmdstatus;
 } RunningATcmd;
 
-static sem_t sem;
+static sem_t sem, sem_thread;
 static pthread_mutex_t GsmTtyMutex;
 static pthread_cond_t GsmTtyStatus;
 static pthread_mutex_t at_dataMutex;
@@ -79,8 +79,43 @@ static AT_STATUS readATline(int fd,  char *pStr);
 static AT_STATUS writeATline(int fd, const char *pATcmd);
 static AT_STATUS atSendBlocking( const char *pATcmd, const char *pRespPrefix,
            char *pATresp);
+static AT_STATUS at_stop();
 static void propagateATerror(AT_STATUS status);
 static void SetModemStatus(int data);
+
+static void thread_exit_handler(int unused)
+{
+    (void)unused;
+    LOGD("Exit Reader thread");
+    pthread_exit(NULL);
+}
+
+static void set_signal_handler()
+{
+    struct sigaction actions;
+
+    memset(&actions, 0, sizeof(actions));
+    sigemptyset(&actions.sa_mask);
+    actions.sa_flags = 0;
+    actions.sa_handler = thread_exit_handler;
+    sigaction(SIGUSR1, &actions, NULL);
+}
+
+static void end_thread(pthread_t pthread_id)
+{
+    int   status;
+    void* ret;
+
+    if ((status = pthread_kill(pthread_id, SIGUSR1)) != 0)
+    {
+        LOGE("end_thread() - Error cancelling thread, error = %d (%s)", status,
+                strerror(errno));
+    }
+    else
+    {
+        pthread_join(pthread_id, &ret);
+    }
+}
 
 /*---------------------------------------------------------------------------*/
 /* Modem Status thread                                                       */
@@ -165,6 +200,8 @@ static void *atReaderThread(void *arg)
     AT_STATUS readStatus;
 
     LOGD("*** AT Reader thread started");
+    set_signal_handler();
+
     for (;;) {
         for (;;) {
         LOGV("... Waiting for new prefix to read ...");
@@ -280,13 +317,18 @@ AT_STATUS at_start(const char *pATchannel)
         pthread_mutex_init(&at_dataMutex, NULL);
         pthread_cond_init(&newRespReceived, NULL);
         sem_init(&sem, 0, 1);
+        sem_init(&sem_thread, 0, 1);
         /* start AT reader thread */
         LOGV("Starting AT Reader thread ...");
+        sem_wait(&sem_thread);
         if (pthread_create(&threadId, NULL, atReaderThread, NULL) != 0) {
             LOGW("Unable to start thread: error: %s", strerror(errno));
+            sem_post(&sem_thread);
             return AT_UNABLE_TO_CREATE_THREAD;
         }
+        sem_wait(&sem_thread);
         isInitialized = true;
+        sem_post(&sem_thread);
         LOGD("*** ATmodemControl started");
         amc_dest_for_source();
         LOGV("After dest for source init matrix");
@@ -303,10 +345,13 @@ AT_STATUS at_start(const char *pATchannel)
 AT_STATUS at_stop()
 {
     LOGD("Stopping ATmodemControl ...");
+    end_thread(threadId);
     close(fdIn);
     close(fdOut);
     free(pCurrentRunningATcmd);
     pCurrentRunningATcmd = NULL;
+    sem_destroy(&sem_thread);
+    sem_destroy(&sem);
     isInitialized = false;
     LOGD("*** ATmodemControl stopped.");
     return AT_OK;
@@ -369,6 +414,9 @@ AT_STATUS at_send(const char *pATcmd, const char *pRespPrefix)
     assert(pATcmd != NULL);
     AT_STATUS cmdStatus;
     int try = 0;
+
+    if (!isInitialized)
+        at_start(AUDIO_AT_CHANNEL_NAME);
 
     if (modem_status == MODEM_UP) {
         LOGV("modem-status %d\n",modem_status);
@@ -460,6 +508,7 @@ AT_STATUS readATline(int fd, char *pLine)
         LOGV("... Waiting for data ...");
             do {
                 do {
+                    sem_post(&sem_thread);
                     rts = select(fd+1, &fdSet, NULL, NULL, NULL);
                     if ((rts == -1) && (errno != EINTR) && (errno != EAGAIN)) {
                         LOGE("Read Error: %i / %s", errno, strerror(errno));

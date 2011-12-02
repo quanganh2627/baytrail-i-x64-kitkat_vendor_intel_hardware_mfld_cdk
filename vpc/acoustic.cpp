@@ -225,7 +225,10 @@ int acoustic::private_get_fw_label(int fd)
     LOGD("Read Audience A1026 FW label\n");
 
     label_name = (unsigned char*)malloc(sizeof(unsigned char) * fw_max_label_size);
-
+    if (label_name == NULL) {
+        LOGE("Unable to allocate FW label buffer (%d bytes)\n",fw_max_label_size);
+        goto return_error;
+    }
     // Get first build label char
     rc = write(fd, firstCharLabelCmd, size);
     if (rc != size) {

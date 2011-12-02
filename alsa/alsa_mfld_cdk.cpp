@@ -32,7 +32,7 @@
 #undef DISABLE_HARWARE_RESAMPLING
 
 #define ALSA_NAME_MAX (128)
-#define PERIOD_TIME   (20000)  //microseconds
+#define PERIOD_TIME   (23220)  //microseconds
 #define CAPTURE_PERIOD_TIME (20000) //microseconds
 
 #define ALSA_STRCAT(x, y) \
@@ -80,9 +80,9 @@ static int s_device_open(const hw_module_t*, const char*, hw_device_t**);
 static int s_device_close(hw_device_t*);
 static status_t s_init(alsa_device_t *, ALSAHandleList &);
 static status_t s_open(alsa_handle_t *, uint32_t, int);
+static status_t s_init_stream(alsa_handle_t *handle, uint32_t devices, int mode);
 static status_t s_standby(alsa_handle_t *);
 static status_t s_close(alsa_handle_t *);
-static status_t s_route(alsa_handle_t *, uint32_t, int);
 static status_t s_config(alsa_handle_t *, int);
 static status_t s_volume(alsa_handle_t *, uint32_t, float);
 
@@ -101,31 +101,6 @@ extern "C" const hw_module_t HAL_MODULE_INFO_SYM = {
     dso           : 0,
     reserved      : { 0, },
 };
-
-static int s_device_open(const hw_module_t* module, const char* name,
-                         hw_device_t** device)
-{
-    alsa_device_t *dev;
-    dev = (alsa_device_t *) malloc(sizeof(*dev));
-    if (!dev) return -ENOMEM;
-
-    memset(dev, 0, sizeof(*dev));
-
-    /* initialize the procs */
-    dev->common.tag = HARDWARE_DEVICE_TAG;
-    dev->common.version = 0;
-    dev->common.module = (hw_module_t *) module;
-    dev->common.close = s_device_close;
-    dev->init = s_init;
-    dev->open = s_open;
-    dev->standby = s_standby;
-    dev->close = s_close;
-    dev->route = s_route;
-    dev->volume = s_volume;
-
-    *device = &dev->common;
-    return 0;
-}
 
 static int s_device_close(hw_device_t* device)
 {
@@ -196,10 +171,12 @@ static const device_suffix_t deviceSuffix[] = {
 #if INTEL_WIDI
     { AudioSystem::DEVICE_OUT_WIDI_LOOPBACK,         "_Widi-Loopback" },
 #endif
+    { AudioSystem::DEVICE_OUT_DEFAULT,                "_Null" },
     { AudioSystem::DEVICE_IN_BUILTIN_MIC,            "_BuiltinMic" },
     { AudioSystem::DEVICE_IN_BLUETOOTH_SCO_HEADSET,  "_BluetoothScoHeadset" },
     { AudioSystem::DEVICE_IN_WIRED_HEADSET,          "_Headset" },
     { AudioSystem::DEVICE_IN_VOICE_CALL,             "_VoiceCall" },
+    { AudioSystem::DEVICE_IN_DEFAULT,                "_Null" },
 };
 
 static const int deviceSuffixLen = (sizeof(deviceSuffix)
@@ -518,6 +495,68 @@ static status_t s_init(alsa_device_t *module, ALSAHandleList &list)
     return NO_ERROR;
 }
 
+static status_t s_init_stream(alsa_handle_t *handle, uint32_t devices, int mode)
+{
+    // Close off previously opened device.
+    // It would be nice to determine if the underlying device actually
+    // changes, but we might be recovering from an error or manipulating
+    // mixer settings (see asound.conf).
+    //
+    if(handle->openFlag)
+        s_close(handle);
+
+    LOGD("s_init_stream called for devices %08x in mode %d...", devices, mode);
+
+    const char *stream = streamName(handle);
+    const char *devName = deviceName(handle, devices, mode);
+
+    LOGD("s_init_stream called for devices %s", devName);
+    if (devices & AudioSystem::DEVICE_IN_ALL) {
+        handle->bufferSize = _defaultsIn.bufferSize;
+        handle->latency = _defaultsIn.latency;
+        handle->sampleRate = _defaultsIn.sampleRate;
+        handle->expectedSampleRate = _defaultsIn.expectedSampleRate;
+        handle->channels = _defaultsIn.channels;
+    } else {
+        handle->bufferSize = _defaultsOut.bufferSize;
+        handle->latency = _defaultsOut.latency;
+        handle->sampleRate = _defaultsOut.sampleRate;
+        handle->expectedSampleRate = _defaultsOut.expectedSampleRate;
+        handle->channels = _defaultsOut.channels;
+    }
+    LOGI("Initialized ALSA %s device %s", stream, devName);
+
+    handle->curDev = devices;
+    handle->curMode = mode;
+    handle->openFlag = 0;
+    return NO_ERROR;
+}
+
+static int s_device_open(const hw_module_t* module, const char* name,
+                         hw_device_t** device)
+{
+    alsa_device_t *dev;
+    dev = (alsa_device_t *) malloc(sizeof(*dev));
+    if (!dev) return -ENOMEM;
+
+    memset(dev, 0, sizeof(*dev));
+
+    /* initialize the procs */
+    dev->common.tag = HARDWARE_DEVICE_TAG;
+    dev->common.version = 0;
+    dev->common.module = (hw_module_t *) module;
+    dev->common.close = s_device_close;
+    dev->init = s_init;
+    dev->open = s_open;
+    dev->standby = s_standby;
+    dev->close = s_close;
+    dev->volume = s_volume;
+    dev->initStream = s_init_stream;
+
+    *device = &dev->common;
+    return 0;
+}
+
 static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
 {
     // Close off previously opened device.
@@ -531,6 +570,8 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
 
     const char *stream = streamName(handle);
     const char *devName = deviceName(handle, devices, mode);
+
+    LOGD("open called for devices %s", devName);
 
     int err;
 
@@ -573,6 +614,8 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
         else if (devices & DEVICE_OUT_BLUETOOTH_SCO_ALL) {
             LOGD("Setting expected sample rate to %d (BT_SCO_ALL)", VOICE_BT_DEFAULT_SAMPLE_RATE);
             handle->expectedSampleRate = VOICE_BT_DEFAULT_SAMPLE_RATE;
+            /* We use 4 buffers of period time, see set_hardware_params function */
+            handle->latency = CAPTURE_PERIOD_TIME * 4;
         }
         else if (mode == AudioSystem::MODE_IN_COMMUNICATION) {
             LOGD("Setting expected sample rate to %d (IN_COMM)", VOICE_CODEC_DEFAULT_SAMPLE_RATE);
@@ -599,11 +642,13 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
         }
         else if (devices & AudioSystem::DEVICE_IN_BLUETOOTH_SCO_HEADSET) {
             LOGD("Detected voice Bluetooth capture device, setting sample rate to %d", VOICE_BT_DEFAULT_SAMPLE_RATE);
-            handle->sampleRate = VOICE_BT_DEFAULT_SAMPLE_RATE;
+            // SRC done by Alsa plug, later improvement: use intel optimized SRC
+            handle->sampleRate = DEFAULT_SAMPLE_RATE;
         }
         else if (mode == AudioSystem::MODE_IN_COMMUNICATION) {
             LOGD("Detected voice codec capture device, setting sample rate to %d", VOICE_CODEC_DEFAULT_SAMPLE_RATE);
-            handle->sampleRate = VOICE_CODEC_DEFAULT_SAMPLE_RATE;
+            // SRC done by Alsa plug, later improvement: use intel optimized SRC
+            handle->sampleRate = DEFAULT_SAMPLE_RATE;
         }
     }
 
@@ -622,13 +667,13 @@ static status_t s_standby(alsa_handle_t *handle)
 {
     status_t err = NO_ERROR;
     snd_pcm_t *h = handle->handle;
-    handle->handle = 0;
     if (h) {
         if(handle->curMode == AudioSystem::MODE_IN_CALL) {
             snd_pcm_drop(h);
         } else {
             snd_pcm_drain(h);
             err = snd_pcm_close(h);
+            handle->handle = NULL;
         }
     }
     LOGD("S_STANDBY\n");

@@ -25,6 +25,7 @@
 #include "AudioModemControl.h"
 #include "bt.h"
 #include "msic.h"
+#include "volume_keys.h"
 
 #include "vpc_hardware.h"
 
@@ -144,6 +145,19 @@ static int vpc_route(vpc_route_t route)
 
         if (route == VPC_ROUTE_OPEN)
         {
+            /* --------------------------------------------- */
+            /* Volume buttons & power management             */
+            /* --------------------------------------------- */
+            if ((current_mode == AudioSystem::MODE_IN_CALL) && (prev_mode != AudioSystem::MODE_IN_CALL))
+            {
+                ret = volume_keys::wakeup_enable();
+                if (ret) goto return_error;
+            }
+            else if ((current_mode != AudioSystem::MODE_IN_CALL) && (prev_mode == AudioSystem::MODE_IN_CALL))
+            {
+                ret = volume_keys::wakeup_disable();
+                if (ret) goto return_error;
+            }
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
             if (!call_established) {
@@ -286,6 +300,10 @@ static int vpc_route(vpc_route_t route)
             if (prev_mode == AudioSystem::MODE_IN_CALL)
             {
                 LOGD("VPC from IN_CALL to NORMAL\n");
+
+                ret = volume_keys::wakeup_disable();
+                if (ret) goto return_error;
+
                 amc_mute();
                 msic::pcm_disable();
                 bt::pcm_disable();

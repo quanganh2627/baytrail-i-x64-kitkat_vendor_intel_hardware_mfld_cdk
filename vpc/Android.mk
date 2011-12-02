@@ -34,7 +34,8 @@ endif
         ctl_vpc.cpp \
         acoustic.cpp \
         bt.cpp \
-        msic.cpp
+        msic.cpp \
+        volume_keys.cpp
 
   LOCAL_SHARED_LIBRARIES := \
         libasound \

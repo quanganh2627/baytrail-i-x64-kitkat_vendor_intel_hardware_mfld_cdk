@@ -149,18 +149,39 @@ static void *GsmTtyStatusThread(void *arg)
                 continue;
             }
 
-            if (data == MODEM_UP) {
+            switch (data) {
+            case MODEM_UP:
                 LOGD("Modem status received: MODEM_UP\n");
                 if (modem_status == MODEM_DOWN)
                     SetModemStatus(data);
-            }
-            else if (data == MODEM_DOWN) {
+                break;
+
+            case MODEM_DOWN:
+            case PLATFORM_SHUTDOWN:
                 LOGE("Modem status received: MODEM_DOWN\n");
                 if (modem_status == MODEM_UP)
                     SetModemStatus(data);
-            }
-            else
+                    if (isInitialized)
+                        at_stop();
+                break;
+
+            case MODEM_COLD_RESET:
+                LOGE("Modem status received: MODEM_COLD_RESET\n");
+                /*
+                   We are necessarilly in MODEM_DOWN state when we receive
+                   the MODEM_COLD_BOOT status. So is not necessary to call
+                   at_stop() here. Simply sends the acknowledge
+                 */
+                data = MODEM_COLD_RESET_ACK;
+                data_size = send(fd_socket, &data, sizeof(unsigned int), 0);
+                if (data_size != sizeof(unsigned int)) {
+                    LOGE("Send ack fail: %d", data_size);
+                }
+                break;
+
+            default:
                 SetModemStatus(data);
+            }
         }
         else if ((rts == -1) && (errno != EINTR) && (errno != EAGAIN)) {
             SetModemStatus(MODEM_DOWN);

@@ -214,19 +214,11 @@ static int vpc_route(vpc_route_t route)
                     amc_mute();
 
                     msic::pcm_disable();
-                   /*
-                    * Awfull Workaround: audience needs a 48k clock to apply its BT
-                    * preset. If the call is not established, needs to start
-                    * the Modem I2S in 48kHz i2s mode
-                    */
-
-                    if(!call_established)
-                    {
-                        amc_modem_conf_msic_dev(tty_call);
-                        amc_on();
-                    }
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
+                    /* Audience requirement: the previous mode clock must be running
+                     * while the BT preset is selected, during 50ms at least.
+                     */
                     device_profile = (bt_acoustic == false) ? device_out_defaut : current_device;
                     ret = acoustic::process_profile(device_profile, current_mode);
                     if (ret) goto return_error;
@@ -288,9 +280,9 @@ static int vpc_route(vpc_route_t route)
                     }
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
-                    /*
-                     * Awfull Workaround: audience needs a 48k clock to apply its BT
-                     * preset. Needs to start the Modem I2S in 48kHz i2s mode
+                    /* Audience requirement: the previous mode clock must be running
+                     * while the BT preset is selected, during 50ms at least. Since
+                     * MSIC clock is already disabled, we have to enable it back.
                      */
                     msic::pcm_enable(AudioSystem::MODE_IN_COMMUNICATION, AudioSystem::DEVICE_OUT_EARPIECE);
                     device_profile = (bt_acoustic == false) ? device_out_defaut : current_device;

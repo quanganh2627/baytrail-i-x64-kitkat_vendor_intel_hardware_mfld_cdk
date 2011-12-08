@@ -259,7 +259,7 @@ int set_runtime_params(int config_type, int str_id, int config_data_size, int co
     tuning_params->size = config_data_size;
     tuning_params->rsvd = 0;
 
-    addr = (__u64 *)malloc(sizeof(config_data));
+    addr = (__u64 *)malloc(sizeof(__u64));
     if(!addr) {
         LOGE("malloc addr error");
         free(tuning_params);

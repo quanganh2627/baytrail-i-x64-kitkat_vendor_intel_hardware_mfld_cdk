@@ -43,7 +43,10 @@
 
 #define LOG_TAG "ATmodemControl"
 #define LOG_NDEBUG 1
-#define MAX_TIME_MODEM_STATUS_CHECK 60
+//try to connect to modem status socket up to 25 times every 200ms (5sec)
+#define TRY_MAX_CONNECTION_ATTEMPT 25
+#define SLEEP_TIME_MSEC 200
+#define MAX_TIME_MODEM_STATUS_CHECK_SEC 60
 #define TRY_MAX 5
 
 /*---------------------------------------------------------------------------*/
@@ -126,12 +129,25 @@ static void *GsmTtyStatusThread(void *arg)
     int fd_socket, rts, data, data_size;
     fd_set fdSetTty;
 
-    fd_socket = socket_local_client(SOCKET_NAME_MODEM_STATUS,
-            ANDROID_SOCKET_NAMESPACE_RESERVED,
-            SOCK_STREAM);
+    int try = 0;
+
+    //in case STMD is not started, try every 20ms to reconnect after failed attempt. Exit loop after 1s
+    while(++try <= TRY_MAX_CONNECTION_ATTEMPT) {
+
+        fd_socket = socket_local_client(SOCKET_NAME_MODEM_STATUS,
+                ANDROID_SOCKET_NAMESPACE_RESERVED,
+                SOCK_STREAM);
+        if(fd_socket < 0) {
+            LOGW("Attempt #%d to connect to modem-status socket failed (%s)...retry after %d ms\n", try, strerror(errno), SLEEP_TIME_MSEC);
+            usleep(SLEEP_TIME_MSEC * 1000);//wait for a while before next attempt
+        } else
+            break;
+    }
+
     if (fd_socket < 0)
     {
-        LOGE("Failed to connect to modem-status socket %s\n", strerror(errno));
+        //at this time if the STMD did not answer there will probably no audio during Calls
+        LOGE("Failed to connect to modem-status socket after %d times (%s)\n", TRY_MAX_CONNECTION_ATTEMPT, strerror(errno));
         pthread_cond_broadcast(&GsmTtyStatus);
         close(fd_socket);
         return 0;
@@ -301,7 +317,7 @@ AT_STATUS at_start(const char *pATchannel)
 {
     struct timespec to;
     int try = 0;
-    to.tv_sec = time(NULL) + MAX_TIME_MODEM_STATUS_CHECK;
+    to.tv_sec = time(NULL) + MAX_TIME_MODEM_STATUS_CHECK_SEC;
     to.tv_nsec = 0;
 
     if (isInitialized) {
@@ -545,7 +561,7 @@ AT_STATUS readATline(int fd, char *pLine)
                 return AT_ERROR;
             }
                 if(count == 0) {
-                    LOGD(" read error %d", count);
+                    LOGD(" read error %lu", count);
                     return AT_ERROR;
                 }
         } while (count < 1);
@@ -629,12 +645,10 @@ void propagateATerror(AT_STATUS status)
 {
     pthread_mutex_lock(&at_dataMutex);
     LOGD("Propagate AT error");
-    if (pCurrentRunningATcmd == NULL) {
-        pthread_mutex_unlock(&at_dataMutex);
-        return 0;
+    if (pCurrentRunningATcmd != NULL) {
+        pCurrentRunningATcmd->cmdstatus = AT_ERROR;
+        pthread_cond_broadcast(&newRespReceived);
     }
-    pCurrentRunningATcmd->cmdstatus = AT_ERROR;
-    pthread_cond_broadcast(&newRespReceived);
     pthread_mutex_unlock(&at_dataMutex);
     LOGD("Propagate AT error end");
 }

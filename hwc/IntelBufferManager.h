@@ -165,13 +165,13 @@ public:
 // include hal.h instead of defining it here
 typedef struct {
     native_handle_t base;
-    int fd;
+    int fd[3];
     unsigned long long ui64Stamp;
     int usage;
     int width;
     int height;
-    int bpp;
     int format;
+    int bpp;
 }__attribute__((aligned(sizeof(int)),packed)) intel_gralloc_buffer_handle_t;
 
 class IntelPVRBufferManager : public IntelBufferManager {

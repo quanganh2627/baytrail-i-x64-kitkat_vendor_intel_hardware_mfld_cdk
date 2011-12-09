@@ -362,6 +362,8 @@ bool IntelOverlayContext::flush(uint32_t flags)
     arg.overlay_read_mask = 0;
     arg.overlay.b_wait_vblank = (flags & IntelDisplayPlane::WAIT_VBLANK) ? 1 : 0;
     arg.overlay.OVADD = (mContext->gtt_offset_in_page << 12);
+    // pipe select
+    arg.overlay.OVADD |= mContext->pipe;
     if (flags & IntelDisplayPlane::UPDATE_COEF)
         arg.overlay.OVADD |= 1;
     int ret = drmCommandWriteRead(mDrmFd,
@@ -950,23 +952,26 @@ void IntelOverlayContext::checkPosition(int& x, int& y, int& w, int& h)
     mode = &mContext->output_state.modes[output];
     mode_valid = mContext->output_state.mode_valid[output];
 
-    if (mode_valid == false) {
-        // FIXME: remove me later
-        mode->hdisplay = 600;
-        mode->vdisplay = 1024;
-    }
+    LOGD("%s: display mode %d, %dx%d\n", __func__, displayMode, mode->hdisplay, mode->vdisplay);
 
     if (!mode->hdisplay || !mode->vdisplay)
 	return;
 
-    if (x < 0)
+    if (displayMode == OVERLAY_EXTEND) {
         x = 0;
-    if (y < 0)
         y = 0;
-    if ((x + w) > mode->hdisplay)
-        w = mode->hdisplay - x;
-    if ((y + h) > mode->vdisplay)
-        h = mode->vdisplay - y;
+        w = mode->hdisplay;
+        h = mode->vdisplay;
+    } else {
+        if (x < 0)
+            x = 0;
+        if (y < 0)
+            y = 0;
+        if ((x + w) > mode->hdisplay)
+            w = mode->hdisplay - x;
+        if ((y + h) > mode->vdisplay)
+            h = mode->vdisplay - y;
+    }
 }
 
 void IntelOverlayContext::setPosition(int x, int y, int w, int h)
@@ -1066,14 +1071,22 @@ void IntelOverlayContext::setPipe(intel_display_pipe_t pipe)
 
     lock();
 
-    mOverlayBackBuffer->OCONFIG &= ~(0x1 << 18);
+    // clear pipe bits, this will use MIPI0 by default
+    mContext->pipe &= ~(0x3 << 6);
+
+    // enable color key by default
+    mOverlayBackBuffer->DCLRKM = (0x1 << 31);
 
     switch (pipe) {
     case PIPE_MIPI0:
+        break;
     case PIPE_MIPI1:
+        mContext->pipe = (0x1 << 6);
         break;
     case PIPE_HDMI:
-        mOverlayBackBuffer->OCONFIG |= (0x1 << 18);
+        mContext->pipe = (0x2 << 6);
+        // disable color key while playing on HDMI
+        mOverlayBackBuffer->DCLRKM |= 0xffffff;
         break;
     default:
 	LOGW("%s: invalid display pipe %d\n", __func__, pipe);

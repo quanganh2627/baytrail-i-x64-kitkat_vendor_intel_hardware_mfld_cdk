@@ -86,6 +86,7 @@ public:
     virtual ~IntelDisplayPlane() {}
     virtual bool initCheck() const { return mInitialized; }
     virtual int getPlaneType() const { return mType; }
+    virtual IntelDisplayPlaneContext* getContext() { return mContext; }
     virtual void setPosition(int left, int top, int right, int bottom) {
         mPosition.left = left;
         mPosition.top = top;
@@ -162,6 +163,9 @@ typedef struct {
     // back buffer info
     uint32_t back_buffer_handle;
     uint32_t gtt_offset_in_page;
+
+    // pipe configuration
+    uint32_t pipe;
 
     // dest info
     intel_overlay_position_t position;

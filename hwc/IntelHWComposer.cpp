@@ -63,6 +63,7 @@ bool IntelHWComposer::overlayPrepare(int index, hwc_layer_t *layer, int flags)
 
 bool IntelHWComposer::spritePrepare(int index, hwc_layer_t *layer, int flags)
 {
+#if 0
     if (!layer) {
         LOGE("%s: Invalid layer\n", __func__);
         return false;
@@ -133,6 +134,7 @@ bool IntelHWComposer::spritePrepare(int index, hwc_layer_t *layer, int flags)
         layer->compositionType = HWC_OVERLAY;
     } else
         layer->compositionType = HWC_FRAMEBUFFER;
+#endif
 
     return true;
 }
@@ -169,11 +171,12 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
     if (!list || !layer)
         return false;
 
-    intel_gralloc_buffer_handle_t *grallocHandle =
-        (intel_gralloc_buffer_handle_t*)layer->handle;
+    // TODO: enable this when ST is ready
+    //intel_gralloc_buffer_handle_t *grallocHandle =
+    //    (intel_gralloc_buffer_handle_t*)layer->handle;
 
-    if (!grallocHandle)
-        return false;
+    //if (!grallocHandle)
+    //    return false;
 
     // TODO: check buffer usage
 
@@ -332,6 +335,12 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
             }
 
             if (planeType == IntelDisplayPlane::DISPLAY_PLANE_OVERLAY) {
+                IntelOverlayContext *overlayContext =
+                    reinterpret_cast<IntelOverlayContext*>(plane->getContext());
+
+                // detect video mode change
+                mDrm->drmModeChanged(*overlayContext);
+
                 uint32_t handle = (uint32_t)layer->handle;
 
                 dataBuffer->setWidth(srcWidth);

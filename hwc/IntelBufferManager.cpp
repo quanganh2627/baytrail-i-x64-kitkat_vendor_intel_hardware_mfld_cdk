@@ -1093,7 +1093,7 @@ IntelDisplayBuffer* IntelGraphicBufferManager::map(uint32_t handle)
     }
 
     void *vaddr = memInfo->pvLinAddr;
-    uint32_t size = memInfo->ui32AllocSize;
+    uint32_t size = memInfo->uAllocSize;
     int gttOffsetInPage;
 
     // map to gtt

@@ -173,6 +173,7 @@ static const device_suffix_t deviceSuffix[] = {
 #endif
     { AudioSystem::DEVICE_OUT_DEFAULT,                "_Null" },
     { AudioSystem::DEVICE_IN_BUILTIN_MIC,            "_BuiltinMic" },
+    { AudioSystem::DEVICE_IN_BACK_MIC,               "_BuiltinBackMic" },
     { AudioSystem::DEVICE_IN_BLUETOOTH_SCO_HEADSET,  "_BluetoothScoHeadset" },
     { AudioSystem::DEVICE_IN_WIRED_HEADSET,          "_Headset" },
     { AudioSystem::DEVICE_IN_VOICE_CALL,             "_VoiceCall" },

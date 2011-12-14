@@ -669,7 +669,7 @@ static status_t s_standby(alsa_handle_t *handle)
     status_t err = NO_ERROR;
     snd_pcm_t *h = handle->handle;
     if (h) {
-        if(handle->curMode == AudioSystem::MODE_IN_CALL) {
+        if ( (handle->curMode == AudioSystem::MODE_IN_CALL) || (handle->curMode == AudioSystem::MODE_IN_COMMUNICATION) ) {
             snd_pcm_drop(h);
         } else {
             snd_pcm_drain(h);

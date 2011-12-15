@@ -294,7 +294,7 @@ static int vpc_route(vpc_route_t route)
                      */
                     msic::pcm_enable(AudioSystem::MODE_IN_COMMUNICATION, AudioSystem::DEVICE_OUT_EARPIECE);
                     device_profile = (bt_acoustic == false) ? device_out_defaut : current_device;
-                    ret = acoustic::process_profile(current_device, current_mode);
+                    ret = acoustic::process_profile(device_profile, current_mode);
                     if (ret) goto return_error;
                     usleep(50000);
 #endif

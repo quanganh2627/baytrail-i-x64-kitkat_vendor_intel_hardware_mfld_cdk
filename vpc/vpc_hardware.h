@@ -38,6 +38,7 @@ typedef struct vpc_device_t {
 
     int (*init)(void);
     int (*params)(int mode, uint32_t device);
+    void (*set_modem_state)(int state);
     int (*route)(vpc_route_t);
     int (*volume)(float);
     int (*mix_disable)(int mode);

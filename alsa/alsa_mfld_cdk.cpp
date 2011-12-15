@@ -24,7 +24,7 @@
 #define LOG_NDEBUG 0
 
 #include <utils/Log.h>
-#include <AudioHardwareALSA.h>
+#include <AudioHardwareALSACommon.h>
 #include <media/AudioRecord.h>
 #include <hardware_legacy/AudioSystemLegacy.h>
 #include <signal.h>
@@ -565,6 +565,7 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
     // changes, but we might be recovering from an error or manipulating
     // mixer settings (see asound.conf).
     //
+    LOGD("s_open: closing handle first %d, %d", devices, mode);
     s_close(handle);
 
     LOGD("open called for devices %08x in mode %d...", devices, mode);
@@ -653,7 +654,7 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
         }
     }
 
-    err = setHardwareParams(handle);
+	err = setHardwareParams(handle);
 
     if (err == NO_ERROR) err = setSoftwareParams(handle);
 
@@ -666,10 +667,11 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
 
 static status_t s_standby(alsa_handle_t *handle)
 {
+    LOGD("%s in \n", __func__);
     status_t err = NO_ERROR;
     snd_pcm_t *h = handle->handle;
     if (h) {
-        if ( (handle->curMode == AudioSystem::MODE_IN_CALL) || (handle->curMode == AudioSystem::MODE_IN_COMMUNICATION) ) {
+        if(handle->curMode == AudioSystem::MODE_IN_CALL || handle->curMode == AudioSystem::MODE_IN_COMMUNICATION) {
             snd_pcm_drop(h);
         } else {
             snd_pcm_drain(h);
@@ -677,12 +679,13 @@ static status_t s_standby(alsa_handle_t *handle)
             handle->handle = NULL;
         }
     }
-    LOGD("S_STANDBY\n");
+    LOGD("%s out \n", __func__);
     return err;
 }
 
 static status_t s_close(alsa_handle_t *handle)
 {
+    LOGD("%s in \n", __func__);
     status_t err = NO_ERROR;
     snd_pcm_t *h = handle->handle;
     handle->handle = 0;
@@ -693,7 +696,7 @@ static status_t s_close(alsa_handle_t *handle)
         snd_pcm_drain(h);
         err = snd_pcm_close(h);
     }
-
+    LOGD("%s out \n", __func__);
     return err;
 }
 
@@ -721,3 +724,4 @@ static status_t s_config(alsa_handle_t *handle, int mode)
     return NO_ERROR;
 }
 }
+

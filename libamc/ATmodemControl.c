@@ -251,13 +251,13 @@ static void *atReaderThread(void *arg)
         } while (readStatus != AT_OK);
         pthread_mutex_lock(&at_dataMutex);
         if (pCurrentRunningATcmd != NULL) {
-            if (strpbrk(pCurrentRunningATcmd->prefix, prefix) != NULL) {
+            if (strstr(prefix, pCurrentRunningATcmd->prefix) != NULL) {
                 LOGV("Prefix OK %s ",pCurrentRunningATcmd->prefix);
                 pthread_mutex_unlock(&at_dataMutex);
                 break;
             }
             else
-                LOGV("Prefix NOK %s",pCurrentRunningATcmd->prefix);
+                LOGW("Unsolicited answer received %s",pCurrentRunningATcmd->prefix);
         }
         else
             LOGD(" <=> %s(Unsol Resp)", prefix);
@@ -300,7 +300,7 @@ static void *atReaderThread(void *arg)
     }
     LOGD(" <=> |%s|: Resp = |%s|, Status = |%i|.", prefix, resp, status);
         if (status != AT_ERROR) {
-            LOGE("AT_OK");
+            LOGD("AT_OK");
             pthread_mutex_lock(&at_dataMutex);
             pCurrentRunningATcmd->cmdstatus = status;
             pthread_cond_broadcast(&newRespReceived);
@@ -329,7 +329,7 @@ AT_STATUS at_start(const char *pATchannel)
         pthread_cond_init(&GsmTtyStatus, NULL);
     /*check gsmtty status*/
     if (pthread_create(&GsmTtyThreadId, NULL, GsmTtyStatusThread, NULL) != 0) {
-        LOGW("Unable to start thread Status TTY: error:");
+        LOGE("Unable to start thread Status TTY: error:");
         return AT_UNABLE_TO_CREATE_THREAD;
     }
     pthread_mutex_lock(&GsmTtyMutex);
@@ -341,13 +341,13 @@ AT_STATUS at_start(const char *pATchannel)
         // Open handle to modem device.
         fdIn = open(pATchannel, O_WRONLY|CLOCAL);
         if (fdIn < 0) {
-            LOGW("Unable to open device for writing: %s, error: %s",
+            LOGE("Unable to open device for writing: %s, error: %s",
             pATchannel, strerror(errno));
             return AT_UNABLE_TO_OPEN_DEVICE;
         }
         fdOut = open(pATchannel, O_RDONLY|CLOCAL);
         if (fdOut < 0) {
-            LOGW("Unable to open device for reading: %s, error: %s",
+            LOGE("Unable to open device for reading: %s, error: %s",
             pATchannel, strerror(errno));
             return AT_UNABLE_TO_OPEN_DEVICE;
         }
@@ -359,7 +359,7 @@ AT_STATUS at_start(const char *pATchannel)
         LOGV("Starting AT Reader thread ...");
         sem_wait(&sem_thread);
         if (pthread_create(&threadId, NULL, atReaderThread, NULL) != 0) {
-            LOGW("Unable to start thread: error: %s", strerror(errno));
+            LOGE("Unable to start thread: error: %s", strerror(errno));
             sem_post(&sem_thread);
             return AT_UNABLE_TO_CREATE_THREAD;
         }
@@ -408,12 +408,12 @@ AT_STATUS at_askUnBlocking(const char *pATcmd, const char *pRespPrefix,
     /* Allow default initialization: */
     if (!isInitialized) {
         cmdStatus = AT_UNINITIALIZED;
-        LOGW("AT Modem Control not initialized.");
+        LOGE("AT Modem Control not initialized.");
         return AT_UNINITIALIZED;
     }
     pNewCmd = (RunningATcmd  *) malloc(sizeof(RunningATcmd));
     if(!pNewCmd) {
-        LOGW("malloc pNewCmd error");
+        LOGE("malloc pNewCmd error");
         return AT_UNINITIALIZED;
     }
     pthread_mutex_lock(&at_dataMutex);
@@ -430,7 +430,7 @@ AT_STATUS at_askUnBlocking(const char *pATcmd, const char *pRespPrefix,
         LOGD("AT RUNNING %s",pNewCmd->prefix);
     /* Send Commend */
         if (cmdStatus != AT_RUNNING)
-            LOGW("... %s not written.", pATcmd);
+            LOGE("... %s not written.", pATcmd);
         pthread_mutex_unlock(&at_dataMutex);
         return cmdStatus;
     }
@@ -561,7 +561,7 @@ AT_STATUS readATline(int fd, char *pLine)
                 return AT_ERROR;
             }
                 if(count == 0) {
-                    LOGD(" read error %lu", count);
+                    LOGE(" read error %d", count);
                     return AT_ERROR;
                 }
         } while (count < 1);
@@ -606,7 +606,7 @@ AT_STATUS writeATline(int fd, const char *pATcmd)
     FD_SET(fd, &fdSet);
     len = strlen(pATcmd);
     if(len >= AT_MAX_CMD_LENGTH) {
-        LOGW("AT cmd is too long");
+        LOGE("AT cmd is too long");
         return AT_ERROR;
     }
 
@@ -624,13 +624,13 @@ AT_STATUS writeATline(int fd, const char *pATcmd)
         do {
             rts = select(fd+1, NULL, &fdSet, NULL, NULL);
             if ((rts == -1) && (errno != EINTR) && (errno != EAGAIN)) {
-                LOGW("Write Error: %i / %s", errno, strerror(errno));
+                LOGE("Write Error: %i / %s", errno, strerror(errno));
                 return AT_WRITE_ERROR;
             }
         } while (rts == -1);
         written = write(fd, buf + cur , len - cur);
         if ((written == -1) && (errno != EINTR) && (errno != EAGAIN)) {
-        LOGW("Unable to write to modem. Error: %i / %s",
+        LOGE("Unable to write to modem. Error: %i / %s",
         errno, strerror(errno));
         return AT_WRITE_ERROR;
         }

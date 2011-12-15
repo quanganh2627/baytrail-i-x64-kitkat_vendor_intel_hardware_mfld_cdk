@@ -26,7 +26,7 @@
 #include "bt.h"
 #include "msic.h"
 #include "volume_keys.h"
-
+#include "stmd.h"
 #include "vpc_hardware.h"
 
 namespace android_audio_legacy
@@ -38,6 +38,7 @@ namespace android_audio_legacy
 
 static int vpc_init(void);
 static int vpc_params(int mode, uint32_t device);
+static void vpc_set_modem_state(int state);
 static int vpc_route(vpc_route_t);
 static int vpc_volume(float);
 static int vpc_mixing_disable(int mode);
@@ -73,7 +74,8 @@ static bool      voice_call_recording = false;
 static bool      bt_acoustic          = true;
 static int       modem_gain_dl        = 0;
 static int       modem_gain_ul        = 100; // +6 dB
-
+static int       prev_modem_status    = MODEM_DOWN;
+static int       modem_status         = MODEM_DOWN;
 
 /*---------------------------------------------------------------------------*/
 /* Initialization                                                            */
@@ -120,8 +122,30 @@ static int vpc_params(int mode, uint32_t device)
     current_mode = mode;
     current_device = device;
 
+    LOGD("vpc_params mode = %d device = %d\n", current_mode, current_device);
+    LOGD("vpc_params previous mode = %d previous device = %d\n", prev_mode, prev_device);
+
     vpc_lock.unlock();
     return NO_ERROR;
+}
+
+/*---------------------------------------------------------------------------*/
+/* Modem Status: each time modem status is changed, this fonction will be    */
+/* called from HAL                                                           */
+/*---------------------------------------------------------------------------*/
+static void vpc_set_modem_state(int status)
+{
+    LOGD("vpc_set_modem_state modem_status");
+    vpc_lock.lock();
+
+    if(status != modem_status) {
+        prev_modem_status = modem_status;
+        modem_status = status;
+    }
+
+    LOGD("vpc_set_modem_state modem_status = %d \n", modem_status);
+
+    vpc_lock.unlock();
 }
 
 /*---------------------------------------------------------------------------*/
@@ -135,16 +159,17 @@ static int vpc_route(vpc_route_t route)
     uint32_t device_profile;
 
     /* -------------------------------------------------------------- */
-    /* Enter in this loop only if previous mode != current mode       */
-    /* or if previous device != current device and not capture device */
+    /* Enter in this loop only for output device as they trig the     */
+    /* establishment of the route                                     */
     /* -------------------------------------------------------------- */
-    if ((prev_mode != current_mode || prev_device != current_device) && ((current_device & AudioSystem::DEVICE_OUT_ALL) != 0x0))
+    if (current_device & AudioSystem::DEVICE_OUT_ALL)
     {
-        LOGD("mode = %d device = %d\n", current_mode, current_device);
-        LOGD("previous mode = %d previous device = %d\n", prev_mode, prev_device);
+        LOGD("mode = %d device = %d modem status = %d\n", current_mode, current_device, modem_status);
+        LOGD("previous mode = %d previous device = %d previous modem status = %d\n", prev_mode, prev_device, prev_modem_status);
 
         if (route == VPC_ROUTE_OPEN)
         {
+            LOGD("VPC_ROUTE_OPEN request\n");
             /* --------------------------------------------- */
             /* Volume buttons & power management             */
             /* --------------------------------------------- */
@@ -172,70 +197,92 @@ static int vpc_route(vpc_route_t route)
             if (current_mode == AudioSystem::MODE_IN_CALL)
             {
                 LOGD("VPC IN_CALL\n");
-
-                switch (current_device)
+                if(modem_status != MODEM_UP)
                 {
-                /* ------------------------------------ */
-                /* Voice paths control for MSIC devices */
-                /* ------------------------------------ */
-                case AudioSystem::DEVICE_OUT_EARPIECE:
-                case AudioSystem::DEVICE_OUT_SPEAKER:
-                case AudioSystem::DEVICE_OUT_WIRED_HEADSET:
-                case AudioSystem::DEVICE_OUT_WIRED_HEADPHONE:
-                    amc_mute();
-
-                    msic::pcm_disable();
-                    bt::pcm_disable();
-                    amc_off();
-
-#ifdef CUSTOM_BOARD_WITH_AUDIENCE
-                    device_profile = (tty_call == VPC_TTY_OFF) ? current_device : device_out_defaut;
-                    ret = acoustic::process_profile(device_profile, current_mode);
-                    if (ret) goto return_error;
-#endif
-
-                    if ((prev_mode != AudioSystem::MODE_IN_CALL) || (prev_device & DEVICE_OUT_BLUETOOTH_SCO_ALL) || (!call_established))
+                    LOGD("MODEM_DOWN or IN_RESET, cannot set a voicecall path!!!\n");
+                    goto return_error;
+                }
+                /* MODEM is UP, apply the changes only if devices, or mode, or modem status was changed */
+                if ((prev_mode != current_mode) || (prev_device != current_device) || (prev_modem_status != modem_status))
+                {
+                    switch (current_device)
                     {
-                        amc_modem_conf_msic_dev(tty_call);
+                        /* ------------------------------------ */
+                        /* Voice paths control for MSIC devices */
+                        /* ------------------------------------ */
+                        case AudioSystem::DEVICE_OUT_EARPIECE:
+                        case AudioSystem::DEVICE_OUT_SPEAKER:
+                        case AudioSystem::DEVICE_OUT_WIRED_HEADSET:
+                        case AudioSystem::DEVICE_OUT_WIRED_HEADPHONE:
+                            amc_mute();
+
+                            msic::pcm_disable();
+                            bt::pcm_disable();
+                            amc_off();
+
+        #ifdef CUSTOM_BOARD_WITH_AUDIENCE
+                            device_profile = (tty_call == VPC_TTY_OFF) ? current_device : device_out_defaut;
+                            ret = acoustic::process_profile(device_profile, current_mode);
+                            if (ret) goto return_error;
+        #endif
+
+                            if ((prev_mode != AudioSystem::MODE_IN_CALL) || (prev_device & DEVICE_OUT_BLUETOOTH_SCO_ALL) || (!call_established))
+                            {
+                                amc_modem_conf_msic_dev(tty_call);
+                            }
+
+                            amc_on();
+                            msic::pcm_enable(current_mode, current_device);
+                            mixing_enable = true;
+
+                            amc_unmute(modem_gain_dl, modem_gain_ul);
+                            break;
+                        /* ------------------------------------ */
+                        /* Voice paths control for BT devices   */
+                        /* ------------------------------------ */
+                        case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO:
+                        case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET:
+                        case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_CARKIT:
+                            amc_mute();
+
+                            msic::pcm_disable();
+                           /*
+                            * Awfull Workaround: audience needs a 48k clock to apply its BT
+                            * preset. If the call is not established, needs to start
+                            * the Modem I2S in 48kHz i2s mode
+                            */
+
+                            if(!call_established)
+                            {
+                                amc_modem_conf_msic_dev(tty_call);
+                                amc_on();
+                            }
+
+        #ifdef CUSTOM_BOARD_WITH_AUDIENCE
+                            device_profile = (bt_acoustic == false) ? device_out_defaut : current_device;
+                            ret = acoustic::process_profile(device_profile, current_mode);
+                            if (ret) goto return_error;
+                            usleep(50000);
+        #endif
+                            amc_off();
+                            amc_modem_conf_bt_dev();
+
+                            amc_on();
+                            bt::pcm_enable();
+                            mixing_enable = true;
+
+                            amc_unmute(modem_gain_dl, modem_gain_ul);
+                            break;
+                        default:
+                            break;
                     }
 
-                    amc_on();
-                    msic::pcm_enable(current_mode, current_device);
-                    mixing_enable = true;
-
-                    amc_unmute(modem_gain_dl, modem_gain_ul);
-                    break;
-                /* ------------------------------------ */
-                /* Voice paths control for BT devices   */
-                /* ------------------------------------ */
-                case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO:
-                case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET:
-                case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_CARKIT:
-                    amc_mute();
-
-                    msic::pcm_disable();
-
-#ifdef CUSTOM_BOARD_WITH_AUDIENCE
-                    /* Audience requirement: the previous mode clock must be running
-                     * while the BT preset is selected, during 50ms at least.
-                     */
-                    device_profile = (bt_acoustic == false) ? device_out_defaut : current_device;
-                    ret = acoustic::process_profile(device_profile, current_mode);
-                    if (ret) goto return_error;
-                    usleep(50000);
-#endif
-                    amc_off();
-                    amc_modem_conf_bt_dev();
-
-                    amc_on();
-                    bt::pcm_enable();
-                    mixing_enable = true;
-
-                    amc_unmute(modem_gain_dl, modem_gain_ul);
-                    break;
-                default:
-                    break;
+                    call_established = true;
+                    prev_mode = current_mode;
+                    prev_device = current_device;
+                    prev_modem_status = modem_status;
                 }
+                /* Else: nothing to do, input params of VPC did not change */
             }
             /* --------------------------------------------- */
             /* Voice paths control for MODE_IN_COMMUNICATION */
@@ -243,96 +290,161 @@ static int vpc_route(vpc_route_t route)
             else if (current_mode == AudioSystem::MODE_IN_COMMUNICATION)
             {
                 LOGD("VPC IN_COMMUNICATION\n");
-
-                switch (current_device)
+                if(modem_status == MODEM_COLD_RESET)
                 {
-                /* ------------------------------------ */
-                /* Voice paths control for MSIC devices */
-                /* ------------------------------------ */
-                case AudioSystem::DEVICE_OUT_EARPIECE:
-                case AudioSystem::DEVICE_OUT_SPEAKER:
-                case AudioSystem::DEVICE_OUT_WIRED_HEADSET:
-                case AudioSystem::DEVICE_OUT_WIRED_HEADPHONE:
-                    msic::pcm_disable();
-                    bt::pcm_disable();
-                    if (prev_mode == AudioSystem::MODE_IN_CALL)
-                    {
-                        amc_off();
-                    }
-
-#ifdef CUSTOM_BOARD_WITH_AUDIENCE
-                    device_profile = (tty_call == true) ? device_out_defaut : current_device;
-                    ret = acoustic::process_profile(device_profile, current_mode);
-                    if (ret) goto return_error;
-#endif
-
-                    msic::pcm_enable(current_mode, current_device);
-                    break;
-                /* ------------------------------------ */
-                /* Voice paths control for BT devices   */
-                /* ------------------------------------ */
-                case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO:
-                case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET:
-                case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_CARKIT:
-                    if (prev_mode == AudioSystem::MODE_IN_CALL)
-                    {
-                        amc_off();
-                    }
-
-#ifdef CUSTOM_BOARD_WITH_AUDIENCE
-                    /* Audience requirement: the previous mode clock must be running
-                     * while the BT preset is selected, during 50ms at least. Since
-                     * MSIC clock is already disabled, we have to enable it back.
-                     */
-                    msic::pcm_enable(AudioSystem::MODE_IN_COMMUNICATION, AudioSystem::DEVICE_OUT_EARPIECE);
-                    device_profile = (bt_acoustic == false) ? device_out_defaut : current_device;
-                    ret = acoustic::process_profile(device_profile, current_mode);
-                    if (ret) goto return_error;
-                    usleep(50000);
-#endif
-                    msic::pcm_disable();
-
-                    bt::pcm_enable();
-                    break;
-                default:
-                    break;
+                    LOGD("MODEM_COLD_RESET, cannot set VoIP path !!!\n");
+                    goto return_error;
                 }
-            }
 
-            call_established = true;
-            prev_mode = current_mode;
-            prev_device = current_device;
+                /* MODEM is not in cold reset, apply the changes only if devices, or mode, or modem status was changed */
+                if ((prev_mode != current_mode) || (prev_device != current_device) || (prev_modem_status != modem_status))
+                {
+                    switch (current_device)
+                    {
+                    /* ------------------------------------ */
+                    /* Voice paths control for MSIC devices */
+                    /* ------------------------------------ */
+                    case AudioSystem::DEVICE_OUT_EARPIECE:
+                    case AudioSystem::DEVICE_OUT_SPEAKER:
+                    case AudioSystem::DEVICE_OUT_WIRED_HEADSET:
+                    case AudioSystem::DEVICE_OUT_WIRED_HEADPHONE:
+                        msic::pcm_disable();
+                        bt::pcm_disable();
+                        if (prev_mode == AudioSystem::MODE_IN_CALL)
+                        {
+                            amc_off();
+                        }
+
+    #ifdef CUSTOM_BOARD_WITH_AUDIENCE
+                        device_profile = (tty_call == true) ? device_out_defaut : current_device;
+                        ret = acoustic::process_profile(device_profile, current_mode);
+                        if (ret) goto return_error;
+    #endif
+
+                        msic::pcm_enable(current_mode, current_device);
+                        break;
+                    /* ------------------------------------ */
+                    /* Voice paths control for BT devices   */
+                    /* ------------------------------------ */
+                    case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO:
+                    case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET:
+                    case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_CARKIT:
+                        if (prev_mode == AudioSystem::MODE_IN_CALL)
+                        {
+                            amc_off();
+                        }
+
+    #ifdef CUSTOM_BOARD_WITH_AUDIENCE
+                        /*
+                         * Awfull Workaround: audience needs a 48k clock to apply its BT
+                         * preset. Needs to start the Modem I2S in 48kHz i2s mode
+                         */
+                        msic::pcm_enable(AudioSystem::MODE_IN_COMMUNICATION, AudioSystem::DEVICE_OUT_EARPIECE);
+                        device_profile = (bt_acoustic == false) ? device_out_defaut : current_device;
+                        ret = acoustic::process_profile(current_device, current_mode);
+                        if (ret) goto return_error;
+                        usleep(50000);
+    #endif
+                        msic::pcm_disable();
+
+                        bt::pcm_enable();
+                        break;
+                    default:
+                        break;
+                    }
+
+                    call_established = true;
+                    prev_mode = current_mode;
+                    prev_device = current_device;
+                    prev_modem_status = modem_status;
+                }
+                /* else: nothing to do, VPC input params did not change */
+            }
+            /* else: nothing to do, mode not handled */
         }
         /* Disable voice paths at the end of the call */
-        else if ((route == VPC_ROUTE_CLOSE) && (current_mode != AudioSystem::MODE_IN_CALL) && (current_mode != AudioSystem::MODE_IN_COMMUNICATION))
+        else if (route == VPC_ROUTE_CLOSE)
         {
-            if (prev_mode == AudioSystem::MODE_IN_CALL)
+            LOGD("VPC_ROUTE_CLOSE request\n");
+            if(current_mode == AudioSystem::MODE_IN_COMMUNICATION)
             {
-                LOGD("VPC from IN_CALL to NORMAL\n");
+                LOGD("current_mode: IN_COMMUNICATION\n");
+                /*
+                * We are still in VoIP call but a modem cold reset
+                * is going to be performed.
+                * Need to close immediately MSIC / BT
+                */
+                if(modem_status == MODEM_COLD_RESET)
+                {
+                    LOGD("VPC IN_COMMUNICATION & MODEM COLD RESET\n");
+                    msic::pcm_disable();
+                    bt::pcm_disable();
 
-                ret = volume_keys::wakeup_disable();
-                if (ret) goto return_error;
-
-                amc_mute();
-                msic::pcm_disable();
-                bt::pcm_disable();
-                amc_off();
-                mixing_enable = false;
-            }
-            else
-            {
-                LOGD("VPC from IN_COMMUNICATION to NORMAL\n");
-                msic::pcm_disable();
-                bt::pcm_disable();
-            }
-
+                    call_established = false;
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
-            acoustic::process_suspend();
+                    acoustic::process_suspend();
 #endif
+                }
+                 /* Else: ignore this close request */
 
-            call_established = false;
-            prev_mode = current_mode;
-            prev_device = current_device;
+            }
+            else if(current_mode == AudioSystem::MODE_IN_CALL)
+            {
+                LOGD("current_mode: IN_CALL");
+                /* We are still in call but an accessory change occured
+                 * and a close request was initiated
+                 * Do not do anything except if the modem is not up anymore
+                 */
+                if(modem_status != MODEM_UP)
+                {
+                    LOGD("VPC from IN_CALL to IN_CALL with MODEM_DOWN\n");
+
+                    ret = volume_keys::wakeup_disable();
+                    if (ret) goto return_error;
+
+                    msic::pcm_disable();
+                    bt::pcm_disable();
+
+                    call_established = false;
+#ifdef CUSTOM_BOARD_WITH_AUDIENCE
+                    acoustic::process_suspend();
+#endif
+                }
+                /* Else: ignore this close request */
+
+            } else
+            {
+                LOGD("current mode: out of CSV/VoIP call");
+                if (prev_mode == AudioSystem::MODE_IN_CALL)
+                {
+                    LOGD("VPC from IN_CALL to NORMAL\n");
+
+                    ret = volume_keys::wakeup_disable();
+                    if (ret) goto return_error;
+
+                    if(modem_status == MODEM_UP)
+                        amc_mute();
+                    msic::pcm_disable();
+                    bt::pcm_disable();
+                    if(modem_status == MODEM_UP)
+                        amc_off();
+                    mixing_enable = false;
+                }
+                else
+                {
+                    LOGD("VPC from IN_COMMUNICATION to NORMAL\n");
+                    msic::pcm_disable();
+                    bt::pcm_disable();
+                }
+
+    #ifdef CUSTOM_BOARD_WITH_AUDIENCE
+                acoustic::process_suspend();
+    #endif
+
+                call_established = false;
+                prev_mode = current_mode;
+                prev_device = current_device;
+            }
         }
         else
         {
@@ -510,6 +622,7 @@ static int s_device_open(const hw_module_t* module, const char* name,
     dev->common.close   = s_device_close;
     dev->init           = vpc_init;
     dev->params         = vpc_params;
+    dev->set_modem_state = vpc_set_modem_state;
     dev->route          = vpc_route;
     dev->volume         = vpc_volume;
     dev->mix_disable    = vpc_mixing_disable;

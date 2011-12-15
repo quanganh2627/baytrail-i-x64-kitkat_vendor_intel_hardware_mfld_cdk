@@ -26,6 +26,9 @@
 #include <utils/Log.h>
 #include <sys/time.h>
 
+#define MAX_AGAIN_RETRY     3
+#define WAIT_TIME_MS        20
+
 typedef struct snd_pcm_voice {
     snd_pcm_ioplug_t io;
     char *card;
@@ -68,12 +71,19 @@ static ssize_t pcm_write(snd_pcm_t *pcm_handle, const char *data, size_t count,s
     ssize_t result = 0;
     int err;
     size_t frame_num = count;
+    int i = 0;
 
     while (frame_num > 0) {
         r = snd_pcm_writei (pcm_handle, data, frame_num);
         if (r == -EAGAIN) {
-            LOGE("EAGIN wait r is %d\n",(int)r);
-            //snd_pcm_wait(pcm_handle, 1000);
+            i++;
+            if (i > MAX_AGAIN_RETRY)
+            {
+                LOGE("EAGAIN break");
+                return r;
+            }
+            snd_pcm_wait(pcm_handle, WAIT_TIME_MS);
+
             continue;
         } else if (r == -EPIPE) {
             LOGE("EPIPE xrun r is %d\n",(int)r);
@@ -264,24 +274,23 @@ static void  xrun(snd_pcm_t *handle)
 
 static int xrun_recovery(snd_pcm_t *handle, int err)
 {
-    int result = 0;
-
     LOGD("%s in \n", __func__);
+
     if (err == -EPIPE) {    /* under-run */
-        result = snd_pcm_prepare(handle);
-        if (result < 0)
+        err = snd_pcm_prepare(handle);
+        if (err < 0)
             LOGE("Can't recovery from underrun, prepare failed: %s\n", snd_strerror(err));
     } else if (err == -ESTRPIPE) {
-        while ((result = snd_pcm_resume(handle)) == -EAGAIN)
+        while ((err = snd_pcm_resume(handle)) == -EAGAIN)
             sleep(1);       /* wait until the suspend flag is released */
-        if (result < 0) {
-            result = snd_pcm_prepare(handle);
-            if (result < 0)
+        if (err < 0) {
+            err = snd_pcm_prepare(handle);
+            if (err < 0)
                 LOGE("Can't recovery from suspend, prepare failed: %s\n", snd_strerror(err));
         }
     }
 
-    return result;
+    return err;
 }
 
 
@@ -551,7 +560,11 @@ static int voice_hw_open(snd_pcm_ioplug_t *io)
 
     sprintf(device, "hw:%d,%d", snd_card_get_index(voice->card), voice->device);
 
-    err = snd_pcm_open(&voice->pcm_md_handle, device, io->stream, 0);
+    /* 
+     * Non blocking mode is mandatory when dealing with the modem. In case of 
+     * a modem reset, it would freeze...
+     */
+    err = snd_pcm_open(&voice->pcm_md_handle, device, io->stream, SND_PCM_NONBLOCK);
 
     if (err < 0) {
         LOGE("Cannot open alsa device(%s): direction = %d \n", device, io->stream);
@@ -667,7 +680,7 @@ SND_PCM_PLUGIN_DEFINE_FUNC(voice)
     snd_config_iterator_t i, next;
     const char *card = NULL;
     long device = -1;
-    int err;
+    int err = 0;
     snd_pcm_voice_t *voice;
 
     LOGD("%s in \n", __func__);

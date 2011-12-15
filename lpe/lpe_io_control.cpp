@@ -17,7 +17,7 @@
 
 #include <linux/ioctl.h>
 #include <sound/intel_sst_ioctl.h>
-#include "AudioHardwareALSA.h"
+#include "AudioHardwareALSACommon.h"
 extern "C" {
 #include "parameter_tuning_lib.h"
 }

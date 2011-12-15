@@ -33,7 +33,8 @@ endif
         hardware/intel/mfld_cdk/vpc \
         hardware/intel/mfld_cdk/libamc \
         system/core/include/cutils \
-        external/bluetooth/bluez/lib/bluetooth
+        external/bluetooth/bluez/lib/bluetooth \
+        hardware/intel/IFX-modem
 
   LOCAL_SRC_FILES:= \
         ctl_vpc.cpp \

@@ -179,23 +179,23 @@ static int voice_write_integer(snd_ctl_ext_t * ext, snd_ctl_ext_key_t key,
     switch (key) {
     case VOICE_EARPIECE_INCALL:
         LOGD("voice route to earpiece \n");
-        ctl->vpc->route(VPC_ROUTE_OPEN);
+        err = ctl->vpc->route(VPC_ROUTE_OPEN);
         break;
     case VOICE_SPEAKER_INCALL:
         LOGD("voice route to Speaker \n");
-        ctl->vpc->route(VPC_ROUTE_OPEN);
+        err = ctl->vpc->route(VPC_ROUTE_OPEN);
         break;
     case VOICE_HEADSET_INCALL:
         LOGD("voice route to headset \n");
-        ctl->vpc->route(VPC_ROUTE_OPEN);
+       err = ctl->vpc->route(VPC_ROUTE_OPEN);
         break;
     case VOICE_BT_INCALL:
         LOGD("voice route to BT \n");
-        ctl->vpc->route(VPC_ROUTE_OPEN);
+        err = ctl->vpc->route(VPC_ROUTE_OPEN);
         break;
     case VOICE_HEADPHONE_INCALL:
         LOGD("voice route to headphone \n");
-        ctl->vpc->route(VPC_ROUTE_OPEN);
+        err = ctl->vpc->route(VPC_ROUTE_OPEN);
         break;
     default:
         err = -EINVAL;

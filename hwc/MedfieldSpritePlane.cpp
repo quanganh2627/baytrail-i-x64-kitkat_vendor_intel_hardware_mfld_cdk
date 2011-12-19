@@ -20,7 +20,8 @@
 MedfieldSpritePlane::MedfieldSpritePlane(int fd, int index, IntelBufferManager *bm)
     : IntelSpritePlane(fd, index, bm)
 {
-
+    memset(mDataBuffers, 0, sizeof(mDataBuffers));
+    mNextBuffer = 0;
 }
 
 MedfieldSpritePlane::~MedfieldSpritePlane()
@@ -31,6 +32,7 @@ MedfieldSpritePlane::~MedfieldSpritePlane()
 void MedfieldSpritePlane::setPosition(int left, int top, int right, int bottom)
 {
     // Never do this on Medfield
+    IntelSpritePlane::setPosition(left, top, right, bottom);
 }
 
 bool MedfieldSpritePlane::setDataBuffer(IntelDisplayBuffer& buffer)
@@ -43,20 +45,106 @@ bool MedfieldSpritePlane::setDataBuffer(IntelDisplayBuffer& buffer)
             reinterpret_cast<IntelSpriteContext*>(mContext);
         intel_sprite_context_t *context = spriteContext->getContext();
 
-        // only handle surface change on Medfield
-        uint32_t linoff = 0;
+        uint32_t format = spriteDataBuffer->getFormat();
+        uint32_t spriteFormat;
+        int bpp;
+
+        switch (format) {
+        case HAL_PIXEL_FORMAT_RGBA_8888:
+            spriteFormat = INTEL_SPRITE_PIXEL_FORMAT_RGBA8888;
+            bpp = 4;
+            break;
+        case HAL_PIXEL_FORMAT_RGBX_8888:
+            spriteFormat = INTEL_SPRITE_PIXEL_FORMAT_RGBX8888;
+            bpp = 4;
+            break;
+        case HAL_PIXEL_FORMAT_BGRA_8888:
+            spriteFormat = INTEL_SPRITE_PIXEL_FORMAT_BGRA8888;
+            bpp = 4;
+            break;
+        case HAL_PIXEL_FORMAT_RGB_565:
+            spriteFormat = INTEL_SPRITE_PIXEL_FORMAT_BGRX565;
+            bpp = 2;
+            break;
+        default:
+            LOGE("%s: unsupported format 0x%x\n", __func__, format);
+            return false;
+        }
+
+        // set offset;
+        int srcX = spriteDataBuffer->getSrcX();
+        int srcY = spriteDataBuffer->getSrcY();
+        int srcWidth = spriteDataBuffer->getSrcWidth();
+        int srcHeight = spriteDataBuffer->getSrcHeight();
+        uint32_t stride = align_to(bpp * srcWidth, 64);
+        uint32_t linoff = srcY * stride + srcX * bpp;
+
+        // gtt
         uint32_t gttOffsetInPage = spriteDataBuffer->getGttOffsetInPage();
 
         // update context
+        context->cntr = spriteFormat | 0x80000000;
         context->linoff = linoff;
+        context->stride = stride;
         context->surf = gttOffsetInPage << 12;
+        context->update_mask = SPRITE_UPDATE_ALL;
 
-        // FIXME: should I enable Alpha here???
-        context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRA8888 | 0x80000000;
+        LOGV("%s: cntr 0x%x, stride 0x%x, surf 0x%x\n",
+             __func__, context->cntr, context->stride, context->surf);
+
         return true;
     }
+
     LOGE("%s: sprite plane was not initialized\n", __func__);
     return false;
+}
+
+bool MedfieldSpritePlane::setDataBuffer(uint32_t handle)
+{
+    IntelDisplayBuffer *buffer = 0;
+
+    if (!initCheck()) {
+        LOGE("%s: overlay plane wasn't initialized\n", __func__);
+        return false;
+    }
+
+#if 0
+    for (int i = 0; i < INTEL_DATA_BUFFER_NUM_MAX; i++) {
+        if (mDataBuffers[i].handle == handle) {
+            buffer = mDataBuffers[i].buffer;
+            mNextBuffer = i;
+            break;
+        }
+    }
+#endif
+    LOGD("%s: next buffer %d\n", __func__, mNextBuffer);
+
+    // map the handle if no buffer found
+//    if (!buffer) {
+       // make sure the buffer list is clean
+       if (!mNextBuffer)
+           invalidateDataBuffer();
+
+        buffer = mBufferManager->map(handle);
+        if (!buffer) {
+             LOGE("%s: failed to map handle %d\n", __func__, handle);
+             disable();
+             return false;
+        }
+
+        mDataBuffers[mNextBuffer].handle = handle;
+        mDataBuffers[mNextBuffer].buffer = buffer;
+
+        // move mNextBuffer pointer
+        mNextBuffer = (mNextBuffer + 1) % INTEL_DATA_BUFFER_NUM_MAX;
+//    }
+
+    IntelDisplayDataBuffer *spriteDataBuffer =
+        reinterpret_cast<IntelDisplayDataBuffer*>(mDataBuffer);
+    spriteDataBuffer->setBuffer(buffer);
+
+    // set data buffer :-)
+    return setDataBuffer(*spriteDataBuffer);
 }
 
 bool MedfieldSpritePlane::flip(uint32_t flags)
@@ -65,19 +153,11 @@ bool MedfieldSpritePlane::flip(uint32_t flags)
             reinterpret_cast<IntelSpriteContext*>(mContext);
     intel_sprite_context_t *context = spriteContext->getContext();
 
-    if (flags & IntelDisplayPlane::UPDATE_CONTROL)
-        context->update_mask |= SPRITE_UPDATE_CONTROL;
-    if (flags & IntelDisplayPlane::UPDATE_SURFACE)
-	context->update_mask |= SPRITE_UPDATE_SURFACE;
-
-    LOGV("%s: update mask 0x%x, cntr 0x%x\n",
-         __func__,
-         context->update_mask,
-         context->cntr);
-
     // if no update, return
     if (!context->update_mask)
         return true;
+
+    LOGD("%s: flip to surface 0x%x\n", __func__, context->surf);
 
     // update context
     struct drm_psb_register_rw_arg arg;
@@ -85,6 +165,18 @@ bool MedfieldSpritePlane::flip(uint32_t flags)
     memcpy(&arg.sprite_context, context, sizeof(intel_sprite_context_t));
     arg.sprite_context_mask = REGRWBITS_SPRITE_UPDATE;
     int ret = drmCommandWriteRead(mDrmFd,
+                                  DRM_PSB_REGISTER_RW,
+                                  &arg, sizeof(arg));
+    if (ret) {
+        LOGW("%s: sprite update failed with error code %d\n",
+             __func__, ret);
+        return false;
+    }
+
+    // try to flip HDMI
+    arg.sprite_context.index = 1;
+    arg.sprite_context.update_mask &= ~SPRITE_UPDATE_POSITION;
+    ret = drmCommandWriteRead(mDrmFd,
                                   DRM_PSB_REGISTER_RW,
                                   &arg, sizeof(arg));
     if (ret) {
@@ -106,13 +198,24 @@ bool MedfieldSpritePlane::reset()
         intel_sprite_context_t *context = spriteContext->getContext();
 
         // only reset format
+        context->pos = 0;
+        context->size = ((1024 - 1) & 0xfff) << 16 | ((600 - 1) & 0xfff);
         context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRX8888 | 0x80000000;
+        context->linoff = 0;
+        context->surf = 0;
+        context->stride = align_to(4 * 600, 64);;
+        context->update_mask = (SPRITE_UPDATE_POSITION |
+                                SPRITE_UPDATE_SIZE |
+                                SPRITE_UPDATE_CONTROL);
+                                //SPRITE_UPDATE_SURFACE |
+                                //SPRITE_UPDATE_RESTORE |
+                                //SPRITE_UPDATE_WAIT_VBLANK);
+
 
         struct drm_psb_register_rw_arg arg;
         memset(&arg, 0, sizeof(arg));
         memcpy(&arg.sprite_context, context, sizeof(intel_sprite_context_t));
         arg.sprite_context_mask = REGRWBITS_SPRITE_UPDATE;
-        arg.sprite_context.update_mask = SPRITE_UPDATE_CONTROL;
         int ret = drmCommandWriteRead(mDrmFd,
                                       DRM_PSB_REGISTER_RW,
                                       &arg, sizeof(arg));
@@ -121,6 +224,19 @@ bool MedfieldSpritePlane::reset()
                  __func__, ret);
             return false;
         }
+
+        // try to flip HDMI
+        arg.sprite_context.index = 1;
+        arg.sprite_context.update_mask &= ~SPRITE_UPDATE_POSITION;
+        ret = drmCommandWriteRead(mDrmFd,
+                                      DRM_PSB_REGISTER_RW,
+                                      &arg, sizeof(arg));
+        if (ret) {
+            LOGW("%s: sprite update failed with error code %d\n",
+                 __func__, ret);
+            return false;
+        }
+
         return true;
     }
     LOGE("%s: sprite plane was not initialized\n", __func__);
@@ -134,11 +250,25 @@ bool MedfieldSpritePlane::disable()
 
 bool MedfieldSpritePlane::invalidateDataBuffer()
 {
-    LOGD("%s\n", __func__);
+    LOGV("%s\n", __func__);
     if (initCheck()) {
-	 mBufferManager->unmap(mDataBuffer->getHandle(), mDataBuffer);
-	 delete mDataBuffer;
-	 mDataBuffer = new IntelDisplayDataBuffer(0, 0, 0);
+         // TODO: wait vblank before unmap from GTT
+	 struct drm_psb_register_rw_arg arg;
+	 memset(&arg, 0, sizeof(arg));
+	 arg.sprite_context.update_mask = SPRITE_UPDATE_WAIT_VBLANK;
+	 arg.sprite_context_mask = REGRWBITS_SPRITE_UPDATE;
+	 int ret = drmCommandWriteRead(mDrmFd,
+	                               DRM_PSB_REGISTER_RW,
+	                               &arg, sizeof(arg));
+
+         for (int i = 0; i < INTEL_DATA_BUFFER_NUM_MAX; i++) {
+             mBufferManager->unmap(mDataBuffers[i].handle,
+                                   mDataBuffers[i].buffer);
+         }
+
+         // clear data buffers
+         memset(mDataBuffers, 0, sizeof(mDataBuffers));
+         mNextBuffer = 0;
 	 return true;
     }
 

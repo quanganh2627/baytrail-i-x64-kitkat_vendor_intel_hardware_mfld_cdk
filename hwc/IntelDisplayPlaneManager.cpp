@@ -241,7 +241,7 @@ void IntelDisplayPlaneManager::disableReclaimedPlanes()
                     // disable plane
                     mSpritePlanes[i]->disable();
                     // invalidate plane's data buffer
-                    mSpritePlanes[i]->invalidateDataBuffer();
+                    //mSpritePlanes[i]->invalidateDataBuffer();
                 }
             }
         }

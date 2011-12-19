@@ -37,10 +37,10 @@ int main(int argc, char** argv)
     // create a client to surfaceflinger
     sp<SurfaceComposerClient> client = new SurfaceComposerClient();
     
-    sp<SurfaceControl> surfaceControl = client->createSurface(
-            getpid(), 0, 160, 240, PIXEL_FORMAT_RGB_565);
+    sp<SurfaceControl> surfaceControl = client->createSurface(0, 600, 1024, PIXEL_FORMAT_RGBA_8888);
     SurfaceComposerClient::openGlobalTransaction();
     surfaceControl->setLayer(100000);
+    surfaceControl->show();
     SurfaceComposerClient::closeGlobalTransaction();
 
     // pretend it went cross-process
@@ -53,7 +53,7 @@ int main(int argc, char** argv)
     printf("window=%p\n", window);
 
     int err = native_window_set_buffer_count(window, 8);
-    err = native_window_set_buffers_format(window, 0x100);
+    err = native_window_set_buffers_format(window, PIXEL_FORMAT_RGBA_8888);
     ANativeWindowBuffer* buffer;
 
     //GraphicBufferMapper &mapper = GraphicBufferMapper::get();

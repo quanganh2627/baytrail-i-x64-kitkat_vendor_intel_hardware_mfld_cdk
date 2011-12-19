@@ -63,7 +63,6 @@ bool IntelHWComposer::overlayPrepare(int index, hwc_layer_t *layer, int flags)
 
 bool IntelHWComposer::spritePrepare(int index, hwc_layer_t *layer, int flags)
 {
-#if 0
     if (!layer) {
         LOGE("%s: Invalid layer\n", __func__);
         return false;
@@ -77,9 +76,6 @@ bool IntelHWComposer::spritePrepare(int index, hwc_layer_t *layer, int flags)
     int dstRight = layer->displayFrame.right;
     int dstBottom = layer->displayFrame.bottom;
 
-    if (!isSpriteHandle((uint32_t)layer->handle))
-        return false;
-
     // allocate sprite plane
     IntelDisplayPlane *plane = mPlaneManager->getSpritePlane();
     if (!plane) {
@@ -88,42 +84,25 @@ bool IntelHWComposer::spritePrepare(int index, hwc_layer_t *layer, int flags)
     }
 
     // map data buffer
-    intel_gralloc_buffer_handle_t *handle =
+    intel_gralloc_buffer_handle_t *grallocHandle =
         (intel_gralloc_buffer_handle_t*)layer->handle;
 
-    // invalidate plane's data buffer
-    plane->invalidateDataBuffer();
-
-    LOGE("%s: mapping fd %d\n", __func__, handle->fd);
-
-    // update data buffer
-    IntelDisplayBuffer *buffer = mGrallocBufferManager->map(handle->fd);
-    if (!buffer) {
-        LOGE("%s: failed to map buffer %d\n", __func__, handle->fd);
-        mLayerList->detachPlane(index, plane);
-        layer->compositionType = HWC_FRAMEBUFFER;
+    if (!grallocHandle)
         return false;
-    }
-
-    LOGE("%s: mapped successfully\n", __func__);
 
     IntelDisplayDataBuffer *dataBuffer =
         reinterpret_cast<IntelDisplayDataBuffer*>(plane->getDataBuffer());
 
-    dataBuffer->setBuffer(buffer);
-    dataBuffer->setFormat(handle->format);
-    dataBuffer->setWidth(handle->width);
-    dataBuffer->setHeight(handle->height);
+    dataBuffer->setFormat(grallocHandle->format);
+    dataBuffer->setWidth(grallocHandle->width);
+    dataBuffer->setHeight(grallocHandle->height);
     dataBuffer->setCrop(srcX, srcY, srcWidth, srcHeight);
-
-    // delete buffer
-    delete buffer;
-
-    // set the data buffer back to plane
-    plane->setDataBuffer(*dataBuffer);
 
     // setup plane parameters
     plane->setPosition(dstLeft, dstTop, dstRight, dstBottom);
+
+    // set the data buffer back to plane
+    plane->setDataBuffer(grallocHandle->fd[0]);
 
     // attach plane to hwc layer
     mLayerList->attachPlane(index, plane, flags);
@@ -134,7 +113,6 @@ bool IntelHWComposer::spritePrepare(int index, hwc_layer_t *layer, int flags)
         layer->compositionType = HWC_OVERLAY;
     } else
         layer->compositionType = HWC_FRAMEBUFFER;
-#endif
 
     return true;
 }
@@ -217,45 +195,46 @@ bool IntelHWComposer::isSpriteLayer(hwc_layer_list_t *list,
     if (!list || !layer)
         return false;
 
-    bool ret = false;
-
-    return false;
-
     if (layer->compositionType == HWC_FRAMEBUFFER) {
-        if (!isSpriteHandle((uint32_t)layer->handle))
-            return false;
-
-        intel_gralloc_buffer_handle_t *gHandle =
+        intel_gralloc_buffer_handle_t *grallocHandle =
             (intel_gralloc_buffer_handle_t*)layer->handle;
 
-        LOGV("%s: check layer %dx%d\n",
-             __func__,
-             layer->displayFrame.right - layer->displayFrame.left,
-             layer->displayFrame.bottom - layer->displayFrame.top);
-
-        // if layer is on the top of overlay, use sprite plane
-        if (gHandle->bpp == 4 &&
-            --index >= 0 &&
-            list->hwLayers[index].compositionType == HWC_OVERLAY) {
-            flags |= IntelDisplayPlane::UPDATE_CONTROL;
-            ret = true;
+        if (!grallocHandle) {
+            LOGD("%s: invalid gralloc handle\n", __func__);
+            return false;
         }
 
-        // if layer is on the top and full screen, use sprite plane
-        // NOTE: This is how we can support bypass layer, however,
-        // honeycomb barely has full screen apps, so this path won't
-        // take any efforts.
-        // TODO: remove the magic number 600 & 1024 later
-        if (gHandle->bpp == 4 &&
-            ((size_t)index == (list->numHwLayers - 1)) &&
-            ((layer->displayFrame.right - layer->displayFrame.left) == 600) &&
-            ((layer->displayFrame.bottom - layer->displayFrame.top) == 1024)) {
+        // if buffer was accessed by SW don't handle it
+        if (grallocHandle->usage &
+           (GRALLOC_USAGE_SW_READ_MASK | GRALLOC_USAGE_SW_WRITE_MASK))
+            return false;
+
+        // check pixel format
+        if (grallocHandle->format != HAL_PIXEL_FORMAT_RGB_565 &&
+            grallocHandle->format != HAL_PIXEL_FORMAT_BGRA_8888 &&
+            grallocHandle->format != HAL_PIXEL_FORMAT_RGBX_8888 &&
+            grallocHandle->format != HAL_PIXEL_FORMAT_RGBA_8888) {
+            LOGD("%s: invalid format 0x%x\n", __func__, grallocHandle->format);
+            return false;
+        }
+
+        // use the sprite plane only when it's the top layer
+        int srcWidth = grallocHandle->width;
+        int srcHeight = grallocHandle->height;
+        int dstWidth = layer->displayFrame.right - layer->displayFrame.left;
+        int dstHeight = layer->displayFrame.bottom - layer->displayFrame.top;
+
+        if (((size_t)index == (list->numHwLayers - 1)) &&
+            (list->numHwLayers == 1) &&
+            (srcWidth == dstWidth) &&
+            (srcHeight == dstHeight)) {
+            LOGD("%s: got a bypass layer, %dx%d\n", __func__, srcWidth, srcHeight);
             flags |= IntelDisplayPlane::UPDATE_SURFACE;
-            ret = true;
+            return true;
         }
     }
 
-    return ret;
+    return false;
 }
 
 // When the geometry changed, we need
@@ -300,7 +279,15 @@ void IntelHWComposer::onGeometryChanged(hwc_layer_list_t *list)
              list->hwLayers[i].compositionType = HWC_FRAMEBUFFER;
      }
 
-     // TODO: check whether eglSwapBuffers is needed
+     // check whether eglSwapBuffers is needed
+     // if all layers were attached with display planes then we don't need
+     // swap buffers.
+     if (mLayerList->getLayersCount() == mLayerList->getAttachedPlanesCount())
+         mNeedSwapBuffer = false;
+     else
+	 mNeedSwapBuffer = true;
+
+     //LOGD("%s: need swap buffer %s\n", __func__, mNeedSwapBuffer ? "true" : "false");
 
      // disable unused planes
      mPlaneManager->disableReclaimedPlanes();
@@ -509,9 +496,11 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
     }
 
     // check whether eglSwapBuffers is still needed for the given layer list
-    EGLBoolean sucess = eglSwapBuffers((EGLDisplay)dpy, (EGLSurface)sur);
-    if (!sucess) {
-        return false;
+    if (mNeedSwapBuffer) {
+        EGLBoolean sucess = eglSwapBuffers((EGLDisplay)dpy, (EGLSurface)sur);
+        if (!sucess) {
+            return false;
+        }
     }
 
     return true;

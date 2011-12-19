@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 #include <IntelBufferManager.h>
 #include <IntelHWComposerDrm.h>
 #include <IntelOverlayUtil.h>
@@ -1083,8 +1082,8 @@ IntelDisplayBuffer* IntelGraphicBufferManager::map(uint32_t handle)
     if (!initCheck())
         return 0;
 
-    res = PVRSRVMapDeviceMemory(&mDevData,
-                                (IMG_HANDLE)handle,
+    res = PVRSRVMapDeviceMemory2(&mDevData,
+                                handle,
                                 mGeneralHeap,
                                 &memInfo);
     if (res != PVRSRV_OK) {
@@ -1134,6 +1133,9 @@ void IntelGraphicBufferManager::unmap(uint32_t hnd, IntelDisplayBuffer *buffer)
 
     // unmap PVR meminfo
     PVRSRVUnmapDeviceMemory(&mDevData, memInfo);
+
+    // destroy it
+    delete buffer;
 }
 
 

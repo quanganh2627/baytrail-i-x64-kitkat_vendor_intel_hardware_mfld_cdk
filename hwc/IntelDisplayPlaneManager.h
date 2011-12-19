@@ -308,11 +308,18 @@ public:
 };
 
 class MedfieldSpritePlane : public IntelSpritePlane {
+private:
+    struct {
+        uint32_t handle;
+        IntelDisplayBuffer *buffer;
+    } mDataBuffers[INTEL_DATA_BUFFER_NUM_MAX];
+    int mNextBuffer;
 public:
     MedfieldSpritePlane(int fd, int index, IntelBufferManager *bufferManager);
     ~MedfieldSpritePlane();
     virtual void setPosition(int left, int top, int right, int bottom);
     virtual bool setDataBuffer(IntelDisplayBuffer& buffer);
+    virtual bool setDataBuffer(uint32_t handle);
     virtual bool invalidateDataBuffer();
     virtual bool flip(uint32_t flags);
     virtual bool reset();

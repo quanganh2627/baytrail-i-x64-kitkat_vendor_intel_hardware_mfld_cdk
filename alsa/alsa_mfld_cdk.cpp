@@ -518,12 +518,14 @@ static status_t s_init_stream(alsa_handle_t *handle, uint32_t devices, int mode)
         handle->sampleRate = _defaultsIn.sampleRate;
         handle->expectedSampleRate = _defaultsIn.expectedSampleRate;
         handle->channels = _defaultsIn.channels;
+        handle->format = _defaultsIn.format;
     } else {
         handle->bufferSize = _defaultsOut.bufferSize;
         handle->latency = _defaultsOut.latency;
         handle->sampleRate = _defaultsOut.sampleRate;
         handle->expectedSampleRate = _defaultsOut.expectedSampleRate;
         handle->channels = _defaultsOut.channels;
+        handle->format = _defaultsOut.format;
     }
     LOGI("Initialized ALSA %s device %s", stream, devName);
 
@@ -639,16 +641,20 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
     if (devices & AudioSystem::DEVICE_IN_ALL) {
 
         if (mode == AudioSystem::MODE_IN_CALL) {
-            LOGD("Detected voice modem capture device, setting sample rate to %d", VOICE_MODEM_DEFAULT_SAMPLE_RATE);
-            handle->sampleRate = VOICE_MODEM_DEFAULT_SAMPLE_RATE;
+            LOGD("Detected voice modem capture device, setting sample rate to %d instead of %d, SRC done by ALSA", 
+								DEFAULT_SAMPLE_RATE, VOICE_MODEM_DEFAULT_SAMPLE_RATE);
+            // SRC done by Alsa plug, later improvement: use intel optimized SRC
+            handle->sampleRate = DEFAULT_SAMPLE_RATE;
         }
         else if (devices & AudioSystem::DEVICE_IN_BLUETOOTH_SCO_HEADSET) {
-            LOGD("Detected voice Bluetooth capture device, setting sample rate to %d", VOICE_BT_DEFAULT_SAMPLE_RATE);
+            LOGD("Detected voice Bluetooth capture device, setting sample rate to %d instead of %d, SRC done by ALSA", 
+								DEFAULT_SAMPLE_RATE, VOICE_BT_DEFAULT_SAMPLE_RATE);
             // SRC done by Alsa plug, later improvement: use intel optimized SRC
             handle->sampleRate = DEFAULT_SAMPLE_RATE;
         }
         else if (mode == AudioSystem::MODE_IN_COMMUNICATION) {
-            LOGD("Detected voice codec capture device, setting sample rate to %d", VOICE_CODEC_DEFAULT_SAMPLE_RATE);
+            LOGD("Detected voice codec capture device, setting sample rate %d instead of %d, SRC done by ALSA", 
+								DEFAULT_SAMPLE_RATE, VOICE_MODEM_DEFAULT_SAMPLE_RATE);
             // SRC done by Alsa plug, later improvement: use intel optimized SRC
             handle->sampleRate = DEFAULT_SAMPLE_RATE;
         }

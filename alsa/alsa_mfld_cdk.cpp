@@ -165,9 +165,7 @@ static const device_suffix_t deviceSuffix[] = {
     { AudioSystem::DEVICE_OUT_WIRED_HEADPHONE,       "_Headphone" },
     { AudioSystem::DEVICE_OUT_WIRED_HEADSET,         "_Headset" },
     { AudioSystem::DEVICE_OUT_BLUETOOTH_A2DP,        "_Bluetooth-A2DP" },
-#if USE_INTEL_HDMI
-    { AudioSystem::DEVICE_OUT_HDMI,                  "_HDMI" },
-#endif
+    { AudioSystem::DEVICE_OUT_AUX_DIGITAL,           "_HDMI" },
 #if INTEL_WIDI
     { AudioSystem::DEVICE_OUT_WIDI_LOOPBACK,         "_Widi-Loopback" },
 #endif

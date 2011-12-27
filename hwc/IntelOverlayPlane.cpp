@@ -422,13 +422,15 @@ bool IntelOverlayContext::bufferOffsetSetup(IntelDisplayDataBuffer &buf)
     uint32_t w = buf.getWidth();
     uint32_t h = buf.getHeight();
 
+    // clear original format setting
+    mOverlayBackBuffer->OCMD &= ~(0xf << 10);
+
     switch(format) {
     case HAL_PIXEL_FORMAT_YV12:    /*YV12*/
         mOverlayBackBuffer->OBUF_0Y = gttOffsetInBytes;
-        mOverlayBackBuffer->OBUF_0V = gttOffsetInBytes +
-                     align_to((yStride * h), 4096);
-        mOverlayBackBuffer->OBUF_0U = mOverlayBackBuffer->OBUF_0U +
-                     align_to((uvStride * (h / 2)), 4096);
+        mOverlayBackBuffer->OBUF_0V = gttOffsetInBytes + (yStride * h);
+        mOverlayBackBuffer->OBUF_0U = mOverlayBackBuffer->OBUF_0V +
+                                      (uvStride * (h / 2));
         mOverlayBackBuffer->OCMD |= OVERLAY_FORMAT_PLANAR_YUV420;
         break;
     case HAL_PIXEL_FORMAT_INTEL_HWC_I420:    /*I420*/
@@ -952,7 +954,7 @@ void IntelOverlayContext::checkPosition(int& x, int& y, int& w, int& h)
     mode = &mContext->output_state.modes[output];
     mode_valid = mContext->output_state.mode_valid[output];
 
-    LOGD("%s: display mode %d, %dx%d\n", __func__, displayMode, mode->hdisplay, mode->vdisplay);
+    LOGV("%s: display mode %d, %dx%d\n", __func__, displayMode, mode->hdisplay, mode->vdisplay);
 
     if (!mode->hdisplay || !mode->vdisplay)
 	return;
@@ -1154,6 +1156,7 @@ IntelOverlayPlane::IntelOverlayPlane(int fd, int index, IntelBufferManager *bm)
 
     // clear up overlay buffers
     memset(mDataBuffers, 0, sizeof(mDataBuffers));
+    mNextBuffer = 0;
 
     // initialized successfully
     mDataBuffer = dataBuffer;
@@ -1202,48 +1205,59 @@ void IntelOverlayPlane::setPosition(int left, int top, int right, int bottom)
 
 bool IntelOverlayPlane::setDataBuffer(uint32_t handle)
 {
-    uint32_t devId = handle & 0x0000ffff;
-    uint32_t bufId = ((handle & 0xffff0000) >> 16);
-    IntelDisplayBuffer **bufferList = NULL;
-    uint32_t count = 0;
-    IntelBCDBufferManager *bcdBufferManager;
-
-    if (devId >= INTEL_BCD_DEVICE_NUM_MAX) {
-        LOGE("%s: invalid parameter\n", __func__);
-        return false;
-    }
+    IntelDisplayBuffer *buffer = 0;
 
     if (!initCheck()) {
         LOGE("%s: overlay plane wasn't initialized\n", __func__);
         return false;
     }
 
-    bufferList = mDataBuffers[devId].bufferList;
-    count = mDataBuffers[devId].count;
-    bcdBufferManager = reinterpret_cast<IntelBCDBufferManager*>(mBufferManager);
-
-    if (!bufferList) {
-        // get all BCD buffers of this device
-        bufferList = bcdBufferManager->map(devId, &count);
-        if (!bufferList) {
-            LOGE("%s: failed to get buffers of device %d\n", __func__, devId);
-            disable();
-            return false;
+    for (int i = 0; i < INTEL_DATA_BUFFER_NUM_MAX; i++) {
+        if (mDataBuffers[i].handle == handle) {
+            buffer = mDataBuffers[i].buffer;
+            break;
         }
-        mDataBuffers[devId].bufferList = bufferList;
-        mDataBuffers[devId].count = count;
     }
 
-    if (bufId >= mDataBuffers[devId].count) {
-        LOGE("%s: invalid buffer id %d, count = %d\n",
-             __func__, bufId, mDataBuffers[devId].count);
-        return false;
-    }
+    LOGV("%s: next buffer %d\n", __func__, mNextBuffer);
 
-    IntelDisplayBuffer *buffer = bufferList[bufId];
+    // map the handle if no buffer found
     if (!buffer) {
-        LOGE("%s: invalid buffer\n", __func__);
-        return false;
+        // release the buffer in the next slot
+        if (mDataBuffers[mNextBuffer].handle ||
+            mDataBuffers[mNextBuffer].buffer) {
+            LOGV("%s: releasing buffer %d...\n", __func__, mNextBuffer);
+            mBufferManager->unmap(mDataBuffers[mNextBuffer].handle,
+                                  mDataBuffers[mNextBuffer].buffer);
+            mDataBuffers[mNextBuffer].handle = 0;
+            mDataBuffers[mNextBuffer].buffer = 0;
+        }
+
+        buffer = mBufferManager->map(handle);
+        if (!buffer) {
+             // start over
+             LOGW("%s: graphics memory is low, retrying...\n", __func__);
+             mBufferManager->unmap(mDataBuffers[0].handle,
+                                   mDataBuffers[0].buffer);
+             mDataBuffers[0].handle = 0;
+             mDataBuffers[0].buffer = 0;
+             mNextBuffer = 0;
+
+             buffer = mBufferManager->map(handle);
+             if (!buffer) {
+                 LOGE("%s: failed to map handle %d\n", __func__, handle);
+                 disable();
+                 return false;
+             }
+             LOGI("%s: continue...\n", __func__);
+        }
+
+        LOGV("%s: mapping buffer at %d...\n", __func__, mNextBuffer);
+        mDataBuffers[mNextBuffer].handle = handle;
+        mDataBuffers[mNextBuffer].buffer = buffer;
+
+        // move mNextBuffer pointer
+        mNextBuffer = (mNextBuffer + 1) % INTEL_DATA_BUFFER_NUM_MAX;
     }
 
     IntelDisplayDataBuffer *overlayDataBuffer =
@@ -1279,18 +1293,15 @@ bool IntelOverlayPlane::invalidateDataBuffer()
     if (!initCheck())
         return false;
 
-    IntelBCDBufferManager *bcdBufferManager =
-        reinterpret_cast<IntelBCDBufferManager*>(mBufferManager);
-
-    for (int i = 0; i < INTEL_BCD_DEVICE_NUM_MAX; i++) {
-        if (mDataBuffers[i].bufferList) {
-            bcdBufferManager->unmap(mDataBuffers[i].bufferList,
-                                    mDataBuffers[i].count);
-        }
+    for (int i = 0; i < INTEL_DATA_BUFFER_NUM_MAX; i++) {
+        mBufferManager->unmap(mDataBuffers[i].handle,
+                              mDataBuffers[i].buffer);
     }
 
-    // clear up
+    // clear data buffers
     memset(mDataBuffers, 0, sizeof(mDataBuffers));
+    memset(mDataBuffer, 0, sizeof(*mDataBuffer));
+    mNextBuffer = 0;
     return true;
 }
 

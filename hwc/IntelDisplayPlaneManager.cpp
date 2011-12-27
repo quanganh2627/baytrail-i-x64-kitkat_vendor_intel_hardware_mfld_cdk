@@ -60,7 +60,8 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
     }
 
     for (i = 0; i < mOverlayPlaneCount; i++) {
-        mOverlayPlanes[i] = new IntelOverlayPlane(mDrmFd, i, mBufferManager);
+        mOverlayPlanes[i] =
+            new IntelOverlayPlane(mDrmFd, i, mGrallocBufferManager);
         if (!mOverlayPlanes[i]) {
             LOGE("%s: failed to allocate overlay plane %d\n", __func__, i);
             goto overlay_alloc_err;
@@ -241,7 +242,7 @@ void IntelDisplayPlaneManager::disableReclaimedPlanes()
                     // disable plane
                     mSpritePlanes[i]->disable();
                     // invalidate plane's data buffer
-                    //mSpritePlanes[i]->invalidateDataBuffer();
+                    // mSpritePlanes[i]->invalidateDataBuffer();
                 }
             }
         }

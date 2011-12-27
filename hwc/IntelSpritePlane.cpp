@@ -222,7 +222,7 @@ bool IntelSpritePlane::disable()
 
 bool IntelSpritePlane::invalidateDataBuffer()
 {
-    LOGD("%s\n", __func__);
+    LOGV("%s\n", __func__);
     if (initCheck()) {
 	 mBufferManager->unmap(mDataBuffer->getHandle(), mDataBuffer);
 	 delete mDataBuffer;

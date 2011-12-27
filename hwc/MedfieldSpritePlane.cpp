@@ -108,36 +108,24 @@ bool MedfieldSpritePlane::setDataBuffer(uint32_t handle)
         return false;
     }
 
-#if 0
-    for (int i = 0; i < INTEL_DATA_BUFFER_NUM_MAX; i++) {
-        if (mDataBuffers[i].handle == handle) {
-            buffer = mDataBuffers[i].buffer;
-            mNextBuffer = i;
-            break;
-        }
-    }
-#endif
     LOGD("%s: next buffer %d\n", __func__, mNextBuffer);
 
-    // map the handle if no buffer found
-//    if (!buffer) {
-       // make sure the buffer list is clean
-       if (!mNextBuffer)
-           invalidateDataBuffer();
+    // make sure the buffer list is clean
+    if (!mNextBuffer)
+        invalidateDataBuffer();
 
-        buffer = mBufferManager->map(handle);
-        if (!buffer) {
-             LOGE("%s: failed to map handle %d\n", __func__, handle);
-             disable();
-             return false;
-        }
+    buffer = mBufferManager->map(handle);
+    if (!buffer) {
+         LOGE("%s: failed to map handle %d\n", __func__, handle);
+         disable();
+         return false;
+    }
 
-        mDataBuffers[mNextBuffer].handle = handle;
-        mDataBuffers[mNextBuffer].buffer = buffer;
+    mDataBuffers[mNextBuffer].handle = handle;
+    mDataBuffers[mNextBuffer].buffer = buffer;
 
-        // move mNextBuffer pointer
-        mNextBuffer = (mNextBuffer + 1) % INTEL_DATA_BUFFER_NUM_MAX;
-//    }
+    // move mNextBuffer pointer
+    mNextBuffer = (mNextBuffer + 1) % INTEL_DATA_BUFFER_NUM_MAX;
 
     IntelDisplayDataBuffer *spriteDataBuffer =
         reinterpret_cast<IntelDisplayDataBuffer*>(mDataBuffer);
@@ -174,6 +162,7 @@ bool MedfieldSpritePlane::flip(uint32_t flags)
     }
 
     // try to flip HDMI
+    // FIXME: check the HDMI connection state before doing this
     arg.sprite_context.index = 1;
     arg.sprite_context.update_mask &= ~SPRITE_UPDATE_POSITION;
     ret = drmCommandWriteRead(mDrmFd,
@@ -198,6 +187,7 @@ bool MedfieldSpritePlane::reset()
         intel_sprite_context_t *context = spriteContext->getContext();
 
         // only reset format
+        // TODO: remove the magic number later
         context->pos = 0;
         context->size = ((1024 - 1) & 0xfff) << 16 | ((600 - 1) & 0xfff);
         context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRX8888 | 0x80000000;
@@ -207,10 +197,6 @@ bool MedfieldSpritePlane::reset()
         context->update_mask = (SPRITE_UPDATE_POSITION |
                                 SPRITE_UPDATE_SIZE |
                                 SPRITE_UPDATE_CONTROL);
-                                //SPRITE_UPDATE_SURFACE |
-                                //SPRITE_UPDATE_RESTORE |
-                                //SPRITE_UPDATE_WAIT_VBLANK);
-
 
         struct drm_psb_register_rw_arg arg;
         memset(&arg, 0, sizeof(arg));
@@ -226,6 +212,7 @@ bool MedfieldSpritePlane::reset()
         }
 
         // try to flip HDMI
+        // FIXME: check the HDMI connection state before doing this
         arg.sprite_context.index = 1;
         arg.sprite_context.update_mask &= ~SPRITE_UPDATE_POSITION;
         ret = drmCommandWriteRead(mDrmFd,
@@ -252,7 +239,8 @@ bool MedfieldSpritePlane::invalidateDataBuffer()
 {
     LOGV("%s\n", __func__);
     if (initCheck()) {
-         // TODO: wait vblank before unmap from GTT
+	 // wait for vblank before unmapping from GTT
+         // FIXME: use drmWaitVblank instead
 	 struct drm_psb_register_rw_arg arg;
 	 memset(&arg, 0, sizeof(arg));
 	 arg.sprite_context.update_mask = SPRITE_UPDATE_WAIT_VBLANK;

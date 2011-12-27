@@ -90,8 +90,8 @@ void IntelDisplayDataBuffer::setBuffer(IntelDisplayBuffer *buffer)
     mGttOffsetInPage = buffer->getGttOffsetInPage();
     mSize = buffer->getSize();
     mVirtAddr = buffer->getCpuAddr();
-    mYStride = buffer->getStride();
-    mUVStride = mYStride;
+//    mYStride = buffer->getStride();
+//    mUVStride = mYStride;
 }
 
 void IntelDisplayDataBuffer::setStride(uint32_t w)
@@ -362,7 +362,7 @@ bool IntelPVRBufferManager::initialize()
 {
     bool ret = pvr2DInit();
     if (ret == false) {
-        LOGD("%s: failed to init PVR2D\n", __func__);
+        LOGE("%s: failed to init PVR2D\n", __func__);
         return false;
     }
     LOGV("%s: done\n", __func__);
@@ -604,7 +604,7 @@ IntelDisplayBuffer* IntelPVRBufferManager::map(uint32_t handle)
     uint32_t size = pvr2dMemInfo->ui32MemSize;
     int gttOffsetInPage = 0;
 
-    LOGD("%s: virt %p, size %dB\n", __func__, virtAddr, size);
+    LOGV("%s: virt %p, size %dB\n", __func__, virtAddr, size);
 
     // map it into gtt
     bool ret = gttMap(pvr2dMemInfo, &gttOffsetInPage,
@@ -615,7 +615,7 @@ IntelDisplayBuffer* IntelPVRBufferManager::map(uint32_t handle)
         return 0;
     }
 
-    LOGD("%s: mapped handle 0x%x, gtt %d\n", __func__, handle,
+    LOGV("%s: mapped handle 0x%x, gtt %d\n", __func__, handle,
          gttOffsetInPage);
 
     IntelDisplayBuffer *buffer = new IntelDisplayBuffer(pvr2dMemInfo,
@@ -946,6 +946,9 @@ IntelGraphicBufferManager::~IntelGraphicBufferManager()
 
         // close connection to PVR services
         PVRSRVDisconnect(mPVRSrvConnection);
+
+        // delete wsbm
+        delete mWsbm;
     }
 }
 
@@ -1015,11 +1018,25 @@ bool IntelGraphicBufferManager::initialize()
     IMG_UINT32 heapCount;
     PVRSRV_HEAP_INFO heapInfos[PVRSRV_MAX_CLIENT_HEAPS];
 
+    IntelWsbm *wsbm = new IntelWsbm(mDrmFd);
+    if (!wsbm) {
+        LOGE("%s: failed to create wsbm object\n", __func__);
+        return false;
+    }
+
+    if (!(wsbm->initialize())) {
+        LOGE("%s: failed to initialize wsbm\n", __func__);
+        delete wsbm;
+        return false;
+    }
+
+    mWsbm = wsbm;
+
     // connect to PVR Service
     res = PVRSRVConnect(&pvrConnection, 0);
     if (res != PVRSRV_OK) {
         LOGE("%s: failed to connection with PVR services\n", __func__);
-        return false;
+        goto srv_err;
     }
 
     // get device data
@@ -1065,9 +1082,11 @@ bool IntelGraphicBufferManager::initialize()
     mPVRSrvConnection = pvrConnection;
     mInitialized = true;
     return true;
-
 dev_err:
     PVRSRVDisconnect(pvrConnection);
+srv_err:
+    delete mWsbm;
+    mWsbm = 0;
     mInitialized = false;
     return false;
 }
@@ -1087,7 +1106,8 @@ IntelDisplayBuffer* IntelGraphicBufferManager::map(uint32_t handle)
                                 mGeneralHeap,
                                 &memInfo);
     if (res != PVRSRV_OK) {
-        LOGE("%s: failed to map meminfo with handle 0x%x", __func__, handle);
+        LOGE("%s: failed to map meminfo with handle 0x%x, err = %d",
+             __func__, handle, res);
         return 0;
     }
 
@@ -1138,4 +1158,47 @@ void IntelGraphicBufferManager::unmap(uint32_t hnd, IntelDisplayBuffer *buffer)
     delete buffer;
 }
 
+IntelDisplayBuffer* IntelGraphicBufferManager::get(int size, int alignment)
+{
+    if (!mWsbm) {
+        LOGE("%s: no wsbm found\n", __func__);
+        return NULL;
+    }
 
+    void *wsbmBufferObject = NULL;
+    bool ret = mWsbm->allocateTTMBuffer(size, alignment, &wsbmBufferObject);
+    if (ret == false) {
+        LOGE("%s: failed to allocate buffer. size %d, alignment %d\n",
+            __func__, size, alignment);
+        return NULL;
+    }
+
+    void *virtAddr = mWsbm->getCPUAddress(wsbmBufferObject);
+    uint32_t gttOffsetInPage = mWsbm->getGttOffset(wsbmBufferObject);
+    uint32_t handle = mWsbm->getKBufHandle(wsbmBufferObject);
+    // create new buffer
+    IntelDisplayBuffer *buffer = new IntelDisplayBuffer(wsbmBufferObject,
+                                                        virtAddr,
+                                                        gttOffsetInPage,
+                                                        size,
+                                                        handle);
+    LOGV("%s: created TTM overlay buffer. cpu %p, gtt %d\n",
+         __func__, virtAddr, gttOffsetInPage);
+    return buffer;
+}
+
+void IntelGraphicBufferManager::put(IntelDisplayBuffer* buf)
+{
+    if (!buf || !mWsbm) {
+        LOGE("%s: Invalid parameter\n", __func__);
+        return;
+    }
+
+    void *wsbmBufferObject = buf->getBufferObject();
+    bool ret = mWsbm->destroyTTMBuffer(wsbmBufferObject);
+    if (ret == false)
+        LOGW("%s: failed to free wsbmBO\n", __func__);
+
+    // free overlay buffer
+    delete buf;
+}

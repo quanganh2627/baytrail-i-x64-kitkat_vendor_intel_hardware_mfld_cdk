@@ -18,6 +18,7 @@
 #include <cutils/atomic.h>
 
 #include <IntelHWComposer.h>
+#include <IntelOverlayUtil.h>
 
 IntelHWComposer::~IntelHWComposer()
 {
@@ -150,26 +151,28 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
         return false;
 
     // TODO: enable this when ST is ready
-    //intel_gralloc_buffer_handle_t *grallocHandle =
-    //    (intel_gralloc_buffer_handle_t*)layer->handle;
+    intel_gralloc_buffer_handle_t *grallocHandle =
+        (intel_gralloc_buffer_handle_t*)layer->handle;
 
-    //if (!grallocHandle)
-    //    return false;
+    if (!grallocHandle)
+        return false;
 
     // TODO: check buffer usage
 
     // TODO: check data format
 
-    // TODO: enable this check after fully switching to Gralloc buffer
-    //if (grallocHandle->format != HAL_PIXEL_FORMAT_YV12 &&
-    //    grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12 &&
-    //    grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_YUY2 &&
-    //    grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_UYVY &&
-    //    grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_I420)
-    //    return false;
+    // fall back if HWC_SKIP_LAYER was set
+    if ((layer->flags & HWC_SKIP_LAYER) || layer->transform) {
+	//layer->hints |= HWC_HINT_CLEAR_FB;
+        return false;
+    }
 
-    // FIXME: remove this later
-    if (layer->compositionType != HWC_OVERLAY)
+    // TODO: enable this check after fully switching to Gralloc buffer
+    if (grallocHandle->format != HAL_PIXEL_FORMAT_YV12 &&
+        grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12 &&
+        grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_YUY2 &&
+        grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_UYVY &&
+        grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_I420)
         return false;
 
     // TODO: enable this when ST is ready for video
@@ -200,7 +203,7 @@ bool IntelHWComposer::isSpriteLayer(hwc_layer_list_t *list,
             (intel_gralloc_buffer_handle_t*)layer->handle;
 
         if (!grallocHandle) {
-            LOGD("%s: invalid gralloc handle\n", __func__);
+            LOGV("%s: invalid gralloc handle\n", __func__);
             return false;
         }
 
@@ -214,7 +217,7 @@ bool IntelHWComposer::isSpriteLayer(hwc_layer_list_t *list,
             grallocHandle->format != HAL_PIXEL_FORMAT_BGRA_8888 &&
             grallocHandle->format != HAL_PIXEL_FORMAT_RGBX_8888 &&
             grallocHandle->format != HAL_PIXEL_FORMAT_RGBA_8888) {
-            LOGD("%s: invalid format 0x%x\n", __func__, grallocHandle->format);
+            LOGE("%s: invalid format 0x%x\n", __func__, grallocHandle->format);
             return false;
         }
 
@@ -241,8 +244,7 @@ bool IntelHWComposer::isSpriteLayer(hwc_layer_list_t *list,
 // 0) reclaim all allocated planes
 // 1) build a new layer list for the changed hwc_layer_list
 // 2) attach planes to these layers which can be handled by HWC
-// 3) indicate whether eglSwapbuffers is needed
-// 4) disable planes which are not used anymore
+// 3) disable planes which are not used anymore
 void IntelHWComposer::onGeometryChanged(hwc_layer_list_t *list)
 {
      // reclaim all planes
@@ -256,10 +258,9 @@ void IntelHWComposer::onGeometryChanged(hwc_layer_list_t *list)
      mLayerList->updateLayerList(list);
 
      for (size_t i = 0 ; i < list->numHwLayers ; i++) {
-	 // TODO: enable this checking after fully switch to Gralloc buffer
 	 // check whether a layer can be handled in general
-         //if (!isHWCLayer(&list->hwLayers[i]))
-         //    continue;
+         if (!isHWCLayer(&list->hwLayers[i]))
+             continue;
 
          // further check whether a layer can be handle by overlay/sprite
 	 int flags = 0;
@@ -278,19 +279,7 @@ void IntelHWComposer::onGeometryChanged(hwc_layer_list_t *list)
          } else
              list->hwLayers[i].compositionType = HWC_FRAMEBUFFER;
      }
-
-     // check whether eglSwapBuffers is needed
-     // if all layers were attached with display planes then we don't need
-     // swap buffers.
-     if (mLayerList->getLayersCount() == mLayerList->getAttachedPlanesCount())
-         mNeedSwapBuffer = false;
-     else
-	 mNeedSwapBuffer = true;
-
-     //LOGD("%s: need swap buffer %s\n", __func__, mNeedSwapBuffer ? "true" : "false");
-
-     // disable unused planes
-     mPlaneManager->disableReclaimedPlanes();
+     // TODO: disable unused planes here. Currently, disable in commit()
 }
 
 // when buffer handle is changed, we need
@@ -328,15 +317,49 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                 // detect video mode change
                 mDrm->drmModeChanged(*overlayContext);
 
-                uint32_t handle = (uint32_t)layer->handle;
+                intel_gralloc_buffer_handle_t *grallocHandle =
+                    (intel_gralloc_buffer_handle_t*)layer->handle;
 
-                dataBuffer->setWidth(srcWidth);
-                dataBuffer->setHeight(srcHeight);
-                dataBuffer->setStride(srcWidth);
+                // if invalid gralloc buffer handle, throw back this layer to SF
+                if (!grallocHandle) {
+                    LOGE("%s: invalid buffer handle\n", __func__);
+                    mLayerList->detachPlane(i, plane);
+                    layer->compositionType = HWC_FRAMEBUFFER;
+                    continue;
+                }
+
+                // now let us set up the overlay
+                uint32_t yStride, uvStride;
+                int format = grallocHandle->format;
+                int bufferWidth = grallocHandle->width;
+                int bufferHeight = grallocHandle->height;
+
+                // set stride
+                switch (format) {
+                case HAL_PIXEL_FORMAT_YV12:
+                // HW requires to align to 512 bytes
+                    yStride = bufferWidth;
+                    uvStride = align_to(yStride >> 1, 16);
+                    break;
+                case HAL_PIXEL_FORMAT_INTEL_HWC_NV12:
+                    yStride = align_to(bufferWidth, 32);
+                    uvStride = yStride;
+                    break;
+                default:
+                    LOGE("%s: unsupported format 0x%x\n", __func__, format);
+                    mLayerList->detachPlane(i, plane);
+                    layer->compositionType = HWC_FRAMEBUFFER;
+                    continue;
+                }
+
+                dataBuffer->setFormat(format);
+                dataBuffer->setStride(yStride, uvStride);
+                dataBuffer->setWidth(bufferWidth);
+                dataBuffer->setHeight(bufferHeight);
                 dataBuffer->setCrop(srcX, srcY, srcWidth, srcHeight);
 
                 // set the data buffer back to plane
-                ret = plane->setDataBuffer(handle);
+                ret = plane->setDataBuffer(grallocHandle->fd[0]);
                 if (!ret) {
                     LOGE("%s: failed to update overlay data buffer\n", __func__);
                     mLayerList->detachPlane(i, plane);
@@ -358,6 +381,9 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
 // TODO: list valid usages
 bool IntelHWComposer::isHWCUsage(int usage)
 {
+    if (!(usage & GRALLOC_USAGE_HW_COMPOSER))
+        return false;
+
     return true;
 }
 
@@ -394,16 +420,16 @@ bool IntelHWComposer::isHWCLayer(hwc_layer_t *layer)
     if (!layer)
         return false;
 
-    if (layer->flags & HWC_SKIP_LAYER)
-        return false;
+    // if (layer->flags & HWC_SKIP_LAYER)
+    //    return false;
 
     // check transform
-    if (!isHWCTransform(layer->transform))
-        return false;
+    // if (!isHWCTransform(layer->transform))
+    //    return false;
 
     // check blending
-    if (!isHWCBlending(layer->blending))
-        return false;
+    // if (!isHWCBlending(layer->blending))
+    //    return false;
 
     intel_gralloc_buffer_handle_t *grallocHandle =
         (intel_gralloc_buffer_handle_t*)layer->handle;
@@ -416,8 +442,8 @@ bool IntelHWComposer::isHWCLayer(hwc_layer_t *layer)
         return false;
 
     // check format
-    if (!isHWCFormat(grallocHandle->format))
-        return false;
+    // if (!isHWCFormat(grallocHandle->format))
+    //    return false;
 
     return true;
 }
@@ -481,28 +507,49 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
         return false;
     }
 
+    // need check whether eglSwapBuffers is necessary
+    bool needSwapBuffer = false;
+    // if all layers were attached with display planes then we don't need
+    // swap buffers.
+    if (mLayerList->getLayersCount() == mLayerList->getAttachedPlanesCount())
+        needSwapBuffer = false;
+    else
+	needSwapBuffer = true;
+
     // Call plane's flip for each layer in hwc_layer_list, if a plane has
     // been attached to a layer
     for (size_t i=0 ; i<list->numHwLayers ; i++) {
         IntelDisplayPlane *plane = mLayerList->getPlane(i);
         int flags = mLayerList->getFlags(i);
-        if (plane) {
+        if (plane &&
+            !(list->hwLayers[i].flags & HWC_SKIP_LAYER) &&
+            !list->hwLayers[i].transform) {
             bool ret = plane->flip(flags);
             if (!ret)
                 LOGW("%s: failed to flip plane %d\n", __func__, i);
         }
+
+        // if layer requires clear FB, force swap buffers
+        if (list->hwLayers[i].hints & HWC_HINT_CLEAR_FB)
+            needSwapBuffer = true;
+
         // clear flip flags
         mLayerList->setFlags(i, 0);
+
+        // remove hints
+        list->hwLayers[i].hints = 0;
     }
 
     // check whether eglSwapBuffers is still needed for the given layer list
-    if (mNeedSwapBuffer) {
+    if (needSwapBuffer) {
         EGLBoolean sucess = eglSwapBuffers((EGLDisplay)dpy, (EGLSurface)sur);
         if (!sucess) {
             return false;
         }
     }
 
+    // TODO: move it back to prepare()
+    mPlaneManager->disableReclaimedPlanes();
     return true;
 }
 

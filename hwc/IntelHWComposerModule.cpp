@@ -129,6 +129,7 @@ static int hwc_device_open(const struct hw_module_t* module, const char* name,
 
         hwc->hwc_composer_device_t::prepare = hwc_prepare;
         hwc->hwc_composer_device_t::set = hwc_set;
+        hwc->hwc_composer_device_t::registerProcs = 0;
 
         *device = &hwc->hwc_composer_device_t::common;
         status = 0;

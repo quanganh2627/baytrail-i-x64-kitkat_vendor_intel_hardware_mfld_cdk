@@ -19,6 +19,7 @@
 
 #include <ui/GraphicBufferMapper.h>
 #include <hardware/hardware.h>
+#include <system/graphics.h>
 #include <IntelWsbm.h>
 #include <pvr2d.h>
 #include <pthread.h>
@@ -57,7 +58,7 @@ public:
 // pixel format supported by HWC
 // TODO: share the extended pixel format with gralloc HAL
 enum {
-    HAL_PIXEL_FORMAT_INTEL_HWC_NV12 = 0x100,
+    HAL_PIXEL_FORMAT_INTEL_HWC_NV12 = HAL_PIXEL_FORMAT_NV12_VED,
     HAL_PIXEL_FORMAT_INTEL_HWC_YUY2 = 0x101,
     HAL_PIXEL_FORMAT_INTEL_HWC_UYVY = 0x102,
     HAL_PIXEL_FORMAT_INTEL_HWC_I420 = 0x103,
@@ -197,7 +198,7 @@ public:
 // NOTE: the number of max device devices should be aligned with kernel driver
 #define INTEL_BCD_DEVICE_NUM_MAX    9
 #define INTEL_BCD_BUFFER_NUM_MAX    20
-#define INTEL_DATA_BUFFER_NUM_MAX   3
+#define INTEL_DATA_BUFFER_NUM_MAX   20
 
 class IntelBCDBufferManager : public IntelBufferManager {
 private:
@@ -226,6 +227,9 @@ private:
     PVRSRV_DEV_DATA mDevData;
     IMG_HANDLE mDevMemContext;
     IMG_HANDLE mGeneralHeap;
+
+    // wsbm
+    IntelWsbm *mWsbm;
 private:
     bool gttMap(PVRSRV_CLIENT_MEM_INFO *memInfo,
                 uint32_t gttAlign, int *offset);
@@ -237,5 +241,7 @@ public:
     bool initialize();
     IntelDisplayBuffer* map(uint32_t handle);
     void unmap(uint32_t handle, IntelDisplayBuffer *buffer);
+    IntelDisplayBuffer* get(int size, int gttAlignment);
+    void put(IntelDisplayBuffer *buf);
 };
 #endif /*__INTEL_PVR_BUFFER_MANAGER_H__*/

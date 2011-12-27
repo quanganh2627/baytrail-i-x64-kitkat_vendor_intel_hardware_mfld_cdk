@@ -259,9 +259,10 @@ class IntelOverlayPlane : public IntelDisplayPlane {
 private:
     // overlay mapped data buffers
     struct {
-      IntelDisplayBuffer **bufferList;
-      uint32_t count;
-    } mDataBuffers[INTEL_BCD_DEVICE_NUM_MAX];
+        uint32_t handle;
+        IntelDisplayBuffer *buffer;
+    } mDataBuffers[INTEL_DATA_BUFFER_NUM_MAX];
+    int mNextBuffer;
 public:
     IntelOverlayPlane(int fd, int index, IntelBufferManager *bufferManager);
     ~IntelOverlayPlane();

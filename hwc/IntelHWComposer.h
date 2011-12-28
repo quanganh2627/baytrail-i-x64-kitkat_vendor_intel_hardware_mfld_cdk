@@ -47,6 +47,8 @@ private:
                        int index,
                        hwc_layer_t *layer,
                        int& flags);
+    bool useOverlayRotation(hwc_layer_t *layer, int index, uint32_t& handle,
+                           int& w, int& h, int& srcW, int& srcH);
     bool updateLayersData(hwc_layer_list_t *list);
     bool isHWCUsage(int usage);
     bool isHWCFormat(int format);

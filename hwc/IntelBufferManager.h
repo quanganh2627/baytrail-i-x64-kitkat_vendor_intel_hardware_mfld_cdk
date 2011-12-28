@@ -118,6 +118,8 @@ public:
     enum {
         TTM_BUFFER = 1,
         PVR_BUFFER,
+        BCD_BUFFER,
+        GRALLOC_BUFFER,
     };
 protected:
     int mDrmFd;
@@ -164,9 +166,15 @@ public:
 
 // FIXME: the same struct as IMG_native_handle_t
 // include hal.h instead of defining it here
+enum {
+    GRALLOC_SUB_BUFFER0 = 0,
+    GRALLOC_SUB_BUFFER1,
+    GRALLOC_SUB_BUFFER2,
+    GRALLOC_SUB_BUFFER_MAX,
+};
 typedef struct {
     native_handle_t base;
-    int fd[3];
+    int fd[GRALLOC_SUB_BUFFER_MAX];
     unsigned long long ui64Stamp;
     int usage;
     int width;
@@ -174,6 +182,16 @@ typedef struct {
     int format;
     int bpp;
 }__attribute__((aligned(sizeof(int)),packed)) intel_gralloc_buffer_handle_t;
+
+typedef struct {
+    // transform made by clients (clients to hwc)
+    int client_transform;
+    int rotated_width;
+    int rotated_height;
+    int surface_protected;
+    int force_output_method;
+    uint32_t rotated_buffer_handle;
+} intel_gralloc_payload_t;
 
 class IntelPVRBufferManager : public IntelBufferManager {
 private:
@@ -243,5 +261,7 @@ public:
     void unmap(uint32_t handle, IntelDisplayBuffer *buffer);
     IntelDisplayBuffer* get(int size, int gttAlignment);
     void put(IntelDisplayBuffer *buf);
+    IntelDisplayBuffer* wrap(void *virt, int size);
+    void unwrap(IntelDisplayBuffer *buffer);
 };
 #endif /*__INTEL_PVR_BUFFER_MANAGER_H__*/

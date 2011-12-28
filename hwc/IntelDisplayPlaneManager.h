@@ -93,7 +93,7 @@ public:
         mPosition.right = right;
         mPosition.bottom = bottom;
     }
-    virtual bool setDataBuffer(uint32_t hanlde) { return true; }
+    virtual bool setDataBuffer(uint32_t hanlde, uint32_t flags) { return true; }
     virtual bool setDataBuffer(IntelDisplayBuffer& buffer) {
         mDataBuffer = &buffer;
         return true;
@@ -261,13 +261,14 @@ private:
     struct {
         uint32_t handle;
         IntelDisplayBuffer *buffer;
+        uint32_t bufferType;
     } mDataBuffers[INTEL_DATA_BUFFER_NUM_MAX];
     int mNextBuffer;
 public:
     IntelOverlayPlane(int fd, int index, IntelBufferManager *bufferManager);
     ~IntelOverlayPlane();
     virtual void setPosition(int left, int top, int right, int bottom);
-    virtual bool setDataBuffer(uint32_t handle);
+    virtual bool setDataBuffer(uint32_t handle, uint32_t flags);
     virtual bool setDataBuffer(IntelDisplayBuffer& buffer);
     virtual bool invalidateDataBuffer();
     virtual bool flip(uint32_t flags);
@@ -320,7 +321,7 @@ public:
     ~MedfieldSpritePlane();
     virtual void setPosition(int left, int top, int right, int bottom);
     virtual bool setDataBuffer(IntelDisplayBuffer& buffer);
-    virtual bool setDataBuffer(uint32_t handle);
+    virtual bool setDataBuffer(uint32_t handle, uint32_t flags);
     virtual bool invalidateDataBuffer();
     virtual bool flip(uint32_t flags);
     virtual bool reset();

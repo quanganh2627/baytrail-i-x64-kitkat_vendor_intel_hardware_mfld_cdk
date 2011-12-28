@@ -1202,3 +1202,43 @@ void IntelGraphicBufferManager::put(IntelDisplayBuffer* buf)
     // free overlay buffer
     delete buf;
 }
+
+IntelDisplayBuffer* IntelGraphicBufferManager::wrap(void *addr, int size)
+{
+    if (!mWsbm) {
+        LOGE("%s: no wsbm found\n", __func__);
+        return 0;
+    }
+
+    void *wsbmBufferObject;
+    uint32_t handle = (uint32_t)addr;
+    bool ret = mWsbm->wrapTTMBuffer(handle, &wsbmBufferObject);
+    if (ret == false) {
+        LOGE("%s: wrap ttm buffer failed\n", __func__);
+        return 0;
+    }
+
+    void *virtAddr = mWsbm->getCPUAddress(wsbmBufferObject);
+    uint32_t gttOffsetInPage = mWsbm->getGttOffset(wsbmBufferObject);
+
+    IntelDisplayBuffer *buf = new IntelDisplayBuffer(wsbmBufferObject,
+                                                     virtAddr,
+                                                     gttOffsetInPage,
+                                                     0);
+    return buf;
+}
+
+void IntelGraphicBufferManager::unwrap(IntelDisplayBuffer *buffer)
+{
+    if (!mWsbm) {
+        LOGE("%s: no wsbm found\n", __func__);
+        return;
+    }
+
+    if (!buffer)
+        return;
+
+    mWsbm->unreferenceTTMBuffer(buffer->getBufferObject());
+    // destroy it
+    delete buffer;
+}

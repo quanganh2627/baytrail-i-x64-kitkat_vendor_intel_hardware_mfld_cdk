@@ -99,7 +99,7 @@ bool MedfieldSpritePlane::setDataBuffer(IntelDisplayBuffer& buffer)
     return false;
 }
 
-bool MedfieldSpritePlane::setDataBuffer(uint32_t handle)
+bool MedfieldSpritePlane::setDataBuffer(uint32_t handle, uint32_t flags)
 {
     IntelDisplayBuffer *buffer = 0;
 

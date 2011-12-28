@@ -37,11 +37,6 @@ bool IntelHWComposer::overlayPrepare(int index, hwc_layer_t *layer, int flags)
         return false;
     }
 
-    int dstLeft = layer->displayFrame.left;
-    int dstTop = layer->displayFrame.top;
-    int dstRight = layer->displayFrame.right;
-    int dstBottom = layer->displayFrame.bottom;
-
     // allocate overlay plane
     IntelDisplayPlane *plane = mPlaneManager->getOverlayPlane();
     if (!plane) {
@@ -49,13 +44,17 @@ bool IntelHWComposer::overlayPrepare(int index, hwc_layer_t *layer, int flags)
         return false;
     }
 
+    int dstLeft = layer->displayFrame.left;
+    int dstTop = layer->displayFrame.top;
+    int dstRight = layer->displayFrame.right;
+    int dstBottom = layer->displayFrame.bottom;
+
     // setup plane parameters
     plane->setPosition(dstLeft, dstTop, dstRight, dstBottom);
 
     // attach plane to hwc layer
     mLayerList->attachPlane(index, plane, flags);
 
-    // tell Surfaceflinger clear FB and skip this layer
     layer->hints = HWC_HINT_CLEAR_FB;
     layer->compositionType = HWC_OVERLAY;
 
@@ -103,7 +102,7 @@ bool IntelHWComposer::spritePrepare(int index, hwc_layer_t *layer, int flags)
     plane->setPosition(dstLeft, dstTop, dstRight, dstBottom);
 
     // set the data buffer back to plane
-    plane->setDataBuffer(grallocHandle->fd[0]);
+    plane->setDataBuffer(grallocHandle->fd[GRALLOC_SUB_BUFFER0], 0);
 
     // attach plane to hwc layer
     mLayerList->attachPlane(index, plane, flags);
@@ -162,7 +161,7 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
     // TODO: check data format
 
     // fall back if HWC_SKIP_LAYER was set
-    if ((layer->flags & HWC_SKIP_LAYER) || layer->transform) {
+    if ((layer->flags & HWC_SKIP_LAYER)) {
 	//layer->hints |= HWC_HINT_CLEAR_FB;
         return false;
     }
@@ -282,6 +281,84 @@ void IntelHWComposer::onGeometryChanged(hwc_layer_list_t *list)
      // TODO: disable unused planes here. Currently, disable in commit()
 }
 
+// This function performs:
+// 1) update layer's transform to data buffer's payload buffer, so that video
+//    driver can get the latest transform info of this layer
+// 2) if rotation is needed, video driver would setup the rotated buffer, then
+//    update buffer's payload to inform HWC rotation buffer is available.
+// 3) HWC would keep using ST till all rotation buffers are ready.
+// Return: false if HWC is NOT ready to switch to overlay, otherwise true.
+bool IntelHWComposer::useOverlayRotation(hwc_layer_t *layer,
+                                         int index,
+                                         uint32_t& handle,
+                                         int& w, int& h, int& srcW, int& srcH)
+{
+    bool useOverlay = false;
+    uint32_t hwcLayerTransform;
+
+    // FIXME: workaround for rotation issue, remove it later
+    static int counter = 0;
+
+    if (!layer)
+        return false;
+
+    intel_gralloc_buffer_handle_t *grallocHandle =
+        (intel_gralloc_buffer_handle_t*)layer->handle;
+
+    if (!grallocHandle)
+        return false;
+
+    // map payload buffer
+    IntelDisplayBuffer *buffer =
+        mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
+    if (!buffer) {
+        LOGE("%s: failed to map payload buffer.\n", __func__);
+        return false;
+    }
+
+    intel_gralloc_payload_t *payload =
+        (intel_gralloc_payload_t*)buffer->getCpuAddr();
+    if (!payload) {
+        LOGE("%s: invalid address\n", __func__);
+        useOverlay = false;
+        goto out;
+    }
+
+    if (!layer->transform) {
+        useOverlay = true;
+        goto out;
+    }
+
+    if (layer->transform != payload->client_transform) {
+        LOGD("%s: rotation is not done by client, fallback...\n", __func__);
+        useOverlay = false;
+        goto out;
+    }
+
+    // update handle, w & h to rotation buffer
+    handle = payload->rotated_buffer_handle;
+    w = payload->rotated_width;
+    h = payload->rotated_height;
+    // NOTE: exchange the srcWidth & srcHeight since
+    // video driver currently doesn't call native_window_*
+    // helper functions to update info for rotation buffer.
+    if (layer->transform == HAL_TRANSFORM_ROT_90 ||
+        layer->transform == HAL_TRANSFORM_ROT_270) {
+        int temp = srcH;
+        srcH = srcW;
+        srcW = temp;
+    }
+
+    // now, switch to overlay
+    useOverlay = true;
+
+out:
+    // unmap payload buffer
+    mGrallocBufferManager->unmap(grallocHandle->fd[GRALLOC_SUB_BUFFER1],
+                                 buffer);
+    return useOverlay;
+}
+
 // when buffer handle is changed, we need
 // 0) get plane's data buffer if a plane was attached to a layer
 // 1) update plane's data buffer with the new buffer handle
@@ -314,9 +391,6 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                 IntelOverlayContext *overlayContext =
                     reinterpret_cast<IntelOverlayContext*>(plane->getContext());
 
-                // detect video mode change
-                mDrm->drmModeChanged(*overlayContext);
-
                 intel_gralloc_buffer_handle_t *grallocHandle =
                     (intel_gralloc_buffer_handle_t*)layer->handle;
 
@@ -328,11 +402,34 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                     continue;
                 }
 
+                int bufferWidth = grallocHandle->width;
+                int bufferHeight = grallocHandle->height;
+                uint32_t bufferHandle = grallocHandle->fd[GRALLOC_SUB_BUFFER0];
+
+                // check if can switch to overlay
+                bool useOverlay = useOverlayRotation(layer, i, bufferHandle,
+                                                     bufferWidth, bufferHeight,
+                                                     srcWidth, srcHeight);
+
+                if (!useOverlay) {
+                    layer->compositionType = HWC_FRAMEBUFFER;
+                    plane->disable();
+                    continue;
+                }
+
+                // clear FB first on first overlay frame
+                if (layer->compositionType == HWC_FRAMEBUFFER)
+                    layer->hints = HWC_HINT_CLEAR_FB;
+
+                // switch to overlay
+                layer->compositionType = HWC_OVERLAY;
+
+                // detect video mode change
+                mDrm->drmModeChanged(*overlayContext);
+
                 // now let us set up the overlay
                 uint32_t yStride, uvStride;
                 int format = grallocHandle->format;
-                int bufferWidth = grallocHandle->width;
-                int bufferHeight = grallocHandle->height;
 
                 // set stride
                 switch (format) {
@@ -359,7 +456,7 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                 dataBuffer->setCrop(srcX, srcY, srcWidth, srcHeight);
 
                 // set the data buffer back to plane
-                ret = plane->setDataBuffer(grallocHandle->fd[0]);
+                ret = plane->setDataBuffer(bufferHandle, layer->transform);
                 if (!ret) {
                     LOGE("%s: failed to update overlay data buffer\n", __func__);
                     mLayerList->detachPlane(i, plane);
@@ -523,7 +620,7 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
         int flags = mLayerList->getFlags(i);
         if (plane &&
             !(list->hwLayers[i].flags & HWC_SKIP_LAYER) &&
-            !list->hwLayers[i].transform) {
+            (list->hwLayers[i].compositionType == HWC_OVERLAY)) {
             bool ret = plane->flip(flags);
             if (!ret)
                 LOGW("%s: failed to flip plane %d\n", __func__, i);
@@ -531,6 +628,9 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
 
         // if layer requires clear FB, force swap buffers
         if (list->hwLayers[i].hints & HWC_HINT_CLEAR_FB)
+            needSwapBuffer = true;
+
+        if (list->hwLayers[i].compositionType == HWC_FRAMEBUFFER)
             needSwapBuffer = true;
 
         // clear flip flags

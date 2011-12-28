@@ -25,7 +25,7 @@ IntelHWComposerLayer::IntelHWComposerLayer()
 IntelHWComposerLayer::IntelHWComposerLayer(hwc_layer_t *layer,
                                            IntelDisplayPlane *plane,
                                            int flags)
-    : mHWCLayer(layer), mPlane(plane), mFlags(flags)
+    : mHWCLayer(layer), mPlane(plane), mFlags(flags), mTransform(0)
 {
 
 }
@@ -162,6 +162,30 @@ int IntelHWComposerLayerList::getFlags(int index)
 
     if (initCheck())
         return mLayerList[index].mFlags;
+
+    return 0;
+}
+
+void IntelHWComposerLayerList::setTransform(int index, int tranform)
+{
+    if (index < 0 || index >= mNumLayers) {
+        LOGE("%s: Invalid parameters\n", __func__);
+        return;
+    }
+
+    if (initCheck())
+        mLayerList[index].mTransform = tranform;
+}
+
+int IntelHWComposerLayerList::getTransform(int index)
+{
+    if (index < 0 || index >= mNumLayers) {
+        LOGE("%s: Invalid parameters\n", __func__);
+        return 0;
+    }
+
+    if (initCheck())
+        return mLayerList[index].mTransform;
 
     return 0;
 }

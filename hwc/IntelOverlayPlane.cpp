@@ -1203,17 +1203,24 @@ void IntelOverlayPlane::setPosition(int left, int top, int right, int bottom)
     }
 }
 
-bool IntelOverlayPlane::setDataBuffer(uint32_t handle)
+bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags)
 {
     IntelDisplayBuffer *buffer = 0;
+    uint32_t bufferType;
 
     if (!initCheck()) {
         LOGE("%s: overlay plane wasn't initialized\n", __func__);
         return false;
     }
 
+    if (flags)
+        bufferType = IntelBufferManager::TTM_BUFFER;
+    else
+        bufferType = IntelBufferManager::GRALLOC_BUFFER;
+
     for (int i = 0; i < INTEL_DATA_BUFFER_NUM_MAX; i++) {
-        if (mDataBuffers[i].handle == handle) {
+        if (mDataBuffers[i].handle == handle &&
+            mDataBuffers[i].bufferType == bufferType) {
             buffer = mDataBuffers[i].buffer;
             break;
         }
@@ -1227,23 +1234,39 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle)
         if (mDataBuffers[mNextBuffer].handle ||
             mDataBuffers[mNextBuffer].buffer) {
             LOGV("%s: releasing buffer %d...\n", __func__, mNextBuffer);
-            mBufferManager->unmap(mDataBuffers[mNextBuffer].handle,
-                                  mDataBuffers[mNextBuffer].buffer);
+            if (mDataBuffers[mNextBuffer].bufferType ==
+                IntelBufferManager::TTM_BUFFER)
+                mBufferManager->unwrap(mDataBuffers[mNextBuffer].buffer);
+            else
+                mBufferManager->unmap(mDataBuffers[mNextBuffer].handle,
+                                      mDataBuffers[mNextBuffer].buffer);
             mDataBuffers[mNextBuffer].handle = 0;
             mDataBuffers[mNextBuffer].buffer = 0;
+            mDataBuffers[mNextBuffer].bufferType = 0;
         }
 
-        buffer = mBufferManager->map(handle);
+        if (bufferType == IntelBufferManager::TTM_BUFFER)
+            buffer = mBufferManager->wrap((void *)handle, 0);
+        else
+            buffer = mBufferManager->map(handle);
         if (!buffer) {
              // start over
              LOGW("%s: graphics memory is low, retrying...\n", __func__);
-             mBufferManager->unmap(mDataBuffers[0].handle,
-                                   mDataBuffers[0].buffer);
+             if (mDataBuffers[0].bufferType ==
+                 IntelBufferManager::TTM_BUFFER)
+                 mBufferManager->unwrap(mDataBuffers[0].buffer);
+             else
+                 mBufferManager->unmap(mDataBuffers[0].handle,
+                                       mDataBuffers[0].buffer);
              mDataBuffers[0].handle = 0;
              mDataBuffers[0].buffer = 0;
+             mDataBuffers[0].bufferType = 0;
              mNextBuffer = 0;
 
-             buffer = mBufferManager->map(handle);
+             if (bufferType == IntelBufferManager::TTM_BUFFER)
+                 buffer = mBufferManager->wrap((void *)handle, 0);
+             else
+                 buffer = mBufferManager->map(handle);
              if (!buffer) {
                  LOGE("%s: failed to map handle %d\n", __func__, handle);
                  disable();
@@ -1255,6 +1278,7 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle)
         LOGV("%s: mapping buffer at %d...\n", __func__, mNextBuffer);
         mDataBuffers[mNextBuffer].handle = handle;
         mDataBuffers[mNextBuffer].buffer = buffer;
+        mDataBuffers[mNextBuffer].bufferType = bufferType;
 
         // move mNextBuffer pointer
         mNextBuffer = (mNextBuffer + 1) % INTEL_DATA_BUFFER_NUM_MAX;
@@ -1294,8 +1318,11 @@ bool IntelOverlayPlane::invalidateDataBuffer()
         return false;
 
     for (int i = 0; i < INTEL_DATA_BUFFER_NUM_MAX; i++) {
-        mBufferManager->unmap(mDataBuffers[i].handle,
-                              mDataBuffers[i].buffer);
+        if (mDataBuffers[i].bufferType == IntelBufferManager::TTM_BUFFER)
+            mBufferManager->unwrap(mDataBuffers[i].buffer);
+        else
+            mBufferManager->unmap(mDataBuffers[i].handle,
+                                  mDataBuffers[i].buffer);
     }
 
     // clear data buffers

@@ -1,0 +1,12 @@
+#ifndef ATPARSER_GLOBAL_H
+#define ATPARSER_GLOBAL_H
+
+#include <QtCore/qglobal.h>
+
+#if defined(ATPARSER_LIBRARY)
+#  define ATPARSERSHARED_EXPORT Q_DECL_EXPORT
+#else
+#  define ATPARSERSHARED_EXPORT Q_DECL_IMPORT
+#endif
+
+#endif // ATPARSER_GLOBAL_H

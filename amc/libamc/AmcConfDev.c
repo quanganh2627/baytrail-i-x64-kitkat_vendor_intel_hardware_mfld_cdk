@@ -20,6 +20,9 @@
 #define LOG_TAG "Amc_dev_conf"
 #include <utils/Log.h>
 #include <stdarg.h>
+#include <malloc.h>
+#include <unistd.h>
+
 static  destForSourceRoute *pdestForSource[NBR_ROUTE] = { NULL, };
 static void get_route_id(AMC_ROUTE_ID route, destForSourceRoute *pdestForSource);
 
@@ -55,11 +58,6 @@ void amc_dest_for_source()
 
 void get_route_id(AMC_ROUTE_ID route, destForSourceRoute *pdestForSource)
 {
-    if(pdestForSource == NULL) {
-        free(pdestForSource);
-        return 0;
-    }
-
     switch (route)
     {
     case ROUTE_RADIO:
@@ -104,36 +102,36 @@ void get_route_id(AMC_ROUTE_ID route, destForSourceRoute *pdestForSource)
     }
 }
 
-int amc_modem_conf_msic_dev(vpc_tty_t tty)
+int amc_modem_conf_msic_dev(AMC_TTY_STATE tty)
 {
     IFX_TRANSDUCER_MODE_SOURCE modeTtySource;
     IFX_TRANSDUCER_MODE_DEST modeTtyDest;
 
     switch (tty)
     {
-    case VPC_TTY_OFF:
+    case AMC_TTY_OFF:
         modeTtySource = IFX_USER_DEFINED_15_S;
         modeTtyDest = IFX_USER_DEFINED_15_D;
         break;
-    case VPC_TTY_FULL:
+    case AMC_TTY_FULL:
         modeTtySource = IFX_TTY_S;
         modeTtyDest = IFX_TTY_D;
         break;
-    case VPC_TTY_VCO:
+    case AMC_TTY_VCO:
         modeTtySource = IFX_USER_DEFINED_15_S;
         modeTtyDest = IFX_TTY_D;
         break;
-    case VPC_TTY_HCO:
+    case AMC_TTY_HCO:
         modeTtySource = IFX_TTY_S;
-        modeTtyDest = IFX_USER_DEFINED_15_S;
+        modeTtyDest = IFX_USER_DEFINED_15_D;
         break;
     default:
-        break;
+        return -1;
     }
     amc_configure_source(AMC_I2S1_RX, IFX_CLK1, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, modeTtySource);
     amc_configure_dest(AMC_I2S1_TX, IFX_CLK1, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, modeTtyDest);
     amc_configure_source(AMC_I2S2_RX, IFX_CLK0, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
-    amc_configure_dest(AMC_I2S2_TX, IFX_CLK0, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
+    amc_configure_dest(AMC_I2S2_TX, IFX_CLK0, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_D);
     amc_route(&pdestForSource[ROUTE_DISCONNECT_RADIO][0]);
     amc_route(&pdestForSource[ROUTE_I2S1][0]);
     amc_route(&pdestForSource[ROUTE_I2S2][0]);

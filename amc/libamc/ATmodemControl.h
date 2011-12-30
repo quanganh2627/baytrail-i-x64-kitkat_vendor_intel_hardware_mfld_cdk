@@ -18,6 +18,8 @@
 #ifndef AT_MODEM_CONTROL_H
 #define AT_MODEM_CONTROL_H
 
+
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -31,14 +33,22 @@ extern "C"
 
 #define AT_MAX_CMD_LENGTH 80
 #define AT_MAX_RESP_LENGTH 300
-#define AUDIO_AT_CHANNEL_NAME "/dev/gsmtty13"
-#define MAX_WAIT_ACK 2
+#define MAX_WAIT_ACK_SECONDS 2
+
+/* TTY status */
+typedef enum {
+    AMC_TTY_OFF,
+    AMC_TTY_FULL,
+    AMC_TTY_VCO,
+    AMC_TTY_HCO
+} AMC_TTY_STATE;
 
 /* Return status:*/
 typedef enum {
     AT_OK = 0,
     AT_RUNNING = 1,/* Command sent but no modem response yet.*/
     AT_ERROR = 2,
+    AT_BUSY,
     AT_UNABLE_TO_CREATE_THREAD,
     AT_UNABLE_TO_OPEN_DEVICE,
     AT_WRITE_ERROR,

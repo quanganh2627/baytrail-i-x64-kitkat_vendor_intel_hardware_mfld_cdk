@@ -19,6 +19,8 @@
 #include "AudioModemControl.h"
 #ifdef MODEM_IFX_XMM6160
 
+#define LOG_TAG "AudiomodemControlIFX"
+
 #include <sys/types.h>
 #include <stdio.h>
 #include <string.h>
@@ -26,17 +28,11 @@
 #include <stdarg.h>
 #include <utils/Log.h>
 
-#define LOG_TAG "AudiomodemControlIFX"
 
 AT_STATUS amc_enable(AMC_SOURCE source)
 {
     char cmdStr[AT_MAX_CMD_LENGTH];
     AT_STATUS rts;
-    int i = 0;
-    bool isFirstRoute = true;
-    int srcPort;
-    int hwSink;
-    int try = 0;
     sprintf(cmdStr, EN_SRC, source);
     rts = at_send(cmdStr, EN_SRC_RESP);
     return rts;
@@ -45,11 +41,6 @@ AT_STATUS amc_disable(AMC_SOURCE source)
 {
     char cmdStr[AT_MAX_CMD_LENGTH];
     AT_STATUS rts;
-    int i = 0;
-    bool isFirstRoute = true;
-    int srcPort;
-    int hwSink;
-    int try = 0;
     sprintf(cmdStr, DIS_SRC, source);
     rts = at_send(cmdStr, DIS_SRC_RESP);
     return rts;
@@ -59,11 +50,6 @@ AT_STATUS amc_configure_dest(AMC_DEST dest, IFX_CLK clk, IFX_MASTER_SLAVE mode, 
 {
     char cmdStr[AT_MAX_CMD_LENGTH];
     AT_STATUS rts;
-    int i = 0;
-    bool isFirstRoute = true;
-    int srcPort;
-    int hwSink;
-    int try = 0;
     sprintf(cmdStr, SET_DEST_CONF, dest, 0, clk, mode, sr, sw, trans, settings, audio, update, transducer_dest);
     rts = at_send(cmdStr, SET_DEST_CONF_RESP);
     return rts;
@@ -74,12 +60,6 @@ AT_STATUS amc_configure_source(AMC_SOURCE source, IFX_CLK clk, IFX_MASTER_SLAVE 
 {
     char cmdStr[AT_MAX_CMD_LENGTH];
     AT_STATUS rts;
-    int i = 0;
-    bool isFirstRoute = true;
-    int srcPort;
-    int hwSink;
-    int try = 0;
-
     sprintf(cmdStr, SET_SRC_CONF, source, 0, clk, mode, sr, sw, trans, settings, audio, update, transducer_source);
     rts = at_send(cmdStr, SET_SRC_CONF_RESP);
     return rts;
@@ -111,10 +91,8 @@ AT_STATUS amc_route(destForSourceRoute *destForSource)
 AT_STATUS amc_setGainsource(
     AMC_SOURCE source, int gainDDB)
 {
-    int gainIndex;
     char cmdStr[AT_MAX_CMD_LENGTH];
     AT_STATUS rts;
-    int try = 0;
     sprintf(cmdStr, SET_SRC_VOL, source, gainDDB);
     rts = at_send(cmdStr, SET_SRC_VOL_RESP);
     return rts;
@@ -123,10 +101,8 @@ AT_STATUS amc_setGainsource(
 AT_STATUS amc_setGaindest(
     AMC_DEST dest, int gainDDB)
 {
-    int gainIndex;
     char cmdStr[AT_MAX_CMD_LENGTH];
     AT_STATUS rts;
-    int try = 0;
     sprintf(cmdStr, SET_DEST_VOL, dest, gainDDB);
     rts = at_send(cmdStr, SET_DEST_VOL_RESP);
     return rts;

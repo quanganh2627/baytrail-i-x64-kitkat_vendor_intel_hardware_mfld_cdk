@@ -38,6 +38,7 @@ namespace android_audio_legacy
 
 static int vpc_init(void);
 static int vpc_params(int mode, uint32_t device);
+static void vpc_set_mode(int mode);
 static void vpc_set_modem_state(int state);
 static int vpc_route(vpc_route_t);
 static int vpc_volume(float);
@@ -55,6 +56,14 @@ static int vpc_bt_nrec(vpc_bt_nrec_t);
                                       AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET | \
                                       AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_CARKIT)
 
+static const AMC_TTY_STATE translate_vpc_to_amc_tty[] = {
+    AMC_TTY_OFF, /*[VPC_TTY_OFF] */
+    AMC_TTY_FULL, /*[VPC_TTY_FULL] */
+    AMC_TTY_VCO, /*[VPC_TTY_VCO] */
+    AMC_TTY_HCO, /*[VPC_TTY_HCO] */
+};
+
+
 /*---------------------------------------------------------------------------*/
 /* Global variables                                                          */
 /*---------------------------------------------------------------------------*/
@@ -68,7 +77,7 @@ static uint32_t  current_device       = 0x0000;
 static uint32_t  device_out_defaut    = 0x8000;
 static bool      at_thread_init       = false;
 static bool      call_established     = false;
-static vpc_tty_t tty_call             = VPC_TTY_OFF;
+static AMC_TTY_STATE tty_call             = AMC_TTY_OFF;
 static bool      mixing_enable        = false;
 static bool      voice_call_recording = false;
 static bool      bt_acoustic          = true;
@@ -127,6 +136,21 @@ static int vpc_params(int mode, uint32_t device)
 
     vpc_lock.unlock();
     return NO_ERROR;
+}
+
+/*---------------------------------------------------------------------------*/
+/* State machine parameters                                                  */
+/*---------------------------------------------------------------------------*/
+static void vpc_set_mode(int mode)
+{
+    vpc_lock.lock();
+
+    current_mode = mode;
+
+    LOGD("%s: mode = %d\n", __FUNCTION__, current_mode);
+    LOGD("%s: previous mode = %d\n", __FUNCTION__, prev_mode);
+
+    vpc_lock.unlock();
 }
 
 /*---------------------------------------------------------------------------*/
@@ -221,7 +245,7 @@ static int vpc_route(vpc_route_t route)
                             amc_off();
 
         #ifdef CUSTOM_BOARD_WITH_AUDIENCE
-                            device_profile = (tty_call == VPC_TTY_OFF) ? current_device : device_out_defaut;
+                            device_profile = (tty_call == AMC_TTY_OFF) ? current_device : device_out_defaut;
                             ret = acoustic::process_profile(device_profile, current_mode);
                             if (ret) goto return_error;
         #endif
@@ -554,7 +578,7 @@ static int vpc_mixing_enable(int mode, uint32_t device)
 static int vpc_tty(vpc_tty_t tty)
 {
     vpc_lock.lock();
-    tty_call = tty;
+    tty_call = translate_vpc_to_amc_tty[tty];
     vpc_lock.unlock();
 
     return NO_ERROR;
@@ -622,6 +646,7 @@ static int s_device_open(const hw_module_t* module, const char* name,
     dev->common.close   = s_device_close;
     dev->init           = vpc_init;
     dev->params         = vpc_params;
+    dev->set_mode       = vpc_set_mode;
     dev->set_modem_state = vpc_set_modem_state;
     dev->route          = vpc_route;
     dev->volume         = vpc_volume;

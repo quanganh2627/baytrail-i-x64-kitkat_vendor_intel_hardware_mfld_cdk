@@ -30,14 +30,14 @@ ifneq ($(ALSA_DEFAULT_SAMPLE_RATE),)
     LOCAL_CFLAGS += -DALSA_DEFAULT_SAMPLE_RATE=$(ALSA_DEFAULT_SAMPLE_RATE)
 endif
 
-LOCAL_C_INCLUDES += \
-     external/alsa-lib/include \
-     hardware/intel/include \
-     hardware/intel/mfld_cdk/vpc \
-     hardware/intel/mfld_cdk/libamc \
-     system/core/include/cutils \
-     external/bluetooth/bluez/lib/bluetooth \
-     hardware/intel/IFX-modem
+  LOCAL_C_INCLUDES += \
+        external/alsa-lib/include \
+        hardware/intel/include \
+        hardware/intel/mfld_cdk/vpc \
+        hardware/intel/mfld_cdk/amc/libamc \
+        system/core/include/cutils \
+        external/bluetooth/bluez/lib/bluetooth \
+        hardware/intel/IFX-modem
 
 LOCAL_SRC_FILES:= \
      ctl_vpc.cpp \

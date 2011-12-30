@@ -25,7 +25,6 @@ extern "C"
 
 #include "ATmodemControl.h"
 #include <pthread.h>
-#include "vpc_hardware.h"
 
 #define MODEM_IFX_XMM6160
 #define AMC_MAX_CMD_LENGTH   AT_MAX_CMD_LENGTH
@@ -219,7 +218,7 @@ AT_STATUS amc_waitForCmdCompletion();
 
 int amc_voice_record(void);
 void amc_dest_for_source(void);
-int amc_modem_conf_msic_dev(vpc_tty_t tty);
+int amc_modem_conf_msic_dev(AMC_TTY_STATE tty);
 int amc_modem_conf_bt_dev();
 int amc_off();
 int amc_on();

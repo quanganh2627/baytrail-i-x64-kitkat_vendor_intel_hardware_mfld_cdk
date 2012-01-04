@@ -405,16 +405,29 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                 int bufferWidth = grallocHandle->width;
                 int bufferHeight = grallocHandle->height;
                 uint32_t bufferHandle = grallocHandle->fd[GRALLOC_SUB_BUFFER0];
+                uint32_t transform = 0;
 
-                // check if can switch to overlay
-                bool useOverlay = useOverlayRotation(layer, i, bufferHandle,
-                                                     bufferWidth, bufferHeight,
-                                                     srcWidth, srcHeight);
+                // detect video mode change
+                intel_overlay_mode_t displayMode =
+                    mDrm->drmModeChanged(*overlayContext);
 
-                if (!useOverlay) {
-                    layer->compositionType = HWC_FRAMEBUFFER;
-                    plane->disable();
-                    continue;
+                if (displayMode != OVERLAY_EXTEND) {
+                    // check if can switch to overlay
+                    bool useOverlay = useOverlayRotation(layer, i,
+                                                         bufferHandle,
+                                                         bufferWidth,
+                                                         bufferHeight,
+                                                         srcWidth,
+                                                         srcHeight);
+
+                    if (!useOverlay) {
+                        layer->compositionType = HWC_FRAMEBUFFER;
+                        plane->disable();
+                        continue;
+                    }
+
+                    // update transform
+                    transform = layer->transform;
                 }
 
                 // clear FB first on first overlay frame
@@ -423,9 +436,6 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
 
                 // switch to overlay
                 layer->compositionType = HWC_OVERLAY;
-
-                // detect video mode change
-                mDrm->drmModeChanged(*overlayContext);
 
                 // now let us set up the overlay
                 uint32_t yStride, uvStride;
@@ -456,7 +466,7 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                 dataBuffer->setCrop(srcX, srcY, srcWidth, srcHeight);
 
                 // set the data buffer back to plane
-                ret = plane->setDataBuffer(bufferHandle, layer->transform);
+                ret = plane->setDataBuffer(bufferHandle, transform);
                 if (!ret) {
                     LOGE("%s: failed to update overlay data buffer\n", __func__);
                     mLayerList->detachPlane(i, plane);

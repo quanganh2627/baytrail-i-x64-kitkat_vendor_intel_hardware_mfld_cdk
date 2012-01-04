@@ -954,7 +954,8 @@ void IntelOverlayContext::checkPosition(int& x, int& y, int& w, int& h)
     mode = &mContext->output_state.modes[output];
     mode_valid = mContext->output_state.mode_valid[output];
 
-    LOGV("%s: display mode %d, %dx%d\n", __func__, displayMode, mode->hdisplay, mode->vdisplay);
+    LOGV("%s: display mode %d, %dx%d\n", __func__, displayMode,
+        mode->hdisplay, mode->vdisplay);
 
     if (!mode->hdisplay || !mode->vdisplay)
 	return;
@@ -1095,6 +1096,9 @@ void IntelOverlayContext::setPipe(intel_display_pipe_t pipe)
 	unlock();
 	return;
     }
+
+    // need check position
+    mContext->position_changed = true;
 
     unlock();
 }

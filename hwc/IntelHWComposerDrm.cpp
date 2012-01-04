@@ -96,10 +96,11 @@ bool IntelHWComposerDrm::initialize(int bufferType)
     return true;
 }
 
-void IntelHWComposerDrm::drmModeChanged(IntelOverlayContext& context)
+intel_overlay_mode_t
+IntelHWComposerDrm::drmModeChanged(IntelOverlayContext& context)
 {
     intel_overlay_mode_t oldDisplayMode;
-    intel_overlay_mode_t newDisplayMode;
+    intel_overlay_mode_t newDisplayMode = OVERLAY_UNKNOWN;
     struct drm_psb_register_rw_arg arg;
     uint32_t overlayAPipe = 0;
     bool ret = true;
@@ -128,7 +129,7 @@ void IntelHWComposerDrm::drmModeChanged(IntelOverlayContext& context)
     /*switch pipe*/
     context.setPipeByMode(newDisplayMode);
 mode_change_done:
-    return;
+    return newDisplayMode;
 }
 
 bool IntelHWComposerDrm::detectDrmModeInfo(IntelOverlayContext& context)

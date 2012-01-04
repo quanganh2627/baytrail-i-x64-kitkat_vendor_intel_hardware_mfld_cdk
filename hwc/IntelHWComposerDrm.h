@@ -73,7 +73,7 @@ public:
         return mBufferManager;
     }
     bool detectDrmModeInfo(IntelOverlayContext& context);
-    void drmModeChanged(IntelOverlayContext& context);
+    intel_overlay_mode_t drmModeChanged(IntelOverlayContext& context);
     int getDrmFd() const { return mDrmFd; }
 };
 

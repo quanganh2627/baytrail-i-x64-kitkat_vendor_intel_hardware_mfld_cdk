@@ -13,7 +13,7 @@ ifneq ($(ALSA_DEFAULT_SAMPLE_RATE),)
 endif
 
 ifeq ($(INTEL_WIDI), true)
-  LOCAL_CFLAGS += -DINTEL_WIDI=1
+#  LOCAL_CFLAGS += -DINTEL_WIDI=1
 endif
 
 ifeq ($(USE_INTEL_HDMI), true)

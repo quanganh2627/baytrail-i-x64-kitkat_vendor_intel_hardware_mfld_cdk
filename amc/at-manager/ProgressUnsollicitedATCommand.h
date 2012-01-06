@@ -24,21 +24,25 @@
 
 using namespace std;
 
-class CCallStatUnsollicitedATCommand : public CUnsollicitedATCommand
+class CProgressUnsollicitedATCommand : public CUnsollicitedATCommand
 {
-    enum CallStat {
-        CallActive,
-        CallHold,
-        CallDialing,
-        CallAlerting,
-        CallRinging,
-        CallWaiting,
-        CallDisconnected,
-        CallConnected
+    enum Progress {
+        InBandToneNotAvailableOrNoInfo = 0,
+        AlertingInBandOrTCHNotYetAvailable,
+        MTAcceptedTCHYetAvailable,
+        InBandToneAvailable,
+        InBandToneNotAvailable,
+        TCHAvailableMTYetAccepted,
+        TCHAvailableInBandToneYetIndicatedAvailable,
+        TCHAvailableInBandYetIndicatedNotAvailable,
+        ChannelModeSpeech,
+        ChannelModeData,
+        ChannelModeSignalingOnly,
+        LastSpeechCallEndedSpeechCanBeDisabled
     };
 
 public:
-    CCallStatUnsollicitedATCommand();
+    CProgressUnsollicitedATCommand();
 
     // Indicate if Modem Audio Path is available
     bool isAudioPathAvailable();
@@ -46,13 +50,8 @@ public:
     // Inherited from CUnsollicitedATCommand
     virtual void doProcessAnswer();
 
-public:
+private:
     // Flag to indicate if Modem Audio Path is available
     bool _bAudioPathAvailable;
-
-private:
-
-    // Number of active call sessions
-    uint32_t _uiCallSession;
 };
 

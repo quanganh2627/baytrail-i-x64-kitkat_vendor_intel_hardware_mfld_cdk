@@ -14,8 +14,8 @@
  ** See the License for the specific language governing permissions and
  ** limitations under the License.
  */
-#define LOG_TAG "ATMANAGER_XCALLSTAT"
-#include "CallStatUnsollicitedATCommand.h"
+#define LOG_TAG "ATMANAGER_XPROGRESS"
+#include "ProgressUnsollicitedATCommand.h"
 #include <errno.h>
 #include <ctype.h>
 #include <assert.h>
@@ -24,19 +24,19 @@
 #include <stdlib.h>
 #include <utils/Log.h>
 
-#define AT_XCALL_STAT "AT+XCALLSTAT=1"
-#define AT_XCALL_STAT_PREFIX "XCALLSTAT:"
+#define AT_XPROGRESS "AT+XPROGRESS=1"
+#define AT_XPROGRESS_PREFIX "XPROGRESS:"
 
 #define base CUnsollicitedATCommand
 
-CCallStatUnsollicitedATCommand::CCallStatUnsollicitedATCommand()
-    : base(AT_XCALL_STAT, AT_XCALL_STAT_PREFIX), _bAudioPathAvailable(false), _uiCallSession(0)
+CProgressUnsollicitedATCommand::CProgressUnsollicitedATCommand()
+    : base(AT_XPROGRESS, AT_XPROGRESS_PREFIX), _bAudioPathAvailable(false)
 {
     LOGD("%s", __FUNCTION__);
 }
 
 // Indicate if Modem Audio Path is available
-bool CCallStatUnsollicitedATCommand::isAudioPathAvailable()
+bool CProgressUnsollicitedATCommand::isAudioPathAvailable()
 {
     LOGD("%s: avail = %d", __FUNCTION__, _bAudioPathAvailable);
 
@@ -46,11 +46,11 @@ bool CCallStatUnsollicitedATCommand::isAudioPathAvailable()
 // Inherited from CUnsollicitedATCommand
 //
 // Answer is formated:
-// +XCALLSTAT: <callId>,<statusId>
+// +XPROGRESS: <callId>,<statusId>
 // This code may be repeated so that for each call one line
 // is displayed (up to 6)
 //
-void CCallStatUnsollicitedATCommand::doProcessAnswer()
+void CProgressUnsollicitedATCommand::doProcessAnswer()
 {
     LOGD("%s", __FUNCTION__);
 
@@ -67,34 +67,26 @@ void CCallStatUnsollicitedATCommand::doProcessAnswer()
     // Parse the answer: "Prefix: Index,Status\n"
     char* prefix = strtok(cstr, " ");
     uint32_t iCallIndex = strtol(strtok(NULL, ","), NULL, 0);
-    uint32_t iCallStatus = strtol(strtok(NULL, "\n"), NULL, 0);
+    uint32_t iProgressStatus = strtol(strtok(NULL, "\n"), NULL, 0);
 
-    LOGD("%s: PREFIX=(%s) CALLINDEX=(%d) CALLSTATUS=(%d)", __FUNCTION__, prefix, iCallIndex, iCallStatus);
+    LOGD("%s: PREFIX=(%s) CALLINDEX=(%d) CALLSTATUS=(%d)", __FUNCTION__, prefix, iCallIndex, iProgressStatus);
 
-    if(iCallIndex > _uiCallSession){
-
-        // Increment the number of Call Sessions
-        LOGD("%s New Call session started", __FUNCTION__);
-        _uiCallSession+=1;
-    }
-
-    if (iCallStatus == CallAlerting || iCallStatus == CallActive || iCallStatus == CallHold || iCallStatus == CallConnected)
+    //
+    // MT Call: audio path established on MTAcceptedTCHYetAvailable
+    // MO Call: audio path established on AlertingInBandOrTCHNotYetAvailable or InBandToneAvailable
+    //
+    // MO / MT: audio path disconnected on LastSpeechCallEndedSpeechCanBeDisabled
+    // (Do not have to care about the # of session)
+    //
+    if (iProgressStatus == AlertingInBandOrTCHNotYetAvailable || iProgressStatus == InBandToneAvailable || iProgressStatus == MTAcceptedTCHYetAvailable)
     {
         // If call is alerting (MT), active (MO) or on hold (to keep the path in case
         //  of multisession or call swap
         _bAudioPathAvailable = true;
         LOGD("%s AudioPath available =%d", __FUNCTION__, _bAudioPathAvailable);
 
-    } else if (iCallStatus == CallDisconnected) {
-
-        // Call is disconnected, decrement Call Sessions number
-        _uiCallSession-=1;
-        LOGD("%s Call session (#%d) disconnected, active session (%d)", __FUNCTION__, iCallIndex, _uiCallSession);
-
-        // If no more Call Session are active, reset Audio Path flag
-        _bAudioPathAvailable = _uiCallSession != 0;
-        LOGD("%s AudioPath available =%d", __FUNCTION__, _bAudioPathAvailable);
-
+    } else if (iProgressStatus == LastSpeechCallEndedSpeechCanBeDisabled) {
+        _bAudioPathAvailable = false;
     }
 
     // Clear the answer and the status

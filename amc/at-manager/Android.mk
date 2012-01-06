@@ -9,7 +9,8 @@ LOCAL_SRC_FILES := \
         ATCommand.cpp \
         PeriodicATCommand.cpp \
         UnsollicitedATCommand.cpp \
-        CallStatUnsollicitedATCommand.cpp
+        CallStatUnsollicitedATCommand.cpp \
+        ProgressUnsollicitedATCommand.cpp
 
 LOCAL_C_INCLUDES += \
         hardware/intel/rapid_ril/CORE \

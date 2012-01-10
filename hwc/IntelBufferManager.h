@@ -216,7 +216,7 @@ public:
 // NOTE: the number of max device devices should be aligned with kernel driver
 #define INTEL_BCD_DEVICE_NUM_MAX    9
 #define INTEL_BCD_BUFFER_NUM_MAX    20
-#define INTEL_DATA_BUFFER_NUM_MAX   20
+#define INTEL_DATA_BUFFER_NUM_MAX   25
 
 class IntelBCDBufferManager : public IntelBufferManager {
 private:

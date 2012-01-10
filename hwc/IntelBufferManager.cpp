@@ -1104,6 +1104,7 @@ IntelDisplayBuffer* IntelGraphicBufferManager::map(uint32_t handle)
     res = PVRSRVMapDeviceMemory2(&mDevData,
                                 handle,
                                 mGeneralHeap,
+                                PVRSRV_MEM_NO_GPU_ADDR,
                                 &memInfo);
     if (res != PVRSRV_OK) {
         LOGE("%s: failed to map meminfo with handle 0x%x, err = %d",

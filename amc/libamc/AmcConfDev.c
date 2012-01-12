@@ -187,9 +187,16 @@ int amc_unmute(int gainDL, int gainUL)
     return 0;
 }
 
-int amc_voice_record()
+int amc_voice_record_on()
 {
     amc_route(&pdestForSource[ROUTE_RECORD_RADIO][0]);
     amc_route(&pdestForSource[ROUTE_RECORD_I2S1][0]);
+    return 0;
+}
+
+int amc_voice_record_off()
+{
+    amc_route(&pdestForSource[ROUTE_RADIO][0]);
+    amc_route(&pdestForSource[ROUTE_I2S1][0]);
     return 0;
 }

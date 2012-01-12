@@ -42,8 +42,8 @@ static void vpc_set_mode(int mode);
 static void vpc_set_modem_state(int state);
 static int vpc_route(vpc_route_t);
 static int vpc_volume(float);
-static int vpc_mixing_disable(int mode);
-static int vpc_mixing_enable(int mode, uint32_t device);
+static int vpc_mixing_disable(bool isOut);
+static int vpc_mixing_enable(bool isOut, uint32_t device);
 static int vpc_tty(vpc_tty_t);
 static int vpc_bt_nrec(vpc_bt_nrec_t);
 
@@ -516,21 +516,70 @@ static int vpc_volume(float volume)
 }
 
 /*---------------------------------------------------------------------------*/
-/* I2S2 disable                                                              */
+/* Voice Call Record Enable/disable                                          */
 /*---------------------------------------------------------------------------*/
-static int vpc_mixing_disable(int mode)
+static void voice_call_record_on()
 {
-    vpc_lock.lock();
+    if (!voice_call_recording)
+    {
+        // Enable voice call record
+        LOGD("%s: voice in call recording", __FUNCTION__);
+        amc_voice_record_on();
+        voice_call_recording = true;
+    }
+}
 
+static void voice_call_record_off()
+{
+    if (voice_call_recording)
+    {
+        LOGD("%s: disable recording", __FUNCTION__);
+        voice_call_recording = false;
+        amc_voice_record_off();
+    }
+}
+
+/*---------------------------------------------------------------------------*/
+/* Mixing Enable/disable                                                     */
+/*---------------------------------------------------------------------------*/
+static void mixing_on()
+{
+    if (!mixing_enable)
+    {
+        // Enable alert mixing
+        LOGD("%s: enable mixing", __FUNCTION__);
+        amc_enable(AMC_I2S2_RX);
+        mixing_enable = true;
+    }
+}
+
+static void mixing_off()
+{
     if (mixing_enable)
     {
-        LOGD("disable mixing");
+        LOGD("%s: disable mixing", __FUNCTION__);
         amc_disable(AMC_I2S2_RX);
         mixing_enable = false;
     }
-    if (voice_call_recording)
+}
+
+
+/*---------------------------------------------------------------------------*/
+/* I2S2 disable                                                              */
+/*---------------------------------------------------------------------------*/
+static int vpc_mixing_disable(bool isOut)
+{
+    vpc_lock.lock();
+
+    // Request from an outStream? -> mix disable request
+    if (isOut)
     {
-        voice_call_recording = false;
+        mixing_off();
+    }
+    // Request from an instream? -> record disable request
+    else
+    {
+        voice_call_record_off();
     }
 
     vpc_lock.unlock();
@@ -540,32 +589,22 @@ static int vpc_mixing_disable(int mode)
 /*---------------------------------------------------------------------------*/
 /* I2S2 enable                                                               */
 /*---------------------------------------------------------------------------*/
-static int vpc_mixing_enable(int mode, uint32_t device)
+static int vpc_mixing_enable(bool isOut, uint32_t device)
 {
     vpc_lock.lock();
 
-    if (mode == AudioSystem::MODE_IN_CALL)
+    // Request from an outstream? -> mix request
+    if (isOut)
+    {
+        mixing_on();
+    }
+    // Request from an instream? -> record request
+    else
     {
         if (device == AudioSystem::DEVICE_IN_VOICE_CALL)
         {
-            if (!voice_call_recording)
-            {
-                // Enable voice call record
-                LOGD("voice in call recording");
-                amc_voice_record();
-                voice_call_recording = true;
-            }
-        }
-        else
-        {
-            if (!mixing_enable)
-            {
-                // Enable alert mixing
-                LOGD("enable mixing");
-                amc_enable(AMC_I2S2_RX);
-                mixing_enable = true;
-            }
-        }
+            voice_call_record_on();
+		}
     }
 
     vpc_lock.unlock();

@@ -19,6 +19,7 @@
 #define __VPC_HARDWARE_H__
 
 #include <hardware/hardware.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -42,8 +43,8 @@ typedef struct vpc_device_t {
     void (*set_modem_state)(int state);
     int (*route)(vpc_route_t);
     int (*volume)(float);
-    int (*mix_disable)(int mode);
-    int (*mix_enable)(int mode, uint32_t device);
+    int (*mix_disable)(bool isOut);
+    int (*mix_enable)(bool isOut, uint32_t device);
     int (*tty)(vpc_tty_t);
     int (*bt_nrec)(vpc_bt_nrec_t);
 

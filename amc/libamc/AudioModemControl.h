@@ -216,7 +216,8 @@ AT_STATUS amc_setGaindest(AMC_DEST dest, int gainDDB);
 AT_STATUS amc_setAcoustic(AMC_ACOUSTIC acousticProfile);
 AT_STATUS amc_waitForCmdCompletion();
 
-int amc_voice_record(void);
+int amc_voice_record_on(void);
+int amc_voice_record_off(void);
 void amc_dest_for_source(void);
 int amc_modem_conf_msic_dev(AMC_TTY_STATE tty);
 int amc_modem_conf_bt_dev();

@@ -231,6 +231,8 @@ public:
     intel_overlay_mode_t onDrmModeChange();
 };
 
+
+
 class IntelOverlayPlane : public IntelDisplayPlane {
 private:
     // overlay mapped data buffers
@@ -311,6 +313,8 @@ private:
     int mOverlayPlaneCount;
     IntelDisplayPlane **mSpritePlanes;
     IntelDisplayPlane **mOverlayPlanes;
+    IntelDisplayPlane *mWidiPlane;
+
     // Bitmap of free planes. Bit0 - plane A, bit 1 - plane B, etc.
     uint32_t mFreeSpritePlanes;
     uint32_t mFreeOverlayPlanes;

@@ -15,6 +15,7 @@
  */
 
 #include <IntelDisplayPlaneManager.h>
+#include <IntelWidiPlane.h>
 
 IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
                                                    IntelBufferManager *bm,
@@ -70,6 +71,12 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
         mOverlayPlanes[i]->reset();
     }
 
+    // allocate Widi plane
+    mWidiPlane = new IntelWidiPlane(mDrmFd,mOverlayPlaneCount, mGrallocBufferManager);
+    if (!mWidiPlane) {
+        LOGE("%s: failed to allocate widi plane %d\n", __func__, i);
+        goto overlay_alloc_err;
+    }
     mInitialized = true;
     return;
 overlay_alloc_err:
@@ -113,6 +120,9 @@ IntelDisplayPlaneManager::~IntelDisplayPlaneManager()
         free(mOverlayPlanes);
         mSpritePlanes = 0;
     }
+
+    if (mWidiPlane)
+        delete mWidiPlane;
 
     mInitialized = false;
 }

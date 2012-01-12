@@ -29,6 +29,7 @@ LOCAL_SRC_FILES := IntelHWComposerModule.cpp \
                    IntelHWComposerDrm.cpp \
                    IntelOverlayPlane.cpp \
                    IntelSpritePlane.cpp \
+                   IntelWidiPlane.cpp \
                    MedfieldSpritePlane.cpp \
                    IntelWsbm.cpp \
                    IntelWsbmWrapper.c

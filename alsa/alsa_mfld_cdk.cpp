@@ -39,8 +39,8 @@
     do { \
         assert((x) != NULL); \
         assert((y) != NULL); \
-        if (strlen((x)) + strlen((y)) < ALSA_NAME_MAX) { \
-            strcat((x), (y)); \
+        if (strlen((x)) + strlen((y)) < sizeof((x))) { \
+            strncat((x), (y), sizeof((x)) - strlen((x)) -1); \
         } else { \
             LOGE("Cannot catenate string for buf size limitation"); \
         } \
@@ -195,7 +195,8 @@ static const char *deviceName(alsa_handle_t *handle, uint32_t device, int mode)
     int hasDevExt = 0;
     const char* prefix =  devicePrefix[direction(handle)];
 
-    strncpy(devString, prefix, strlen(prefix) + 1);
+    assert(sizeof(devString) > strlen(prefix));
+    strncpy(devString, prefix, sizeof(devString) - 1);
 
     for (int dev = 0; device && dev < deviceSuffixLen; dev++) {
         if (device & deviceSuffix[dev].device) {

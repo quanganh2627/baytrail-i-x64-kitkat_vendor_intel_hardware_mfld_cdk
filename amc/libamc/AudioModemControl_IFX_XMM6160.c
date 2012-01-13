@@ -27,6 +27,7 @@
 #include "ATmodemControl.h"
 #include <stdarg.h>
 #include <utils/Log.h>
+#include <assert.h>
 
 
 AT_STATUS amc_enable(AMC_SOURCE source)
@@ -50,7 +51,7 @@ AT_STATUS amc_configure_dest(AMC_DEST dest, IFX_CLK clk, IFX_MASTER_SLAVE mode, 
 {
     char cmdStr[AT_MAX_CMD_LENGTH];
     AT_STATUS rts;
-    sprintf(cmdStr, SET_DEST_CONF, dest, 0, clk, mode, sr, sw, trans, settings, audio, update, transducer_dest);
+    snprintf(cmdStr, sizeof(cmdStr), SET_DEST_CONF, dest, 0, clk, mode, sr, sw, trans, settings, audio, update, transducer_dest);
     rts = at_send(cmdStr, SET_DEST_CONF_RESP);
     return rts;
 }
@@ -60,7 +61,7 @@ AT_STATUS amc_configure_source(AMC_SOURCE source, IFX_CLK clk, IFX_MASTER_SLAVE 
 {
     char cmdStr[AT_MAX_CMD_LENGTH];
     AT_STATUS rts;
-    sprintf(cmdStr, SET_SRC_CONF, source, 0, clk, mode, sr, sw, trans, settings, audio, update, transducer_source);
+    snprintf(cmdStr, sizeof(cmdStr), SET_SRC_CONF, source, 0, clk, mode, sr, sw, trans, settings, audio, update, transducer_source);
     rts = at_send(cmdStr, SET_SRC_CONF_RESP);
     return rts;
 }

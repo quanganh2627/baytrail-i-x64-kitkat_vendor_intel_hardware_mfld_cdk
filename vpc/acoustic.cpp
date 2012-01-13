@@ -70,7 +70,8 @@ int acoustic::private_cache_profiles()
             strcat(profile_path, "es305b_");
         }
 
-        strcat(profile_path, profile_name[i]);
+        assert(strlen(profile_path) + strlen(profile_name[i]) < sizeof(profile_path));
+        strncat(profile_path, profile_name[i], sizeof(profile_path) - strlen(profile_path) - 1);
         FILE *fd = fopen(profile_path, "r");
         if (fd == NULL) {
             LOGE("Cannot open %s\n", profile_path);

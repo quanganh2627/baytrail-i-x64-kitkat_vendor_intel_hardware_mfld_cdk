@@ -119,7 +119,7 @@ private:
     // Process the send command list
     void processSendList();
     // Get Next Periodic Timeout
-    uint32_t getNextPeriodicTimeout() const;
+    int32_t getNextPeriodicTimeout() const;
     // Get AT response
     void readResponse();
     // Send String
@@ -142,6 +142,8 @@ private:
     void setModemStatus(uint32_t status);
     // Modem tty are available, performs all required actions
     void onTtyAvailable();
+    // Clear the toSend commands list
+    void clearToSendList();
 
 public:
     // Periodic command list
@@ -156,11 +158,8 @@ public:
     // command list
     list<CATCommand*> _toSendATList;
 
-    // Flag transaction on going
-    bool _bTransactionOnGoing;
-
-    //
-    CATCommand* _pAwaitedATCommandTransactionEnd;
+    // Client AT command
+    CATCommand* _pAwaitedTransactionEndATCommand;
 
 private:
 

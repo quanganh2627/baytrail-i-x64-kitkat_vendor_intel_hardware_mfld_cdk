@@ -187,6 +187,7 @@ void CEventThread::run()
 
         // Poll
         int iPollRes = poll(paPollFds, _uiNbPollFds, _uiTimeoutMs);
+
         if (!iPollRes) {
 
             CThreadContext ctx(this);
@@ -217,6 +218,7 @@ void CEventThread::run()
 
                 continue;
             }
+            assert(ucData == EExit);
             LOGD("%s exit", __func__);
             // Exit
             return;

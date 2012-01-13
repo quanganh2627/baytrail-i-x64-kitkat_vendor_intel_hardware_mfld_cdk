@@ -38,6 +38,7 @@
 #define MAX_WAIT_FOR_STMD_CONNECTION_SECONDS 5
 #define STMD_CONNECTION_RETRY_TIME_MS 200
 #define AT_ANSWER_TIMEOUT_MS 1000
+#define INFINITE_TIMEOUT (-1)
 
 CATManager* CATManager::getInstance()
 {
@@ -47,7 +48,7 @@ CATManager* CATManager::getInstance()
 
 
 CATManager::CATManager(IATNotifier *observer) :
-    _pAwaitedATCommandTransactionEnd(false), _bStarted(false), _bModemAlive(false), _bClientWaiting(false), _pCurrentATCommand(NULL), _pPendingClientATCommand(NULL), _uiTimeoutSec(-1),
+    _pAwaitedTransactionEndATCommand(NULL), _bStarted(false), _bModemAlive(false), _bClientWaiting(false), _pCurrentATCommand(NULL), _pPendingClientATCommand(NULL), _uiTimeoutSec(-1),
     _pEventThread(new CEventThread(this)), _bFirstModemStatusReceivedSemaphoreCreated(false),
     _pATParser(new CATParser), _bTtyListenersStarted(false), _pIATNotifier(observer)
 {
@@ -161,37 +162,42 @@ AT_CMD_STATUS CATManager::start(const char* pcModemTty, uint32_t uiTimeoutSec)
     return AT_CMD_OK;
 }
 
+//
+// Client thread context
 // Add Periodic AT Command to the list
+//
 void CATManager::addPeriodicATCommand(CPeriodicATCommand* pPeriodicATCommand)
 {
     LOGD("%s", __FUNCTION__);
 
+    // Block {
+    pthread_mutex_lock(&_clientMutex);
+
     _periodicATList.push_back(pPeriodicATCommand);
+
+    // } Block
+    pthread_mutex_unlock(&_clientMutex);
 }
 
+//
+// Client thread context
 // Remove Periodic AT Command from the list
+//
 void CATManager::removePeriodicATCommand(CPeriodicATCommand* pPeriodicATCommand)
 {
     LOGD("%s", __FUNCTION__);
 
-    CPeriodicATCommandListIterator it;
+    // Block {
+    pthread_mutex_lock(&_clientMutex);
 
-    for (it = _periodicATList.begin(); it != _periodicATList.end(); ++it) {
+    _periodicATList.remove(pPeriodicATCommand);
 
-        const CPeriodicATCommand* pCmd = *it;
-
-        if (pCmd == pPeriodicATCommand) {
-
-            // Remove element
-            _periodicATList.erase(it);
-
-            // Done
-            return;
-        }
-    }
+    // } Block
+    pthread_mutex_unlock(&_clientMutex);
 }
 
 //
+// Client thread context
 // Some AT command initiated by the modem (also known as Unsollicited)
 // requires to send a registration command to be able to receive these
 // unsollicited command.
@@ -204,6 +210,9 @@ void CATManager::addUnsollicitedATCommand(CUnsollicitedATCommand* pUnsollicitedA
 {
     LOGD("%s", __FUNCTION__);
 
+    // Block {
+    pthread_mutex_lock(&_clientMutex);
+
     _unsollicitedATList.push_back(pUnsollicitedATCommand);
 
     // If tty opened, push the command
@@ -213,16 +222,17 @@ void CATManager::addUnsollicitedATCommand(CUnsollicitedATCommand* pUnsollicitedA
         pushCommandToSendList(pUnsollicitedATCommand);
 
         // If no transaction on going, trig the process
-        if (_bTransactionOnGoing)
-        {
-            LOGD("%s: trig right now", __FUNCTION__);
-            _pEventThread->trigger();
-        }
+        LOGD("%s: trig right now", __FUNCTION__);
+        _pEventThread->trigger();
     }
     // Else nothing to do, will be done on TTY activation
+
+    // } Block
+    pthread_mutex_unlock(&_clientMutex);
 }
 
 //
+// Client thread context
 // Remove Unsollicited AT Command from the list
 // Client does not need to received any more this specific unsollicited
 // command from the modem.
@@ -232,30 +242,27 @@ void CATManager::removeUnsollicitedATCommand(CUnsollicitedATCommand* pUnsollicit
 {
     LOGD("%s", __FUNCTION__);
 
-    CUnsollicedATCommandListIterator it;
+    // Block {
+    pthread_mutex_lock(&_clientMutex);
 
-    for (it = _unsollicitedATList.begin(); it != _unsollicitedATList.end(); ++it) {
+    _unsollicitedATList.remove(pUnsollicitedATCommand);
 
-        const CUnsollicitedATCommand* pCmd = *it;
-
-        if (pCmd == pUnsollicitedATCommand) {
-
-            // Remove element
-            _unsollicitedATList.erase(it);
-
-            // Done
-            return;
-        }
-    }
+    // } Block
+    pthread_mutex_unlock(&_clientMutex);
 }
 
 
-// From Client
+//
+// Client thread context
+//
 AT_CMD_STATUS CATManager::sendCommand(CATCommand* pATCommand, bool bSynchronous)
 {
     LOGD("%s", __FUNCTION__);
 
     assert(_bStarted);
+
+    // Block {
+    pthread_mutex_lock(&_clientMutex);
 
     // Check Modem is accessible
     if (!_bTtyListenersStarted) {
@@ -268,6 +275,9 @@ AT_CMD_STATUS CATManager::sendCommand(CATCommand* pATCommand, bool bSynchronous)
 
     // Trig the processing of the list
     _pEventThread->trigger();
+
+    // } Block
+    pthread_mutex_unlock(&_clientMutex);
 
 
     return bSynchronous ? waitEndOfTransaction(pATCommand) : AT_CMD_OK;
@@ -282,7 +292,7 @@ AT_CMD_STATUS CATManager::waitEndOfTransaction(CATCommand* pATCommand)
     _bClientWaiting = true;
 
     // Set the AT Cmd for which a transaction end is awaited
-    _pAwaitedATCommandTransactionEnd = pATCommand;
+    _pAwaitedTransactionEndATCommand = pATCommand;
 
     // Wait
     waitSemaphore(&_clientWaitSemaphore, _uiTimeoutSec);
@@ -291,8 +301,7 @@ AT_CMD_STATUS CATManager::waitEndOfTransaction(CATCommand* pATCommand)
     AT_CMD_STATUS eCommandStatus = pATCommand->isAnswerOK() ? AT_CMD_OK : AT_CMD_READ_ERROR;
 
     // Consume
-    _pAwaitedATCommandTransactionEnd = NULL;
-    _pCurrentATCommand = NULL;
+    _pAwaitedTransactionEndATCommand = NULL;
     _bClientWaiting = false;
 
     // Deal with race conditions
@@ -379,19 +388,29 @@ void CATManager::terminateTransaction(bool bSuccess)
         _pCurrentATCommand->setAnswerOK(bSuccess);
 
         // Is a client waiting for this command to terminate?
-        if (_bClientWaiting && _pAwaitedATCommandTransactionEnd == _pCurrentATCommand) {
+        if (_bClientWaiting && _pAwaitedTransactionEndATCommand == _pCurrentATCommand) {
 
             // Warn client
             sem_post(&_clientWaitSemaphore);
         }
+        else {
+            // Nobody is waiting for this command, clear the answer and status
+            LOGD("%s: (%s): received answer %s", __FUNCTION__, _pCurrentATCommand->getCommand().c_str(), _pCurrentATCommand->getAnswer().c_str());
+            _pCurrentATCommand->clearStatus();
+        }
+        // Consume
+        _pCurrentATCommand = NULL;
     }
     // Clear timeout
-    _pEventThread->setTimeoutMs(-1);
+    _pEventThread->setTimeoutMs(INFINITE_TIMEOUT);
 
     LOGD("%s: out", __FUNCTION__);
 }
 
+//
+// Worker thread context
 // Event processing
+//
 bool CATManager::onEvent(int iFd)
 {
     LOGD("%s", __FUNCTION__);
@@ -415,6 +434,9 @@ bool CATManager::onEvent(int iFd)
 
         // FD list not changed
         bFdChanged = false;
+
+        // Process the cmd list
+        processSendList();
     }
     // } Block
     pthread_mutex_unlock(&_clientMutex);
@@ -422,6 +444,9 @@ bool CATManager::onEvent(int iFd)
     return bFdChanged;
 }
 
+//
+// Worker thread context
+//
 bool CATManager::onError(int iFd)
 {
     bool bFdChanged;
@@ -446,12 +471,18 @@ bool CATManager::onError(int iFd)
     return bFdChanged;
 }
 
+//
+// Worker thread context
+//
 bool CATManager::onHangup(int iFd)
 {
     // Treat as error
     return onError(iFd);
 }
 
+//
+// Worker thread context
+//
 void CATManager::onTimeout()
 {
     LOGD("%s", __FUNCTION__);
@@ -459,15 +490,19 @@ void CATManager::onTimeout()
     // Block {
     pthread_mutex_lock(&_clientMutex);
 
-    assert(_pCurrentATCommand);
-
-    // Stop receiving AT answer
+    // Stop receiving AT answer (if AT cmd was on going ie _pCurrentATCommand is set)
     terminateTransaction(false);
+
+    // Process the cmd list
+    processSendList();
 
     // } Block
     pthread_mutex_unlock(&_clientMutex);
 }
 
+//
+// Worker thread context
+//
 void CATManager::onPollError()
 {
     LOGE("EventThread: poll error");
@@ -482,14 +517,21 @@ void CATManager::onPollError()
     pthread_mutex_unlock(&_clientMutex);
 }
 
+//
+// Worker thread context
+//
 void CATManager::onProcess()
 {
     LOGD("%s", __FUNCTION__);
 
+    // Block {
+    pthread_mutex_lock(&_clientMutex);
+
     // Process the tosend command list
     processSendList();
 
-
+    // } Block
+    pthread_mutex_unlock(&_clientMutex);
 }
 
 // Push AT command to the send list
@@ -517,16 +559,20 @@ CATCommand* CATManager::popCommandFromSendList(void)
     return atCmd;
 }
 
-
+//
+// Worker thread context
 // Process the send command list
+//
 void CATManager::processSendList()
 {
     LOGD("%s: IN", __FUNCTION__);
 
-    assert(!_bTransactionOnGoing);
-
     // If the tosend command list if empty, returning
     if(_toSendATList.empty()) {
+
+        // if periodic command(s) to be processed, update
+        // timeout accordingly
+        _pEventThread->setTimeoutMs(getNextPeriodicTimeout());
         return;
     }
 
@@ -559,14 +605,19 @@ void CATManager::processSendList()
     LOGD("%s: OUT", __FUNCTION__);
 }
 
+//
+// Worker thread context
 // Get Next Periodic Timeout
-uint32_t CATManager::getNextPeriodicTimeout() const
+// Parse the list of Periodic command and return
+// the nearest deadline from now.
+//
+int32_t CATManager::getNextPeriodicTimeout() const
 {
     LOGD("%s", __FUNCTION__);
 
     // Check if periodic cmd has been added to the list
     if(_periodicATList.empty())
-        return 0;
+        return INFINITE_TIMEOUT;
 
     // Parse the list of Periodic cmd to find next timeout to set
     CPeriodicATCommandConstListIterator iti;
@@ -574,11 +625,13 @@ uint32_t CATManager::getNextPeriodicTimeout() const
 
         CPeriodicATCommand* pCmd = *iti;
     }
-    return 0;
+    return INFINITE_TIMEOUT;
 }
 
-
+//
+// Worker thread context
 // Get AT response
+//
 void CATManager::readResponse()
 {
     LOGD("%s IN", __FUNCTION__);
@@ -726,8 +779,9 @@ void CATManager::setModemStatus(uint32_t status)
     LOGD("Modem status received: %d", _mModemStatus);
 
     /* Informs of the modem state to who implements the observer class */
-    if ((getATNotifier() != NULL))
+    if (getATNotifier()) {
         getATNotifier()->onModemStateChange(_mModemStatus);
+    }
 }
 
 bool CATManager::sendModemColdResetAck()
@@ -812,12 +866,21 @@ void CATManager::stopModemTtyListeners()
     }
 }
 
+void CATManager::clearToSendList()
+{
+    _toSendATList.clear();
+}
+
+//
+// Worker thread context
+//
 void CATManager::onTtyAvailable()
 {
     LOGD("%s", __FUNCTION__);
 
     // Modem just starts, (or restarts)
-    // Check if there are some command to send in the tosend list
+    // Clear tosend list
+    clearToSendList();
 
     // Send the Unsollicited command from the list
     CUnsollicedATCommandListIterator it;
@@ -839,11 +902,8 @@ void CATManager::onTtyAvailable()
         pushCommandToSendList(pCmd);
     }
 
-    if(!_toSendATList.empty())
-    {
-        LOGD("%s: trig right now", __FUNCTION__);
-        _pEventThread->trigger();
-    }
+    // Process the cmd list
+    processSendList();
 
 }
 
@@ -856,9 +916,6 @@ CUnsollicitedATCommand* CATManager::findUnsollicitedCmdByPrefix(const string& st
     for (it = _unsollicitedATList.begin(); it != _unsollicitedATList.end(); ++it) {
 
         CUnsollicitedATCommand* pCmd = *it;
-        LOGD("%s: pCmd->getPrefix =(%s)", __FUNCTION__,pCmd->getPrefix().c_str());
-
-        LOGD("%s: respPrefix =(%s) FIND Res=(%d)", __FUNCTION__, strRespPrefix.c_str(), strRespPrefix.find(pCmd->getPrefix()));
 
         if (pCmd->hasPrefix() && (strRespPrefix.find(pCmd->getPrefix()) != string::npos) ) {
 

@@ -29,7 +29,8 @@ HEADERS += ATManager.h \
     UnsollicitedATCommand.h \
     CallStatUnsollicitedATCommand.h \
     ../simulation/cutils/sockets.h \
-    ATCommand.h
+    ATCommand.h \
+    ATNotifier.h
 
 INCLUDEPATH += ../simulation ../event-listener ../at-parser ../tty-handler
 

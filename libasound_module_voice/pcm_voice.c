@@ -26,7 +26,7 @@
 #include <utils/Log.h>
 #include <sys/time.h>
 
-#define MAX_AGAIN_RETRY     3
+#define MAX_AGAIN_RETRY     6
 #define WAIT_TIME_MS        20
 
 typedef struct snd_pcm_voice {
@@ -79,7 +79,7 @@ static ssize_t pcm_write(snd_pcm_t *pcm_handle, const char *data, size_t count,s
             i++;
             if (i > MAX_AGAIN_RETRY)
             {
-                LOGE("EAGAIN break");
+                LOGE("EAGAIN break after %d tries", MAX_AGAIN_RETRY);
                 return r;
             }
             snd_pcm_wait(pcm_handle, WAIT_TIME_MS);

@@ -697,7 +697,7 @@ bool IntelBCDBufferManager::gttUnmap(uint32_t devId, uint32_t bufferId)
 {
     struct psb_gtt_mapping_arg arg;
 
-    LOGV("%s: unmapping from gtt. buffer %p\n", __func__, buf);
+    LOGV("%s: unmapping from gtt. buffer %p\n", __func__, bufferId);
 
     if(mDrmFd < 0) {
         LOGE("%s: drm is not ready\n", __func__);

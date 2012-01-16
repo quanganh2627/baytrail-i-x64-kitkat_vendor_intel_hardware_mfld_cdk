@@ -174,14 +174,15 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
         grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_I420)
         return false;
 
-    // TODO: enable this when ST is ready for video
     // check whether layer are covered by layers above it
-    //for (size_t i = index + 1; i < list->numHwLayers; i++) {
-    //    if (areLayersIntersecting(&list->hwLayers[i], layer)) {
-    //        LOGD("%s: layer %d is covered by layer %d\n", __func__, index, i);
-    //        return false;
-    //    }
-    //}
+    for (size_t i = index + 1; i < list->numHwLayers; i++) {
+        if (areLayersIntersecting(&list->hwLayers[i], layer)) {
+            LOGD("%s: overlay %d is covered by layer %d\n", __func__, index, i);
+            return false;
+        }
+    }
+
+    LOGV("%s: switch to overlay\n", __func__);
 
     // set flags to 0, overlay plane will handle the flags itself
     // based on data buffer change

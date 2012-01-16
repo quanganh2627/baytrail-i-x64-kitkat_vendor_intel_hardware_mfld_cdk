@@ -20,14 +20,11 @@
 #include <cutils/log.h>
 #include <cutils/atomic.h>
 
+#include <IntelHWComposerDrm.h>
 #include <IntelBufferManager.h>
 #include <IntelOverlayHW.h>
-#include <psb_drm.h>
 
-extern "C" {
-#include "xf86drm.h"
-#include "xf86drmMode.h"
-}
+#include <psb_drm.h>
 
 class IntelDisplayPlaneContext {
 public:
@@ -108,30 +105,11 @@ public:
     virtual bool reset() { return true; }
     virtual bool setPipe(intel_display_pipe_t pipe) { return true; }
 
+    // DRM mode change handler
+    virtual uint32_t onDrmModeChange() { return 0; }
+
     friend class IntelDisplayPlaneManager;
 };
-
-typedef enum {
-    OUTPUT_MIPI0 = 0,
-    OUTPUT_MIPI1,
-    OUTPUT_HDMI,
-    OUTPUT_MAX,
-} intel_drm_output_t;
-
-typedef enum {
-	OVERLAY_CLONE_MIPI0 = 0,
-	OVERLAY_CLONE_MIPI1,
-	OVERLAY_CLONE_DUAL,
-	OVERLAY_EXTEND,
-	OVERLAY_UNKNOWN,
-} intel_overlay_mode_t;
-
-typedef struct {
-    drmModeConnection connections[OUTPUT_MAX];
-    drmModeModeInfo modes[OUTPUT_MAX];
-    bool mode_valid[OUTPUT_MAX];
-    intel_overlay_mode_t display_mode;
-} intel_drm_output_state_t;
 
 typedef struct {
     int x;
@@ -177,9 +155,6 @@ typedef struct {
     // power info
     intel_overlay_state_t state;
 
-    // drm mode info
-    intel_drm_output_state_t output_state;
-
     // ashmem related
     pthread_mutex_t lock;
     pthread_mutexattr_t attr;
@@ -209,6 +184,8 @@ protected:
     void setOverlayState(intel_overlay_state_t state);
     void checkPosition(int& x, int& y, int& w, int& h);
 
+    intel_overlay_mode_t drmModeChanged(IntelOverlayContext& context);
+
     void lock();
     void unlock();
 public:
@@ -231,11 +208,7 @@ public:
     // operations to context
     void setBackBufferGttOffset(const uint32_t gttOffset);
     uint32_t getGttOffsetInPage();
-    void setOutputConnection(const int output, drmModeConnection connection);
-    drmModeConnection getOutputConnection(const int output);
-    void setOutputMode(const int output, drmModeModeInfoPtr mode, int valid);
-    void setDisplayMode(intel_overlay_mode_t displayMode);
-    intel_overlay_mode_t getDisplayMode();
+
     intel_overlay_orientation_t getOrientation();
     intel_overlay_back_buffer_t* getBackBuffer() { return mOverlayBackBuffer; }
 
@@ -253,6 +226,9 @@ public:
     bool reset();
     void setPipe(intel_display_pipe_t pipe);
     void setPipeByMode(intel_overlay_mode_t displayMode);
+
+    // DRM mode change handle
+    intel_overlay_mode_t onDrmModeChange();
 };
 
 class IntelOverlayPlane : public IntelDisplayPlane {
@@ -274,6 +250,7 @@ public:
     virtual bool flip(uint32_t flags);
     virtual bool reset();
     virtual bool disable();
+    virtual uint32_t onDrmModeChange();
 };
 
 enum {

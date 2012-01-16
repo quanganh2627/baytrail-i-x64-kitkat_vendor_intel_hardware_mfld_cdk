@@ -13,17 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef __INTEL_OVERLAY_HAL_H__
-#define __INTEL_OVERLAY_HAL_H__
+#ifndef __INTEL_HWCOMPOSER_DRM_H__
+#define __INTEL_HWCOMPOSER_DRM_H__
 
 #include <IntelBufferManager.h>
-#include <IntelDisplayPlaneManager.h>
 #include <psb_drm.h>
 #include <pthread.h>
 #include <pvr2d.h>
 
 extern "C" {
 #include "xf86drm.h"
+#include "xf86drmMode.h"
 }
 
 #define PVR_DRM_DRIVER_NAME     "pvrsrvkm"
@@ -39,6 +39,29 @@ typedef enum {
     PVR_OVERLAY_VSYNC_PENDING,
 } eVsyncState;
 
+typedef enum {
+    OUTPUT_MIPI0 = 0,
+    OUTPUT_HDMI,
+    OUTPUT_MIPI1,
+    OUTPUT_MAX,
+} intel_drm_output_t;
+
+typedef enum {
+    OVERLAY_CLONE_MIPI0 = 0,
+    OVERLAY_CLONE_MIPI1,
+    OVERLAY_CLONE_DUAL,
+    OVERLAY_EXTEND,
+    OVERLAY_UNKNOWN,
+} intel_overlay_mode_t;
+
+typedef struct {
+    drmModeConnection connections[OUTPUT_MAX];
+    drmModeModeInfo modes[OUTPUT_MAX];
+    drmModeFB fbInfos[OUTPUT_MAX];
+    bool mode_valid[OUTPUT_MAX];
+    intel_overlay_mode_t display_mode;
+} intel_drm_output_state_t;
+
 /**
  * Class: Overlay HAL implementation
  * This is a singleton implementation of hardware overlay.
@@ -46,15 +69,16 @@ typedef enum {
  * FIXME: overlayHAL should contact to the h/w to track the overlay h/w
  * state.
  */
-class IntelHWComposerDrm
-{
+class IntelHWComposerDrm {
 private:
     int mDrmFd;
-    IntelBufferManager *mBufferManager;
+    intel_drm_output_state_t mDrmOutputsState;
     static IntelHWComposerDrm *mInstance;
 private:
     IntelHWComposerDrm()
-        : mDrmFd(-1), mBufferManager(0) {}
+        : mDrmFd(-1) {
+        memset(&mDrmOutputsState, 0, sizeof(intel_drm_output_state_t));
+    }
     IntelHWComposerDrm(const IntelHWComposerDrm&);
     bool drmInit();
     void drmDestroy();
@@ -69,12 +93,19 @@ public:
         return *instance;
     }
     bool initialize(int bufferType);
-    IntelBufferManager* getBufferManager() const {
-        return mBufferManager;
-    }
-    bool detectDrmModeInfo(IntelOverlayContext& context);
-    intel_overlay_mode_t drmModeChanged(IntelOverlayContext& context);
+    bool detectDrmModeInfo();
     int getDrmFd() const { return mDrmFd; }
+
+    // DRM output states
+    void setOutputConnection(const int output, drmModeConnection connection);
+    drmModeConnection getOutputConnection(const int output);
+    void setOutputMode(const int output, drmModeModeInfoPtr mode, int valid);
+    drmModeModeInfoPtr getOutputMode(const int output);
+    void setOutputFBInfo(const int output, drmModeFBPtr fbInfo);
+    drmModeFBPtr getOutputFBInfo(const int output);
+    bool isValidOutputMode(const int output);
+    void setDisplayMode(intel_overlay_mode_t displayMode);
+    intel_overlay_mode_t getDisplayMode();
 };
 
-#endif /*__INTEL_OVERLAY_HAL_H__*/
+#endif /*__INTEL_HWCOMPOSER_DRM_H__*/

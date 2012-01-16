@@ -140,6 +140,7 @@ bool MedfieldSpritePlane::flip(uint32_t flags)
     IntelSpriteContext *spriteContext =
             reinterpret_cast<IntelSpriteContext*>(mContext);
     intel_sprite_context_t *context = spriteContext->getContext();
+    bool ret = true;
 
     // if no update, return
     if (!context->update_mask)
@@ -147,87 +148,96 @@ bool MedfieldSpritePlane::flip(uint32_t flags)
 
     LOGD("%s: flip to surface 0x%x\n", __func__, context->surf);
 
-    // update context
-    struct drm_psb_register_rw_arg arg;
-    memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
-    memcpy(&arg.sprite_context, context, sizeof(intel_sprite_context_t));
-    arg.sprite_context_mask = REGRWBITS_SPRITE_UPDATE;
-    int ret = drmCommandWriteRead(mDrmFd,
-                                  DRM_PSB_REGISTER_RW,
-                                  &arg, sizeof(arg));
-    if (ret) {
-        LOGW("%s: sprite update failed with error code %d\n",
-             __func__, ret);
-        return false;
-    }
+    // detect connection status
+    IntelHWComposerDrm::getInstance().detectDrmModeInfo();
 
-    // try to flip HDMI
-    // FIXME: check the HDMI connection state before doing this
-    arg.sprite_context.index = 1;
-    arg.sprite_context.update_mask &= ~SPRITE_UPDATE_POSITION;
-    ret = drmCommandWriteRead(mDrmFd,
-                                  DRM_PSB_REGISTER_RW,
-                                  &arg, sizeof(arg));
-    if (ret) {
-        LOGW("%s: sprite update failed with error code %d\n",
-             __func__, ret);
-        return false;
+    // update context
+    for (int output = 0; output < OUTPUT_MAX; output++) {
+        drmModeConnection connection =
+            IntelHWComposerDrm::getInstance().getOutputConnection(output);
+
+        if (connection != DRM_MODE_CONNECTED) {
+            LOGI("%s: output %d not connected\n", __func__, output);
+            continue;
+        }
+
+        struct drm_psb_register_rw_arg arg;
+        memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
+        memcpy(&arg.sprite_context, context, sizeof(intel_sprite_context_t));
+        arg.sprite_context.index = output;
+        arg.sprite_context_mask = REGRWBITS_SPRITE_UPDATE;
+        arg.sprite_context.update_mask &= ~SPRITE_UPDATE_POSITION;
+        int res = drmCommandWriteRead(mDrmFd,
+                                      DRM_PSB_REGISTER_RW,
+                                      &arg, sizeof(arg));
+        if (res) {
+            LOGW("%s: sprite update failed with error code %d\n",
+                __func__, res);
+            ret = false;
+            continue;
+        }
     }
 
     // clear update_mask
     context->update_mask = 0;
-    return true;
+    return ret;
 }
 
 bool MedfieldSpritePlane::reset()
 {
+    bool ret = true;
+
     if (initCheck()) {
         IntelSpriteContext *spriteContext =
             reinterpret_cast<IntelSpriteContext*>(mContext);
         intel_sprite_context_t *context = spriteContext->getContext();
 
-        // only reset format
-        // TODO: remove the magic number later
-        context->pos = 0;
-        context->size = ((1024 - 1) & 0xfff) << 16 | ((600 - 1) & 0xfff);
-        context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRX8888 | 0x80000000;
-        context->linoff = 0;
-        context->surf = 0;
-        context->stride = align_to(4 * 600, 64);;
-        context->update_mask = (SPRITE_UPDATE_POSITION |
-                                SPRITE_UPDATE_SIZE |
-                                SPRITE_UPDATE_CONTROL);
+        // detect connection status
+        IntelHWComposerDrm::getInstance().detectDrmModeInfo();
 
-        struct drm_psb_register_rw_arg arg;
-        memset(&arg, 0, sizeof(arg));
-        memcpy(&arg.sprite_context, context, sizeof(intel_sprite_context_t));
-        arg.sprite_context_mask = REGRWBITS_SPRITE_UPDATE;
-        int ret = drmCommandWriteRead(mDrmFd,
-                                      DRM_PSB_REGISTER_RW,
-                                      &arg, sizeof(arg));
-        if (ret) {
-            LOGW("%s: sprite update failed with error code %d\n",
-                 __func__, ret);
-            return false;
+        for (int output = 0; output < OUTPUT_MAX; output++) {
+            drmModeFBPtr fbInfo =
+                IntelHWComposerDrm::getInstance().getOutputFBInfo(output);
+            bool mode_valid =
+                IntelHWComposerDrm::getInstance().isValidOutputMode(output);
+            drmModeConnection connection =
+                IntelHWComposerDrm::getInstance().getOutputConnection(output);
+
+            if (!mode_valid ||
+                !fbInfo->width || !fbInfo->height ||
+                connection != DRM_MODE_CONNECTED)
+                continue;
+
+            context->pos = 0;
+            context->size = ((fbInfo->height - 1) & 0xfff) << 16 |
+                            ((fbInfo->width - 1) & 0xfff);
+            context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRX8888 | 0x80000000;
+            context->linoff = 0;
+            context->surf = 0;
+            context->stride = align_to(fbInfo->pitch, 64);
+            context->update_mask = (SPRITE_UPDATE_POSITION |
+                                    SPRITE_UPDATE_SIZE |
+                                    SPRITE_UPDATE_CONTROL);
+
+            struct drm_psb_register_rw_arg arg;
+            memset(&arg, 0, sizeof(arg));
+            memcpy(&arg.sprite_context, context, sizeof(intel_sprite_context_t));
+            arg.sprite_context.index = output;
+            arg.sprite_context_mask = REGRWBITS_SPRITE_UPDATE;
+            arg.sprite_context.update_mask &= ~SPRITE_UPDATE_POSITION;
+            int res = drmCommandWriteRead(mDrmFd,
+                                          DRM_PSB_REGISTER_RW,
+                                          &arg, sizeof(arg));
+            if (res) {
+                LOGW("%s: sprite update failed with error code %d\n",
+                     __func__, ret);
+                ret = false;
+                continue;
+            }
         }
-
-        // try to flip HDMI
-        // FIXME: check the HDMI connection state before doing this
-        arg.sprite_context.index = 1;
-        arg.sprite_context.update_mask &= ~SPRITE_UPDATE_POSITION;
-        ret = drmCommandWriteRead(mDrmFd,
-                                      DRM_PSB_REGISTER_RW,
-                                      &arg, sizeof(arg));
-        if (ret) {
-            LOGW("%s: sprite update failed with error code %d\n",
-                 __func__, ret);
-            return false;
-        }
-
-        return true;
     }
-    LOGE("%s: sprite plane was not initialized\n", __func__);
-    return false;
+
+    return ret;
 }
 
 bool MedfieldSpritePlane::disable()

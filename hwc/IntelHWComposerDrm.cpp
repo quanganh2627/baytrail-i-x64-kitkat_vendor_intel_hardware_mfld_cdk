@@ -57,6 +57,90 @@ void IntelHWComposerDrm::drmDestroy()
     }
 }
 
+void IntelHWComposerDrm::setOutputConnection(const int output,
+                                             drmModeConnection connection)
+{
+    if (output < 0 || output >= OUTPUT_MAX)
+        return;
+
+    mDrmOutputsState.connections[output] = connection;
+}
+
+drmModeConnection
+IntelHWComposerDrm:: getOutputConnection(const int output)
+{
+    drmModeConnection connection = DRM_MODE_DISCONNECTED;
+
+    if (output < 0 || output >= OUTPUT_MAX)
+        return connection;
+
+    connection = mDrmOutputsState.connections[output];
+
+    return connection;
+}
+
+void IntelHWComposerDrm::setOutputMode(const int output,
+                                       drmModeModeInfoPtr mode,
+                                       int valid)
+{
+    if (output < 0 || output >= OUTPUT_MAX || !mode)
+        return;
+
+    if (valid) {
+        memcpy(&mDrmOutputsState.modes[output],
+               mode, sizeof(drmModeModeInfo));
+        mDrmOutputsState.mode_valid[output] = true;
+    } else
+        mDrmOutputsState.mode_valid[output] = false;
+}
+
+drmModeModeInfoPtr IntelHWComposerDrm::getOutputMode(const int output)
+{
+    if (output < 0 || output >= OUTPUT_MAX)
+        return 0;
+
+    return &mDrmOutputsState.modes[output];
+}
+
+void IntelHWComposerDrm::setOutputFBInfo(const int output,
+                                       drmModeFBPtr fbInfo)
+{
+    if (output < 0 || output >= OUTPUT_MAX || !fbInfo)
+        return;
+
+    memcpy(&mDrmOutputsState.fbInfos[output], fbInfo, sizeof(drmModeFB));
+}
+
+drmModeFBPtr IntelHWComposerDrm::getOutputFBInfo(const int output)
+{
+    if (output < 0 || output >= OUTPUT_MAX)
+        return 0;
+
+    return &mDrmOutputsState.fbInfos[output];
+}
+
+bool IntelHWComposerDrm::isValidOutputMode(const int output)
+{
+    if (output < 0 || output >= OUTPUT_MAX)
+        return false;
+
+    return mDrmOutputsState.mode_valid[output];
+}
+
+void IntelHWComposerDrm::setDisplayMode(intel_overlay_mode_t displayMode)
+{
+    mDrmOutputsState.display_mode = displayMode;
+}
+
+intel_overlay_mode_t IntelHWComposerDrm::getDisplayMode()
+{
+    intel_overlay_mode_t displayMode = OVERLAY_UNKNOWN;
+
+    displayMode = mDrmOutputsState.display_mode;
+
+    return displayMode;
+}
+
 bool IntelHWComposerDrm::initialize(int bufferType)
 {
     bool ret = false;
@@ -71,68 +155,14 @@ bool IntelHWComposerDrm::initialize(int bufferType)
         }
     }
 
-    /*create a buffer manager and initialize it*/
-    IntelBufferManager *bufferManager;
-    if (bufferType == IntelBufferManager::TTM_BUFFER)
-	    bufferManager = new IntelTTMBufferManager(mDrmFd);
-    else if (bufferType == IntelBufferManager::PVR_BUFFER)
-	    bufferManager = new IntelPVRBufferManager(mDrmFd);
-    else {
-        LOGE("%s: invalid buffer type\n", __func__);
-        drmDestroy();
-        return false;
-    }
-
-    ret = bufferManager->initialize();
-    if (ret == false) {
-        LOGE("%s: failed to initialize", __func__);
-        drmDestroy();
-        return false;
-    }
-
-    mBufferManager = bufferManager;
-
-    LOGV("%s: finish successfully.\n", __func__);
+    ret = detectDrmModeInfo();
+    if (ret == false)
+        LOGW("%s: failed to detect DRM modes\n", __func__);
+    else
+        LOGV("%s: finish successfully.\n", __func__);
     return true;
 }
-
-intel_overlay_mode_t
-IntelHWComposerDrm::drmModeChanged(IntelOverlayContext& context)
-{
-    intel_overlay_mode_t oldDisplayMode;
-    intel_overlay_mode_t newDisplayMode = OVERLAY_UNKNOWN;
-    struct drm_psb_register_rw_arg arg;
-    uint32_t overlayAPipe = 0;
-    bool ret = true;
-
-    oldDisplayMode = context.getDisplayMode();
-
-    /*detect new drm mode*/
-    ret = detectDrmModeInfo(context);
-    if (ret == false) {
-        LOGE("%s: failed to detect DRM mode\n", __func__);
-        goto mode_change_done;
-    }
-
-    /*get new drm mode*/
-    newDisplayMode = context.getDisplayMode();
-
-    LOGV("%s: old %d, new %d\n", __func__, oldDisplayMode, newDisplayMode);
-
-    if (oldDisplayMode == newDisplayMode) {
-        goto mode_change_done;
-    }
-
-    /*disable overlay*/
-    context.setPipeByMode(oldDisplayMode);
-    context.disable();
-    /*switch pipe*/
-    context.setPipeByMode(newDisplayMode);
-mode_change_done:
-    return newDisplayMode;
-}
-
-bool IntelHWComposerDrm::detectDrmModeInfo(IntelOverlayContext& context)
+bool IntelHWComposerDrm::detectDrmModeInfo()
 {
     LOGV("%s: detecting drm mode info...\n", __func__);
 
@@ -154,6 +184,7 @@ bool IntelHWComposerDrm::detectDrmModeInfo(IntelOverlayContext& context)
     drmModeCrtcPtr crtc = NULL;
     drmModeConnectorPtr connectors[OUTPUT_MAX];
     drmModeModeInfoPtr mode = NULL;
+    drmModeFBPtr fbInfo = NULL;
 
     for (int i = 0; i < resources->count_connectors; i++) {
         connector = drmModeGetConnector(mDrmFd, resources->connectors[i]);
@@ -181,7 +212,7 @@ bool IntelHWComposerDrm::detectDrmModeInfo(IntelOverlayContext& context)
         }
 
         /*update connection status*/
-        context.setOutputConnection(outputIndex, connector->connection);
+        setOutputConnection(outputIndex, connector->connection);
 
         /*get related encoder*/
         encoder = drmModeGetEncoder(mDrmFd, connector->encoder_id);
@@ -201,9 +232,22 @@ bool IntelHWComposerDrm::detectDrmModeInfo(IntelOverlayContext& context)
         }
 
         /*set crtc mode*/
-        context.setOutputMode(outputIndex, &crtc->mode, crtc->mode_valid);
+        setOutputMode(outputIndex, &crtc->mode, crtc->mode_valid);
+
+        // get fb info
+        fbInfo = drmModeGetFB(mDrmFd, crtc->buffer_id);
+        if (!fbInfo) {
+            LOGD("%s: fail to get fb info\n", __func__);
+            drmModeFreeCrtc(crtc);
+            drmModeFreeEncoder(encoder);
+            drmModeFreeConnector(connector);
+            continue;
+        }
+
+        setOutputFBInfo(outputIndex, fbInfo);
 
         /*free all crtc/connector/encoder*/
+        drmModeFreeFB(fbInfo);
         drmModeFreeCrtc(crtc);
         drmModeFreeEncoder(encoder);
         drmModeFreeConnector(connector);
@@ -211,24 +255,21 @@ bool IntelHWComposerDrm::detectDrmModeInfo(IntelOverlayContext& context)
 
     drmModeFreeResources(resources);
 
-    drmModeConnection mipi0 =
-        context.getOutputConnection(OUTPUT_MIPI0);
-    drmModeConnection mipi1 =
-        context.getOutputConnection(OUTPUT_MIPI1);
-    drmModeConnection hdmi =
-        context.getOutputConnection(OUTPUT_HDMI);
+    drmModeConnection mipi0 = getOutputConnection(OUTPUT_MIPI0);
+    drmModeConnection mipi1 = getOutputConnection(OUTPUT_MIPI1);
+    drmModeConnection hdmi = getOutputConnection(OUTPUT_HDMI);
 
     if (hdmi == DRM_MODE_CONNECTED)
-        context.setDisplayMode(OVERLAY_EXTEND);
+        setDisplayMode(OVERLAY_EXTEND);
     else if ((mipi0 == DRM_MODE_CONNECTED) && (mipi1 == mipi0))
-        context.setDisplayMode(OVERLAY_CLONE_DUAL);
+        setDisplayMode(OVERLAY_CLONE_DUAL);
     else if (mipi0 == DRM_MODE_CONNECTED)
-        context.setDisplayMode(OVERLAY_CLONE_MIPI0);
+        setDisplayMode(OVERLAY_CLONE_MIPI0);
     else if (mipi1 == DRM_MODE_CONNECTED)
-        context.setDisplayMode(OVERLAY_CLONE_MIPI1);
+        setDisplayMode(OVERLAY_CLONE_MIPI1);
     else {
         LOGW("%s: unknown display mode\n", __func__);
-        context.setDisplayMode(OVERLAY_UNKNOWN);
+        setDisplayMode(OVERLAY_UNKNOWN);
     }
 
     LOGV("%s: mipi/lvds %s, mipi1 %s, hdmi %s\n",

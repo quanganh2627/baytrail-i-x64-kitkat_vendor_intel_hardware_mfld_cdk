@@ -249,83 +249,6 @@ uint32_t IntelOverlayContext::getGttOffsetInPage()
     return offset;
 }
 
-void IntelOverlayContext::setOutputConnection(const int output,
-                                              drmModeConnection connection)
-{
-    if (output < 0 || output >= OUTPUT_MAX)
-        return;
-
-    lock();
-
-    if (mContext)
-        mContext->output_state.connections[output] = connection;
-
-    unlock();
-}
-
-drmModeConnection
-IntelOverlayContext:: getOutputConnection(const int output)
-{
-    drmModeConnection connection = DRM_MODE_DISCONNECTED;
-
-    if (output < 0 || output >= OUTPUT_MAX)
-        return connection;
-
-    lock();
-
-    if (mContext)
-        connection = mContext->output_state.connections[output];
-
-    unlock();
-
-    return connection;
-}
-
-void IntelOverlayContext::setOutputMode(const int output,
-                                        drmModeModeInfoPtr mode,
-                                        int valid)
-{
-    if (output < 0 || output >= OUTPUT_MAX || !mode)
-        return;
-
-    lock();
-
-    if (mContext) {
-        if (valid) {
-            memcpy(&mContext->output_state.modes[output],
-                   mode, sizeof(drmModeModeInfo));
-            mContext->output_state.mode_valid[output] = true;
-        } else
-            mContext->output_state.mode_valid[output] = false;
-    }
-
-    unlock();
-}
-
-void IntelOverlayContext::setDisplayMode(intel_overlay_mode_t displayMode)
-{
-    lock();
-
-    if (mContext)
-        mContext->output_state.display_mode = displayMode;
-
-    unlock();
-}
-
-intel_overlay_mode_t IntelOverlayContext::getDisplayMode()
-{
-    intel_overlay_mode_t displayMode = OVERLAY_UNKNOWN;
-
-    lock();
-
-    if (mContext)
-        displayMode = mContext->output_state.display_mode;
-
-    unlock();
-
-    return displayMode;
-}
-
 intel_overlay_orientation_t IntelOverlayContext::getOrientation()
 {
     intel_overlay_orientation_t orientation = OVERLAY_ORIENTATION_PORTRAINT;
@@ -941,7 +864,8 @@ void IntelOverlayContext::checkPosition(int& x, int& y, int& w, int& h)
     if (!mContext)
         return;
 
-    intel_overlay_mode_t displayMode = mContext->output_state.display_mode;
+    intel_overlay_mode_t displayMode =
+        IntelHWComposerDrm::getInstance().getDisplayMode();
     drmModeModeInfoPtr mode;
     bool mode_valid;
     int output;
@@ -951,13 +875,10 @@ void IntelOverlayContext::checkPosition(int& x, int& y, int& w, int& h)
     else
         output = OUTPUT_MIPI0;
 
-    mode = &mContext->output_state.modes[output];
-    mode_valid = mContext->output_state.mode_valid[output];
+    mode = IntelHWComposerDrm::getInstance().getOutputMode(output);
+    mode_valid = IntelHWComposerDrm::getInstance().isValidOutputMode(output);
 
-    LOGV("%s: display mode %d, %dx%d\n", __func__, displayMode,
-        mode->hdisplay, mode->vdisplay);
-
-    if (!mode->hdisplay || !mode->vdisplay)
+    if (!mode || !mode->hdisplay || !mode->vdisplay)
 	return;
 
     if (displayMode == OVERLAY_EXTEND) {
@@ -1128,6 +1049,43 @@ void IntelOverlayContext::setPipeByMode(intel_overlay_mode_t displayMode)
     }
 
     setPipe(pipe);
+}
+
+// DRM mode change handle
+intel_overlay_mode_t
+IntelOverlayContext::onDrmModeChange()
+{
+    intel_overlay_mode_t oldDisplayMode;
+    intel_overlay_mode_t newDisplayMode = OVERLAY_UNKNOWN;
+    struct drm_psb_register_rw_arg arg;
+    uint32_t overlayAPipe = 0;
+    bool ret = true;
+
+    oldDisplayMode = IntelHWComposerDrm::getInstance().getDisplayMode();
+
+    /*detect new drm mode*/
+    ret = IntelHWComposerDrm::getInstance().detectDrmModeInfo();
+    if (ret == false) {
+        LOGE("%s: failed to detect DRM mode\n", __func__);
+        goto mode_change_done;
+    }
+
+    /*get new drm mode*/
+    newDisplayMode = IntelHWComposerDrm::getInstance().getDisplayMode();
+
+    LOGV("%s: old %d, new %d\n", __func__, oldDisplayMode, newDisplayMode);
+
+    if (oldDisplayMode == newDisplayMode) {
+        goto mode_change_done;
+    }
+
+    /*disable overlay*/
+    setPipeByMode(oldDisplayMode);
+    disable();
+    /*switch pipe*/
+    setPipeByMode(newDisplayMode);
+mode_change_done:
+    return newDisplayMode;
 }
 
 IntelOverlayPlane::IntelOverlayPlane(int fd, int index, IntelBufferManager *bm)
@@ -1382,5 +1340,13 @@ bool IntelOverlayPlane::disable()
     return ret;
 }
 
+uint32_t IntelOverlayPlane::onDrmModeChange()
+{
+    if (initCheck()) {
+        IntelOverlayContext *overlayContext =
+            reinterpret_cast<IntelOverlayContext*>(mContext);
+        return (uint32_t)overlayContext->onDrmModeChange();
+    }
 
-
+    return 0;
+}

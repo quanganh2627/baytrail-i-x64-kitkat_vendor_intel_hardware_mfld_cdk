@@ -409,8 +409,7 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                 uint32_t transform = 0;
 
                 // detect video mode change
-                intel_overlay_mode_t displayMode =
-                    mDrm->drmModeChanged(*overlayContext);
+                uint32_t displayMode = plane->onDrmModeChange();
 
                 if (displayMode != OVERLAY_EXTEND) {
                     // check if can switch to overlay

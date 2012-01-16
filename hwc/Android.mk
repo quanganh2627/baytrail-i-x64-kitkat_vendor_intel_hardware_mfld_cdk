@@ -18,9 +18,11 @@ LOCAL_PATH := $(call my-dir)
 # HAL module implemenation, not prelinked and stored in
 # hw/<OVERLAY_HARDWARE_MODULE_ID>.<ro.product.board>.so
 include $(CLEAR_VARS)
+
+
 LOCAL_PRELINK_MODULE := false
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
-LOCAL_SHARED_LIBRARIES := liblog libEGL libcutils libdrm libpvr2d libwsbm libsrv_um libui
+LOCAL_SHARED_LIBRARIES := liblog libEGL libcutils libdrm libpvr2d libwsbm libsrv_um libui libutils libbinder libwidistreaming libhwcwidi
 LOCAL_SRC_FILES := IntelHWComposerModule.cpp \
                    IntelHWComposer.cpp \
                    IntelHWComposerLayer.cpp \
@@ -45,5 +47,11 @@ LOCAL_C_INCLUDES := $(addprefix $(LOCAL_PATH)/../../, $(SGX_INCLUDES)) \
             hardware/intel/linux-2.6/drivers/staging/mrst/drv \
             hardware/intel/linux-2.6/include/drm \
             hardware/intel/linux-2.6/drivers/staging/mrst/bc_video \
-            hardware/intel/linux-2.6/drivers/staging/mrst/imgv
+            hardware/intel/linux-2.6/drivers/staging/mrst/imgv	\
+            $(TARGET_OUT_HEADERS)/widi	\
+            $(addprefix $(LOCAL_PATH),libhwcwidi)
+
 include $(BUILD_SHARED_LIBRARY)
+
+
+include $(LOCAL_PATH)/libhwcwidi/Android.mk

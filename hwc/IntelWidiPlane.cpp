@@ -14,25 +14,58 @@
  * limitations under the License.
  */
 
-#include <cutils/ashmem.h>
-#include <sys/mman.h>
-#include <math.h>
 
 #include <IntelHWComposerDrm.h>
 #include <IntelWidiPlane.h>
 #include <IntelOverlayUtil.h>
 
+#include "streaming/IWirelessDisplayService.h"
+#include "streaming/IWirelessDisplay.h"
+
+
+using namespace android;
+using namespace intel::widi;
+
+bool
+IntelWidiPlane::WidiInitThread::threadLoop() {
+
+    sp<IBinder> service;
+    sp<IServiceManager> sm = defaultServiceManager();
+    do {
+        service = (sm->getService(String16("media.widi")));
+
+        if (service != 0) {
+            break;
+         }
+         LOGW("Wireless display service not published, waiting...");
+         usleep(500000); // 0.5 s
+    } while(true);
+
+    LOGV("Widi service found = %p", service.get());
+
+    sp<IWirelessDisplayService> widiService = interface_cast<IWirelessDisplayService>(service);
+
+    status_t s = widiService->registerHWPlane(mSelf);
+    LOGV("Widi plane registered status = %d", s);
+
+    mSelf->mInitialized = true;
+    return false;
+}
 
 IntelWidiPlane::IntelWidiPlane(int fd, int index, IntelBufferManager *bm)
     : IntelDisplayPlane(fd, IntelDisplayPlane::DISPLAY_PLANE_OVERLAY, index, bm)
 {
-    bool ret;
     LOGV("%s\n", __func__);
 
-    // initialized successfully
-    mDataBuffer = NULL;
-    mContext = NULL;
-    mInitialized = true;
+    /* defer initialization of widi plane to another thread
+     * we do this because the initialization may take long time and we do not
+     * want to hold out the HWC initialization.
+     * The initialization involves registering the plane to the Widi media server
+     * over binder
+     */
+    mInitThread = new WidiInitThread(this);
+
+    mInitThread->run();
     return;
 
 }
@@ -41,6 +74,10 @@ IntelWidiPlane::~IntelWidiPlane()
 {
     if (initCheck()) {
         mInitialized = false;
+        if(mInitThread) {
+            mInitThread->join();
+            delete mInitThread;
+        }
     }
 }
 
@@ -50,7 +87,18 @@ void IntelWidiPlane::setPosition(int left, int top, int right, int bottom)
     }
 }
 
+status_t
+IntelWidiPlane::enablePlane(sp<IBinder> display) {
 
+    LOGV("Plane Enabled !!");
+    return 0;
+}
 
+void
+IntelWidiPlane::disablePlane() {
+
+    LOGV("Plane Disabled !!");
+    return;
+}
 
 

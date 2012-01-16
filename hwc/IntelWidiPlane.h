@@ -17,14 +17,35 @@
 #define __INTEL_WIDI_PLANE_H__
 
 #include <IntelDisplayPlaneManager.h>
+#include <utils/threads.h>
+#include <binder/IInterface.h>
+#include <binder/IServiceManager.h>
+#include "IHwWidiPlane.h"
 
-class IntelWidiPlane : public IntelDisplayPlane {
+class IntelWidiPlane : public IntelDisplayPlane , public intel::widi::BnHwWidiPlane {
 
 public:
     IntelWidiPlane(int fd, int index, IntelBufferManager *bufferManager);
     ~IntelWidiPlane();
     virtual void setPosition(int left, int top, int right, int bottom);
 
+    android::status_t  enablePlane(android::sp<android::IBinder> display);
+    void  disablePlane();
+    android::status_t  registerFlipListener() {return 0;};
+
+protected:
+    class WidiInitThread: public android::Thread {
+    public:
+        WidiInitThread(IntelWidiPlane* me): android::Thread(false), mSelf(me) {};
+        ~WidiInitThread(){};
+
+    private:
+        bool  threadLoop();
+    private:
+        IntelWidiPlane* mSelf;
+    };
+
+    WidiInitThread *mInitThread;
 };
 
 

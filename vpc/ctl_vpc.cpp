@@ -165,6 +165,15 @@ static void vpc_set_modem_state(int status)
     if(status != modem_status) {
         prev_modem_status = modem_status;
         modem_status = status;
+        if(modem_status == MODEM_UP){
+            /* set BT SCO Path to PCM by default when modem is up */
+            /* this path has to be disabled only if a MSIC device is in use or when the modem is rebooting */
+            bt::pcm_enable();
+        }
+        else{
+            /* modem is unavailable: disable BT SCO path */
+            bt::pcm_disable();
+        }
     }
 
     LOGD("vpc_set_modem_state modem_status = %d \n", modem_status);
@@ -241,6 +250,7 @@ static int vpc_route(vpc_route_t route)
                             amc_mute();
 
                             msic::pcm_disable();
+                            /* Disable SCO path if a MSIC device is in use  */
                             bt::pcm_disable();
                             amc_off();
 
@@ -333,6 +343,7 @@ static int vpc_route(vpc_route_t route)
                     case AudioSystem::DEVICE_OUT_WIRED_HEADSET:
                     case AudioSystem::DEVICE_OUT_WIRED_HEADPHONE:
                         msic::pcm_disable();
+                        /* Disable SCO path if a MSIC device is in use  */
                         bt::pcm_disable();
                         if (prev_mode == AudioSystem::MODE_IN_CALL)
                         {
@@ -402,8 +413,6 @@ static int vpc_route(vpc_route_t route)
                 {
                     LOGD("VPC IN_COMMUNICATION & MODEM COLD RESET\n");
                     msic::pcm_disable();
-                    bt::pcm_disable();
-
                     call_established = false;
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
                     acoustic::process_suspend();
@@ -427,8 +436,6 @@ static int vpc_route(vpc_route_t route)
                     if (ret) goto return_error;
 
                     msic::pcm_disable();
-                    bt::pcm_disable();
-
                     call_established = false;
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
                     acoustic::process_suspend();
@@ -449,7 +456,6 @@ static int vpc_route(vpc_route_t route)
                     if(modem_status == MODEM_UP)
                         amc_mute();
                     msic::pcm_disable();
-                    bt::pcm_disable();
                     if(modem_status == MODEM_UP)
                         amc_off();
                     mixing_enable = false;
@@ -458,13 +464,14 @@ static int vpc_route(vpc_route_t route)
                 {
                     LOGD("VPC from IN_COMMUNICATION to NORMAL\n");
                     msic::pcm_disable();
-                    bt::pcm_disable();
                 }
 
     #ifdef CUSTOM_BOARD_WITH_AUDIENCE
                 acoustic::process_suspend();
     #endif
-
+                /* enable BT SCO path by default except is MODEM is not UP*/
+                if(modem_status == MODEM_UP)
+                    bt::pcm_enable();
                 call_established = false;
                 prev_mode = current_mode;
                 prev_device = current_device;

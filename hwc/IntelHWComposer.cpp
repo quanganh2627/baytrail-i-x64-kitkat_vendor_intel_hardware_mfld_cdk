@@ -212,6 +212,10 @@ bool IntelHWComposer::isSpriteLayer(hwc_layer_list_t *list,
            (GRALLOC_USAGE_SW_READ_MASK | GRALLOC_USAGE_SW_WRITE_MASK))
             return false;
 
+        // TODO: remove it after bypass composition enabled for rotated layers
+        if (layer->transform)
+            return false;
+
         // check pixel format
         if (grallocHandle->format != HAL_PIXEL_FORMAT_RGB_565 &&
             grallocHandle->format != HAL_PIXEL_FORMAT_BGRA_8888 &&

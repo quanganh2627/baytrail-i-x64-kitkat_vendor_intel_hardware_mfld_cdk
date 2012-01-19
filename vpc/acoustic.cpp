@@ -39,18 +39,20 @@ unsigned char *acoustic::i2c_cmd_profile[profile_number] = { NULL, };
 char           acoustic::bid[80] = "";
 
 const char *acoustic::profile_name[profile_number] = {
-    "close_talk.bin",              // EP
-    "speaker_far_talk.bin",        // IHF
-    "headset_close_talk.bin",      // Headset
-    "bt_hsp.bin",                  // BT HSP
-    "bt_carkit.bin",               // BT Car Kit
-    "no_acoustic.bin",             // All other devices
-    "close_talk_voip.bin",         // EP VOIP
-    "speaker_far_talk_voip.bin",   // IHF VOIP
-    "headset_close_talk_voip.bin", // Headset VOIP
-    "bt_hsp_voip.bin",             // BT HSP VOIP
-    "bt_carkit_voip.bin",          // BT Car Kit VOIP
-    "no_acoustic_voip.bin"         // All other devices VOIP
+    "close_talk.bin",                // EP
+    "speaker_far_talk.bin",          // IHF
+    "headset_close_talk.bin",        // Headset
+    "headphone_close_talk.bin",      // Headphone
+    "bt_hsp.bin",                    // BT HSP
+    "bt_carkit.bin",                 // BT Car Kit
+    "no_acoustic.bin",               // All other devices
+    "close_talk_voip.bin",           // EP VOIP
+    "speaker_far_talk_voip.bin",     // IHF VOIP
+    "headset_close_talk_voip.bin",   // Headset VOIP
+    "headphone_close_talk_voip.bin", // Headphone VOIP
+    "bt_hsp_voip.bin",               // BT HSP VOIP
+    "bt_carkit_voip.bin",            // BT Car Kit VOIP
+    "no_acoustic_voip.bin"           // All other devices VOIP
 };
 
 
@@ -146,8 +148,8 @@ int acoustic::private_get_profile_id(uint32_t device, uint32_t mode)
             profile_id = PROFILE_WIRED_HEADSET;
             break;
         case DEVICE_WIRED_HEADPHONE :
-            LOGD("Headphone device detected, => force use of Headset device profile\n");
-            profile_id = PROFILE_WIRED_HEADSET;
+            LOGD("Headphone device detected, => force use of Headphone device profile\n");
+            profile_id = PROFILE_WIRED_HEADPHONE;
             break;
         case DEVICE_BLUETOOTH_SCO :
             LOGD("BT SCO device detected, => force use of BT HSP device profile\n");

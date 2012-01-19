@@ -53,9 +53,10 @@ private :
         PROFILE_EARPIECE         = 0,
         PROFILE_SPEAKER          = 1,
         PROFILE_WIRED_HEADSET    = 2,
-        PROFILE_BLUETOOTH_HSP    = 3,
-        PROFILE_BLUETOOTH_CARKIT = 4,
-        PROFILE_DEFAULT          = 5,
+        PROFILE_WIRED_HEADPHONE  = 3,
+        PROFILE_BLUETOOTH_HSP    = 4,
+        PROFILE_BLUETOOTH_CARKIT = 5,
+        PROFILE_DEFAULT          = 6,
     } profile_id_t;
 
     typedef enum {

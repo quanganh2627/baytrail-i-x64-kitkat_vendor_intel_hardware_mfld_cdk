@@ -51,7 +51,6 @@ class CEventThread
         ENbPipeMsg
     };
 
-
     struct SFd {
         SFd(uint32_t uiClientFdId, int iFd, bool bToListenTo) : _uiClientFdId(uiClientFdId), _iFd(iFd), _bToListenTo(bToListenTo) {}
 
@@ -63,6 +62,7 @@ class CEventThread
     typedef list<SFd>::iterator SFdListIterator;
     typedef list<SFd>::const_iterator SFdListConstIterator;
 public:
+    // Construction
     CEventThread(IEventListener* pEventListener);
     ~CEventThread();
 

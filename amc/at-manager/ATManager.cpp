@@ -40,13 +40,6 @@
 #define AT_ANSWER_TIMEOUT_MS 1000
 #define INFINITE_TIMEOUT (-1)
 
-CATManager* CATManager::getInstance()
-{
-    static CATManager amcInstance;
-    return &amcInstance;
-}
-
-
 CATManager::CATManager(IATNotifier *observer) :
     _pAwaitedTransactionEndATCommand(NULL), _bStarted(false), _bModemAlive(false), _bClientWaiting(false), _pCurrentATCommand(NULL), _pPendingClientATCommand(NULL), _uiTimeoutSec(-1),
     _pEventThread(new CEventThread(this)), _bFirstModemStatusReceivedSemaphoreCreated(false),
@@ -261,17 +254,36 @@ AT_CMD_STATUS CATManager::sendCommand(CATCommand* pATCommand, bool bSynchronous)
 
     assert(_bStarted);
 
+    AT_CMD_STATUS eStatus = AT_CMD_OK;
+
     // Block {
     pthread_mutex_lock(&_clientMutex);
 
     // Check Modem is accessible
     if (!_bTtyListenersStarted) {
 
-        return AT_CMD_WRITE_ERROR;
+        eStatus = AT_CMD_WRITE_ERROR;
+        goto error;
+    }
+
+    if (_bClientWaiting) {
+
+        eStatus = AT_CMD_BUSY;
+        goto error;
     }
 
     // Push the command to the send list
     pushCommandToSendList(pATCommand);
+
+    if(bSynchronous)
+    {
+        // Set the client wait sema flag
+        _bClientWaiting = true;
+
+        // Set the AT Cmd for which a transaction end is awaited
+        _pAwaitedTransactionEndATCommand = pATCommand;
+
+    }
 
     // Trig the processing of the list
     _pEventThread->trigger();
@@ -280,7 +292,13 @@ AT_CMD_STATUS CATManager::sendCommand(CATCommand* pATCommand, bool bSynchronous)
     pthread_mutex_unlock(&_clientMutex);
 
 
-    return bSynchronous ? waitEndOfTransaction(pATCommand) : AT_CMD_OK;
+    return bSynchronous ? waitEndOfTransaction(pATCommand) : eStatus;
+
+error:
+    // } Block
+    pthread_mutex_unlock(&_clientMutex);
+
+    return eStatus;
 
 }
 
@@ -288,14 +306,11 @@ AT_CMD_STATUS CATManager::waitEndOfTransaction(CATCommand* pATCommand)
 {
     assert(pATCommand);
 
-    // Set the client wait sema flag
-    _bClientWaiting = true;
-
-    // Set the AT Cmd for which a transaction end is awaited
-    _pAwaitedTransactionEndATCommand = pATCommand;
-
     // Wait
     waitSemaphore(&_clientWaitSemaphore, _uiTimeoutSec);
+
+    // Block {
+    pthread_mutex_lock(&_clientMutex);
 
     // Then check answer status
     AT_CMD_STATUS eCommandStatus = pATCommand->isAnswerOK() ? AT_CMD_OK : AT_CMD_READ_ERROR;
@@ -306,7 +321,9 @@ AT_CMD_STATUS CATManager::waitEndOfTransaction(CATCommand* pATCommand)
 
     // Deal with race conditions
     while (!sem_trywait(&_clientWaitSemaphore));
+
     // } Block
+    pthread_mutex_unlock(&_clientMutex);
 
     return eCommandStatus;
 }
@@ -755,6 +772,7 @@ void CATManager::updateModemStatus()
 
         // Stop the listeners on modem TTYs
         stopModemTtyListeners();
+
     } else {
         // Start the listeners on modem TTYs
         startModemTtyListeners();
@@ -776,6 +794,7 @@ void CATManager::setModemStatus(uint32_t status)
         _mModemStatus = status;
     else
         _mModemStatus = MODEM_DOWN;
+
     LOGD("Modem status received: %d", _mModemStatus);
 
     /* Informs of the modem state to who implements the observer class */

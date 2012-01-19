@@ -54,6 +54,8 @@ typedef enum {
     AT_WRITE_ERROR,
     AT_READ_ERROR,
     AT_UNINITIALIZED,
+
+    AT_STATUS_NB
 } AT_STATUS;
 
 AT_STATUS at_start(const char *pATchannel);

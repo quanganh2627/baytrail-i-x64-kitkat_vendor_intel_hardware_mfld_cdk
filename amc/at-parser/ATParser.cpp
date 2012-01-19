@@ -55,8 +55,6 @@ bool CATParser::receive(int iFd)
 
         if (iNbReadChars < 0) {
 
-            LOGD("AT parser: read error %d (%s)", errno, strerror(errno));
-
             break;
         }
 

@@ -20,12 +20,11 @@
 #include <strings.h>
 #include <string.h>
 #include "EventListener.h"
-#include <alloca.h>
 #define LOG_TAG "AMC"
 #include <utils/Log.h>
 
 CEventThread::CEventThread(IEventListener* pEventListener) :
-    _pEventListener(pEventListener), _bIsStarted(false), _ulThreadId(0), /*_paPollFds(NULL), */_uiNbPollFds(0), _uiTimeoutMs(-1), _bThreadContext(false)
+    _pEventListener(pEventListener), _bIsStarted(false), _ulThreadId(0), _uiNbPollFds(0), _uiTimeoutMs(-1), _bThreadContext(false)
 {
     assert(_pEventListener);
 
@@ -111,7 +110,7 @@ int CEventThread::getFd(uint32_t uiClientFdId) const
     return -1;
 }
 
-// Timeout (must be called from within thread when started or anytime when not started)
+// Timeout (must be called from within thread when started or anywhere when not started)
 void CEventThread::setTimeoutMs(uint32_t uiTimeoutMs)
 {
     _uiTimeoutMs = uiTimeoutMs;
@@ -146,7 +145,7 @@ void CEventThread::stop()
     }
 
     // Cause exiting of the thread
-    uint8_t ucData = 0;
+    uint8_t ucData = EExit;
     ::write(_aiInbandPipe[1], &ucData, sizeof(ucData));
 
     // Join thread
@@ -182,11 +181,12 @@ void CEventThread::run()
     while (true) {
 
         // Rebuild polled FDs
-        struct pollfd* paPollFds = (struct pollfd*)alloca(sizeof(struct pollfd) * _uiNbPollFds);
-        buildPollFds(paPollFds);
+        struct pollfd astPollFds[_uiNbPollFds];
+
+        buildPollFds(astPollFds);
 
         // Poll
-        int iPollRes = poll(paPollFds, _uiNbPollFds, _uiTimeoutMs);
+        int iPollRes = poll(astPollFds, _uiNbPollFds, _uiTimeoutMs);
 
         if (!iPollRes) {
 
@@ -207,7 +207,7 @@ void CEventThread::run()
         }
 
         // Exit request?
-        if (paPollFds[0].revents & POLLIN) {
+        if (astPollFds[0].revents & POLLIN) {
 
             // Consume request
             uint8_t ucData;
@@ -221,7 +221,7 @@ void CEventThread::run()
             assert(ucData == EExit);
             LOGD("%s exit", __func__);
             // Exit
-            return;
+            return ;
         }
 
         {
@@ -234,31 +234,31 @@ void CEventThread::run()
             for (uiIndex = 1; uiIndex < _uiNbPollFds; uiIndex++) {
 
                 // Check for errors first
-                if (paPollFds[uiIndex].revents & POLLERR) {
+                if (astPollFds[uiIndex].revents & POLLERR) {
                     LOGD("%s POLLERR event on Fd (%d)", __func__, uiIndex);
 
                     // Process
-                    if (_pEventListener->onError(paPollFds[uiIndex].fd)) {
+                    if (_pEventListener->onError(astPollFds[uiIndex].fd)) {
 
                         // FD list has changed, bail out
                         break;
                     }
                 }
                 // Check for hang ups
-                if (paPollFds[uiIndex].revents & POLLHUP) {
+                if (astPollFds[uiIndex].revents & POLLHUP) {
                     LOGD("%s POLLHUP event on Fd (%d)", __func__, uiIndex);
 
-                    if (_pEventListener->onHangup(paPollFds[uiIndex].fd)) {
+                    if (_pEventListener->onHangup(astPollFds[uiIndex].fd)) {
 
                         // FD list has changed, bail out
                         break;
                     }
                 }
                 // Check for read events
-                if (paPollFds[uiIndex].revents & POLLIN) {
+                if (astPollFds[uiIndex].revents & POLLIN) {
                     LOGD("%s POLLIN event on Fd (%d)", __func__, uiIndex);
                     // Process
-                    if (_pEventListener->onEvent(paPollFds[uiIndex].fd)) {
+                    if (_pEventListener->onEvent(astPollFds[uiIndex].fd)) {
 
                         // FD list has changed, bail out
                         break;

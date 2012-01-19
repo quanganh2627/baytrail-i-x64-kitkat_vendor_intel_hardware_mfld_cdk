@@ -38,6 +38,8 @@ typedef enum {
     AT_CMD_WRITE_ERROR,
     AT_CMD_READ_ERROR,
     AT_CMD_UNINITIALIZED,
+
+    AT_CMD_NB
 } AT_CMD_STATUS;
 
 using namespace std;
@@ -65,9 +67,6 @@ class CATManager : public IEventListener {
 public:
     CATManager(IATNotifier *observer = NULL);
     ~CATManager();
-
-    // Singleton access
-    static CATManager* getInstance();
 
     // Start
     AT_CMD_STATUS start(const char* pcModemTty, uint32_t uiTimeoutSec);

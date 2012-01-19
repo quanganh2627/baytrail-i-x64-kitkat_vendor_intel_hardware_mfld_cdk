@@ -31,11 +31,6 @@ CATCommand::~CATCommand()
 
 }
 
-void CATCommand::setManager(CATManager* pATManager)
-{
-    _pATManager = pATManager;
-}
-
 // Clear
 void CATCommand::clearStatus()
 {

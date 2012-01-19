@@ -68,9 +68,6 @@ public:
     // Has prefix
     bool hasPrefix() const;
 
-    // Set the ATManager pointer
-    void setManager(CATManager* pATManager);
-
     // Receive timeout reached
     bool receiveTimeoutReached();
 
@@ -94,7 +91,5 @@ private:
     unsigned long ulTimeout;
     // Absolute time received dealine
     struct timespec tsReceiveDeadline;
-    // Pointer on AT Manager
-    CATManager* _pATManager;
 };
 

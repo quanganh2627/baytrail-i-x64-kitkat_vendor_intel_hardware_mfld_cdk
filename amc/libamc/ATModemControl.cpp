@@ -23,7 +23,7 @@
 
 extern "C" {
 
-static const AT_STATUS translate_error_code[] = {
+static const AT_STATUS translate_error_code[AT_CMD_NB] = {
     AT_OK, /* [AT_CMD_OK] */
     AT_RUNNING, /* [AT_CMD_RUNNING] */
     AT_ERROR, /* [AT_CMD_ERROR] */
@@ -35,9 +35,17 @@ static const AT_STATUS translate_error_code[] = {
     AT_UNINITIALIZED, /* [AT_CMD_UNINITIALIZED] */
 };
 
+// Singleton access
+CATManager* getInstance()
+{
+    static CATManager amcInstance;
+    return &amcInstance;
+}
+
+
 AT_STATUS at_start(const char *pATchannel)
 {
-    AT_CMD_STATUS eStatus = CATManager::getInstance()->start(pATchannel, MAX_WAIT_ACK_SECONDS);
+    AT_CMD_STATUS eStatus = getInstance()->start(pATchannel, MAX_WAIT_ACK_SECONDS);
 
     if (eStatus != AT_CMD_OK) {
 
@@ -54,11 +62,7 @@ AT_STATUS at_send(const char *pATcmd, const char *pRespPrefix)
 {
     CATCommand command(pATcmd, pRespPrefix);
 
-    CATManager* atManager = CATManager::getInstance();
-
-    command.setManager(atManager);
-
-    AT_CMD_STATUS eStatus = atManager->sendCommand(&command, true);
+    AT_CMD_STATUS eStatus = getInstance()->sendCommand(&command, true);
 
     return translate_error_code[eStatus];
 }

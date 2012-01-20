@@ -5,7 +5,8 @@ LOCAL_PATH:= $(call my-dir)
 #
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES:=               \
-    HwWidiPlaneProxy.cpp
+    HwWidiPlaneProxy.cpp         \
+    IPageFlipListener.cpp
 
 
 LOCAL_SHARED_LIBRARIES :=           \
@@ -15,7 +16,9 @@ LOCAL_SHARED_LIBRARIES :=           \
 
 #LOCAL_C_INCLUDES :=                                                 \
 
-LOCAL_COPY_HEADERS := IHwWidiPlane.h
+LOCAL_COPY_HEADERS := IHwWidiPlane.h	\
+                      IPageFlipListener.h
+
 LOCAL_MODULE:= libhwcwidi
 LOCAL_MODULE_TAGS := optional
 

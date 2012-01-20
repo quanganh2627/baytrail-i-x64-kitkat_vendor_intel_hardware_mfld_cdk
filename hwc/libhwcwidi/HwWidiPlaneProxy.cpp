@@ -43,7 +43,6 @@
 #include <utils/Errors.h>  // for status_t
 
 #include "IHwWidiPlane.h"
-//#include "streaming/IWirelessDisplay.h"
 
 namespace intel {
 namespace widi {
@@ -80,10 +79,11 @@ public:
         remote()->transact(DISABLE_HW_WIDI_PLANE, data, &reply);
         return;
     }
-    virtual status_t  registerFlipListener()
+    virtual status_t  registerFlipListener(sp<IPageFlipListener> listener)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IHwWidiPlane::getInterfaceDescriptor());
+        data.writeStrongBinder(listener->asBinder());
         remote()->transact(REGISTER_FLIP_LISTENER, data, &reply);
         return reply.readInt32();
     }
@@ -112,7 +112,8 @@ status_t BnHwWidiPlane::onTransact(
         } break;
         case REGISTER_FLIP_LISTENER: {
             CHECK_INTERFACE(IHwWidiPlane, data, reply);
-            registerFlipListener();
+            sp<IBinder> listener = data.readStrongBinder();
+            registerFlipListener(interface_cast<IPageFlipListener>(listener));
             reply->writeInt32(NO_ERROR);
             return NO_ERROR;
         } break;

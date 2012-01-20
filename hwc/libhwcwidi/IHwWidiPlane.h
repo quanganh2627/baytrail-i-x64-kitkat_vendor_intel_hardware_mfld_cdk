@@ -43,6 +43,7 @@
 #include <utils/String8.h>
 #include <binder/IInterface.h>
 #include <binder/Parcel.h>
+#include "IPageFlipListener.h"
 
 namespace intel {
 namespace widi {
@@ -59,7 +60,7 @@ public:
 
     virtual android::status_t  enablePlane(android::sp<android::IBinder> display) = 0;
     virtual void  disablePlane() = 0;
-    virtual android::status_t  registerFlipListener() = 0;
+    virtual android::status_t  registerFlipListener(android::sp<IPageFlipListener> listener) = 0;
 };
 
 // ----------------------------------------------------------------------------

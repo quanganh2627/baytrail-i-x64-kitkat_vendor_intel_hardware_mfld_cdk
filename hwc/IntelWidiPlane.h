@@ -22,6 +22,7 @@
 #include <binder/IServiceManager.h>
 #include "IHwWidiPlane.h"
 
+
 class IntelWidiPlane : public IntelDisplayPlane , public intel::widi::BnHwWidiPlane {
 
 public:
@@ -31,7 +32,10 @@ public:
 
     android::status_t  enablePlane(android::sp<android::IBinder> display);
     void  disablePlane();
-    android::status_t  registerFlipListener() {return 0;};
+    android::status_t  registerFlipListener(android::sp<IPageFlipListener> listener);
+
+    bool flip(uint32_t flags);
+    bool isActive();
 
 protected:
     class WidiInitThread: public android::Thread {
@@ -44,8 +48,16 @@ protected:
     private:
         IntelWidiPlane* mSelf;
     };
+    typedef enum {
+        WIDI_PLANE_STATE_UNINIT,
+        WIDI_PLANE_STATE_INITIALIZED,
+        WIDI_PLANE_STATE_ACTIVE,
+        WIDI_PLANE_STATE_STREAMING
+    }WidiPlaneState;
 
-    WidiInitThread *mInitThread;
+    WidiPlaneState                  mState;
+    WidiInitThread                  *mInitThread;
+    android::sp<IPageFlipListener> mFlipListener;
 };
 
 

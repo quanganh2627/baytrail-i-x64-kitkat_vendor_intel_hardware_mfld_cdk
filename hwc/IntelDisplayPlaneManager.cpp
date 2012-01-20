@@ -276,3 +276,19 @@ void IntelDisplayPlaneManager::disableReclaimedPlanes()
         mReclaimedOverlayPlanes = 0;
     }
 }
+
+IntelDisplayPlane*
+IntelDisplayPlaneManager::getWidiPlane() {
+
+    return mWidiPlane;
+}
+
+ bool
+ IntelDisplayPlaneManager::isWidiActive() {
+
+
+     if(mWidiPlane)
+         return ((IntelWidiPlane*)mWidiPlane)->isActive();
+
+     return false;
+ }

@@ -38,6 +38,7 @@ LOCAL_SRC_FILES := IntelHWComposerModule.cpp \
 LOCAL_MODULE_TAGS := eng
 LOCAL_MODULE := hwcomposer.$(TARGET_DEVICE)
 LOCAL_CFLAGS:= -DLOG_TAG=\"hwcomposer\" -DLINUX
+
 LOCAL_C_INCLUDES := $(addprefix $(LOCAL_PATH)/../../, $(SGX_INCLUDES)) \
             hardware/intel/include/eurasia/pvr2d \
             hardware/intel/include/eurasia/include4 \

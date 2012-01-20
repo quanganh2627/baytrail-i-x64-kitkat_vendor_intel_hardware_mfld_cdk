@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-
-#include <IntelHWComposerDrm.h>
+#include <utils/StopWatch.h>
 #include <IntelWidiPlane.h>
 #include <IntelOverlayUtil.h>
 
 #include "streaming/IWirelessDisplayService.h"
 #include "streaming/IWirelessDisplay.h"
+
 
 
 using namespace android;
@@ -48,6 +48,7 @@ IntelWidiPlane::WidiInitThread::threadLoop() {
     status_t s = widiService->registerHWPlane(mSelf);
     LOGV("Widi plane registered status = %d", s);
 
+    mSelf->mState = WIDI_PLANE_STATE_INITIALIZED;
     mSelf->mInitialized = true;
     return false;
 }
@@ -63,6 +64,8 @@ IntelWidiPlane::IntelWidiPlane(int fd, int index, IntelBufferManager *bm)
      * The initialization involves registering the plane to the Widi media server
      * over binder
      */
+    mFlipListener = NULL;
+    mState = WIDI_PLANE_STATE_UNINIT;
     mInitThread = new WidiInitThread(this);
 
     mInitThread->run();
@@ -81,7 +84,8 @@ IntelWidiPlane::~IntelWidiPlane()
     }
 }
 
-void IntelWidiPlane::setPosition(int left, int top, int right, int bottom)
+void
+IntelWidiPlane::setPosition(int left, int top, int right, int bottom)
 {
     if (initCheck()) {
     }
@@ -90,15 +94,43 @@ void IntelWidiPlane::setPosition(int left, int top, int right, int bottom)
 status_t
 IntelWidiPlane::enablePlane(sp<IBinder> display) {
 
-    LOGV("Plane Enabled !!");
+    if(mState == WIDI_PLANE_STATE_INITIALIZED) {
+        LOGV("Plane Enabled !!");
+        mState = WIDI_PLANE_STATE_ACTIVE;
+    }
+
     return 0;
 }
 
 void
 IntelWidiPlane::disablePlane() {
 
-    LOGV("Plane Disabled !!");
+    if(mState == WIDI_PLANE_STATE_ACTIVE) {
+        LOGV("Plane Disabled !!");
+        mState = WIDI_PLANE_STATE_INITIALIZED;
+    }
     return;
 }
 
+status_t
+IntelWidiPlane::registerFlipListener(sp<IPageFlipListener> listener) {
 
+    mFlipListener = listener;
+    return NO_ERROR;
+}
+
+bool
+IntelWidiPlane::flip(uint32_t flags) {
+
+    LOGV("Widi Plane flip, flip listener = %p", mFlipListener.get());
+    if (mFlipListener.get() != NULL)
+        mFlipListener->pageFlipped(systemTime(),0);
+
+    return true;
+}
+
+bool
+IntelWidiPlane::isActive() {
+
+    return (mState==WIDI_PLANE_STATE_ACTIVE)?true:false;
+}

@@ -242,6 +242,7 @@ private:
         uint32_t bufferType;
     } mDataBuffers[INTEL_DATA_BUFFER_NUM_MAX];
     int mNextBuffer;
+
 public:
     IntelOverlayPlane(int fd, int index, IntelBufferManager *bufferManager);
     ~IntelOverlayPlane();
@@ -340,6 +341,8 @@ public:
     // plane allocation & free
     IntelDisplayPlane* getSpritePlane();
     IntelDisplayPlane* getOverlayPlane();
+    IntelDisplayPlane* getWidiPlane();
+    bool isWidiActive();
     void reclaimPlane(IntelDisplayPlane *plane);
     void disableReclaimedPlanes();
 };

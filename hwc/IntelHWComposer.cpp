@@ -20,6 +20,7 @@
 #include <IntelHWComposer.h>
 #include <IntelOverlayUtil.h>
 
+
 IntelHWComposer::~IntelHWComposer()
 {
     LOGV("%s\n", __func__);
@@ -616,6 +617,15 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
     if (!initCheck()) {
         LOGE("%s: failed to initialize HWComposer\n", __func__);
         return false;
+    }
+
+    if(mPlaneManager->isWidiActive()) {
+        IntelDisplayPlane *p = mPlaneManager->getWidiPlane();
+        LOGV("Widi Plane is %p",p);
+         if (p)
+             p->flip(0);
+         else
+             LOGE("Widi Plane is NULL");
     }
 
     // need check whether eglSwapBuffers is necessary

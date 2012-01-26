@@ -38,15 +38,17 @@ public:
     bool isActive();
 
 protected:
+    void init();
+
     class WidiInitThread: public android::Thread {
     public:
-        WidiInitThread(IntelWidiPlane* me): android::Thread(false), mSelf(me) {};
-        ~WidiInitThread(){};
+        WidiInitThread(IntelWidiPlane* me): android::Thread(false), mSelf(me) {LOGV("Widi Plane Init thread created");};
+        ~WidiInitThread(){LOGV("Widi Plane Init thread destroyed");};
 
     private:
         bool  threadLoop();
     private:
-        IntelWidiPlane* mSelf;
+        android::sp<IntelWidiPlane> mSelf;
     };
     typedef enum {
         WIDI_PLANE_STATE_UNINIT,
@@ -55,9 +57,23 @@ protected:
         WIDI_PLANE_STATE_STREAMING
     }WidiPlaneState;
 
+    class DeathNotifier: public android::IBinder::DeathRecipient
+    {
+    public:
+                DeathNotifier(IntelWidiPlane* me): mSelf(me) {}
+        virtual ~DeathNotifier();
+
+        virtual void binderDied(const android::wp<android::IBinder>& who);
+    private:
+        android::sp<IntelWidiPlane> mSelf;
+    };
+
     WidiPlaneState                  mState;
-    WidiInitThread                  *mInitThread;
-    android::sp<IPageFlipListener> mFlipListener;
+    android::Mutex                  mLock;
+    android::sp<WidiInitThread>     mInitThread;
+    android::sp<IPageFlipListener>  mFlipListener;
+    android::sp<DeathNotifier>      mDeathNotifier;
+    android::sp<IBinder>            mWirelesDisplayservice;
 };
 
 

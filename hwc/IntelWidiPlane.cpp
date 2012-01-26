@@ -31,6 +31,7 @@ IntelWidiPlane::WidiInitThread::threadLoop() {
 
     sp<IBinder> service;
     sp<IServiceManager> sm = defaultServiceManager();
+    LOGV("WidiPlane Init thread starting ");
     do {
         service = (sm->getService(String16("media.widi")));
 
@@ -43,20 +44,34 @@ IntelWidiPlane::WidiInitThread::threadLoop() {
 
     LOGV("Widi service found = %p", service.get());
 
+    mSelf->mWirelesDisplayservice = service;
+
     sp<IWirelessDisplayService> widiService = interface_cast<IWirelessDisplayService>(service);
 
     status_t s = widiService->registerHWPlane(mSelf);
     LOGV("Widi plane registered status = %d", s);
 
-    mSelf->mState = WIDI_PLANE_STATE_INITIALIZED;
-    mSelf->mInitialized = true;
+    service->linkToDeath(mSelf->mDeathNotifier);
+
+    {
+        Mutex::Autolock _l(mSelf->mLock);
+        mSelf->mState = WIDI_PLANE_STATE_INITIALIZED;
+        mSelf->mInitialized = true;
+    }
+
+    LOGV("WidiPlane Init thread completed ");
     return false;
 }
 
 IntelWidiPlane::IntelWidiPlane(int fd, int index, IntelBufferManager *bm)
-    : IntelDisplayPlane(fd, IntelDisplayPlane::DISPLAY_PLANE_OVERLAY, index, bm)
+    : IntelDisplayPlane(fd, IntelDisplayPlane::DISPLAY_PLANE_OVERLAY, index, bm),
+      mState(WIDI_PLANE_STATE_UNINIT),
+      mLock(NULL),
+      mInitThread(NULL),
+      mFlipListener(NULL)
+
 {
-    LOGV("%s\n", __func__);
+    LOGV("Intel Widi Plane constructor");
 
     /* defer initialization of widi plane to another thread
      * we do this because the initialization may take long time and we do not
@@ -64,23 +79,25 @@ IntelWidiPlane::IntelWidiPlane(int fd, int index, IntelBufferManager *bm)
      * The initialization involves registering the plane to the Widi media server
      * over binder
      */
-    mFlipListener = NULL;
-    mState = WIDI_PLANE_STATE_UNINIT;
-    mInitThread = new WidiInitThread(this);
 
-    mInitThread->run();
+    mDeathNotifier = new DeathNotifier(this);
+
+    init(); // defer the rest to the thread;
+
+    LOGV("Intel Widi Plane constructor- DONE");
     return;
 
 }
 
 IntelWidiPlane::~IntelWidiPlane()
 {
+    LOGV("Intel Widi Plane destructor");
     if (initCheck()) {
         mInitialized = false;
-        if(mInitThread) {
-            mInitThread->join();
-            delete mInitThread;
-        }
+        if(mInitThread == NULL) {
+                mInitThread->requestExitAndWait();
+                mInitThread.clear();
+         }
     }
 }
 
@@ -91,12 +108,14 @@ IntelWidiPlane::setPosition(int left, int top, int right, int bottom)
     }
 }
 
+
 status_t
 IntelWidiPlane::enablePlane(sp<IBinder> display) {
+    Mutex::Autolock _l(mLock);
 
     if(mState == WIDI_PLANE_STATE_INITIALIZED) {
         LOGV("Plane Enabled !!");
-        mState = WIDI_PLANE_STATE_ACTIVE;
+        mState =WIDI_PLANE_STATE_ACTIVE;
     }
 
     return 0;
@@ -105,6 +124,7 @@ IntelWidiPlane::enablePlane(sp<IBinder> display) {
 void
 IntelWidiPlane::disablePlane() {
 
+    Mutex::Autolock _l(mLock);
     if(mState == WIDI_PLANE_STATE_ACTIVE) {
         LOGV("Plane Disabled !!");
         mState = WIDI_PLANE_STATE_INITIALIZED;
@@ -123,7 +143,7 @@ bool
 IntelWidiPlane::flip(uint32_t flags) {
 
     LOGV("Widi Plane flip, flip listener = %p", mFlipListener.get());
-    if (mFlipListener.get() != NULL)
+    if (mFlipListener != NULL)
         mFlipListener->pageFlipped(systemTime(),0);
 
     return true;
@@ -132,5 +152,41 @@ IntelWidiPlane::flip(uint32_t flags) {
 bool
 IntelWidiPlane::isActive() {
 
+    Mutex::Autolock _l(mLock);
+
     return (mState==WIDI_PLANE_STATE_ACTIVE)?true:false;
+}
+
+void
+IntelWidiPlane::init() {
+
+    if(mInitThread != NULL) {
+        mInitThread->requestExitAndWait();
+        mInitThread.clear();
+    }
+
+    {
+        Mutex::Autolock _l(mLock);
+        mInitialized = false;
+        mState = WIDI_PLANE_STATE_UNINIT;
+    }
+
+    mInitThread = new WidiInitThread(this);
+    mInitThread->run();
+}
+
+void
+IntelWidiPlane::DeathNotifier::binderDied(const wp<IBinder>& who) {
+    LOGW("widi server died - trying to register again");
+
+    mSelf->disablePlane();
+
+    mSelf->init();
+
+}
+
+IntelWidiPlane::DeathNotifier::~DeathNotifier() {
+    if (mSelf->mWirelesDisplayservice != 0) {
+        mSelf->mWirelesDisplayservice->unlinkToDeath(this);
+    }
 }

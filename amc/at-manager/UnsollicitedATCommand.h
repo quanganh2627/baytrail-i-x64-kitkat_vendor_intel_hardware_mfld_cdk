@@ -34,7 +34,6 @@ public:
     // Inherited from CATCommand
     virtual void addAnswerFragment(const string& strAnswerFragment);
 
-private:
     virtual void doProcessAnswer() = 0;
 };
 

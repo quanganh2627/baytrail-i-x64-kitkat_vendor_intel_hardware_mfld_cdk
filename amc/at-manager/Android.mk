@@ -9,6 +9,7 @@ LOCAL_SRC_FILES := \
         ATCommand.cpp \
         PeriodicATCommand.cpp \
         UnsollicitedATCommand.cpp \
+        Tokenizer.cpp \
         CallStatUnsollicitedATCommand.cpp \
         ProgressUnsollicitedATCommand.cpp
 

@@ -672,6 +672,8 @@ void CATManager::readResponse()
 
                 pUnsollicitedCmd->addAnswerFragment(strResponse);
 
+                pUnsollicitedCmd->doProcessAnswer();
+
                 getATNotifier()->onUnsollicitedReceived(pUnsollicitedCmd);
 
             }
@@ -707,6 +709,8 @@ void CATManager::readResponse()
             if ((pUnsollicitedCmd = findUnsollicitedCmdByPrefix(strResponse)) != NULL) {
 
                 pUnsollicitedCmd->addAnswerFragment(strResponse);
+
+                pUnsollicitedCmd->doProcessAnswer();
 
                 getATNotifier()->onUnsollicitedReceived(pUnsollicitedCmd);
 

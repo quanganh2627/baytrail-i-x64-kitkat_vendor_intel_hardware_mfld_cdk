@@ -23,6 +23,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <utils/Log.h>
+#include "Tokenizer.h"
 
 #define AT_XCALL_STAT "AT+XCALLSTAT=1"
 #define AT_XCALL_STAT_PREFIX "XCALLSTAT:"
@@ -33,6 +34,10 @@ CCallStatUnsollicitedATCommand::CCallStatUnsollicitedATCommand()
     : base(AT_XCALL_STAT, AT_XCALL_STAT_PREFIX), _bAudioPathAvailable(false), _uiCallSession(0)
 {
     LOGD("%s", __FUNCTION__);
+    for (int i = 0; i < max_call_session; i++)
+    {
+         _abCallSessionStat[i] = CallDisconnected;
+    }
 }
 
 // Indicate if Modem Audio Path is available
@@ -61,42 +66,50 @@ void CCallStatUnsollicitedATCommand::doProcessAnswer()
     // Assert the answer has the CallStat prefix...
     assert((str.find(getPrefix()) != string::npos));
 
-    char* cstr = new char [str.size()+1];
-    strcpy (cstr, str.c_str());
+    // Remove the prefix from the answer
+    string strwoPrefix = str.substr(str.find(getPrefix()) + getPrefix().size());
 
-    // Parse the answer: "Prefix: Index,Status\n"
-    char* prefix = strtok(cstr, " ");
-    uint32_t iCallIndex = strtol(strtok(NULL, ","), NULL, 0);
-    uint32_t iCallStatus = strtol(strtok(NULL, "\n"), NULL, 0);
+    // Extract the xcallstat params using "," token
+    Tokenizer tokenizer(strwoPrefix, ",");
+    vector<string> astrItems = tokenizer.split();
 
-    LOGD("%s: PREFIX=(%s) CALLINDEX=(%d) CALLSTATUS=(%d)", __FUNCTION__, prefix, iCallIndex, iCallStatus);
-
-    if(iCallIndex > _uiCallSession){
-
-        // Increment the number of Call Sessions
-        LOGD("%s New Call session started", __FUNCTION__);
-        _uiCallSession+=1;
-    }
-
-    if (iCallStatus == CallAlerting || iCallStatus == CallActive || iCallStatus == CallHold || iCallStatus == CallConnected)
+    // Each line should only have 2 parameters...
+    if (astrItems.size() != 2)
     {
-        // If call is alerting (MT), active (MO) or on hold (to keep the path in case
-        //  of multisession or call swap
-        _bAudioPathAvailable = true;
-        LOGD("%s AudioPath available =%d", __FUNCTION__, _bAudioPathAvailable);
-
-    } else if (iCallStatus == CallDisconnected) {
-
-        // Call is disconnected, decrement Call Sessions number
-        _uiCallSession-=1;
-        LOGD("%s Call session (#%d) disconnected, active session (%d)", __FUNCTION__, iCallIndex, _uiCallSession);
-
-        // If no more Call Session are active, reset Audio Path flag
-        _bAudioPathAvailable = _uiCallSession != 0;
-        LOGD("%s AudioPath available =%d", __FUNCTION__, _bAudioPathAvailable);
-
+         LOGD("%s wrong answer format...", __FUNCTION__);
+         return ;
     }
+
+    int32_t iCallIndex = strtol(astrItems[0].c_str(), NULL, 0);
+    uint32_t iCallStatus = strtol(astrItems[1].c_str(), NULL, 0);
+
+    LOGD("%s: CALLINDEX=(%d) CALLSTATUS=(%d)", __FUNCTION__, iCallIndex, iCallStatus);
+
+    if(iCallIndex > max_call_session){
+
+        LOGD("%s invalid call index", __FUNCTION__);
+    }
+
+    _abCallSessionStat[iCallIndex] = iCallStatus;
+
+    _bAudioPathAvailable = isModemAudioPathEnabled();
 
     // Clear the answer and the status
     clearStatus();
+}
+
+bool CCallStatUnsollicitedATCommand::isModemAudioPathEnabled()
+{
+    // if at least one of the call within the array of call status
+    // is in the state corresponding to an established call
+    // answers true...
+    for (int i = 0; i < max_call_session; i++)
+    {
+        if (_abCallSessionStat[i] == CallAlerting
+                || _abCallSessionStat[i] == CallActive
+                || _abCallSessionStat[i] == CallHold
+                ||_abCallSessionStat[i] == CallConnected)
+            return true;
+    }
+    return false;
 }

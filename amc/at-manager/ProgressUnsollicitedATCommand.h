@@ -47,10 +47,10 @@ public:
     // Indicate if Modem Audio Path is available
     bool isAudioPathAvailable();
 
+private:
     // Inherited from CUnsollicitedATCommand
     virtual void doProcessAnswer();
 
-private:
     // Flag to indicate if Modem Audio Path is available
     bool _bAudioPathAvailable;
 };

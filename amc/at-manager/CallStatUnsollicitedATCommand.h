@@ -24,10 +24,12 @@
 
 using namespace std;
 
+static const int max_call_session  =  6;
+
 class CCallStatUnsollicitedATCommand : public CUnsollicitedATCommand
 {
     enum CallStat {
-        CallActive,
+        CallActive = 0,
         CallHold,
         CallDialing,
         CallAlerting,
@@ -43,8 +45,11 @@ public:
     // Indicate if Modem Audio Path is available
     bool isAudioPathAvailable();
 
+private:
     // Inherited from CUnsollicitedATCommand
     virtual void doProcessAnswer();
+
+    bool isModemAudioPathEnabled();
 
 public:
     // Flag to indicate if Modem Audio Path is available
@@ -54,5 +59,7 @@ private:
 
     // Number of active call sessions
     uint32_t _uiCallSession;
+
+    int _abCallSessionStat[max_call_session];
 };
 

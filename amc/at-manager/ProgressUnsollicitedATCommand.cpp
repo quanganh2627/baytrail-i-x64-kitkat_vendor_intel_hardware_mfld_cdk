@@ -23,6 +23,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <utils/Log.h>
+#include "Tokenizer.h"
 
 #define AT_XPROGRESS "AT+XPROGRESS=1"
 #define AT_XPROGRESS_PREFIX "XPROGRESS:"
@@ -61,15 +62,24 @@ void CProgressUnsollicitedATCommand::doProcessAnswer()
     // Assert the answer has the CallStat prefix...
     assert((str.find(getPrefix()) != string::npos));
 
-    char* cstr = new char [str.size()+1];
-    strcpy (cstr, str.c_str());
+    // Remove the prefix from the answer
+    string strwoPrefix = str.substr(str.find(getPrefix()) + getPrefix().size());
 
-    // Parse the answer: "Prefix: Index,Status\n"
-    char* prefix = strtok(cstr, " ");
-    uint32_t iCallIndex = strtol(strtok(NULL, ","), NULL, 0);
-    uint32_t iProgressStatus = strtol(strtok(NULL, "\n"), NULL, 0);
+    // Extract the xcallstat params using "," token
+    Tokenizer tokenizer(strwoPrefix, ",");
+    vector<string> astrItems = tokenizer.split();
 
-    LOGD("%s: PREFIX=(%s) CALLINDEX=(%d) CALLSTATUS=(%d)", __FUNCTION__, prefix, iCallIndex, iProgressStatus);
+    // Each line should only have 2 parameters...
+    if (astrItems.size() != 2)
+    {
+         LOGD("%s wrong answer format...", __FUNCTION__);
+         return ;
+    }
+
+    uint32_t iCallIndex = strtol(astrItems[0].c_str(), NULL, 0);
+    uint32_t iProgressStatus = strtol(astrItems[1].c_str(), NULL, 0);
+
+    LOGD("%s: CALLINDEX=(%d) CALLSTATUS=(%d)", __FUNCTION__, iCallIndex, iProgressStatus);
 
     //
     // MT Call: audio path established on MTAcceptedTCHYetAvailable

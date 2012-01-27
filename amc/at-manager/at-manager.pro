@@ -15,10 +15,10 @@ QMAKE_CXXFLAGS += -Wno-unused-result
 
 SOURCES += ATCommand.cpp \
     ATManager.cpp \
-    ATCommand.cpp \
     PeriodicATCommand.cpp \
     UnsollicitedATCommand.cpp \
     CallStatUnsollicitedATCommand.cpp \
+    Tokenizer.cpp \
     ../simulation/cutils/sockets.c
 
 HEADERS += ATManager.h \

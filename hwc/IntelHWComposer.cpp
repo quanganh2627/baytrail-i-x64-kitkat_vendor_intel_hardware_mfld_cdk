@@ -263,6 +263,7 @@ bool IntelHWComposer::isSpriteLayer(hwc_layer_list_t *list,
 // 3) disable planes which are not used anymore
 void IntelHWComposer::onGeometryChanged(hwc_layer_list_t *list)
 {
+     bool firstTime = true;
      // reclaim all planes
      bool ret = mLayerList->invalidatePlanes();
      if (!ret) {
@@ -292,8 +293,14 @@ void IntelHWComposer::onGeometryChanged(hwc_layer_list_t *list)
                  LOGE("%s: failed to prepare sprite\n", __func__);
                  list->hwLayers[i].compositionType = HWC_FRAMEBUFFER;
              }
-         } else
+         } else {
              list->hwLayers[i].compositionType = HWC_FRAMEBUFFER;
+             if(mPlaneManager->isWidiActive() && firstTime) {
+                 IntelWidiPlane *p = (IntelWidiPlane *)mPlaneManager->getWidiPlane();
+                 p->setOrientation(list->hwLayers[i].transform);
+                 firstTime = false;
+             }
+         }
 
      }
      // TODO: disable unused planes here. Currently, disable in commit()

@@ -35,6 +35,7 @@ public:
     android::status_t  registerFlipListener(android::sp<IPageFlipListener> listener);
     void allowExtVideoMode(bool allow);
     bool isExtVideoAllowed() {return mAllowExtVideoMode;};
+    void setOrientation(uint32_t orientation);
 
     bool flip(uint32_t flags);
     bool isActive();
@@ -77,6 +78,7 @@ protected:
     android::sp<IPageFlipListener>  mFlipListener;
     android::sp<DeathNotifier>      mDeathNotifier;
     android::sp<IBinder>            mWirelesDisplayservice;
+    uint32_t                        mCurrentOrientation;
 };
 
 

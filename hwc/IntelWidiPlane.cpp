@@ -69,7 +69,8 @@ IntelWidiPlane::IntelWidiPlane(int fd, int index, IntelBufferManager *bm)
       mState(WIDI_PLANE_STATE_UNINIT),
       mLock(NULL),
       mInitThread(NULL),
-      mFlipListener(NULL)
+      mFlipListener(NULL),
+      mCurrentOrientation(0)
 
 {
     LOGV("Intel Widi Plane constructor");
@@ -145,7 +146,7 @@ IntelWidiPlane::flip(uint32_t flags) {
 
     LOGV("Widi Plane flip, flip listener = %p", mFlipListener.get());
     if (mFlipListener != NULL)
-        mFlipListener->pageFlipped(systemTime(),0);
+        mFlipListener->pageFlipped(systemTime(),mCurrentOrientation);
 
     return true;
 }
@@ -157,6 +158,10 @@ IntelWidiPlane::allowExtVideoMode(bool allow) {
     mAllowExtVideoMode = allow;
 }
 
+void
+IntelWidiPlane::setOrientation(uint32_t orientation) {
+    mCurrentOrientation = orientation;
+}
 bool
 IntelWidiPlane::isActive() {
 

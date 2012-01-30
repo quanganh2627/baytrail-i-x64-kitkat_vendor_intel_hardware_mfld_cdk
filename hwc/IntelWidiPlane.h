@@ -34,6 +34,7 @@ public:
     void  disablePlane();
     android::status_t  registerFlipListener(android::sp<IPageFlipListener> listener);
     void allowExtVideoMode(bool allow);
+    bool isExtVideoAllowed() {return mAllowExtVideoMode;};
 
     bool flip(uint32_t flags);
     bool isActive();

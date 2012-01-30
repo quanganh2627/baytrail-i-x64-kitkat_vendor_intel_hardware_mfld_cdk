@@ -19,6 +19,7 @@
 
 #include <IntelHWComposer.h>
 #include <IntelOverlayUtil.h>
+#include <IntelWidiPlane.h>
 
 
 IntelHWComposer::~IntelHWComposer()
@@ -167,6 +168,16 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
         return false;
     }
 
+    if (mPlaneManager->isWidiActive() ) {
+        IntelWidiPlane* wp = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
+
+        if (!(wp->isExtVideoAllowed()) ){
+           /* if extended video mode is not allowed we stop here and
+            * let the video to be rendered via GFx plane by surface flinger
+            */
+           return false;
+        }
+    }
     // TODO: enable this check after fully switching to Gralloc buffer
     if (grallocHandle->format != HAL_PIXEL_FORMAT_YV12 &&
         grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12 &&
@@ -283,6 +294,7 @@ void IntelHWComposer::onGeometryChanged(hwc_layer_list_t *list)
              }
          } else
              list->hwLayers[i].compositionType = HWC_FRAMEBUFFER;
+
      }
      // TODO: disable unused planes here. Currently, disable in commit()
 }

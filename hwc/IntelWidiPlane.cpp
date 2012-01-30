@@ -65,6 +65,7 @@ IntelWidiPlane::WidiInitThread::threadLoop() {
 
 IntelWidiPlane::IntelWidiPlane(int fd, int index, IntelBufferManager *bm)
     : IntelDisplayPlane(fd, IntelDisplayPlane::DISPLAY_PLANE_OVERLAY, index, bm),
+      mAllowExtVideoMode(true),
       mState(WIDI_PLANE_STATE_UNINIT),
       mLock(NULL),
       mInitThread(NULL),
@@ -147,6 +148,13 @@ IntelWidiPlane::flip(uint32_t flags) {
         mFlipListener->pageFlipped(systemTime(),0);
 
     return true;
+}
+
+void
+IntelWidiPlane::allowExtVideoMode(bool allow) {
+
+    LOGV("Allow Ext video mode = %d", allow);
+    mAllowExtVideoMode = allow;
 }
 
 bool

@@ -33,6 +33,7 @@ public:
     android::status_t  enablePlane(android::sp<android::IBinder> display);
     void  disablePlane();
     android::status_t  registerFlipListener(android::sp<IPageFlipListener> listener);
+    void allowExtVideoMode(bool allow);
 
     bool flip(uint32_t flags);
     bool isActive();
@@ -68,6 +69,7 @@ protected:
         android::sp<IntelWidiPlane> mSelf;
     };
 
+    int32_t                         mAllowExtVideoMode;
     WidiPlaneState                  mState;
     android::Mutex                  mLock;
     android::sp<WidiInitThread>     mInitThread;

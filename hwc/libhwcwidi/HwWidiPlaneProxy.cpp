@@ -52,7 +52,8 @@ using namespace android;
 enum {
     ENABLE_HW_WIDI_PLANE = IBinder::FIRST_CALL_TRANSACTION,
     DISABLE_HW_WIDI_PLANE,
-    REGISTER_FLIP_LISTENER
+    REGISTER_FLIP_LISTENER,
+    ALLOW_EXT_VIDEO_MODE
 
 };
 
@@ -87,6 +88,13 @@ public:
         remote()->transact(REGISTER_FLIP_LISTENER, data, &reply);
         return reply.readInt32();
     }
+    virtual void allowExtVideoMode(bool allow) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IHwWidiPlane::getInterfaceDescriptor());
+        data.writeInt32(((int32_t) allow));
+        remote()->transact(ALLOW_EXT_VIDEO_MODE, data, &reply);
+        return;
+    }
 };
 
 IMPLEMENT_META_INTERFACE(HwWidiPlane, "android.widi.IHwWidiPlane");
@@ -114,6 +122,13 @@ status_t BnHwWidiPlane::onTransact(
             CHECK_INTERFACE(IHwWidiPlane, data, reply);
             sp<IBinder> listener = data.readStrongBinder();
             registerFlipListener(interface_cast<IPageFlipListener>(listener));
+            reply->writeInt32(NO_ERROR);
+            return NO_ERROR;
+        } break;
+        case ALLOW_EXT_VIDEO_MODE: {
+            CHECK_INTERFACE(IHwWidiPlane, data, reply);
+            int32_t allow = data.readInt32();
+            allowExtVideoMode(allow);
             reply->writeInt32(NO_ERROR);
             return NO_ERROR;
         } break;

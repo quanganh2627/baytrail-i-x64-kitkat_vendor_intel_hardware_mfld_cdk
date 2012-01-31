@@ -166,9 +166,7 @@ static const device_suffix_t deviceSuffix[] = {
     { AudioSystem::DEVICE_OUT_WIRED_HEADSET,         "_Headset" },
     { AudioSystem::DEVICE_OUT_BLUETOOTH_A2DP,        "_Bluetooth-A2DP" },
     { AudioSystem::DEVICE_OUT_AUX_DIGITAL,           "_HDMI" },
-#if INTEL_WIDI
     { AudioSystem::DEVICE_OUT_WIDI_LOOPBACK,         "_Widi-Loopback" },
-#endif
     { AudioSystem::DEVICE_OUT_DEFAULT,                "_Null" },
     { AudioSystem::DEVICE_IN_BUILTIN_MIC,            "_BuiltinMic" },
     { AudioSystem::DEVICE_IN_BACK_MIC,               "_BuiltinBackMic" },
@@ -624,12 +622,10 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
             LOGD("Setting expected sample rate to %d (IN_COMM)", VOICE_CODEC_DEFAULT_SAMPLE_RATE);
             handle->expectedSampleRate = VOICE_CODEC_DEFAULT_SAMPLE_RATE;
         }
-#if INTEL_WIDI
         else if (devices & AudioSystem::DEVICE_OUT_WIDI_LOOPBACK) {
             LOGV("Setting expected sample rate to %d (WIDI)", WIDI_DEFAULT_SAMPLE_RATE);
             handle->expectedSampleRate = WIDI_DEFAULT_SAMPLE_RATE;
         }
-#endif
     }
 
     //This is a tricky way to change the sample rate.

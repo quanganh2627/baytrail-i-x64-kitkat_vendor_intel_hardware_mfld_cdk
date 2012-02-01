@@ -21,6 +21,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <utils/Log.h>
+#include <sys/time.h>
 
 #define base CATCommand
 

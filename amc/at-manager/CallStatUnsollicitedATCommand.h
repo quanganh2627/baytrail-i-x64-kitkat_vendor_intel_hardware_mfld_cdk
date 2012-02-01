@@ -18,13 +18,13 @@
 #include "UnsollicitedATCommand.h"
 #include <stdint.h>
 #include <stddef.h>
-#include <time.h>
+#include <sys/time.h>
 #include <string>
 
 
 using namespace std;
 
-static const int max_call_session  =  6;
+static const int MAX_CALL_SESSIONS  =  6;
 
 class CCallStatUnsollicitedATCommand : public CUnsollicitedATCommand
 {
@@ -60,6 +60,6 @@ private:
     // Number of active call sessions
     uint32_t _uiCallSession;
 
-    int _abCallSessionStat[max_call_session];
+    int _abCallSessionStat[MAX_CALL_SESSIONS];
 };
 

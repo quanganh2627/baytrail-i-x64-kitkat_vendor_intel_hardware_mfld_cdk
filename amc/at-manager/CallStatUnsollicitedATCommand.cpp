@@ -26,7 +26,7 @@
 #include "Tokenizer.h"
 
 #define AT_XCALL_STAT "AT+XCALLSTAT=1"
-#define AT_XCALL_STAT_PREFIX "XCALLSTAT:"
+#define AT_XCALL_STAT_PREFIX "+XCALLSTAT:"
 
 #define base CUnsollicitedATCommand
 
@@ -34,7 +34,7 @@ CCallStatUnsollicitedATCommand::CCallStatUnsollicitedATCommand()
     : base(AT_XCALL_STAT, AT_XCALL_STAT_PREFIX), _bAudioPathAvailable(false), _uiCallSession(0)
 {
     LOGD("%s", __FUNCTION__);
-    for (int i = 0; i < max_call_session; i++)
+    for (int i = 0; i < MAX_CALL_SESSIONS; i++)
     {
          _abCallSessionStat[i] = CallDisconnected;
     }
@@ -81,16 +81,16 @@ void CCallStatUnsollicitedATCommand::doProcessAnswer()
     }
 
     int32_t iCallIndex = strtol(astrItems[0].c_str(), NULL, 0);
-    uint32_t iCallStatus = strtol(astrItems[1].c_str(), NULL, 0);
+    uint32_t uiCallStatus = strtoul(astrItems[1].c_str(), NULL, 0);
 
-    LOGD("%s: CALLINDEX=(%d) CALLSTATUS=(%d)", __FUNCTION__, iCallIndex, iCallStatus);
+    LOGD("%s: CALLINDEX=(%d) CALLSTATUS=(%d)", __FUNCTION__, iCallIndex, uiCallStatus);
 
-    if(iCallIndex > max_call_session){
+    if (iCallIndex > MAX_CALL_SESSIONS){
 
         LOGD("%s invalid call index", __FUNCTION__);
     }
 
-    _abCallSessionStat[iCallIndex] = iCallStatus;
+    _abCallSessionStat[iCallIndex] = uiCallStatus;
 
     _bAudioPathAvailable = isModemAudioPathEnabled();
 
@@ -103,13 +103,14 @@ bool CCallStatUnsollicitedATCommand::isModemAudioPathEnabled()
     // if at least one of the call within the array of call status
     // is in the state corresponding to an established call
     // answers true...
-    for (int i = 0; i < max_call_session; i++)
+    for (int i = 0; i < MAX_CALL_SESSIONS; i++)
     {
         if (_abCallSessionStat[i] == CallAlerting
                 || _abCallSessionStat[i] == CallActive
                 || _abCallSessionStat[i] == CallHold
-                ||_abCallSessionStat[i] == CallConnected)
+                ||_abCallSessionStat[i] == CallConnected) {
             return true;
+        }
     }
     return false;
 }

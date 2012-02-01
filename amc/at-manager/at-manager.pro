@@ -40,7 +40,7 @@ CONFIG(debug, debug|release) {
     DESTDIR = ../build/release
 }
 
-LIBS += -L$$DESTDIR -levent-listener -lat-parser -ltty-handler
+LIBS += -L$$DESTDIR -levent-listener -lat-parser -ltty-handler -lrt
 OTHER_FILES += \
     Android.mk \
 

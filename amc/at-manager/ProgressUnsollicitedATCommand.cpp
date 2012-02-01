@@ -26,7 +26,7 @@
 #include "Tokenizer.h"
 
 #define AT_XPROGRESS "AT+XPROGRESS=1"
-#define AT_XPROGRESS_PREFIX "XPROGRESS:"
+#define AT_XPROGRESS_PREFIX "+XPROGRESS:"
 
 #define base CUnsollicitedATCommand
 
@@ -55,15 +55,15 @@ void CProgressUnsollicitedATCommand::doProcessAnswer()
 {
     LOGD("%s", __FUNCTION__);
 
-    string str = getAnswer();
+    string strAnswer = getAnswer();
 
-    LOGD("%s: ans=(%s) %d", __FUNCTION__, str.c_str(), str.find(getPrefix()));
+    LOGD("%s: ans=(%s) %d", __FUNCTION__, strAnswer.c_str(), strAnswer.find(getPrefix()));
 
     // Assert the answer has the CallStat prefix...
-    assert((str.find(getPrefix()) != string::npos));
+    assert((strAnswer.find(getPrefix()) != string::npos));
 
     // Remove the prefix from the answer
-    string strwoPrefix = str.substr(str.find(getPrefix()) + getPrefix().size());
+    string strwoPrefix = strAnswer.substr(strAnswer.find(getPrefix()) + getPrefix().size());
 
     // Extract the xcallstat params using "," token
     Tokenizer tokenizer(strwoPrefix, ",");
@@ -76,10 +76,10 @@ void CProgressUnsollicitedATCommand::doProcessAnswer()
          return ;
     }
 
-    uint32_t iCallIndex = strtol(astrItems[0].c_str(), NULL, 0);
-    uint32_t iProgressStatus = strtol(astrItems[1].c_str(), NULL, 0);
+    uint32_t uiCallIndex = strtoul(astrItems[0].c_str(), NULL, 0);
+    uint32_t uiProgressStatus = strtoul(astrItems[1].c_str(), NULL, 0);
 
-    LOGD("%s: CALLINDEX=(%d) CALLSTATUS=(%d)", __FUNCTION__, iCallIndex, iProgressStatus);
+    LOGD("%s: CALL INDEX=(%d) PROGRES STATUS=(%d)", __FUNCTION__, uiCallIndex, uiProgressStatus);
 
     //
     // MT Call: audio path established on MTAcceptedTCHYetAvailable
@@ -88,14 +88,15 @@ void CProgressUnsollicitedATCommand::doProcessAnswer()
     // MO / MT: audio path disconnected on LastSpeechCallEndedSpeechCanBeDisabled
     // (Do not have to care about the # of session)
     //
-    if (iProgressStatus == AlertingInBandOrTCHNotYetAvailable || iProgressStatus == InBandToneAvailable || iProgressStatus == MTAcceptedTCHYetAvailable)
+    if (uiProgressStatus == AlertingInBandOrTCHNotYetAvailable || uiProgressStatus == InBandToneAvailable || uiProgressStatus == MTAcceptedTCHYetAvailable)
     {
         // If call is alerting (MT), active (MO) or on hold (to keep the path in case
         //  of multisession or call swap
         _bAudioPathAvailable = true;
         LOGD("%s AudioPath available =%d", __FUNCTION__, _bAudioPathAvailable);
 
-    } else if (iProgressStatus == LastSpeechCallEndedSpeechCanBeDisabled) {
+    } else if (uiProgressStatus == LastSpeechCallEndedSpeechCanBeDisabled) {
+
         _bAudioPathAvailable = false;
     }
 

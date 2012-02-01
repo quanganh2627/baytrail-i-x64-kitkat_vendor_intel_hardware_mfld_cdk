@@ -87,7 +87,7 @@ public:
     // Thread stop
     void stop();
     // trigger
-    void trigger();
+    void trig();
 
 private:
     friend class CThreadContext;

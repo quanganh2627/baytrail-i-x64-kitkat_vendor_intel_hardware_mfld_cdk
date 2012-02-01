@@ -13,7 +13,7 @@ TEMPLATE = app
 SOURCES += \
     main.cpp
 
-INCLUDEPATH += ../libamc ../event-listener
+INCLUDEPATH += ../libamc ../event-listener ../at-manager
 
 CONFIG(debug, debug|release) {
     DESTDIR = ../build/debug
@@ -21,4 +21,4 @@ CONFIG(debug, debug|release) {
     DESTDIR = ../build/release
 }
 
-LIBS += -L$$DESTDIR -llibamc -lrt -levent-listener -lat-parser -ltty-handler
+LIBS += -L$$DESTDIR -llibamc -lrt -levent-listener -lat-parser -ltty-handler -lat-manager

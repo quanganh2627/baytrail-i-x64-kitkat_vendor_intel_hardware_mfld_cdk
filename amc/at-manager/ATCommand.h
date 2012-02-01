@@ -18,7 +18,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <time.h>
+#include <sys/time.h>
 #include <string>
 
 using namespace std;

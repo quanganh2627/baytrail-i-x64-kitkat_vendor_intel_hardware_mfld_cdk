@@ -20,6 +20,7 @@
 #include "EventThread.h"
 #include "stmd.h"
 #include <sys/types.h>
+#include <sys/time.h>
 #include <sys/socket.h>
 #include <assert.h>
 #include <ctype.h>
@@ -216,7 +217,7 @@ void CATManager::addUnsollicitedATCommand(CUnsollicitedATCommand* pUnsollicitedA
 
         // If no transaction on going, trig the process
         LOGD("%s: trig right now", __FUNCTION__);
-        _pEventThread->trigger();
+        _pEventThread->trig();
     }
     // Else nothing to do, will be done on TTY activation
 
@@ -286,7 +287,7 @@ AT_CMD_STATUS CATManager::sendCommand(CATCommand* pATCommand, bool bSynchronous)
     }
 
     // Trig the processing of the list
-    _pEventThread->trigger();
+    _pEventThread->trig();
 
     // } Block
     pthread_mutex_unlock(&_clientMutex);
@@ -645,6 +646,23 @@ int32_t CATManager::getNextPeriodicTimeout() const
     return INFINITE_TIMEOUT;
 }
 
+
+void CATManager::processUnsollicited(const string& strResponse)
+{
+    CUnsollicitedATCommand* pUnsollicitedCmd;
+
+    // Check answer adequation with current Unsollicited command list
+    if ((pUnsollicitedCmd = findUnsollicitedCmdByPrefix(strResponse)) != NULL) {
+
+        pUnsollicitedCmd->addAnswerFragment(strResponse);
+
+        pUnsollicitedCmd->doProcessAnswer();
+
+        getATNotifier()->onUnsollicitedReceived(pUnsollicitedCmd);
+
+    }
+}
+
 //
 // Worker thread context
 // Get AT response
@@ -666,17 +684,9 @@ void CATManager::readResponse()
         if (!_pCurrentATCommand || _pCurrentATCommand->isComplete()) {
 
             LOGD("=> Unsollicited");
-            CUnsollicitedATCommand* pUnsollicitedCmd;
-            // Check answer adequation with current Unsollicited command list
-            if ((pUnsollicitedCmd = findUnsollicitedCmdByPrefix(strResponse)) != NULL) {
 
-                pUnsollicitedCmd->addAnswerFragment(strResponse);
+            processUnsollicited(strResponse);
 
-                pUnsollicitedCmd->doProcessAnswer();
-
-                getATNotifier()->onUnsollicitedReceived(pUnsollicitedCmd);
-
-            }
             continue;
         }
 
@@ -690,7 +700,7 @@ void CATManager::readResponse()
             terminateTransaction(strResponse == "OK");
 
         // Check answer adequation to current AT command
-        } else if (_pCurrentATCommand->hasPrefix() && !strResponse.find(_pCurrentATCommand->getPrefix())) {
+        } else if (cmdHasPrefixAndMatches(_pCurrentATCommand, strResponse)) {
 
             // Match
             // Add answer fragment to AT command object
@@ -704,17 +714,7 @@ void CATManager::readResponse()
 
             LOGD("=> Unsollicited while currentCmd ongoing");
 
-            CUnsollicitedATCommand* pUnsollicitedCmd;
-            // Check answer adequation with current Unsollicited command list
-            if ((pUnsollicitedCmd = findUnsollicitedCmdByPrefix(strResponse)) != NULL) {
-
-                pUnsollicitedCmd->addAnswerFragment(strResponse);
-
-                pUnsollicitedCmd->doProcessAnswer();
-
-                getATNotifier()->onUnsollicitedReceived(pUnsollicitedCmd);
-
-            }
+            processUnsollicited(strResponse);
         }
     }
     LOGD("%s OUT", __FUNCTION__);
@@ -803,7 +803,7 @@ void CATManager::setModemStatus(uint32_t status)
 
     /* Informs of the modem state to who implements the observer class */
     if (getATNotifier()) {
-        getATNotifier()->onModemStateChange(_mModemStatus);
+        getATNotifier()->onModemStateChanged();
     }
 }
 
@@ -863,10 +863,10 @@ bool CATManager::startModemTtyListeners()
 
         // Record state
         _bTtyListenersStarted = true;
-    }
 
-    // Performs now awaiting actions
-    onTtyAvailable();
+        // Performs now awaiting actions
+        onTtyStateChanged(true);
+    }
 
     return true;
 }
@@ -886,6 +886,9 @@ void CATManager::stopModemTtyListeners()
 
         // Record state
         _bTtyListenersStarted = false;
+
+        // Performs some actions
+        onTtyStateChanged(false);
     }
 }
 
@@ -897,13 +900,17 @@ void CATManager::clearToSendList()
 //
 // Worker thread context
 //
-void CATManager::onTtyAvailable()
+void CATManager::onTtyStateChanged(bool available)
 {
     LOGD("%s", __FUNCTION__);
 
-    // Modem just starts, (or restarts)
-    // Clear tosend list
-    clearToSendList();
+    if (!available) {
+
+        // Modem just starts, (or restarts)
+        // Clear tosend list
+        clearToSendList();
+        return ;
+    }
 
     // Send the Unsollicited command from the list
     CUnsollicedATCommandListIterator it;
@@ -930,18 +937,18 @@ void CATManager::onTtyAvailable()
 
 }
 
-CUnsollicitedATCommand* CATManager::findUnsollicitedCmdByPrefix(const string& strRespPrefix)
+CUnsollicitedATCommand* CATManager::findUnsollicitedCmdByPrefix(const string& strRespPrefix) const
 {
     LOGD("%s: respPrefix =(%s)", __FUNCTION__, strRespPrefix.c_str());
 
-    CUnsollicedATCommandListIterator it;
+    CUnsollicedATCommandConstListIterator it;
 
     for (it = _unsollicitedATList.begin(); it != _unsollicitedATList.end(); ++it) {
 
         CUnsollicitedATCommand* pCmd = *it;
 
-        if (pCmd->hasPrefix() && (strRespPrefix.find(pCmd->getPrefix()) != string::npos) ) {
-
+        if (cmdHasPrefixAndMatches(pCmd, strRespPrefix))
+        {
             return pCmd;
         }
     }

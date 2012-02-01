@@ -29,7 +29,7 @@
 #define _LIBS_CUTILS_LOG_H
 
 #include <stdio.h>
-#include <time.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
 

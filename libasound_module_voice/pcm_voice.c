@@ -560,8 +560,8 @@ static int voice_hw_open(snd_pcm_ioplug_t *io)
 
     sprintf(device, "hw:%d,%d", snd_card_get_index(voice->card), voice->device);
 
-    /* 
-     * Non blocking mode is mandatory when dealing with the modem. In case of 
+    /*
+     * Non blocking mode is mandatory when dealing with the modem. In case of
      * a modem reset, it would freeze...
      */
     err = snd_pcm_open(&voice->pcm_md_handle, device, io->stream, SND_PCM_NONBLOCK);
@@ -604,7 +604,7 @@ static int voice_hw_open(snd_pcm_ioplug_t *io)
     err = setSoftwareParams(&handle);
     if(err < 0){
         LOGE("Set Software Params failed\n");
-	return err;
+        return err;
    }
 
     return 0;

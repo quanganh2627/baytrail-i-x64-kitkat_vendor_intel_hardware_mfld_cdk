@@ -701,20 +701,6 @@ static status_t s_close(alsa_handle_t *handle)
     return err;
 }
 
-static status_t s_route(alsa_handle_t *handle, uint32_t devices, int mode)
-{
-    LOGD("route called for devices %08x in mode %d...", devices, mode);
-    if(!handle->openFlag) {
-        LOGD("s_route handle->handle is NULL.");
-        return NO_ERROR;
-    }
-
-    s_config(handle,mode);
-    if (handle->openFlag && handle->curDev == devices && handle->curMode == mode) return NO_ERROR;
-
-    return s_open(handle, devices, mode);
-}
-
 static status_t s_volume(alsa_handle_t *handle, uint32_t devices, float volume)
 {
     return NO_ERROR;

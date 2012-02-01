@@ -77,6 +77,7 @@ private:
     virtual bool onHangup(int iFd);
     virtual void onTimeout();
     virtual void onPollError();
+    virtual void onProcess();
     // Read received command
     void readCommand();
     // Acknowledge

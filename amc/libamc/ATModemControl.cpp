@@ -18,7 +18,6 @@
 #define LOG_TAG "AMC"
 #include "ATManager.h"
 #include "AudioModemControl.h"
-#include "EventThread.h"
 #include <utils/Log.h>
 
 extern "C" {

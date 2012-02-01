@@ -234,6 +234,11 @@ void CModemSimulator::onPollError()
     cerr << "Poll error!" << endl;
 }
 
+void CModemSimulator::onProcess()
+{
+
+}
+
 // Read received command
 void CModemSimulator::readCommand()
 {

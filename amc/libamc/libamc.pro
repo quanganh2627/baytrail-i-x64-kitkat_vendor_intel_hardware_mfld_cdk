@@ -26,7 +26,7 @@ HEADERS += ../simulation/utils/Log.h \
     amc.h \
     ../simulation/cutils/sockets.h
 
-INCLUDEPATH += ../simulation  ../at-manager
+INCLUDEPATH += ../simulation  ../event-listener  ../at-manager
 
 CONFIG(debug, debug|release) {
     DESTDIR = ../build/debug
@@ -34,7 +34,7 @@ CONFIG(debug, debug|release) {
     DESTDIR = ../build/release
 }
 
-LIBS += -L$$DESTDIR -lat-manager
+LIBS += -L$$DESTDIR -lat-manager -levent-listener
 OTHER_FILES += \
     Android.mk \
     ATmodemControl.old

@@ -1,8 +1,16 @@
-#include "Amc.h"
+#include "ATCommand.h"
+#include "ATManager.h"
 #include <iostream>
 #include <semaphore.h>
 
 using namespace std;
+
+// Singleton access
+CATManager* getInstance()
+{
+    static CATManager amcInstance;
+    return &amcInstance;
+}
 
 int
 main(int argc, char **argv)
@@ -15,17 +23,17 @@ main(int argc, char **argv)
 
     cout << "Starting AMC..." << endl;
 
-    AT_STATUS eStatus = CAmc::getInstance()->start("/tmp/tty1", 1);
+    AT_CMD_STATUS eStatus = getInstance()->start("/tmp/tty1", 1);
 
     cout << "Result: " << eStatus << endl;
 
-    if (eStatus != AT_OK) {
+    if (eStatus != AT_CMD_OK) {
 
         return -1;
     }
     cout << "Sending AT " << atCommand.getCommand() << "..." << endl;
 
-    eStatus = CAmc::getInstance()->sendCommand(&atCommand, true);
+    eStatus = getInstance()->sendCommand(&atCommand, true);
 
     cout << "Result: " << eStatus << ", response: " << atCommand.getAnswer() << endl;
 
@@ -36,7 +44,7 @@ main(int argc, char **argv)
 
     cout << "Sending AT " << atXdrvCommand.getCommand() << "..." << endl;
 
-    eStatus = CAmc::getInstance()->sendCommand(&atXdrvCommand, true);
+    eStatus = getInstance()->sendCommand(&atXdrvCommand, true);
 
     cout << "Result: " << eStatus << ", response: " << atXdrvCommand.getAnswer() << endl;
 
@@ -46,7 +54,7 @@ main(int argc, char **argv)
 
     cout << "Sending AT " << atXdrvCommand2.getCommand() << "..." << endl;
 
-    eStatus = CAmc::getInstance()->sendCommand(&atXdrvCommand2, true);
+    eStatus = getInstance()->sendCommand(&atXdrvCommand2, true);
 
     cout << "Result: " << eStatus << ", response: " << atXdrvCommand2.getAnswer() << endl;
 

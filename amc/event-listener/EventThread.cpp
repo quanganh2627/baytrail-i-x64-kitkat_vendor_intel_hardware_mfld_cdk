@@ -156,7 +156,7 @@ void CEventThread::stop()
 }
 
 // Trigger
-void CEventThread::trigger()
+void CEventThread::trig()
 {
     LOGD("%s: in", __func__);
 

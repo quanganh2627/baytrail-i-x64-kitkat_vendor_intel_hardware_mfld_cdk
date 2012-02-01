@@ -136,13 +136,20 @@ private:
     // Stop listening to Modem TTYs
     void stopModemTtyListeners();
     // Find unsollicited AT command by prefix
-    CUnsollicitedATCommand* findUnsollicitedCmdByPrefix(const string& strRespPrefix);
+    CUnsollicitedATCommand* findUnsollicitedCmdByPrefix(const string& strRespPrefix) const;
     // Set the modem status
     void setModemStatus(uint32_t status);
     // Modem tty are available, performs all required actions
-    void onTtyAvailable();
+    void onTtyStateChanged(bool available);
     // Clear the toSend commands list
     void clearToSendList();
+    // Check if unsollicited is awaited
+    void processUnsollicited(const string& strAnswerFragment);
+    // Check if cmd has a prefix that matches with received answer
+    inline bool cmdHasPrefixAndMatches(CATCommand* cmd, const string& strRespPrefix) const
+    {
+        return cmd->hasPrefix() && !strRespPrefix.find(cmd->getPrefix());
+    }
 
 public:
     // Periodic command list

@@ -24,6 +24,6 @@ class IATNotifier
 public:
     virtual bool onUnsollicitedReceived(CUnsollicitedATCommand* pUnsollicitedCmd) = 0;
     virtual bool onAnsynchronousError(const CATcommand* pATCmd, int errorType) = 0;
-    virtual void onModemStateChange(int mModemStatus) = 0;
+    virtual void onModemStateChanged() = 0;
 };
 

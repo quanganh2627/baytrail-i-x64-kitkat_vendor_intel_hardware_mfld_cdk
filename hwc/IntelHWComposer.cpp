@@ -309,7 +309,7 @@ void IntelHWComposer::onGeometryChanged(hwc_layer_list_t *list)
              }
          } else {
              list->hwLayers[i].compositionType = HWC_FRAMEBUFFER;
-             if(mPlaneManager->isWidiActive() && firstTime) {
+             if(firstTime && mPlaneManager->isWidiActive() ) {
                  IntelWidiPlane *p = (IntelWidiPlane *)mPlaneManager->getWidiPlane();
                  p->setOrientation(list->hwLayers[i].transform);
                  firstTime = false;

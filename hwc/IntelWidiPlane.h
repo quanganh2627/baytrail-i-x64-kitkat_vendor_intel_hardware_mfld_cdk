@@ -47,6 +47,7 @@ public:
 
 protected:
     void init();
+    android::status_t sendInitMode(int mode);
 
     class WidiInitThread: public android::Thread {
     public:

@@ -121,6 +121,7 @@ IntelWidiPlane::enablePlane(sp<IBinder> display) {
 
     if(mState == WIDI_PLANE_STATE_INITIALIZED) {
         LOGV("Plane Enabled !!");
+        mWirelessDisplay = display;
         mState =WIDI_PLANE_STATE_ACTIVE;
     }
 
@@ -133,6 +134,7 @@ IntelWidiPlane::disablePlane() {
     Mutex::Autolock _l(mLock);
     if(mState == WIDI_PLANE_STATE_ACTIVE) {
         LOGV("Plane Disabled !!");
+        mWirelessDisplay = NULL;
         mState = WIDI_PLANE_STATE_INITIALIZED;
     }
     return;
@@ -170,15 +172,21 @@ IntelWidiPlane::setOrientation(uint32_t orientation) {
 void
 IntelWidiPlane::setOverlayData(intel_gralloc_buffer_handle_t* nHandle) {
 
-
+    status_t ret = NO_ERROR;
+    sp<IWirelessDisplay> wd = interface_cast<IWirelessDisplay>(mWirelessDisplay);
     if(mState == WIDI_PLANE_STATE_ACTIVE) {
 
         intel_gralloc_buffer_handle_t *p = mExtVideoBuffers.valueFor(nHandle);
 
         if( p == nHandle) {
             LOGI("We have all the  buffers (%d), lets move to streaming state and change the mode", mExtVideoBuffers.size());
-            // TODO: call InitMode from wirelessDisplay and pass the gralloc handles.
-            mState = WIDI_PLANE_STATE_STREAMING;
+            ret = sendInitMode(IWirelessDisplay::WIDI_MODE_EXTENDED_VIDEO);
+            if(ret == NO_ERROR) {
+                mState = WIDI_PLANE_STATE_STREAMING;
+            }else {
+                LOGE("Something went wrong setting the mode, we continue in clone mode");
+                mExtVideoBuffers.clear();
+            }
 
         } else {
 
@@ -188,16 +196,19 @@ IntelWidiPlane::setOverlayData(intel_gralloc_buffer_handle_t* nHandle) {
         }
     } else if(mState == WIDI_PLANE_STATE_STREAMING) {
 
-        int index = mExtVideoBuffers.indexOfKey(nHandle);
+        ssize_t index = mExtVideoBuffers.indexOfKey(nHandle);
 
-        if (index > mExtVideoBuffers.size()) {
+        if (index == NAME_NOT_FOUND) {
             LOGW("Unexpected buffer received, going back to clone mode");
             mState = WIDI_PLANE_STATE_ACTIVE;
-            // TODO: Call Init Mode to go back to clone;
+            sendInitMode(IWirelessDisplay::WIDI_MODE_CLONE);
+            mExtVideoBuffers.clear();
+
         } else {
-        	LOGV("Sending buffer from index %d", index);
-        	// TODO: send index to widi plane
+            LOGV("Sending buffer from index %d", index);
+            wd->sendBuffer(index);
         }
+
 
     }
 
@@ -219,7 +230,7 @@ IntelWidiPlane::isActive() {
  * This method is used to inform the wireless display plane if any
  * of the layers in the list contained data targeted to the overlay
  * This how the Wireless Plane notices that a video clip has finished
- *
+*
  * This method is used by the HWC updateLayersData method.
  *
  * */
@@ -233,7 +244,8 @@ IntelWidiPlane::overlayInUse(bool used) {
         LOGV("Let's go back to clone mode");
         mState = WIDI_PLANE_STATE_ACTIVE;
         mExtVideoBuffers.clear();
-        //TODO: call InitMode on the WirelessDisplay
+        sp<IWirelessDisplay> wd = interface_cast<IWirelessDisplay>(mWirelessDisplay);
+        wd->initMode(NULL, 0, IWirelessDisplay::WIDI_MODE_CLONE);
     }
 }
 void
@@ -252,6 +264,34 @@ IntelWidiPlane::init() {
 
     mInitThread = new WidiInitThread(this);
     mInitThread->run();
+}
+
+status_t
+IntelWidiPlane::sendInitMode(int mode) {
+
+    status_t ret = NO_ERROR;
+    sp<IWirelessDisplay> wd = interface_cast<IWirelessDisplay>(mWirelessDisplay);
+
+    if(mode == IWirelessDisplay::WIDI_MODE_CLONE) {
+
+        ret = wd->initMode(NULL, 0, IWirelessDisplay::WIDI_MODE_CLONE);
+
+    }else if(mode == IWirelessDisplay::WIDI_MODE_EXTENDED_VIDEO) {
+
+        intel_gralloc_buffer_handle_t *bufs;
+        int bufferCount = mExtVideoBuffers.size();
+        bufs = (intel_gralloc_buffer_handle_t *) malloc(bufferCount * sizeof(intel_gralloc_buffer_handle_t));
+        for(int i= 0; i < bufferCount; i++) {
+            bufs[i] = *mExtVideoBuffers.valueAt(i);
+        }
+
+        ret = wd->initMode(bufs, bufferCount, IWirelessDisplay::WIDI_MODE_EXTENDED_VIDEO);
+
+        delete bufs;
+    }
+
+    return ret;
+
 }
 
 void

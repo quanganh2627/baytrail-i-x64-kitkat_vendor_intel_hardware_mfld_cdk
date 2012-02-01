@@ -201,17 +201,21 @@ IntelDisplayPlane* IntelDisplayPlaneManager::getOverlayPlane()
 
     // check reclaimed overlay planes
     freePlaneIndex = getPlane(mReclaimedOverlayPlanes);
-    if (freePlaneIndex >= 0)
-        return mOverlayPlanes[freePlaneIndex];
+    if (freePlaneIndex < 0) {
+       // check free overlay planes
+       freePlaneIndex = getPlane(mFreeOverlayPlanes);
+    }
 
-    // check free overlay planes
-    freePlaneIndex = getPlane(mFreeOverlayPlanes);
-    if (freePlaneIndex >= 0)
-        return mOverlayPlanes[freePlaneIndex];
+    if (freePlaneIndex < 0) {
+       LOGE("%s: failed to get a overlay plane\n", __func__);
+       return 0;
+    }
 
-    LOGE("%s: failed to get a overlay plane\n", __func__);
+    if (isWidiActive()) {
+       ((IntelOverlayPlane*)mOverlayPlanes[freePlaneIndex])->setWidiPlane(mWidiPlane);
+    }
 
-    return 0;
+    return mOverlayPlanes[freePlaneIndex];
 }
 
 void IntelDisplayPlaneManager::reclaimPlane(IntelDisplayPlane *plane)

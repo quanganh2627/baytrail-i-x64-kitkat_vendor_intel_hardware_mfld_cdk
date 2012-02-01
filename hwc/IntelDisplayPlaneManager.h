@@ -233,6 +233,7 @@ public:
 };
 
 
+class IntelWidiPlane; // forward declaration
 
 class IntelOverlayPlane : public IntelDisplayPlane {
 private:
@@ -243,13 +244,15 @@ private:
         uint32_t bufferType;
     } mDataBuffers[INTEL_DATA_BUFFER_NUM_MAX];
     int mNextBuffer;
+    IntelWidiPlane* mWidiPlane;
 
 public:
     IntelOverlayPlane(int fd, int index, IntelBufferManager *bufferManager);
     ~IntelOverlayPlane();
     virtual void setPosition(int left, int top, int right, int bottom);
-    virtual bool setDataBuffer(uint32_t handle, uint32_t flags);
+    virtual bool setDataBuffer(uint32_t handle, uint32_t flags, intel_gralloc_buffer_handle_t* nHandle);
     virtual bool setDataBuffer(IntelDisplayBuffer& buffer);
+
     virtual bool invalidateDataBuffer();
     virtual bool flip(uint32_t flags);
     virtual bool reset();
@@ -257,6 +260,9 @@ public:
     virtual void setPipe(intel_display_pipe_t pipe);
     virtual void setPipeByMode(intel_overlay_mode_t displayMode);
     virtual uint32_t onDrmModeChange();
+
+    virtual bool setWidiPlane(IntelDisplayPlane*);
+
 };
 
 enum {

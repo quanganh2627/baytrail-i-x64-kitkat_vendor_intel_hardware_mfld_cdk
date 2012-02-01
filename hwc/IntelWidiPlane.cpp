@@ -22,6 +22,7 @@
 #include "streaming/IWirelessDisplay.h"
 
 
+static const int EXT_VIDEO_MODE_MAX_SURFACE = 32;
 
 using namespace android;
 using namespace intel::widi;
@@ -70,10 +71,13 @@ IntelWidiPlane::IntelWidiPlane(int fd, int index, IntelBufferManager *bm)
       mLock(NULL),
       mInitThread(NULL),
       mFlipListener(NULL),
+      mWirelessDisplay(NULL),
       mCurrentOrientation(0)
 
 {
     LOGV("Intel Widi Plane constructor");
+
+    mExtVideoBuffers.setCapacity(EXT_VIDEO_MODE_MAX_SURFACE);
 
     /* defer initialization of widi plane to another thread
      * we do this because the initialization may take long time and we do not
@@ -162,14 +166,76 @@ void
 IntelWidiPlane::setOrientation(uint32_t orientation) {
     mCurrentOrientation = orientation;
 }
+
+void
+IntelWidiPlane::setOverlayData(intel_gralloc_buffer_handle_t* nHandle) {
+
+
+    if(mState == WIDI_PLANE_STATE_ACTIVE) {
+
+        intel_gralloc_buffer_handle_t *p = mExtVideoBuffers.valueFor(nHandle);
+
+        if( p == nHandle) {
+            LOGI("We have all the  buffers (%d), lets move to streaming state and change the mode", mExtVideoBuffers.size());
+            // TODO: call InitMode from wirelessDisplay and pass the gralloc handles.
+            mState = WIDI_PLANE_STATE_STREAMING;
+
+        } else {
+
+            mExtVideoBuffers.add(nHandle, nHandle);
+            LOGI("Adding gralloc handle %p, array size = %d", nHandle, mExtVideoBuffers.size());
+
+        }
+    } else if(mState == WIDI_PLANE_STATE_STREAMING) {
+
+        int index = mExtVideoBuffers.indexOfKey(nHandle);
+
+        if (index > mExtVideoBuffers.size()) {
+            LOGW("Unexpected buffer received, going back to clone mode");
+            mState = WIDI_PLANE_STATE_ACTIVE;
+            // TODO: Call Init Mode to go back to clone;
+        } else {
+        	LOGV("Sending buffer from index %d", index);
+        	// TODO: send index to widi plane
+        }
+
+    }
+
+}
+
 bool
 IntelWidiPlane::isActive() {
 
     Mutex::Autolock _l(mLock);
+    if ( (mState == WIDI_PLANE_STATE_ACTIVE) ||
+         (mState == WIDI_PLANE_STATE_STREAMING) )
+        return true;
 
-    return (mState==WIDI_PLANE_STATE_ACTIVE)?true:false;
+    return false;
 }
 
+/* overlayInUse
+ *
+ * This method is used to inform the wireless display plane if any
+ * of the layers in the list contained data targeted to the overlay
+ * This how the Wireless Plane notices that a video clip has finished
+ *
+ * This method is used by the HWC updateLayersData method.
+ *
+ * */
+
+void
+IntelWidiPlane::overlayInUse(bool used) {
+
+    Mutex::Autolock _l(mLock);
+
+    if ( (mState == WIDI_PLANE_STATE_STREAMING) && !used) {
+        LOGV("Let's go back to clone mode");
+        mState = WIDI_PLANE_STATE_ACTIVE;
+        mExtVideoBuffers.clear();
+        //TODO: call InitMode on the WirelessDisplay
+    }
+}
 void
 IntelWidiPlane::init() {
 

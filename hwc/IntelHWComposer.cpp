@@ -423,6 +423,7 @@ out:
 bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
 {
     IntelDisplayPlane *plane = 0;
+    bool overlayInUse = false;
     bool ret;
 
     for (size_t i=0 ; i<list->numHwLayers ; i++) {
@@ -524,12 +525,14 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                 dataBuffer->setCrop(srcX, srcY, srcWidth, srcHeight);
 
                 // set the data buffer back to plane
-                ret = plane->setDataBuffer(bufferHandle, transform);
+                ret = ((IntelOverlayPlane*)plane)->setDataBuffer(bufferHandle, transform, grallocHandle);
                 if (!ret) {
                     LOGE("%s: failed to update overlay data buffer\n", __func__);
                     mLayerList->detachPlane(i, plane);
                     layer->compositionType = HWC_FRAMEBUFFER;
                 }
+                overlayInUse = true;
+
             } else if (planeType == IntelDisplayPlane::DISPLAY_PLANE_SPRITE) {
                 // do nothing for sprite plane for now
             } else {
@@ -538,6 +541,11 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
             }
         }
     }
+    if(mPlaneManager->isWidiActive()) {
+        IntelWidiPlane* p = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
+        p->overlayInUse(overlayInUse);
+    }
+
     return true;
 }
 

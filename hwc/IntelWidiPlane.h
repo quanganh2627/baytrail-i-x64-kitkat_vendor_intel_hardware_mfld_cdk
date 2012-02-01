@@ -20,6 +20,7 @@
 
 #include <IntelDisplayPlaneManager.h>
 #include <utils/threads.h>
+#include <utils/KeyedVector.h>
 #include <binder/IInterface.h>
 #include <binder/IServiceManager.h>
 #include "IHwWidiPlane.h"
@@ -38,6 +39,8 @@ public:
     void allowExtVideoMode(bool allow);
     bool isExtVideoAllowed() {return mAllowExtVideoMode;};
     void setOrientation(uint32_t orientation);
+    void setOverlayData(intel_gralloc_buffer_handle_t* nHandle);
+    void overlayInUse(bool);
 
     bool flip(uint32_t flags);
     bool isActive();
@@ -80,7 +83,11 @@ protected:
     android::sp<IPageFlipListener>  mFlipListener;
     android::sp<DeathNotifier>      mDeathNotifier;
     android::sp<IBinder>            mWirelesDisplayservice;
+    android::sp<IBinder>            mWirelessDisplay;
     uint32_t                        mCurrentOrientation;
+
+    android::KeyedVector<intel_gralloc_buffer_handle_t*,
+                         intel_gralloc_buffer_handle_t*> mExtVideoBuffers;
 };
 
 #else  // Stub implementation in case of widi module is not compiled
@@ -92,6 +99,9 @@ public:
         IntelDisplayPlane(fd, IntelDisplayPlane::DISPLAY_PLANE_OVERLAY, index, bm){};
     ~IntelWidiPlane(){};
     virtual void setPosition(int left, int top, int right, int bottom){return;};
+    void setOverlayData(intel_gralloc_buffer_handle_t* nHandle){};
+    void overlayInUse(bool){};
+
 
     void allowExtVideoMode(bool allow){return;};
     bool isExtVideoAllowed() {return true;};

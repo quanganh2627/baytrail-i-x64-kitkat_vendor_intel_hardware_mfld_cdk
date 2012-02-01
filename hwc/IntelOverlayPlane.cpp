@@ -21,6 +21,7 @@
 #include <IntelHWComposerDrm.h>
 #include <IntelOverlayPlane.h>
 #include <IntelOverlayUtil.h>
+#include <IntelWidiPlane.h>
 
 IntelOverlayContext::~IntelOverlayContext()
 {
@@ -1181,7 +1182,7 @@ void IntelOverlayPlane::setPosition(int left, int top, int right, int bottom)
     }
 }
 
-bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags)
+bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags, intel_gralloc_buffer_handle_t* nHandle = NULL)
 {
     IntelDisplayBuffer *buffer = 0;
     uint32_t bufferType;
@@ -1190,6 +1191,9 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags)
         LOGE("%s: overlay plane wasn't initialized\n", __func__);
         return false;
     }
+
+    if (mWidiPlane)
+            mWidiPlane->setOverlayData(nHandle);
 
     if (flags)
         bufferType = IntelBufferManager::TTM_BUFFER;
@@ -1375,6 +1379,7 @@ void IntelOverlayPlane::setPipeByMode(intel_overlay_mode_t displayMode)
     }
 }
 
+
 uint32_t IntelOverlayPlane::onDrmModeChange()
 {
     if (initCheck()) {
@@ -1385,3 +1390,12 @@ uint32_t IntelOverlayPlane::onDrmModeChange()
 
     return 0;
 }
+
+bool IntelOverlayPlane::setWidiPlane(IntelDisplayPlane* wplane) {
+
+    if(wplane != NULL)
+        mWidiPlane = (IntelWidiPlane*)wplane;
+
+    return true;
+}
+

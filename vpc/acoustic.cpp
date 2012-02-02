@@ -65,15 +65,9 @@ int acoustic::private_cache_profiles()
 
     for (int i = 0; i < profile_number; i++)
     {
-        char profile_path[profile_path_len_max] = "/system/etc/phonecall_";
-
-        property_get("ro.board.id", bid, "");
-        if(!strcmp(bid,"pr3")) {
-            strcat(profile_path, "es305b_");
-        }
+        char profile_path[profile_path_len_max] = "/system/etc/phonecall_es305b_";
 
         strncat(profile_path, profile_name[i], profile_path_len_max - strlen(profile_path) - 1);
-
         FILE *fd = fopen(profile_path, "r");
         if (fd == NULL) {
             LOGE("Cannot open %s\n", profile_path);

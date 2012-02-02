@@ -16,6 +16,8 @@
 #ifndef __INTEL_WIDI_PLANE_H__
 #define __INTEL_WIDI_PLANE_H__
 
+#ifdef INTEL_WIDI
+
 #include <IntelDisplayPlaneManager.h>
 #include <utils/threads.h>
 #include <binder/IInterface.h>
@@ -81,5 +83,25 @@ protected:
     uint32_t                        mCurrentOrientation;
 };
 
+#else  // Stub implementation in case of widi module is not compiled
+
+class IntelWidiPlane : public IntelDisplayPlane  {
+
+public:
+    IntelWidiPlane(int fd, int index, IntelBufferManager *bm):
+        IntelDisplayPlane(fd, IntelDisplayPlane::DISPLAY_PLANE_OVERLAY, index, bm){};
+    ~IntelWidiPlane(){};
+    virtual void setPosition(int left, int top, int right, int bottom){return;};
+
+    void allowExtVideoMode(bool allow){return;};
+    bool isExtVideoAllowed() {return true;};
+    void setOrientation(uint32_t orientation){return;};
+
+    bool flip(uint32_t flags){return true;};
+    bool isActive(){return false;};
+
+
+};
+#endif
 
 #endif /*__INTEL_OVERLAY_PLANE_H__*/

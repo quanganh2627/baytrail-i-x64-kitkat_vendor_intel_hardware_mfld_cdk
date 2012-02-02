@@ -19,10 +19,10 @@ LOCAL_PATH := $(call my-dir)
 # hw/<OVERLAY_HARDWARE_MODULE_ID>.<ro.product.board>.so
 include $(CLEAR_VARS)
 
-
 LOCAL_PRELINK_MODULE := false
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
-LOCAL_SHARED_LIBRARIES := liblog libEGL libcutils libdrm libpvr2d libwsbm libsrv_um libui libutils libbinder libwidistreaming libhwcwidi
+LOCAL_SHARED_LIBRARIES := liblog libEGL libcutils libdrm libpvr2d libwsbm libsrv_um libui libutils libbinder
+
 LOCAL_SRC_FILES := IntelHWComposerModule.cpp \
                    IntelHWComposer.cpp \
                    IntelHWComposerLayer.cpp \
@@ -31,13 +31,19 @@ LOCAL_SRC_FILES := IntelHWComposerModule.cpp \
                    IntelHWComposerDrm.cpp \
                    IntelOverlayPlane.cpp \
                    IntelSpritePlane.cpp \
-                   IntelWidiPlane.cpp \
                    MedfieldSpritePlane.cpp \
                    IntelWsbm.cpp \
                    IntelWsbmWrapper.c
+                   
 LOCAL_MODULE_TAGS := eng
 LOCAL_MODULE := hwcomposer.$(TARGET_DEVICE)
 LOCAL_CFLAGS:= -DLOG_TAG=\"hwcomposer\" -DLINUX
+
+ifeq ($(INTEL_WIDI), true)
+LOCAL_SHARED_LIBRARIES += libwidistreaming libhwcwidi
+LOCAL_CFLAGS += -DINTEL_WIDI=1
+LOCAL_SRC_FILES += IntelWidiPlane.cpp
+endif
 
 LOCAL_C_INCLUDES := $(addprefix $(LOCAL_PATH)/../../, $(SGX_INCLUDES)) \
             hardware/intel/include/eurasia/pvr2d \
@@ -54,5 +60,6 @@ LOCAL_C_INCLUDES := $(addprefix $(LOCAL_PATH)/../../, $(SGX_INCLUDES)) \
 
 include $(BUILD_SHARED_LIBRARY)
 
-
+ifeq ($(INTEL_WIDI), true)
 include $(LOCAL_PATH)/libhwcwidi/Android.mk
+endif

@@ -316,7 +316,9 @@ void IntelHWComposer::onGeometryChanged(hwc_layer_list_t *list)
 bool IntelHWComposer::useOverlayRotation(hwc_layer_t *layer,
                                          int index,
                                          uint32_t& handle,
-                                         int& w, int& h, int& srcW, int& srcH)
+                                         int& w, int& h,
+                                         int& srcX, int& srcY,
+                                         int& srcW, int& srcH)
 {
     bool useOverlay = false;
     uint32_t hwcLayerTransform;
@@ -372,6 +374,22 @@ bool IntelHWComposer::useOverlayRotation(hwc_layer_t *layer,
         int temp = srcH;
         srcH = srcW;
         srcW = temp;
+    }
+
+    // skip pading bytes in rotate buffer
+    switch(layer->transform) {
+    case HAL_TRANSFORM_ROT_90:
+        srcX += ((srcW + 0xf) & ~0xf) - srcW;
+        break;
+    case HAL_TRANSFORM_ROT_180:
+        srcX += ((srcW + 0xf) & ~0xf) - srcW;
+        srcY += ((srcH + 0xf) & ~0xf) - srcH;
+        break;
+    case HAL_TRANSFORM_ROT_270:
+        srcY += ((srcH + 0xf) & ~0xf) - srcH;
+        break;
+    default:
+        break;
     }
 
     // now, switch to overlay
@@ -441,6 +459,8 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                                                          bufferHandle,
                                                          bufferWidth,
                                                          bufferHeight,
+                                                         srcX,
+                                                         srcY,
                                                          srcWidth,
                                                          srcHeight);
 

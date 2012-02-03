@@ -702,6 +702,7 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
 
     // need check whether eglSwapBuffers is necessary
     bool needSwapBuffer = false;
+    bool needRepaint = false;
     // if all layers were attached with display planes then we don't need
     // swap buffers.
     if (mLayerList->getLayersCount() == mLayerList->getAttachedPlanesCount())
@@ -743,6 +744,11 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
             return false;
         }
     }
+
+    // check whether screen need to be repainted
+    needRepaint =  (mLayerList->getAttachedPlanesCount()) && needSwapBuffer;
+    if (needRepaint && mProcs && mProcs->invalidate)
+        mProcs->invalidate((hwc_procs_t*)mProcs);
 
     // TODO: move it back to prepare()
     mPlaneManager->disableReclaimedPlanes();

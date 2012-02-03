@@ -23,27 +23,35 @@ int CTtyHandler::openTty(const char* pcTty, int iFlags)
         return -1;
     }
 
-    // Turn off input processing
-    iosconfig.c_iflag &= ~(IGNBRK | BRKINT | ICRNL |
-                        INLCR | PARMRK | INPCK | ISTRIP | IXON);
-    // Turn off output processing
-    iosconfig.c_oflag = 0;
-    // Turn off line processing
-    iosconfig.c_lflag &= ~(ECHO | ECHONL | ICANON | IEXTEN | ISIG);
-    // Turn off character processing
-    iosconfig.c_cflag &= ~(CSIZE | PARENB);
-    iosconfig.c_cflag |= CS8;
-    // Min amount of bytes for a read
+    // Local mode flags:
+    iosconfig.c_cflag = B115200;
+
+    // Control mode flags:
+    iosconfig.c_cflag |= CS8 | CLOCAL | CREAD;
+
+    // Input mode flags:
+    iosconfig.c_iflag &= ~(INPCK | IGNPAR | PARMRK | ISTRIP | IXANY | ICRNL);
+
+    // Output mode flags:
+    iosconfig.c_oflag &= ~OPOST;
+
+    // Special characters:
     iosconfig.c_cc[VMIN]  = 1;
-    // No timeout
-    iosconfig.c_cc[VTIME] = 0;
+    iosconfig.c_cc[VTIME] = 10;
+
+    // set input mode (non-canonical, no echo,...)
+    iosconfig.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
+
+
+    tcflush(iFd, TCIFLUSH);
 
     // Set config
-    if(tcsetattr(iFd, TCSAFLUSH, &iosconfig) < 0) {
+    if(tcsetattr(iFd, TCSANOW, &iosconfig) < 0) {
 
         close(iFd);
 
         return -1;
     }
+
     return iFd;
 }

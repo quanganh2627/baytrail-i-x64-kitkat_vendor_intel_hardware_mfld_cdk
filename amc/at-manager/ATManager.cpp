@@ -412,7 +412,7 @@ void CATManager::terminateTransaction(bool bSuccess)
         }
         else {
             // Nobody is waiting for this command, clear the answer and status
-            LOGD("%s: (%s): received answer %s", __FUNCTION__, _pCurrentATCommand->getCommand().c_str(), _pCurrentATCommand->getAnswer().c_str());
+            LOGD("%s: (%s): %s %s", __FUNCTION__, _pCurrentATCommand->getCommand().c_str(), bSuccess ? "received answer" : " send failed", _pCurrentATCommand->getAnswer().c_str());
             _pCurrentATCommand->clearStatus();
         }
         // Consume
@@ -874,9 +874,9 @@ bool CATManager::startModemTtyListeners()
 // Called in the context of the Event Listener thread
 void CATManager::stopModemTtyListeners()
 {
-    LOGD("%s", __FUNCTION__);
-
     if (_bTtyListenersStarted) {
+
+        LOGD("%s", __FUNCTION__);
 
         // Close descriptors
         _pEventThread->closeAndRemoveFd(FdToModem);

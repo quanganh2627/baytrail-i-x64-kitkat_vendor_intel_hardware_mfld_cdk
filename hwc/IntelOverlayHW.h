@@ -37,9 +37,9 @@
 #define MAX_CUTOFF_FREQ                 3.0
 
 /*Overlay init micros*/
-#define OVERLAY_INIT_CONTRAST           0x40
-#define OVERLAY_INIT_BRIGHTNESS         0
-#define OVERLAY_INIT_SATURATION         0x80
+#define OVERLAY_INIT_CONTRAST           0x4b
+#define OVERLAY_INIT_BRIGHTNESS         -19
+#define OVERLAY_INIT_SATURATION         0x92
 #define OVERLAY_INIT_GAMMA0             0x080808
 #define OVERLAY_INIT_GAMMA1             0x101010
 #define OVERLAY_INIT_GAMMA2             0x202020

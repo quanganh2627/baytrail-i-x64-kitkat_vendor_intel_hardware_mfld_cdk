@@ -26,7 +26,7 @@ private:
     hwc_layer_t *mHWCLayer;
     IntelDisplayPlane *mPlane;
     int mFlags;
-    int mTransform;
+    bool mForceOverlay;
 public:
     IntelHWComposerLayer();
     IntelHWComposerLayer(hwc_layer_t *layer,
@@ -55,8 +55,8 @@ public:
     IntelDisplayPlane* getPlane(int index);
     void setFlags(int index, int flags);
     int getFlags(int index);
-    void setTransform(int index, int transform);
-    int getTransform(int index);
+    void setForceOverlay(int index, bool isForceOverlay);
+    bool getForceOverlay(int index);
     int getLayersCount() const { return mNumLayers; }
     int getAttachedPlanesCount() const { return mNumAttachedPlanes; }
 };

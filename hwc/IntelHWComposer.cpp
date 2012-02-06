@@ -168,14 +168,25 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
         return false;
 
     // TODO: check buffer usage
+    if (grallocHandle->format != HAL_PIXEL_FORMAT_YV12 &&
+        grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12 &&
+        grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_YUY2 &&
+        grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_UYVY &&
+        grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_I420)
+        return false;
 
-    // TODO: check data format
+    // force to use overlay in video extend mode
+    intel_overlay_mode_t displayMode = mDrm->getDisplayMode();
+    if (displayMode == OVERLAY_EXTEND) {
+        // clear HWC_SKIP_LAYER flag so that force to use overlay
+        layer->flags &= ~HWC_SKIP_LAYER;
+        mLayerList->setForceOverlay(index, true);
+        goto use_overlay;
+    }
 
     // fall back if HWC_SKIP_LAYER was set
-    if ((layer->flags & HWC_SKIP_LAYER)) {
-	//layer->hints |= HWC_HINT_CLEAR_FB;
+    if ((layer->flags & HWC_SKIP_LAYER))
         return false;
-    }
 
     if (mPlaneManager->isWidiActive() ) {
         IntelWidiPlane* wp = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
@@ -187,13 +198,6 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
            return false;
         }
     }
-    // TODO: enable this check after fully switching to Gralloc buffer
-    if (grallocHandle->format != HAL_PIXEL_FORMAT_YV12 &&
-        grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12 &&
-        grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_YUY2 &&
-        grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_UYVY &&
-        grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_I420)
-        return false;
 
     // check whether layer are covered by layers above it
     for (size_t i = index + 1; i < list->numHwLayers; i++) {
@@ -203,6 +207,7 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
         }
     }
 
+use_overlay:
     LOGV("%s: switch to overlay\n", __func__);
 
     // set flags to 0, overlay plane will handle the flags itself
@@ -716,7 +721,7 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
         IntelDisplayPlane *plane = mLayerList->getPlane(i);
         int flags = mLayerList->getFlags(i);
         if (plane &&
-            !(list->hwLayers[i].flags & HWC_SKIP_LAYER) &&
+            (!(list->hwLayers[i].flags & HWC_SKIP_LAYER)) &&
             (list->hwLayers[i].compositionType == HWC_OVERLAY)) {
             bool ret = plane->flip(flags);
             if (!ret)

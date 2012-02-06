@@ -25,7 +25,7 @@ IntelHWComposerLayer::IntelHWComposerLayer()
 IntelHWComposerLayer::IntelHWComposerLayer(hwc_layer_t *layer,
                                            IntelDisplayPlane *plane,
                                            int flags)
-    : mHWCLayer(layer), mPlane(plane), mFlags(flags), mTransform(0)
+    : mHWCLayer(layer), mPlane(plane), mFlags(flags), mForceOverlay(false)
 {
 
 }
@@ -76,6 +76,8 @@ void IntelHWComposerLayerList::updateLayerList(hwc_layer_list_t *layerList)
     for (int i = 0; i < numLayers; i++) {
         mLayerList[i].mHWCLayer = &layerList->hwLayers[i];
         mLayerList[i].mPlane = 0;
+        mLayerList[i].mFlags = 0;
+        mLayerList[i].mForceOverlay = false;
     }
 
     mNumLayers = numLayers;
@@ -166,7 +168,7 @@ int IntelHWComposerLayerList::getFlags(int index)
     return 0;
 }
 
-void IntelHWComposerLayerList::setTransform(int index, int tranform)
+void IntelHWComposerLayerList::setForceOverlay(int index, bool isForceOverlay)
 {
     if (index < 0 || index >= mNumLayers) {
         LOGE("%s: Invalid parameters\n", __func__);
@@ -174,18 +176,18 @@ void IntelHWComposerLayerList::setTransform(int index, int tranform)
     }
 
     if (initCheck())
-        mLayerList[index].mTransform = tranform;
+        mLayerList[index].mForceOverlay = isForceOverlay;
 }
 
-int IntelHWComposerLayerList::getTransform(int index)
+bool IntelHWComposerLayerList::getForceOverlay(int index)
 {
     if (index < 0 || index >= mNumLayers) {
         LOGE("%s: Invalid parameters\n", __func__);
-        return 0;
+        return false;
     }
 
     if (initCheck())
-        return mLayerList[index].mTransform;
+        return mLayerList[index].mForceOverlay;
 
-    return 0;
+    return false;
 }

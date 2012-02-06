@@ -17,6 +17,7 @@
 #define __INTEL_HWCOMPOSER_DRM_H__
 
 #include <IntelBufferManager.h>
+#include <IntelHWCUEventObserver.h>
 #include <psb_drm.h>
 #include <pthread.h>
 #include <pvr2d.h>
@@ -60,6 +61,7 @@ typedef struct {
     drmModeFB fbInfos[OUTPUT_MAX];
     bool mode_valid[OUTPUT_MAX];
     intel_overlay_mode_t display_mode;
+    intel_overlay_mode_t old_display_mode;
 } intel_drm_output_state_t;
 
 /**
@@ -106,6 +108,7 @@ public:
     bool isValidOutputMode(const int output);
     void setDisplayMode(intel_overlay_mode_t displayMode);
     intel_overlay_mode_t getDisplayMode();
+    intel_overlay_mode_t getOldDisplayMode();
 };
 
 #endif /*__INTEL_HWCOMPOSER_DRM_H__*/

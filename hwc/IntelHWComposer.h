@@ -24,14 +24,16 @@
 #include <IntelBufferManager.h>
 #include <IntelHWComposerLayer.h>
 
-class IntelHWComposer : public hwc_composer_device_t {
+class IntelHWComposer : public hwc_composer_device_t, public IntelHWCUEventObserver  {
 private:
     IntelHWComposerDrm *mDrm;
     IntelBufferManager *mBufferManager;
     IntelBufferManager *mGrallocBufferManager;
     IntelDisplayPlaneManager *mPlaneManager;
     IntelHWComposerLayerList *mLayerList;
+    hwc_procs_t const *mProcs;
     bool mNeedSwapBuffer;
+    bool mHotplugEvent;
     bool mInitialized;
 private:
     void onGeometryChanged(hwc_layer_list_t *list);
@@ -57,15 +59,19 @@ private:
     bool isHWCBlending(uint32_t blending);
     bool isHWCLayer(hwc_layer_t *layer);
     bool areLayersIntersecting(hwc_layer_t *top, hwc_layer_t* bottom);
+protected:
+    void onUEvent(const char *msg, int msgLen);
 public:
     bool initCheck() { return mInitialized; }
     bool initialize();
     bool prepare(hwc_layer_list_t *list);
     bool commit(hwc_display_t dpy, hwc_surface_t sur, hwc_layer_list_t *list);
+    void registerProcs(hwc_procs_t const *procs) { mProcs = procs; }
     IntelHWComposer()
-        : mDrm(0), mBufferManager(0), mGrallocBufferManager(0),
-          mPlaneManager(0), mLayerList(0),
-          mNeedSwapBuffer(true), mInitialized(false) {}
+        : IntelHWCUEventObserver(),
+          mDrm(0), mBufferManager(0), mGrallocBufferManager(0),
+          mPlaneManager(0), mLayerList(0), mProcs(0),
+          mNeedSwapBuffer(true), mHotplugEvent(false), mInitialized(false) {}
     ~IntelHWComposer();
 };
 

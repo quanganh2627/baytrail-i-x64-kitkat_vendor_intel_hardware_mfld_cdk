@@ -1071,14 +1071,7 @@ IntelOverlayContext::onDrmModeChange()
     uint32_t overlayAPipe = 0;
     bool ret = true;
 
-    oldDisplayMode = IntelHWComposerDrm::getInstance().getDisplayMode();
-
-    /*detect new drm mode*/
-    ret = IntelHWComposerDrm::getInstance().detectDrmModeInfo();
-    if (ret == false) {
-        LOGE("%s: failed to detect DRM mode\n", __func__);
-        goto mode_change_done;
-    }
+    oldDisplayMode = IntelHWComposerDrm::getInstance().getOldDisplayMode();
 
     /*get new drm mode*/
     newDisplayMode = IntelHWComposerDrm::getInstance().getDisplayMode();
@@ -1312,6 +1305,7 @@ bool IntelOverlayPlane::flip(uint32_t flags)
             reinterpret_cast<IntelOverlayContext*>(mContext);
         flags |= IntelDisplayPlane::FLASH_NEEDED |
                  IntelDisplayPlane::UPDATE_COEF;
+
         ret = overlayContext->flush(flags);
         if (ret == false)
             LOGE("%s: failed to do overlay flip\n", __func__);
@@ -1348,6 +1342,24 @@ bool IntelOverlayPlane::disable()
     }
 
     return ret;
+}
+
+void IntelOverlayPlane::setPipe(intel_display_pipe_t pipe)
+{
+    if (initCheck()) {
+        IntelOverlayContext *overlayContext =
+            reinterpret_cast<IntelOverlayContext*>(mContext);
+        overlayContext->setPipe(pipe);
+    }
+}
+
+void IntelOverlayPlane::setPipeByMode(intel_overlay_mode_t displayMode)
+{
+    if (initCheck()) {
+        IntelOverlayContext *overlayContext =
+            reinterpret_cast<IntelOverlayContext*>(mContext);
+        overlayContext->setPipeByMode(displayMode);
+    }
 }
 
 uint32_t IntelOverlayPlane::onDrmModeChange()

@@ -21,8 +21,8 @@ include $(CLEAR_VARS)
 
 LOCAL_PRELINK_MODULE := false
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
-LOCAL_SHARED_LIBRARIES := liblog libEGL libcutils libdrm libpvr2d libwsbm libsrv_um libui libutils libbinder
-
+LOCAL_SHARED_LIBRARIES := liblog libEGL libcutils libdrm libpvr2d \
+                          libwsbm libsrv_um libui libhardware_legacy libutils libbinder
 LOCAL_SRC_FILES := IntelHWComposerModule.cpp \
                    IntelHWComposer.cpp \
                    IntelHWComposerLayer.cpp \
@@ -33,8 +33,8 @@ LOCAL_SRC_FILES := IntelHWComposerModule.cpp \
                    IntelSpritePlane.cpp \
                    MedfieldSpritePlane.cpp \
                    IntelWsbm.cpp \
-                   IntelWsbmWrapper.c
-                   
+                   IntelWsbmWrapper.c \
+                   IntelHWCUEventObserver.cpp
 LOCAL_MODULE_TAGS := eng
 LOCAL_MODULE := hwcomposer.$(TARGET_DEVICE)
 LOCAL_CFLAGS:= -DLOG_TAG=\"hwcomposer\" -DLINUX
@@ -54,10 +54,10 @@ LOCAL_C_INCLUDES := $(addprefix $(LOCAL_PATH)/../../, $(SGX_INCLUDES)) \
             hardware/intel/linux-2.6/drivers/staging/mrst/drv \
             hardware/intel/linux-2.6/include/drm \
             hardware/intel/linux-2.6/drivers/staging/mrst/bc_video \
-            hardware/intel/linux-2.6/drivers/staging/mrst/imgv	\
+            hardware/intel/linux-2.6/drivers/staging/mrst/imgv \
+            hardware/libhardware_legacy/include/hardware_legacy \
             $(TARGET_OUT_HEADERS)/widi	\
             $(addprefix $(LOCAL_PATH),libhwcwidi)
-
 include $(BUILD_SHARED_LIBRARY)
 
 ifeq ($(INTEL_WIDI), true)

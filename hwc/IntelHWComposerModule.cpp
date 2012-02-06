@@ -84,6 +84,21 @@ set_out:
     return 0;
 }
 
+void hwc_registerProcs(struct hwc_composer_device* dev,
+                       hwc_procs_t const* procs)
+{
+    LOGV("%s\n", __func__);
+
+    IntelHWComposer *hwc = static_cast<IntelHWComposer*>(dev);
+
+    if (!hwc) {
+        LOGE("%s: Invalid HWC device\n", __func__);
+        return;
+    }
+
+    hwc->registerProcs(procs);
+}
+
 static int hwc_device_close(struct hw_device_t *dev)
 {
 #if 0
@@ -129,7 +144,7 @@ static int hwc_device_open(const struct hw_module_t* module, const char* name,
 
         hwc->hwc_composer_device_t::prepare = hwc_prepare;
         hwc->hwc_composer_device_t::set = hwc_set;
-        hwc->hwc_composer_device_t::registerProcs = 0;
+        hwc->hwc_composer_device_t::registerProcs = hwc_registerProcs;
 
         *device = &hwc->hwc_composer_device_t::common;
         status = 0;

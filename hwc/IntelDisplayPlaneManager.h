@@ -103,7 +103,8 @@ public:
     virtual bool enable() { return true; }
     virtual bool disable() { return true; }
     virtual bool reset() { return true; }
-    virtual bool setPipe(intel_display_pipe_t pipe) { return true; }
+    virtual void setPipe(intel_display_pipe_t pipe) {}
+    virtual void setPipeByMode(intel_overlay_mode_t displayMode) {}
 
     // DRM mode change handler
     virtual uint32_t onDrmModeChange() { return 0; }
@@ -253,6 +254,8 @@ public:
     virtual bool flip(uint32_t flags);
     virtual bool reset();
     virtual bool disable();
+    virtual void setPipe(intel_display_pipe_t pipe);
+    virtual void setPipeByMode(intel_overlay_mode_t displayMode);
     virtual uint32_t onDrmModeChange();
 };
 

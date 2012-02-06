@@ -30,6 +30,9 @@ IntelHWComposer::~IntelHWComposer()
     delete mPlaneManager;
     delete mBufferManager;
     delete mDrm;
+
+    // stop uevent observer
+    stopObserver();
 }
 
 bool IntelHWComposer::overlayPrepare(int index, hwc_layer_t *layer, int flags)
@@ -53,6 +56,12 @@ bool IntelHWComposer::overlayPrepare(int index, hwc_layer_t *layer, int flags)
 
     // setup plane parameters
     plane->setPosition(dstLeft, dstTop, dstRight, dstBottom);
+
+    // update plane context on video mode change
+    if (mHotplugEvent)
+        plane->onDrmModeChange();
+    else
+        plane->setPipeByMode(mDrm->getDisplayMode());
 
     // attach plane to hwc layer
     mLayerList->attachPlane(index, plane, flags);
@@ -451,7 +460,7 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                 uint32_t transform = 0;
 
                 // detect video mode change
-                uint32_t displayMode = plane->onDrmModeChange();
+                uint32_t displayMode = mDrm->getDisplayMode();
 
                 if (displayMode != OVERLAY_EXTEND) {
                     // check if can switch to overlay
@@ -618,6 +627,22 @@ bool IntelHWComposer::areLayersIntersecting(hwc_layer_t *top,
     return true;
 }
 
+void IntelHWComposer::onUEvent(const char *msg, int msgLen)
+{
+    if (strcmp(msg, "change@/devices/pci0000:00/0000:00:02.0/drm/card0"))
+        return;
+    msg += strlen(msg) + 1;
+
+    do {
+        if (!strncmp(msg, "HOTPLUG=1", strlen("HOTPLUG=1"))) {
+            LOGD("%s: detected hdmi hotplug event\n", __func__);
+            mHotplugEvent = true;
+            break;
+        }
+        msg += strlen(msg) + 1;
+    } while (*msg);
+}
+
 bool IntelHWComposer::prepare(hwc_layer_list_t *list)
 {
     LOGV("%s\n", __func__);
@@ -635,8 +660,16 @@ bool IntelHWComposer::prepare(hwc_layer_list_t *list)
     // handle geometry changing. attach display planes to layers
     // which can be handled by HWC.
     // plane control information (e.g. position) will be set here
-    if (list->flags & HWC_GEOMETRY_CHANGED) {
+    if ((list->flags & HWC_GEOMETRY_CHANGED) || mHotplugEvent) {
+        // detect display mode on hotplug event
+	if (mHotplugEvent)
+            mDrm->detectDrmModeInfo();
+
         onGeometryChanged(list);
+
+        // clear hotplug event
+        if (mHotplugEvent)
+            mHotplugEvent = false;
     }
 
     // handle buffer changing. setup data buffer.
@@ -742,6 +775,13 @@ bool IntelHWComposer::initialize()
         goto drm_err;
     }
 
+    // start uevent observer
+    ret = startObserver();
+    if (ret == false) {
+        LOGE("%s: failed to start observer\n", __func__);
+        goto observer_err;
+    }
+
     //create new buffer manager and initialize it
     if (!mBufferManager) {
         //mBufferManager = new IntelTTMBufferManager(mDrm->getDrmFd());
@@ -807,6 +847,8 @@ gralloc_bm_err:
     delete mBufferManager;
     mBufferManager = 0;
 bm_err:
+    stopObserver();
+observer_err:
     delete mDrm;
     mDrm = 0;
 drm_err:

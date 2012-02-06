@@ -129,6 +129,7 @@ bool IntelHWComposerDrm::isValidOutputMode(const int output)
 
 void IntelHWComposerDrm::setDisplayMode(intel_overlay_mode_t displayMode)
 {
+    mDrmOutputsState.old_display_mode = mDrmOutputsState.display_mode;
     mDrmOutputsState.display_mode = displayMode;
 }
 
@@ -137,6 +138,15 @@ intel_overlay_mode_t IntelHWComposerDrm::getDisplayMode()
     intel_overlay_mode_t displayMode = OVERLAY_UNKNOWN;
 
     displayMode = mDrmOutputsState.display_mode;
+
+    return displayMode;
+}
+
+intel_overlay_mode_t IntelHWComposerDrm::getOldDisplayMode()
+{
+    intel_overlay_mode_t displayMode = OVERLAY_UNKNOWN;
+
+    displayMode = mDrmOutputsState.old_display_mode;
 
     return displayMode;
 }
@@ -155,11 +165,15 @@ bool IntelHWComposerDrm::initialize(int bufferType)
         }
     }
 
+    // detect display mode
     ret = detectDrmModeInfo();
     if (ret == false)
         LOGW("%s: failed to detect DRM modes\n", __func__);
     else
         LOGV("%s: finish successfully.\n", __func__);
+
+    // set old display mode the same detect mode
+    mDrmOutputsState.old_display_mode =  mDrmOutputsState.display_mode;
     return true;
 }
 bool IntelHWComposerDrm::detectDrmModeInfo()

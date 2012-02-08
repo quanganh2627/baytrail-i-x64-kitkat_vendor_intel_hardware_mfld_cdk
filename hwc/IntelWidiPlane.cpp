@@ -151,7 +151,7 @@ bool
 IntelWidiPlane::flip(uint32_t flags) {
 
     LOGV("Widi Plane flip, flip listener = %p", mFlipListener.get());
-    if (mFlipListener != NULL)
+    if (mFlipListener != NULL && mState == WIDI_PLANE_STATE_ACTIVE)
         mFlipListener->pageFlipped(systemTime(),mCurrentOrientation);
 
     return true;

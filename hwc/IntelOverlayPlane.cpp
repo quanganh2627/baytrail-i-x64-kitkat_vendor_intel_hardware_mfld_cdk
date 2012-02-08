@@ -1140,6 +1140,7 @@ IntelOverlayPlane::IntelOverlayPlane(int fd, int index, IntelBufferManager *bm)
     // initialized successfully
     mDataBuffer = dataBuffer;
     mContext = overlayContext;
+    mWidiPlane = NULL;
     mInitialized = true;
     return;
 overlay_init_err:
@@ -1192,8 +1193,6 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags, intel_gra
         return false;
     }
 
-    if (mWidiPlane)
-            mWidiPlane->setOverlayData(nHandle);
 
     if (flags)
         bufferType = IntelBufferManager::TTM_BUFFER;
@@ -1270,6 +1269,9 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags, intel_gra
         reinterpret_cast<IntelDisplayDataBuffer*>(mDataBuffer);
     overlayDataBuffer->setBuffer(buffer);
 
+    if (mWidiPlane) {
+        mWidiPlane->setOverlayData(nHandle, overlayDataBuffer->getSrcWidth(), overlayDataBuffer->getSrcHeight());
+    }
     // set data buffer :-)
     return setDataBuffer(*overlayDataBuffer);
 }

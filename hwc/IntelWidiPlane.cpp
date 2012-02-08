@@ -124,7 +124,7 @@ IntelWidiPlane::enablePlane(sp<IBinder> display) {
     if(mState == WIDI_PLANE_STATE_INITIALIZED) {
         LOGV("Plane Enabled !!");
         mWirelessDisplay = display;
-        mState =WIDI_PLANE_STATE_ACTIVE;
+        mState = WIDI_PLANE_STATE_ACTIVE;
     }
 
     return 0;
@@ -172,10 +172,11 @@ IntelWidiPlane::setOrientation(uint32_t orientation) {
 }
 
 void
-IntelWidiPlane::setOverlayData(intel_gralloc_buffer_handle_t* nHandle) {
+IntelWidiPlane::setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t width, uint32_t height) {
 
     status_t ret = NO_ERROR;
     sp<IWirelessDisplay> wd = interface_cast<IWirelessDisplay>(mWirelessDisplay);
+
     if(mState == WIDI_PLANE_STATE_ACTIVE) {
 
     	if (mExtVideoStartDelay) {
@@ -187,7 +188,14 @@ IntelWidiPlane::setOverlayData(intel_gralloc_buffer_handle_t* nHandle) {
 
         if( p == nHandle) {
             LOGI("We have all the  buffers (%d), lets move to streaming state and change the mode", mExtVideoBuffers.size());
-            ret = sendInitMode(IWirelessDisplay::WIDI_MODE_EXTENDED_VIDEO);
+
+            if(mCurrentOrientation){    // Adjust for orientations different than 0 (i.e. 90 and 270)
+                uint32_t tmp = width;
+                width = height;
+                height = tmp;
+            }
+
+            ret = sendInitMode(IWirelessDisplay::WIDI_MODE_EXTENDED_VIDEO, width, height);
             if(ret == NO_ERROR) {
                 mState = WIDI_PLANE_STATE_STREAMING;
                 mExtVideoStartDelay = EXT_VIDEO_START_DELAY;
@@ -210,7 +218,7 @@ IntelWidiPlane::setOverlayData(intel_gralloc_buffer_handle_t* nHandle) {
         if (index == NAME_NOT_FOUND) {
             LOGW("Unexpected buffer received, going back to clone mode");
             mState = WIDI_PLANE_STATE_ACTIVE;
-            sendInitMode(IWirelessDisplay::WIDI_MODE_CLONE);
+            sendInitMode(IWirelessDisplay::WIDI_MODE_CLONE,0,0);
             mExtVideoBuffers.clear();
 
         } else {
@@ -254,7 +262,7 @@ IntelWidiPlane::overlayInUse(bool used) {
         mState = WIDI_PLANE_STATE_ACTIVE;
         mExtVideoBuffers.clear();
         sp<IWirelessDisplay> wd = interface_cast<IWirelessDisplay>(mWirelessDisplay);
-        wd->initMode(NULL, 0, IWirelessDisplay::WIDI_MODE_CLONE);
+        wd->initMode(NULL, 0, IWirelessDisplay::WIDI_MODE_CLONE,0, 0);
     }
 }
 void
@@ -276,14 +284,14 @@ IntelWidiPlane::init() {
 }
 
 status_t
-IntelWidiPlane::sendInitMode(int mode) {
+IntelWidiPlane::sendInitMode(int mode, uint32_t width, uint32_t height) {
 
     status_t ret = NO_ERROR;
     sp<IWirelessDisplay> wd = interface_cast<IWirelessDisplay>(mWirelessDisplay);
 
     if(mode == IWirelessDisplay::WIDI_MODE_CLONE) {
 
-        ret = wd->initMode(NULL, 0, IWirelessDisplay::WIDI_MODE_CLONE);
+        ret = wd->initMode(NULL, 0, IWirelessDisplay::WIDI_MODE_CLONE, 0, 0);
 
     }else if(mode == IWirelessDisplay::WIDI_MODE_EXTENDED_VIDEO) {
 
@@ -294,7 +302,7 @@ IntelWidiPlane::sendInitMode(int mode) {
             bufs[i] = *mExtVideoBuffers.valueAt(i);
         }
 
-        ret = wd->initMode(bufs, bufferCount, IWirelessDisplay::WIDI_MODE_EXTENDED_VIDEO);
+        ret = wd->initMode(bufs, bufferCount, IWirelessDisplay::WIDI_MODE_EXTENDED_VIDEO, width, height);
 
         delete bufs;
     }

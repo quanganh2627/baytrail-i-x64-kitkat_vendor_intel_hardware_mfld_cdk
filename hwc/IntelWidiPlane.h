@@ -39,7 +39,7 @@ public:
     void allowExtVideoMode(bool allow);
     bool isExtVideoAllowed() {return mAllowExtVideoMode;};
     void setOrientation(uint32_t orientation);
-    void setOverlayData(intel_gralloc_buffer_handle_t* nHandle);
+    void setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t width, uint32_t height);
     void overlayInUse(bool);
     bool isStreaming() { return (mState == WIDI_PLANE_STATE_STREAMING); };
 
@@ -48,7 +48,7 @@ public:
 
 protected:
     void init();
-    android::status_t sendInitMode(int mode);
+    android::status_t sendInitMode(int mode, uint32_t width, uint32_t height);
 
     class WidiInitThread: public android::Thread {
     public:
@@ -102,9 +102,8 @@ public:
         IntelDisplayPlane(fd, IntelDisplayPlane::DISPLAY_PLANE_OVERLAY, index, bm){};
     ~IntelWidiPlane(){};
     virtual void setPosition(int left, int top, int right, int bottom){return;};
-    void setOverlayData(intel_gralloc_buffer_handle_t* nHandle){};
+    void setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t width, uint32_t height){};
     void overlayInUse(bool){};
-
 
     void allowExtVideoMode(bool allow){return;};
     bool isExtVideoAllowed() {return true;};

@@ -23,6 +23,7 @@
 
 
 static const int EXT_VIDEO_MODE_MAX_SURFACE = 32;
+static const int EXT_VIDEO_START_DELAY = 20;
 
 using namespace android;
 using namespace intel::widi;
@@ -72,7 +73,8 @@ IntelWidiPlane::IntelWidiPlane(int fd, int index, IntelBufferManager *bm)
       mInitThread(NULL),
       mFlipListener(NULL),
       mWirelessDisplay(NULL),
-      mCurrentOrientation(0)
+      mCurrentOrientation(0),
+      mExtVideoStartDelay(EXT_VIDEO_START_DELAY)
 
 {
     LOGV("Intel Widi Plane constructor");
@@ -176,6 +178,11 @@ IntelWidiPlane::setOverlayData(intel_gralloc_buffer_handle_t* nHandle) {
     sp<IWirelessDisplay> wd = interface_cast<IWirelessDisplay>(mWirelessDisplay);
     if(mState == WIDI_PLANE_STATE_ACTIVE) {
 
+    	if (mExtVideoStartDelay) {
+    	            mExtVideoStartDelay--;
+    	            LOGI("delaying mode change");
+    	            return;
+    	}
         intel_gralloc_buffer_handle_t *p = mExtVideoBuffers.valueFor(nHandle);
 
         if( p == nHandle) {
@@ -183,6 +190,8 @@ IntelWidiPlane::setOverlayData(intel_gralloc_buffer_handle_t* nHandle) {
             ret = sendInitMode(IWirelessDisplay::WIDI_MODE_EXTENDED_VIDEO);
             if(ret == NO_ERROR) {
                 mState = WIDI_PLANE_STATE_STREAMING;
+                mExtVideoStartDelay = EXT_VIDEO_START_DELAY;
+
             }else {
                 LOGE("Something went wrong setting the mode, we continue in clone mode");
                 mExtVideoBuffers.clear();

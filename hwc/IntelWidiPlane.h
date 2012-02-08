@@ -87,6 +87,7 @@ protected:
     android::sp<IBinder>            mWirelesDisplayservice;
     android::sp<IBinder>            mWirelessDisplay;
     uint32_t                        mCurrentOrientation;
+    uint32_t                        mExtVideoStartDelay;
 
     android::KeyedVector<intel_gralloc_buffer_handle_t*,
                          intel_gralloc_buffer_handle_t*> mExtVideoBuffers;

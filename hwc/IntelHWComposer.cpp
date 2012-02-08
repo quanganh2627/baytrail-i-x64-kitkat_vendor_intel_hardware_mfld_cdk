@@ -160,6 +160,8 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
     if (!list || !layer)
         return false;
 
+    IntelWidiPlane* widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
+
     // TODO: enable this when ST is ready
     intel_gralloc_buffer_handle_t *grallocHandle =
         (intel_gralloc_buffer_handle_t*)layer->handle;
@@ -177,6 +179,9 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
 
     // force to use overlay in video extend mode
     intel_overlay_mode_t displayMode = mDrm->getDisplayMode();
+    if(widiPlane->isStreaming())
+    	displayMode = OVERLAY_EXTEND;
+
     if (displayMode == OVERLAY_EXTEND) {
         // clear HWC_SKIP_LAYER flag so that force to use overlay
         layer->flags &= ~HWC_SKIP_LAYER;
@@ -188,15 +193,11 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
     if ((layer->flags & HWC_SKIP_LAYER))
         return false;
 
-    if (mPlaneManager->isWidiActive() ) {
-        IntelWidiPlane* wp = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
-
-        if (!(wp->isExtVideoAllowed()) ){
-           /* if extended video mode is not allowed we stop here and
-            * let the video to be rendered via GFx plane by surface flinger
-            */
-           return false;
-        }
+    if (widiPlane->isActive() &&  !(widiPlane->isExtVideoAllowed())) {
+	   /* if extended video mode is not allowed we stop here and
+		* let the video to be rendered via GFx plane by surface flinger
+		*/
+	   return false;
     }
 
     // check whether layer are covered by layers above it
@@ -425,6 +426,7 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
     IntelDisplayPlane *plane = 0;
     bool overlayInUse = false;
     bool ret;
+    IntelWidiPlane* widiplane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
 
     for (size_t i=0 ; i<list->numHwLayers ; i++) {
         plane = mLayerList->getPlane(i);
@@ -467,6 +469,8 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
 
                 // detect video mode change
                 uint32_t displayMode = mDrm->getDisplayMode();
+                if(widiplane->isStreaming())
+                	displayMode = OVERLAY_EXTEND;
 
                 if (displayMode != OVERLAY_EXTEND) {
                     // check if can switch to overlay

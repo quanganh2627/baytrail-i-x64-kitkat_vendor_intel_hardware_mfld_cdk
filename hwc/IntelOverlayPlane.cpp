@@ -874,11 +874,12 @@ void IntelOverlayContext::checkPosition(int& x, int& y, int& w, int& h)
     if (!mContext)
         return;
 
-    intel_overlay_mode_t displayMode =
-        IntelHWComposerDrm::getInstance().getDisplayMode();
-    drmModeModeInfoPtr mode;
-    bool mode_valid;
     int output;
+    drmModeModeInfoPtr mode;
+    intel_overlay_mode_t displayMode;
+
+    displayMode = IntelHWComposerDrm::getInstance().getDisplayMode();
+
     /*display full screen size overlay when HDMI is connected*/
     if (displayMode == OVERLAY_EXTEND)
         output = OUTPUT_HDMI;
@@ -886,10 +887,22 @@ void IntelOverlayContext::checkPosition(int& x, int& y, int& w, int& h)
         output = OUTPUT_MIPI0;
 
     mode = IntelHWComposerDrm::getInstance().getOutputMode(output);
-    mode_valid = IntelHWComposerDrm::getInstance().isValidOutputMode(output);
 
-    if (!mode || !mode->hdisplay || !mode->vdisplay)
-	return;
+    // Display mode setting may ongoing, retry up to 20ms
+    // FIXME: HWC needs to be notified by HDMIObserver once mode setting
+    // was completed
+    int retry = 20;
+    while (--retry && (!mode || !mode->hdisplay || !mode->vdisplay)) {
+        LOGW("%s: Invalid mode %dx%d, trying detect again\n",
+             __func__, mode->hdisplay, mode->vdisplay);
+        IntelHWComposerDrm::getInstance().detectDrmModeInfo();
+        usleep(1000);
+    }
+
+    if (!retry || !mode || !mode->hdisplay || !mode->vdisplay) {
+        LOGE("%s: failed to detect mode of output %d\n", __func__, output);
+        return;
+    }
 
     if (displayMode == OVERLAY_EXTEND) {
         x = 0;

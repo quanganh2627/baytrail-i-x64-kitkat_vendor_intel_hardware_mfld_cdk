@@ -24,6 +24,7 @@
 
 static const int EXT_VIDEO_MODE_MAX_SURFACE = 32;
 static const int EXT_VIDEO_START_DELAY = 20;
+static const int ROTATION_DAMPING_PERIOD = 35;  // Number of frames where the rotation is maintained after a change
 
 using namespace android;
 using namespace intel::widi;
@@ -80,6 +81,9 @@ IntelWidiPlane::IntelWidiPlane(int fd, int index, IntelBufferManager *bm)
     LOGV("Intel Widi Plane constructor");
 
     mExtVideoBuffers.setCapacity(EXT_VIDEO_MODE_MAX_SURFACE);
+    mOrientationDampener.setCapacity(ROTATION_DAMPING_PERIOD);
+    for(int i = 0; i< ROTATION_DAMPING_PERIOD; i++)
+        mOrientationDampener.push(0);
 
     /* defer initialization of widi plane to another thread
      * we do this because the initialization may take long time and we do not
@@ -148,14 +152,39 @@ IntelWidiPlane::registerFlipListener(sp<IPageFlipListener> listener) {
     mFlipListener = listener;
     return NO_ERROR;
 }
-
+/* flip
+ *
+ * This method is called by HWC at every UI refresh flip
+ * We use this to signal the Widi Stack to capture a new UI frame
+ *
+ * The mRotaionDampener is a damping mechanism to smooth out
+ * spurious orientation changes that happen during transitions.
+ * It is a delay buffer for the orientation information to be sent to
+ * the Widi Stack
+ * When there is a change we reset the whole delay buffer to remove
+ * any spurious transitions.
+ *
+ * */
 bool
 IntelWidiPlane::flip(uint32_t flags) {
 
     LOGV("Widi Plane flip, flip listener = %p", mFlipListener.get());
-    if (mFlipListener != NULL && mState == WIDI_PLANE_STATE_ACTIVE)
-        mFlipListener->pageFlipped(systemTime(),mCurrentOrientation);
+    if (mFlipListener != NULL && mState == WIDI_PLANE_STATE_ACTIVE) {
+        mOrientationDampener.push(mCurrentOrientation);
 
+
+        if(mLastSentOrientation != mOrientationDampener.itemAt(0)) {
+            mLastSentOrientation = mOrientationDampener.itemAt(0);
+            for(int i=0; i< ROTATION_DAMPING_PERIOD; i++)
+                mOrientationDampener.replaceAt(mLastSentOrientation, i);
+        } else {
+            mLastSentOrientation = mOrientationDampener.itemAt(0);
+        }
+
+        mFlipListener->pageFlipped(systemTime(),mLastSentOrientation);
+        mOrientationDampener.removeAt(0);
+
+    }
     return true;
 }
 

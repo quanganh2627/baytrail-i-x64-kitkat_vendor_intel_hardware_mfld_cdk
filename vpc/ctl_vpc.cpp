@@ -89,6 +89,9 @@ static bool      call_connected       = false;
 
 static bool      vpc_audio_routed     = false;
 
+/* Forward declaration */
+static void voice_call_record_restore();
+
 /*---------------------------------------------------------------------------*/
 /* Initialization                                                            */
 /*---------------------------------------------------------------------------*/
@@ -399,6 +402,9 @@ static int vpc_route(vpc_route_t route)
                         default:
                             break;
                     }
+                    // Restore record path if required
+                    voice_call_record_restore();
+
                     // Update internal state variables
                     prev_mode = current_mode;
                     prev_device = current_device;
@@ -624,6 +630,15 @@ static void voice_call_record_off()
     }
 }
 
+static void voice_call_record_restore()
+{
+    if (voice_call_recording)
+    {
+        // Restore voice call record
+        LOGD("%s", __FUNCTION__);
+        amc_voice_record_on();
+    }
+}
 /*---------------------------------------------------------------------------*/
 /* Mixing Enable/disable                                                     */
 /*---------------------------------------------------------------------------*/

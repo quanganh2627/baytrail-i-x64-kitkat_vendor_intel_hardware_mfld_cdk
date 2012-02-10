@@ -21,7 +21,6 @@
 #include "streaming/IWirelessDisplayService.h"
 #include "streaming/IWirelessDisplay.h"
 
-
 static const int EXT_VIDEO_MODE_MAX_SURFACE = 32;
 static const int EXT_VIDEO_START_DELAY = 20;
 static const int ROTATION_DAMPING_PERIOD = 35;  // Number of frames where the rotation is maintained after a change
@@ -204,15 +203,14 @@ void
 IntelWidiPlane::setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t width, uint32_t height) {
 
     status_t ret = NO_ERROR;
-    sp<IWirelessDisplay> wd = interface_cast<IWirelessDisplay>(mWirelessDisplay);
 
     if(mState == WIDI_PLANE_STATE_ACTIVE) {
 
-    	if (mExtVideoStartDelay) {
-    	            mExtVideoStartDelay--;
-    	            LOGI("delaying mode change");
-    	            return;
-    	}
+        if (mExtVideoStartDelay) {
+            mExtVideoStartDelay--;
+            LOGI("delaying mode change");
+            return;
+        }
         intel_gralloc_buffer_handle_t *p = mExtVideoBuffers.valueFor(nHandle);
 
         if( p == nHandle) {
@@ -243,6 +241,7 @@ IntelWidiPlane::setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t 
     } else if(mState == WIDI_PLANE_STATE_STREAMING) {
 
         ssize_t index = mExtVideoBuffers.indexOfKey(nHandle);
+        sp<IWirelessDisplay> wd = interface_cast<IWirelessDisplay>(mWirelessDisplay);
 
         if (index == NAME_NOT_FOUND) {
             LOGW("Unexpected buffer received, going back to clone mode");

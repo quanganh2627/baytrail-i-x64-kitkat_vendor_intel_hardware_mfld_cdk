@@ -180,7 +180,7 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
     // force to use overlay in video extend mode
     intel_overlay_mode_t displayMode = mDrm->getDisplayMode();
     if(widiPlane->isStreaming())
-    	displayMode = OVERLAY_EXTEND;
+        displayMode = OVERLAY_EXTEND;
 
     if (displayMode == OVERLAY_EXTEND) {
         // clear HWC_SKIP_LAYER flag so that force to use overlay
@@ -194,10 +194,10 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
         return false;
 
     if (widiPlane->isActive() &&  !(widiPlane->isExtVideoAllowed())) {
-	   /* if extended video mode is not allowed we stop here and
-		* let the video to be rendered via GFx plane by surface flinger
-		*/
-	   return false;
+        /* if extended video mode is not allowed we stop here and
+         * let the video to be rendered via GFx plane by surface flinger
+         */
+        return false;
     }
 
     // check whether layer are covered by layers above it
@@ -470,7 +470,7 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                 // detect video mode change
                 uint32_t displayMode = mDrm->getDisplayMode();
                 if(widiplane->isStreaming())
-                	displayMode = OVERLAY_EXTEND;
+                    displayMode = OVERLAY_EXTEND;
 
                 if (displayMode != OVERLAY_EXTEND) {
                     // check if can switch to overlay

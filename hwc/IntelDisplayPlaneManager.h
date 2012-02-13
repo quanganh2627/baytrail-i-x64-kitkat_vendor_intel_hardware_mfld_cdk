@@ -100,6 +100,7 @@ public:
     }
     virtual bool invalidateDataBuffer() { return true; }
     virtual bool flip(uint32_t flags) { return true; }
+    virtual void waitForFlipCompletion() {}
     virtual bool enable() { return true; }
     virtual bool disable() { return true; }
     virtual bool reset() { return true; }
@@ -257,6 +258,7 @@ public:
 
     virtual bool invalidateDataBuffer();
     virtual bool flip(uint32_t flags);
+    virtual void waitForFlipCompletion();
     virtual bool reset();
     virtual bool disable();
     virtual void setPipe(intel_display_pipe_t pipe);

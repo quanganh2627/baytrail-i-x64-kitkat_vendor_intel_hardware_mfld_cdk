@@ -743,6 +743,9 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
             bool ret = plane->flip(flags);
             if (!ret)
                 LOGW("%s: failed to flip plane %d\n", __func__, i);
+
+            // wait for flip completion
+            plane->waitForFlipCompletion();
         }
 
         // if layer requires clear FB, force swap buffers

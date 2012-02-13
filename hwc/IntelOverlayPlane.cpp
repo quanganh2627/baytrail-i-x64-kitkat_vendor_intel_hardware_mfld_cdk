@@ -1323,7 +1323,8 @@ bool IntelOverlayPlane::flip(uint32_t flags)
         IntelOverlayContext *overlayContext =
             reinterpret_cast<IntelOverlayContext*>(mContext);
         flags |= IntelDisplayPlane::FLASH_NEEDED |
-                 IntelDisplayPlane::UPDATE_COEF;
+                 IntelDisplayPlane::UPDATE_COEF |
+                 IntelDisplayPlane::WAIT_VBLANK;
 
         ret = overlayContext->flush(flags);
         if (ret == false)
@@ -1331,6 +1332,11 @@ bool IntelOverlayPlane::flip(uint32_t flags)
     }
 
     return ret;
+}
+
+void IntelOverlayPlane::waitForFlipCompletion()
+{
+    // we already wait for vblank in flip() so do nothing here
 }
 
 bool IntelOverlayPlane::reset()

@@ -46,14 +46,6 @@
         } \
     } while (0)
 
-#ifndef ALSA_DEFAULT_SAMPLE_RATE
-#define ALSA_DEFAULT_SAMPLE_RATE 44100 // in Hz
-#endif
-
-#ifndef DEFAULT_CAPTURE_RATE
-#define DEFAULT_CAPTURE_RATE 8000 // in Hz
-#endif
-
 #ifndef VOICE_MODEM_DEFAULT_SAMPLE_RATE
 #define VOICE_MODEM_DEFAULT_SAMPLE_RATE 48000 // in Hz
 #endif
@@ -71,6 +63,9 @@
 #endif
 
 #define DEVICE_OUT_BLUETOOTH_SCO_ALL (AudioSystem::DEVICE_OUT_BLUETOOTH_SCO | AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET | AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_CARKIT)
+
+#define NOT_SET -1
+
 
 int voice_activated = 0;
 namespace android_audio_legacy
@@ -110,8 +105,6 @@ static int s_device_close(hw_device_t* device)
 
 // ----------------------------------------------------------------------------
 
-static const int DEFAULT_SAMPLE_RATE = ALSA_DEFAULT_SAMPLE_RATE;
-
 static const char *devicePrefix[SND_PCM_STREAM_LAST + 1] = {
     /* SND_PCM_STREAM_PLAYBACK : */"AndroidPlayback",
     /* SND_PCM_STREAM_CAPTURE  : */"AndroidCapture",
@@ -125,10 +118,10 @@ static alsa_handle_t _defaultsOut = {
     handle             : 0,
     format             : SND_PCM_FORMAT_S16_LE, // AudioSystem::PCM_16_BIT
     channels           : 2,
-    sampleRate         : DEFAULT_SAMPLE_RATE,
-    expectedSampleRate : DEFAULT_SAMPLE_RATE, //expected sample rate
+    sampleRate         : NOT_SET,
+    expectedSampleRate : NOT_SET, //expected sample rate
     latency            : PERIOD_TIME * 4, // Desired Delay in usec
-    bufferSize         : DEFAULT_SAMPLE_RATE / 5, // Desired Number of samples
+    bufferSize         : NOT_SET, // Desired Number of samples
     modPrivate         : 0,
     openFlag           : 0,
 };
@@ -141,8 +134,8 @@ static alsa_handle_t _defaultsIn = {
     handle             : 0,
     format             : SND_PCM_FORMAT_S16_LE, // AudioSystem::PCM_16_BIT
     channels           : 2,
-    sampleRate         : DEFAULT_SAMPLE_RATE,
-    expectedSampleRate : DEFAULT_SAMPLE_RATE, //expected sample rate
+    sampleRate         : NOT_SET,
+    expectedSampleRate : NOT_SET, //expected sample rate
     latency            : CAPTURE_PERIOD_TIME * 4, // Desired Delay in usec
     bufferSize         : 2048, // Desired Number of samples
     modPrivate         : 0,
@@ -466,8 +459,15 @@ static status_t setSoftwareParams(alsa_handle_t *handle)
 
 // ----------------------------------------------------------------------------
 
-static status_t s_init(alsa_device_t *module, ALSAHandleList &list)
+static status_t s_init(alsa_device_t *module, ALSAHandleList &list, uint32_t defaultInputSampleRate, uint32_t defaultOutputSampleRate)
 {
+    // Configuration
+    _defaultsIn.sampleRate = defaultInputSampleRate;
+    _defaultsIn.expectedSampleRate = defaultInputSampleRate;
+    _defaultsOut.sampleRate = defaultOutputSampleRate;
+    _defaultsOut.expectedSampleRate = defaultOutputSampleRate;
+    _defaultsOut.bufferSize = defaultOutputSampleRate / 5;
+
     list.clear();
 
     snd_pcm_uframes_t bufferSize = _defaultsOut.bufferSize;
@@ -603,11 +603,12 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
         return NO_INIT;
     }
 
-    // reset the initial value; playback and caputure are the same value.
-    handle->sampleRate = DEFAULT_SAMPLE_RATE;
-    handle->expectedSampleRate = DEFAULT_SAMPLE_RATE;
 
     if (devices & AudioSystem::DEVICE_OUT_ALL) {
+        // reset the initial value for playback
+        handle->sampleRate = _defaultsOut.sampleRate;
+        handle->expectedSampleRate = _defaultsOut.expectedSampleRate;
+
         if (mode == AudioSystem::MODE_IN_CALL) {
             LOGD("Setting expected sample rate to %d (IN_CALL)", VOICE_MODEM_DEFAULT_SAMPLE_RATE);
             handle->expectedSampleRate = VOICE_MODEM_DEFAULT_SAMPLE_RATE;
@@ -634,24 +635,27 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
     //This is not a formal solution and limitation, so maybe we will modify these codes
     //when we find a better way to resolve SRC.
     if (devices & AudioSystem::DEVICE_IN_ALL) {
+        // reset the initial value for record
+        handle->sampleRate = _defaultsIn.sampleRate;
+        handle->expectedSampleRate = _defaultsIn.expectedSampleRate;
 
         if (mode == AudioSystem::MODE_IN_CALL) {
             LOGD("Detected voice modem capture device, setting sample rate to %d instead of %d, SRC done by ALSA", 
-								DEFAULT_SAMPLE_RATE, VOICE_MODEM_DEFAULT_SAMPLE_RATE);
+                                                                _defaultsIn.sampleRate, VOICE_MODEM_DEFAULT_SAMPLE_RATE);
             // SRC done by Alsa plug, later improvement: use intel optimized SRC
-            handle->sampleRate = DEFAULT_SAMPLE_RATE;
+            handle->sampleRate = _defaultsIn.sampleRate;
         }
         else if (devices & AudioSystem::DEVICE_IN_BLUETOOTH_SCO_HEADSET) {
             LOGD("Detected voice Bluetooth capture device, setting sample rate to %d instead of %d, SRC done by ALSA", 
-								DEFAULT_SAMPLE_RATE, VOICE_BT_DEFAULT_SAMPLE_RATE);
+                                                                _defaultsIn.sampleRate, VOICE_BT_DEFAULT_SAMPLE_RATE);
             // SRC done by Alsa plug, later improvement: use intel optimized SRC
-            handle->sampleRate = DEFAULT_SAMPLE_RATE;
+            handle->sampleRate = _defaultsIn.sampleRate;
         }
         else if (mode == AudioSystem::MODE_IN_COMMUNICATION) {
             LOGD("Detected voice codec capture device, setting sample rate %d instead of %d, SRC done by ALSA", 
-								DEFAULT_SAMPLE_RATE, VOICE_MODEM_DEFAULT_SAMPLE_RATE);
+                                                                _defaultsIn.sampleRate, VOICE_MODEM_DEFAULT_SAMPLE_RATE);
             // SRC done by Alsa plug, later improvement: use intel optimized SRC
-            handle->sampleRate = DEFAULT_SAMPLE_RATE;
+            handle->sampleRate = _defaultsIn.sampleRate;
         }
     }
 

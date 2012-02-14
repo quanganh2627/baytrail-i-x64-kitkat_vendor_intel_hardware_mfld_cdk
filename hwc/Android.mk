@@ -25,6 +25,7 @@ LOCAL_SHARED_LIBRARIES := liblog libEGL libcutils libdrm libpvr2d libwsbm libsrv
 LOCAL_SRC_FILES := IntelHWComposerModule.cpp \
                    IntelHWComposer.cpp \
                    IntelHWComposerLayer.cpp \
+		   IntelHWComposerDump.cpp \
                    IntelBufferManager.cpp \
                    IntelDisplayPlaneManager.cpp \
                    IntelHWComposerDrm.cpp \

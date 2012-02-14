@@ -783,6 +783,36 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
     return true;
 }
 
+bool IntelHWComposer::dump(char *buff,
+                           int buff_len, int *cur_len)
+{
+    IntelDisplayPlane *plane = NULL;
+    bool ret = true;
+    int i;
+
+    mDumpBuf = buff;
+    mDumpBuflen = buff_len;
+    mDumpLen = 0;
+
+    if (mLayerList) {
+           for (i = 0; i < mLayerList->getLayersCount(); i++) {
+                       dumpPrintf("     layer %d:\n", i);
+
+                       plane = mLayerList->getPlane(i);
+                       if (plane) {
+                               int planeType = plane->getPlaneType();
+
+                               dumpPrintf("    PlaneType: %s\n",
+                                   planeType ? "sprite" : "overlay");
+                       }
+           }
+    }
+
+    mPlaneManager->dump(mDumpBuf,  mDumpBuflen, &mDumpLen);
+
+    return ret;
+}
+
 bool IntelHWComposer::initialize()
 {
     bool ret = true;

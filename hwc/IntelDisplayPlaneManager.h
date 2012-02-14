@@ -21,6 +21,7 @@
 #include <cutils/atomic.h>
 
 #include <IntelHWComposerDrm.h>
+#include <IntelHWComposerDump.h>
 #include <IntelBufferManager.h>
 #include <IntelOverlayHW.h>
 
@@ -45,7 +46,7 @@ typedef enum {
     PIPE_HDMI,
 } intel_display_pipe_t;
 
-class IntelDisplayPlane {
+class IntelDisplayPlane : public IntelHWComposerDump {
 public:
 	enum {
             DISPLAY_PLANE_SPRITE = 1,
@@ -325,7 +326,7 @@ public:
     virtual bool disable();
 };
 
-class IntelDisplayPlaneManager {
+class IntelDisplayPlaneManager : public IntelHWComposerDump {
 private:
     int mSpritePlaneCount;
     int mOverlayPlaneCount;
@@ -362,6 +363,9 @@ public:
     bool isWidiActive();
     void reclaimPlane(IntelDisplayPlane *plane);
     void disableReclaimedPlanes(int type);
+
+    // dump plane info
+    bool dump(char *buff, int buff_len, int *cur_len);
 };
 
 #endif /*__INTEL_DISPLAY_PLANE_MANAGER_H__*/

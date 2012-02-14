@@ -23,8 +23,9 @@
 #include <IntelHWComposerDrm.h>
 #include <IntelBufferManager.h>
 #include <IntelHWComposerLayer.h>
+#include <IntelHWComposerDump.h>
 
-class IntelHWComposer : public hwc_composer_device_t, public IntelHWCUEventObserver  {
+class IntelHWComposer : public hwc_composer_device_t, public IntelHWCUEventObserver, public IntelHWComposerDump  {
 private:
     IntelHWComposerDrm *mDrm;
     IntelBufferManager *mBufferManager;
@@ -66,9 +67,10 @@ public:
     bool initialize();
     bool prepare(hwc_layer_list_t *list);
     bool commit(hwc_display_t dpy, hwc_surface_t sur, hwc_layer_list_t *list);
+    bool dump(char *buff, int buff_len, int *cur_len);
     void registerProcs(hwc_procs_t const *procs) { mProcs = procs; }
     IntelHWComposer()
-        : IntelHWCUEventObserver(),
+        : IntelHWCUEventObserver(), IntelHWComposerDump(),
           mDrm(0), mBufferManager(0), mGrallocBufferManager(0),
           mPlaneManager(0), mLayerList(0), mProcs(0),
           mNeedSwapBuffer(true), mHotplugEvent(false), mInitialized(false) {}

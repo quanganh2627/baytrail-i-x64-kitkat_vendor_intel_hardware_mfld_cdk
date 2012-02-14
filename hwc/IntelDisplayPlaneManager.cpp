@@ -298,3 +298,22 @@ IntelDisplayPlaneManager::getWidiPlane() {
 
      return false;
  }
+
+bool IntelDisplayPlaneManager::dump(char *buff,
+                                 int buff_len, int *cur_len)
+{
+    bool ret = true;
+
+    mDumpBuf = buff;
+    mDumpBuflen = buff_len;
+    mDumpLen = *cur_len;
+
+    dumpPrintf("     sprite plane count %d:\n", mSpritePlaneCount);
+    dumpPrintf("     overlay plane count %d:\n", mOverlayPlaneCount);
+    dumpPrintf("     free sprite plane %x:\n", mFreeSpritePlanes);
+    dumpPrintf("     sprite plane count %d:\n", mOverlayPlaneCount);
+
+    *cur_len = mDumpLen;
+
+    return ret;
+}

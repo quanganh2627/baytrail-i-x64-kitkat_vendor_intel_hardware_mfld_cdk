@@ -84,6 +84,14 @@ set_out:
     return 0;
 }
 
+static void hwc_dump(struct hwc_composer_device *dev, char *buff, int buff_len)
+{
+    IntelHWComposer *hwc = static_cast<IntelHWComposer*>(dev);
+
+    if (hwc)
+       hwc->dump(buff, buff_len, 0);
+}
+
 void hwc_registerProcs(struct hwc_composer_device* dev,
                        hwc_procs_t const* procs)
 {
@@ -137,13 +145,14 @@ static int hwc_device_open(const struct hw_module_t* module, const char* name,
 
         /* initialize the procs */
         hwc->hwc_composer_device_t::common.tag = HARDWARE_DEVICE_TAG;
-        hwc->hwc_composer_device_t::common.version = 0;
+        hwc->hwc_composer_device_t::common.version = 1;
         hwc->hwc_composer_device_t::common.module =
             const_cast<hw_module_t*>(module);
         hwc->hwc_composer_device_t::common.close = hwc_device_close;
 
         hwc->hwc_composer_device_t::prepare = hwc_prepare;
         hwc->hwc_composer_device_t::set = hwc_set;
+        hwc->hwc_composer_device_t::dump = hwc_dump;
         hwc->hwc_composer_device_t::registerProcs = hwc_registerProcs;
 
         *device = &hwc->hwc_composer_device_t::common;

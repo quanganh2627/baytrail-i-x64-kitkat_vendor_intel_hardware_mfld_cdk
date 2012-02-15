@@ -1199,7 +1199,7 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags, intel_gra
     else
         bufferType = IntelBufferManager::GRALLOC_BUFFER;
 
-    for (int i = 0; i < INTEL_DATA_BUFFER_NUM_MAX; i++) {
+    for (int i = 0; i < OVERLAY_DATA_BUFFER_NUM_MAX; i++) {
         if (mDataBuffers[i].handle == handle &&
             mDataBuffers[i].bufferType == bufferType) {
             buffer = mDataBuffers[i].buffer;
@@ -1262,7 +1262,7 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags, intel_gra
         mDataBuffers[mNextBuffer].bufferType = bufferType;
 
         // move mNextBuffer pointer
-        mNextBuffer = (mNextBuffer + 1) % INTEL_DATA_BUFFER_NUM_MAX;
+        mNextBuffer = (mNextBuffer + 1) % OVERLAY_DATA_BUFFER_NUM_MAX;
     }
 
     IntelDisplayDataBuffer *overlayDataBuffer =
@@ -1301,7 +1301,7 @@ bool IntelOverlayPlane::invalidateDataBuffer()
     if (!initCheck())
         return false;
 
-    for (int i = 0; i < INTEL_DATA_BUFFER_NUM_MAX; i++) {
+    for (int i = 0; i < OVERLAY_DATA_BUFFER_NUM_MAX; i++) {
         if (mDataBuffers[i].bufferType == IntelBufferManager::TTM_BUFFER)
             mBufferManager->unwrap(mDataBuffers[i].buffer);
         else

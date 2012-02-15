@@ -240,7 +240,7 @@ void IntelDisplayPlaneManager::reclaimPlane(IntelDisplayPlane *plane)
         LOGE("%s: invalid plane type %d\n", __func__, plane->mType);
 }
 
-void IntelDisplayPlaneManager::disableReclaimedPlanes()
+void IntelDisplayPlaneManager::disableReclaimedPlanes(int type)
 {
     if (!initCheck()) {
         LOGE("%s: plane manager is not initialized\n", __func__);
@@ -248,7 +248,8 @@ void IntelDisplayPlaneManager::disableReclaimedPlanes()
     }
 
     // disable reclaimed sprite planes
-    if (mSpritePlanes) {
+    if (type == IntelDisplayPlane::DISPLAY_PLANE_SPRITE &&
+        mSpritePlanes && mReclaimedSpritePlanes) {
         for (int i = 0; i < mSpritePlaneCount; i++) {
             int bit = (1 << i);
             if (mReclaimedSpritePlanes & bit) {
@@ -266,7 +267,8 @@ void IntelDisplayPlaneManager::disableReclaimedPlanes()
     }
 
     // disable reclaimed overlay planes
-    if (mOverlayPlanes) {
+    if (type == IntelDisplayPlane::DISPLAY_PLANE_OVERLAY &&
+        mOverlayPlanes && mReclaimedOverlayPlanes) {
         for (int i = 0; i < mOverlayPlaneCount; i++) {
             int bit = (1 << i);
             if (mReclaimedOverlayPlanes & bit) {

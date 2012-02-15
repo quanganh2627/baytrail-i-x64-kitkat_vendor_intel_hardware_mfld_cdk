@@ -203,7 +203,7 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
     // check whether layer are covered by layers above it
     for (size_t i = index + 1; i < list->numHwLayers; i++) {
         if (areLayersIntersecting(&list->hwLayers[i], layer)) {
-            LOGD("%s: overlay %d is covered by layer %d\n", __func__, index, i);
+            LOGV("%s: overlay %d is covered by layer %d\n", __func__, index, i);
             return false;
         }
     }
@@ -248,7 +248,7 @@ bool IntelHWComposer::isSpriteLayer(hwc_layer_list_t *list,
             grallocHandle->format != HAL_PIXEL_FORMAT_BGRA_8888 &&
             grallocHandle->format != HAL_PIXEL_FORMAT_RGBX_8888 &&
             grallocHandle->format != HAL_PIXEL_FORMAT_RGBA_8888) {
-            LOGE("%s: invalid format 0x%x\n", __func__, grallocHandle->format);
+            LOGV("%s: invalid format 0x%x\n", __func__, grallocHandle->format);
             return false;
         }
 
@@ -262,7 +262,7 @@ bool IntelHWComposer::isSpriteLayer(hwc_layer_list_t *list,
             (list->numHwLayers == 1) &&
             (srcWidth == dstWidth) &&
             (srcHeight == dstHeight)) {
-            LOGD("%s: got a bypass layer, %dx%d\n", __func__, srcWidth, srcHeight);
+            LOGV("%s: got a bypass layer, %dx%d\n", __func__, srcWidth, srcHeight);
             flags |= IntelDisplayPlane::UPDATE_SURFACE;
             return true;
         }
@@ -272,10 +272,12 @@ bool IntelHWComposer::isSpriteLayer(hwc_layer_list_t *list,
 }
 
 // When the geometry changed, we need
-// 0) reclaim all allocated planes
+// 0) reclaim all allocated planes, reclaimed planes will be disabled
+//    on the start of next frame. A little bit tricky, we cannot disable the
+//    planes right after geometry is changed since there's no data in FB now,
+//    so we need to wait FB is update then disable these planes.
 // 1) build a new layer list for the changed hwc_layer_list
 // 2) attach planes to these layers which can be handled by HWC
-// 3) disable planes which are not used anymore
 void IntelHWComposer::onGeometryChanged(hwc_layer_list_t *list)
 {
      bool firstTime = true;
@@ -318,7 +320,6 @@ void IntelHWComposer::onGeometryChanged(hwc_layer_list_t *list)
          }
 
      }
-     // TODO: disable unused planes here. Currently, disable in commit()
 }
 
 // This function performs:
@@ -674,6 +675,10 @@ bool IntelHWComposer::prepare(hwc_layer_list_t *list)
         return false;
     }
 
+    // disable useless overlay planes
+    // m
+    mPlaneManager->disableReclaimedPlanes(IntelDisplayPlane::DISPLAY_PLANE_OVERLAY);
+
     // handle geometry changing. attach display planes to layers
     // which can be handled by HWC.
     // plane control information (e.g. position) will be set here
@@ -754,6 +759,11 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
         list->hwLayers[i].hints = 0;
     }
 
+    // NOTE: Medfield only!
+    // we need to restore sprite plane back to FB configuration
+    // since sprite plane are used for both FB and bypass compostion
+    mPlaneManager->disableReclaimedPlanes(IntelDisplayPlane::DISPLAY_PLANE_SPRITE);
+
     // check whether eglSwapBuffers is still needed for the given layer list
     if (needSwapBuffer) {
         EGLBoolean sucess = eglSwapBuffers((EGLDisplay)dpy, (EGLSurface)sur);
@@ -767,8 +777,6 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
     if (needRepaint && mProcs && mProcs->invalidate)
         mProcs->invalidate((hwc_procs_t*)mProcs);
 
-    // TODO: move it back to prepare()
-    mPlaneManager->disableReclaimedPlanes();
     return true;
 }
 

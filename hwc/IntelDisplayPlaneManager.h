@@ -232,17 +232,19 @@ public:
     intel_overlay_mode_t onDrmModeChange();
 };
 
-
 class IntelWidiPlane; // forward declaration
 
 class IntelOverlayPlane : public IntelDisplayPlane {
 private:
+    enum {
+        OVERLAY_DATA_BUFFER_NUM_MAX = 30,
+    };
     // overlay mapped data buffers
     struct {
         uint32_t handle;
         IntelDisplayBuffer *buffer;
         uint32_t bufferType;
-    } mDataBuffers[INTEL_DATA_BUFFER_NUM_MAX];
+    } mDataBuffers[OVERLAY_DATA_BUFFER_NUM_MAX];
     int mNextBuffer;
     IntelWidiPlane* mWidiPlane;
 
@@ -300,10 +302,14 @@ public:
 
 class MedfieldSpritePlane : public IntelSpritePlane {
 private:
+    enum {
+        SPRITE_DATA_BUFFER_NUM_MAX = 3,
+    };
+
     struct {
         uint32_t handle;
         IntelDisplayBuffer *buffer;
-    } mDataBuffers[INTEL_DATA_BUFFER_NUM_MAX];
+    } mDataBuffers[SPRITE_DATA_BUFFER_NUM_MAX];
     int mNextBuffer;
 public:
     MedfieldSpritePlane(int fd, int index, IntelBufferManager *bufferManager);
@@ -353,7 +359,7 @@ public:
     IntelDisplayPlane* getWidiPlane();
     bool isWidiActive();
     void reclaimPlane(IntelDisplayPlane *plane);
-    void disableReclaimedPlanes();
+    void disableReclaimedPlanes(int type);
 };
 
 #endif /*__INTEL_DISPLAY_PLANE_MANAGER_H__*/

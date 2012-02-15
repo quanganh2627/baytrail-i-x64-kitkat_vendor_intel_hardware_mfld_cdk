@@ -108,11 +108,17 @@ bool MedfieldSpritePlane::setDataBuffer(uint32_t handle, uint32_t flags)
         return false;
     }
 
-    LOGD("%s: next buffer %d\n", __func__, mNextBuffer);
+    LOGV("%s: next buffer %d\n", __func__, mNextBuffer);
 
-    // make sure the buffer list is clean
-    if (!mNextBuffer)
-        invalidateDataBuffer();
+    // release the buffer in the next slot
+    if (mDataBuffers[mNextBuffer].handle ||
+        mDataBuffers[mNextBuffer].buffer) {
+        LOGV("%s: releasing buffer %d...\n", __func__, mNextBuffer);
+        mBufferManager->unmap(mDataBuffers[mNextBuffer].handle,
+                              mDataBuffers[mNextBuffer].buffer);
+        mDataBuffers[mNextBuffer].handle = 0;
+        mDataBuffers[mNextBuffer].buffer = 0;
+    }
 
     buffer = mBufferManager->map(handle);
     if (!buffer) {
@@ -125,7 +131,7 @@ bool MedfieldSpritePlane::setDataBuffer(uint32_t handle, uint32_t flags)
     mDataBuffers[mNextBuffer].buffer = buffer;
 
     // move mNextBuffer pointer
-    mNextBuffer = (mNextBuffer + 1) % INTEL_DATA_BUFFER_NUM_MAX;
+    mNextBuffer = (mNextBuffer + 1) % SPRITE_DATA_BUFFER_NUM_MAX;
 
     IntelDisplayDataBuffer *spriteDataBuffer =
         reinterpret_cast<IntelDisplayDataBuffer*>(mDataBuffer);
@@ -146,7 +152,7 @@ bool MedfieldSpritePlane::flip(uint32_t flags)
     if (!context->update_mask)
         return true;
 
-    LOGD("%s: flip to surface 0x%x\n", __func__, context->surf);
+    LOGV("%s: flip to surface 0x%x\n", __func__, context->surf);
 
     // detect connection status
     IntelHWComposerDrm::getInstance().detectDrmModeInfo();
@@ -157,7 +163,7 @@ bool MedfieldSpritePlane::flip(uint32_t flags)
             IntelHWComposerDrm::getInstance().getOutputConnection(output);
 
         if (connection != DRM_MODE_CONNECTED) {
-            LOGI("%s: output %d not connected\n", __func__, output);
+            LOGV("%s: output %d not connected\n", __func__, output);
             continue;
         }
 
@@ -249,17 +255,7 @@ bool MedfieldSpritePlane::invalidateDataBuffer()
 {
     LOGV("%s\n", __func__);
     if (initCheck()) {
-	 // wait for vblank before unmapping from GTT
-         // FIXME: use drmWaitVblank instead
-	 struct drm_psb_register_rw_arg arg;
-	 memset(&arg, 0, sizeof(arg));
-	 arg.sprite_context.update_mask = SPRITE_UPDATE_WAIT_VBLANK;
-	 arg.sprite_context_mask = REGRWBITS_SPRITE_UPDATE;
-	 int ret = drmCommandWriteRead(mDrmFd,
-	                               DRM_PSB_REGISTER_RW,
-	                               &arg, sizeof(arg));
-
-         for (int i = 0; i < INTEL_DATA_BUFFER_NUM_MAX; i++) {
+         for (int i = 0; i < SPRITE_DATA_BUFFER_NUM_MAX; i++) {
              mBufferManager->unmap(mDataBuffers[i].handle,
                                    mDataBuffers[i].buffer);
          }

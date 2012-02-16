@@ -217,11 +217,12 @@ void CEventThread::run()
                 _pEventListener->onProcess();
 
                 continue;
+            } else {
+                assert(ucData == EExit);
+                LOGD("%s exit", __func__);
+                // Exit
+                return ;
             }
-            assert(ucData == EExit);
-            LOGD("%s exit", __func__);
-            // Exit
-            return ;
         }
 
         {

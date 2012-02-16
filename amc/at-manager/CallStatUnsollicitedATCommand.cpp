@@ -76,7 +76,7 @@ void CCallStatUnsollicitedATCommand::doProcessAnswer()
     // Each line should only have 2 parameters...
     if (astrItems.size() != 2)
     {
-         LOGD("%s wrong answer format...", __FUNCTION__);
+         LOGE("%s wrong answer format...", __FUNCTION__);
          return ;
     }
 
@@ -87,13 +87,15 @@ void CCallStatUnsollicitedATCommand::doProcessAnswer()
 
     if (iCallIndex > MAX_CALL_SESSIONS){
 
-        LOGD("%s invalid call index", __FUNCTION__);
+        LOGE("%s invalid call index", __FUNCTION__);
+        goto clear_cmd;
     }
 
     _abCallSessionStat[iCallIndex] = uiCallStatus;
 
     _bAudioPathAvailable = isModemAudioPathEnabled();
 
+clear_cmd:
     // Clear the answer and the status
     clearStatus();
 }

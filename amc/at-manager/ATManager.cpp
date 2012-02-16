@@ -545,8 +545,13 @@ void CATManager::onProcess()
     // Block {
     pthread_mutex_lock(&_clientMutex);
 
-    // Process the tosend command list
-    processSendList();
+    // Ensure serialization of the communication with modem
+    // by checking if a transaction is on going
+    if (!_pCurrentATCommand) {
+
+        // Process the tosend command list
+        processSendList();
+    }
 
     // } Block
     pthread_mutex_unlock(&_clientMutex);
@@ -834,7 +839,7 @@ bool CATManager::startModemTtyListeners()
         LOGD("opening read tty %s...", _strModemTty.c_str());
 
         // FdFromModem
-        iFd = CTtyHandler::openTty(_strModemTty.c_str(), O_RDONLY|CLOCAL|O_NONBLOCK);
+        iFd = CTtyHandler::openTty(_strModemTty.c_str(), O_RDONLY | O_NOCTTY | O_NONBLOCK);
         if (iFd < 0) {
 
             LOGE("Unable to open device for reading: %s, error: %s", _strModemTty.c_str(), strerror(errno));
@@ -846,7 +851,7 @@ bool CATManager::startModemTtyListeners()
 
         LOGD("opening write tty %s...", _strModemTty.c_str());
         // FdToModem
-        iFd = CTtyHandler::openTty(_strModemTty.c_str(), O_WRONLY|CLOCAL|O_NONBLOCK);
+        iFd = CTtyHandler::openTty(_strModemTty.c_str(), O_WRONLY | O_NOCTTY | O_NONBLOCK);
         if (iFd < 0) {
 
             LOGE("Unable to open device for writing: %s, error: %s", _strModemTty.c_str(), strerror(errno));

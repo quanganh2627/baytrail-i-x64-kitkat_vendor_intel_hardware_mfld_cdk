@@ -366,6 +366,11 @@ IntelWidiPlane::sendInitMode(int mode, uint32_t width, uint32_t height) {
 }
 
 void
+IntelWidiPlane::returnBuffer(int index) {
+    LOGV("Buffer returned, index = %d", index);
+}
+
+void
 IntelWidiPlane::DeathNotifier::binderDied(const wp<IBinder>& who) {
     LOGW("widi server died - trying to register again");
 

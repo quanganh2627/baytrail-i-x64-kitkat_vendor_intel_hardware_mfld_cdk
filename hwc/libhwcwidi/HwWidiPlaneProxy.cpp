@@ -54,7 +54,8 @@ enum {
     DISABLE_HW_WIDI_PLANE,
     REGISTER_FLIP_LISTENER,
     ALLOW_EXT_VIDEO_MODE,
-    SET_PLAYER_STATUS
+    SET_PLAYER_STATUS,
+    RETURN_BUFFER
 
 };
 
@@ -96,11 +97,20 @@ public:
         remote()->transact(ALLOW_EXT_VIDEO_MODE, data, &reply);
         return;
     }
+
     virtual void setPlayerStatus(bool status) {
         Parcel data, reply;
         data.writeInterfaceToken(IHwWidiPlane::getInterfaceDescriptor());
         data.writeInt32(((int32_t) status));
         remote()->transact(SET_PLAYER_STATUS, data, &reply);
+        return;
+    }
+
+    virtual void returnBuffer(int index) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IHwWidiPlane::getInterfaceDescriptor());
+        data.writeInt32(((int32_t) index));
+        remote()->transact(RETURN_BUFFER, data, &reply);
         return;
     }
 };
@@ -144,6 +154,13 @@ status_t BnHwWidiPlane::onTransact(
             CHECK_INTERFACE(IHwWidiPlane, data, reply);
             int32_t status = data.readInt32();
             setPlayerStatus(status);
+            reply->writeInt32(NO_ERROR);
+            return NO_ERROR;
+        } break;
+        case RETURN_BUFFER: {
+            CHECK_INTERFACE(IHwWidiPlane, data, reply);
+            int32_t index = data.readInt32();
+            returnBuffer(index);
             reply->writeInt32(NO_ERROR);
             return NO_ERROR;
         } break;

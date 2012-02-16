@@ -63,6 +63,7 @@ public:
     virtual void allowExtVideoMode(bool allow) = 0;
     virtual void setPlayerStatus(bool status) = 0;
     virtual android::status_t  registerFlipListener(android::sp<IPageFlipListener> listener) = 0;
+    virtual void returnBuffer(int index) = 0;
 };
 
 // ----------------------------------------------------------------------------

@@ -25,6 +25,7 @@
 #include <binder/IServiceManager.h>
 #include "IHwWidiPlane.h"
 
+static const unsigned int EXT_VIDEO_MODE_MAX_SURFACE = 32;
 
 class IntelWidiPlane : public IntelDisplayPlane , public intel::widi::BnHwWidiPlane {
 
@@ -49,6 +50,8 @@ public:
 protected:
     void init();
     android::status_t sendInitMode(int mode, uint32_t width, uint32_t height);
+    intel_gralloc_payload_t * mapPayloadBuffer(intel_gralloc_buffer_handle_t* gHandle);
+    void unmapPayloadBuffer(intel_gralloc_buffer_handle_t* gHandle);
 
     class WidiInitThread: public android::Thread {
     public:
@@ -80,6 +83,8 @@ protected:
 
     int32_t                         mAllowExtVideoMode;
     WidiPlaneState                  mState;
+    IntelDisplayBuffer              *mCurrentDisplayBuffer;
+
     android::Mutex                  mLock;
     android::sp<WidiInitThread>     mInitThread;
     android::sp<IPageFlipListener>  mFlipListener;
@@ -87,10 +92,11 @@ protected:
     android::sp<IBinder>            mWirelesDisplayservice;
     android::sp<IBinder>            mWirelessDisplay;
     uint32_t                        mCurrentOrientation;
-    uint32_t                        mExtVideoStartDelay;
 
-    android::KeyedVector<intel_gralloc_buffer_handle_t*,
-                         intel_gralloc_buffer_handle_t*> mExtVideoBuffers;
+
+    intel_gralloc_buffer_handle_t   mExtVideoBuffers[EXT_VIDEO_MODE_MAX_SURFACE];
+    int32_t                         mExtVideoBuffersCount;
+    android::KeyedVector<intel_gralloc_buffer_handle_t*, uint32_t> mExtVideoBuffersMapping;
 };
 
 #else  // Stub implementation in case of widi module is not compiled

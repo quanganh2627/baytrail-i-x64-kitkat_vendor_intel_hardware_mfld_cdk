@@ -185,7 +185,7 @@ protected:
     bool scalingSetup(IntelDisplayDataBuffer& buffer);
     intel_overlay_state_t getOverlayState() const;
     void setOverlayState(intel_overlay_state_t state);
-    void checkPosition(int& x, int& y, int& w, int& h);
+    void checkPosition(int& x, int& y, int& w, int& h, IntelDisplayDataBuffer& buffer);
 
     intel_overlay_mode_t drmModeChanged(IntelOverlayContext& context);
 

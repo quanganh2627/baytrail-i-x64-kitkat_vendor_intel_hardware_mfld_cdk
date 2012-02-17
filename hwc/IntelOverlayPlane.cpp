@@ -634,7 +634,7 @@ bool IntelOverlayContext::scalingSetup(IntelDisplayDataBuffer& buffer)
     h = mContext->position.h;
 
     // check position
-    checkPosition(x, y, w, h);
+    checkPosition(x, y, w, h, buffer);
 
     if ((w <= 0) || (h <= 0)) {
          LOGE("%s: Invalid dst width/height", __func__);
@@ -870,7 +870,8 @@ void IntelOverlayContext::setRotation(int rotation)
     unlock();
 }
 
-void IntelOverlayContext::checkPosition(int& x, int& y, int& w, int& h)
+void IntelOverlayContext::checkPosition(int& x, int& y, int& w, int& h,
+                                        IntelDisplayDataBuffer& buffer)
 {
     if (!mContext)
         return;
@@ -906,10 +907,28 @@ void IntelOverlayContext::checkPosition(int& x, int& y, int& w, int& h)
     }
 
     if (displayMode == OVERLAY_EXTEND) {
-        x = 0;
-        y = 0;
-        w = mode->hdisplay;
-        h = mode->vdisplay;
+        uint32_t _destw, _desth;
+        int _pos_x, _pos_y;
+        float _slope_xy;
+        uint32_t srcWidth = buffer.getSrcWidth();
+        uint32_t srcHeight = buffer.getSrcHeight();
+
+        _slope_xy = (float)srcHeight / srcWidth;
+        _destw = (short)(mode->vdisplay / _slope_xy);
+        _desth = (short)(mode->hdisplay * _slope_xy);
+        if (_destw <= mode->hdisplay) {
+            _desth = mode->vdisplay;
+            _pos_x = (mode->hdisplay - _destw) >> 1;
+            _pos_y = 0;
+        } else {
+            _destw = mode->hdisplay;
+            _pos_x = 0;
+            _pos_y = (mode->vdisplay - _desth) >> 1;
+        }
+        x = _pos_x;
+        y = _pos_y;
+        w = _destw;
+        h = _desth;
     } else {
         if (x < 0)
             x = 0;

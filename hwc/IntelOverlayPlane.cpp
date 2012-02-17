@@ -355,7 +355,7 @@ bool IntelOverlayContext::bufferOffsetSetup(IntelDisplayDataBuffer &buf)
     case HAL_PIXEL_FORMAT_YV12:    /*YV12*/
         mOverlayBackBuffer->OSTART_0Y = gttOffsetInBytes;
         mOverlayBackBuffer->OSTART_0V = gttOffsetInBytes + (yStride * h);
-        mOverlayBackBuffer->OSTART_0U = mOverlayBackBuffer->OBUF_0V +
+        mOverlayBackBuffer->OSTART_0U = mOverlayBackBuffer->OSTART_0V +
                                         (uvStride * (h / 2));
 
         mOverlayBackBuffer->OCMD |= OVERLAY_FORMAT_PLANAR_YUV420;
@@ -364,7 +364,7 @@ bool IntelOverlayContext::bufferOffsetSetup(IntelDisplayDataBuffer &buf)
         mOverlayBackBuffer->OSTART_0Y = gttOffsetInBytes;
         mOverlayBackBuffer->OSTART_0U = gttOffsetInBytes +
                      align_to((yStride * h), 4096);
-        mOverlayBackBuffer->OSTART_0V = mOverlayBackBuffer->OBUF_0U +
+        mOverlayBackBuffer->OSTART_0V = mOverlayBackBuffer->OSTART_0U +
                      align_to((uvStride * (h / 2)), 4096);
 
         mOverlayBackBuffer->OCMD |= OVERLAY_FORMAT_PLANAR_YUV420;

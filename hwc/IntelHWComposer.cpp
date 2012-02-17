@@ -225,7 +225,7 @@ bool IntelHWComposer::isSpriteLayer(hwc_layer_list_t *list,
     if (!list || !layer)
         return false;
 
-    if (layer->compositionType == HWC_FRAMEBUFFER) {
+    if (mPlaneManager->isWidiActive() == false) {
         intel_gralloc_buffer_handle_t *grallocHandle =
             (intel_gralloc_buffer_handle_t*)layer->handle;
 
@@ -678,15 +678,17 @@ bool IntelHWComposer::prepare(hwc_layer_list_t *list)
     }
 
     // disable useless overlay planes
-    // m
+    //
     mPlaneManager->disableReclaimedPlanes(IntelDisplayPlane::DISPLAY_PLANE_OVERLAY);
 
     // handle geometry changing. attach display planes to layers
     // which can be handled by HWC.
     // plane control information (e.g. position) will be set here
-    if ((list->flags & HWC_GEOMETRY_CHANGED) || mHotplugEvent) {
+    if ((list->flags & HWC_GEOMETRY_CHANGED) || mHotplugEvent
+        || mPlaneManager->isWidiStatusChanged()) {
+
         // detect display mode on hotplug event
-	if (mHotplugEvent)
+        if (mHotplugEvent)
             mDrm->detectDrmModeInfo();
 
         onGeometryChanged(list);

@@ -299,6 +299,7 @@ IntelDisplayPlaneManager::getWidiPlane() {
      return false;
  }
 
+
 bool IntelDisplayPlaneManager::dump(char *buff,
                                  int buff_len, int *cur_len)
 {
@@ -317,3 +318,14 @@ bool IntelDisplayPlaneManager::dump(char *buff,
 
     return ret;
 }
+
+
+bool
+ IntelDisplayPlaneManager::isWidiStatusChanged() {
+
+
+     if(mWidiPlane)
+         return ((IntelWidiPlane*)mWidiPlane)->isWidiStatusChanged();
+
+     return false;
+ }

@@ -46,6 +46,7 @@ public:
 
     bool flip(uint32_t flags);
     bool isActive();
+    bool isWidiStatusChanged();
 
 protected:
     void init();
@@ -83,8 +84,9 @@ protected:
 
     int32_t                         mAllowExtVideoMode;
     WidiPlaneState                  mState;
-    IntelDisplayBuffer              *mCurrentDisplayBuffer;
+    bool                            mWidiStatusChanged;
 
+    IntelDisplayBuffer              *mCurrentDisplayBuffer;
     android::Mutex                  mLock;
     android::sp<WidiInitThread>     mInitThread;
     android::sp<IPageFlipListener>  mFlipListener;
@@ -118,6 +120,7 @@ public:
     bool flip(uint32_t flags){return true;};
     bool isActive(){return false;};
     bool isStreaming() { return false; };
+    bool isWidiStatusChanged(){return false;};
 
 
 };

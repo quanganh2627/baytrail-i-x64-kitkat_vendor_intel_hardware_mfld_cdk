@@ -361,6 +361,7 @@ public:
     IntelDisplayPlane* getOverlayPlane();
     IntelDisplayPlane* getWidiPlane();
     bool isWidiActive();
+    bool isWidiStatusChanged();
     void reclaimPlane(IntelDisplayPlane *plane);
     void disableReclaimedPlanes(int type);
 

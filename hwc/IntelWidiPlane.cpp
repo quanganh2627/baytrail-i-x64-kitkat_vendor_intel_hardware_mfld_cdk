@@ -66,6 +66,7 @@ IntelWidiPlane::IntelWidiPlane(int fd, int index, IntelBufferManager *bm)
     : IntelDisplayPlane(fd, IntelDisplayPlane::DISPLAY_PLANE_OVERLAY, index, bm),
       mAllowExtVideoMode(true),
       mState(WIDI_PLANE_STATE_UNINIT),
+      mWidiStatusChanged(false),
       mLock(NULL),
       mInitThread(NULL),
       mFlipListener(NULL),
@@ -123,6 +124,7 @@ IntelWidiPlane::enablePlane(sp<IBinder> display) {
         LOGV("Plane Enabled !!");
         mWirelessDisplay = display;
         mState = WIDI_PLANE_STATE_ACTIVE;
+        mWidiStatusChanged = true;
     }
 
     return 0;
@@ -139,6 +141,8 @@ IntelWidiPlane::disablePlane() {
         memset(mExtVideoBuffers, 0, sizeof(intel_gralloc_buffer_handle_t)*EXT_VIDEO_MODE_MAX_SURFACE);
         mExtVideoBuffersCount = 0;
         mExtVideoBuffersMapping.clear();
+        mWidiStatusChanged = true;
+
     }
     return;
 }
@@ -281,12 +285,13 @@ IntelWidiPlane::isActive() {
     return false;
 }
 
+
 /* overlayInUse
  *
  * This method is used to inform the wireless display plane if any
  * of the layers in the list contained data targeted to the overlay
  * This how the Wireless Plane notices that a video clip has finished
-*
+ *
  * This method is used by the HWC updateLayersData method.
  *
  * */
@@ -301,6 +306,20 @@ IntelWidiPlane::overlayInUse(bool used) {
         sendInitMode(IWirelessDisplay::WIDI_MODE_CLONE,0,0);
     }
 }
+
+bool
+IntelWidiPlane::isWidiStatusChanged() {
+
+    Mutex::Autolock _l(mLock);
+
+    if (mWidiStatusChanged) {
+        mWidiStatusChanged = false;
+        return true;
+    } else
+        return false;
+}
+
+
 void
 IntelWidiPlane::init() {
 

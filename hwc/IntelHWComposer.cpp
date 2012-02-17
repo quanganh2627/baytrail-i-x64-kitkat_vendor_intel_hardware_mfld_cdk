@@ -351,6 +351,13 @@ bool IntelHWComposer::useOverlayRotation(hwc_layer_t *layer,
     if (!grallocHandle)
         return false;
 
+    if (!layer->transform) {
+        return true;
+    }
+
+    if (grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12)
+        return false;
+
     // map payload buffer
     IntelDisplayBuffer *buffer =
         mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
@@ -364,11 +371,6 @@ bool IntelHWComposer::useOverlayRotation(hwc_layer_t *layer,
     if (!payload) {
         LOGE("%s: invalid address\n", __func__);
         useOverlay = false;
-        goto out;
-    }
-
-    if (!layer->transform) {
-        useOverlay = true;
         goto out;
     }
 
@@ -413,8 +415,7 @@ bool IntelHWComposer::useOverlayRotation(hwc_layer_t *layer,
 
 out:
     // unmap payload buffer
-    mGrallocBufferManager->unmap(grallocHandle->fd[GRALLOC_SUB_BUFFER1],
-                                 buffer);
+    mGrallocBufferManager->unmap(buffer);
     return useOverlay;
 }
 
@@ -466,6 +467,7 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                 int bufferWidth = grallocHandle->width;
                 int bufferHeight = grallocHandle->height;
                 uint32_t bufferHandle = grallocHandle->fd[GRALLOC_SUB_BUFFER0];
+                unsigned long long ui64Stamp = grallocHandle->ui64Stamp;
                 uint32_t transform = 0;
 
                 // detect video mode change
@@ -530,7 +532,7 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                 dataBuffer->setCrop(srcX, srcY, srcWidth, srcHeight);
 
                 // set the data buffer back to plane
-                ret = ((IntelOverlayPlane*)plane)->setDataBuffer(bufferHandle, transform, grallocHandle);
+                ret = ((IntelOverlayPlane*)plane)->setDataBuffer(bufferHandle, transform, ui64Stamp, grallocHandle);
                 if (!ret) {
                     LOGE("%s: failed to update overlay data buffer\n", __func__);
                     mLayerList->detachPlane(i, plane);

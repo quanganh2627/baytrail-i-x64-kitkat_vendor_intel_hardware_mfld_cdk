@@ -224,7 +224,7 @@ bool IntelSpritePlane::invalidateDataBuffer()
 {
     LOGV("%s\n", __func__);
     if (initCheck()) {
-	 mBufferManager->unmap(mDataBuffer->getHandle(), mDataBuffer);
+	 mBufferManager->unmap(mDataBuffer);
 	 delete mDataBuffer;
 	 mDataBuffer = new IntelDisplayDataBuffer(0, 0, 0);
 	 return true;

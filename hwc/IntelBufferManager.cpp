@@ -297,7 +297,7 @@ IntelDisplayBuffer* IntelTTMBufferManager::map(uint32_t handle)
     return buf;
 }
 
-void IntelTTMBufferManager::unmap(uint handle, IntelDisplayBuffer *buffer)
+void IntelTTMBufferManager::unmap(IntelDisplayBuffer *buffer)
 {
     if (!mWsbm) {
         LOGE("%s: no wsbm found\n", __func__);
@@ -626,7 +626,7 @@ IntelDisplayBuffer* IntelPVRBufferManager::map(uint32_t handle)
     return buffer;
 }
 
-void IntelPVRBufferManager::unmap(uint32_t handle, IntelDisplayBuffer *buffer)
+void IntelPVRBufferManager::unmap(IntelDisplayBuffer *buffer)
 {
     if (!mPVR2DHandle) {
        LOGE("%s: PVR wasn't initialized\n", __func__);
@@ -777,7 +777,7 @@ IntelDisplayBuffer* IntelBCDBufferManager::map(uint32_t device, uint32_t handle)
     return 0;
 }
 
-void IntelBCDBufferManager::unmap(uint32_t handle, IntelDisplayBuffer *buffer)
+void IntelBCDBufferManager::unmap(IntelDisplayBuffer *buffer)
 {
 
 }
@@ -1134,7 +1134,7 @@ gtt_err:
     return 0;
 }
 
-void IntelGraphicBufferManager::unmap(uint32_t hnd, IntelDisplayBuffer *buffer)
+void IntelGraphicBufferManager::unmap(IntelDisplayBuffer *buffer)
 {
     PVRSRV_CLIENT_MEM_INFO *memInfo;
 

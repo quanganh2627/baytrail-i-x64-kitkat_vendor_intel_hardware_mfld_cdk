@@ -132,7 +132,7 @@ public:
     virtual IntelDisplayBuffer* map(uint32_t device, uint32_t handle) {
         return 0;
     }
-    virtual void unmap(uint32_t handle, IntelDisplayBuffer *buffer) {}
+    virtual void unmap(IntelDisplayBuffer *buffer) {}
     virtual IntelDisplayBuffer* wrap(void *virt, int size) {
         return 0;
     }
@@ -161,7 +161,7 @@ public:
     IntelDisplayBuffer* map(uint32_t device, uint32_t handle);
     IntelDisplayBuffer* get(int size, int gttAlignment);
     void put(IntelDisplayBuffer *buf);
-    void unmap(uint32_t handle, IntelDisplayBuffer *buffer);
+    void unmap(IntelDisplayBuffer *buffer);
 };
 
 // FIXME: the same struct as IMG_native_handle_t
@@ -210,7 +210,7 @@ public:
     IntelDisplayBuffer* wrap(void *virt, int size);
     void unwrap(IntelDisplayBuffer *buffer);
     IntelDisplayBuffer* map(uint32_t handle);
-    void unmap(uint32_t handle, IntelDisplayBuffer *buffer);
+    void unmap(IntelDisplayBuffer *buffer);
 };
 
 // NOTE: the number of max device devices should be aligned with kernel driver
@@ -231,7 +231,7 @@ public:
     ~IntelBCDBufferManager();
     bool initialize();
     IntelDisplayBuffer* map(uint32_t device, uint32_t handle);
-    void unmap(uint32_t handle, IntelDisplayBuffer *buffer);
+    void unmap(IntelDisplayBuffer *buffer);
     IntelDisplayBuffer** map(uint32_t device, uint32_t *count);
     void unmap(IntelDisplayBuffer **buffer, uint32_t count);
     IntelDisplayBuffer* get(int size, int alignment);
@@ -257,7 +257,7 @@ public:
     ~IntelGraphicBufferManager();
     bool initialize();
     IntelDisplayBuffer* map(uint32_t handle);
-    void unmap(uint32_t handle, IntelDisplayBuffer *buffer);
+    void unmap(IntelDisplayBuffer *buffer);
     IntelDisplayBuffer* get(int size, int gttAlignment);
     void put(IntelDisplayBuffer *buf);
     IntelDisplayBuffer* wrap(void *virt, int size);

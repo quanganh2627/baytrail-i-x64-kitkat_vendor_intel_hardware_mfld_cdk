@@ -114,8 +114,7 @@ bool MedfieldSpritePlane::setDataBuffer(uint32_t handle, uint32_t flags)
     if (mDataBuffers[mNextBuffer].handle ||
         mDataBuffers[mNextBuffer].buffer) {
         LOGV("%s: releasing buffer %d...\n", __func__, mNextBuffer);
-        mBufferManager->unmap(mDataBuffers[mNextBuffer].handle,
-                              mDataBuffers[mNextBuffer].buffer);
+        mBufferManager->unmap(mDataBuffers[mNextBuffer].buffer);
         mDataBuffers[mNextBuffer].handle = 0;
         mDataBuffers[mNextBuffer].buffer = 0;
     }
@@ -256,8 +255,7 @@ bool MedfieldSpritePlane::invalidateDataBuffer()
     LOGV("%s\n", __func__);
     if (initCheck()) {
          for (int i = 0; i < SPRITE_DATA_BUFFER_NUM_MAX; i++) {
-             mBufferManager->unmap(mDataBuffers[i].handle,
-                                   mDataBuffers[i].buffer);
+             mBufferManager->unmap(mDataBuffers[i].buffer);
          }
 
          // clear data buffers

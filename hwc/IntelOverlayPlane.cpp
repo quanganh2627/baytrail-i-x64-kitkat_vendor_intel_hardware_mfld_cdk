@@ -1202,7 +1202,9 @@ void IntelOverlayPlane::setPosition(int left, int top, int right, int bottom)
     }
 }
 
-bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags, intel_gralloc_buffer_handle_t* nHandle = NULL)
+bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
+                                      unsigned long long ui64Stamp,
+                                      intel_gralloc_buffer_handle_t* nHandle = NULL)
 {
     IntelDisplayBuffer *buffer = 0;
     uint32_t bufferType;
@@ -1219,7 +1221,7 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags, intel_gra
         bufferType = IntelBufferManager::GRALLOC_BUFFER;
 
     for (int i = 0; i < OVERLAY_DATA_BUFFER_NUM_MAX; i++) {
-        if (mDataBuffers[i].handle == handle &&
+        if (mDataBuffers[i].ui64Stamp == ui64Stamp &&
             mDataBuffers[i].bufferType == bufferType) {
             buffer = mDataBuffers[i].buffer;
             break;
@@ -1231,16 +1233,15 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags, intel_gra
     // map the handle if no buffer found
     if (!buffer) {
         // release the buffer in the next slot
-        if (mDataBuffers[mNextBuffer].handle ||
+        if (mDataBuffers[mNextBuffer].ui64Stamp ||
             mDataBuffers[mNextBuffer].buffer) {
             LOGV("%s: releasing buffer %d...\n", __func__, mNextBuffer);
             if (mDataBuffers[mNextBuffer].bufferType ==
                 IntelBufferManager::TTM_BUFFER)
                 mBufferManager->unwrap(mDataBuffers[mNextBuffer].buffer);
             else
-                mBufferManager->unmap(mDataBuffers[mNextBuffer].handle,
-                                      mDataBuffers[mNextBuffer].buffer);
-            mDataBuffers[mNextBuffer].handle = 0;
+                mBufferManager->unmap(mDataBuffers[mNextBuffer].buffer);
+            mDataBuffers[mNextBuffer].ui64Stamp = 0;
             mDataBuffers[mNextBuffer].buffer = 0;
             mDataBuffers[mNextBuffer].bufferType = 0;
         }
@@ -1256,9 +1257,8 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags, intel_gra
                  IntelBufferManager::TTM_BUFFER)
                  mBufferManager->unwrap(mDataBuffers[0].buffer);
              else
-                 mBufferManager->unmap(mDataBuffers[0].handle,
-                                       mDataBuffers[0].buffer);
-             mDataBuffers[0].handle = 0;
+                 mBufferManager->unmap(mDataBuffers[0].buffer);
+             mDataBuffers[0].ui64Stamp = 0;
              mDataBuffers[0].buffer = 0;
              mDataBuffers[0].bufferType = 0;
              mNextBuffer = 0;
@@ -1276,7 +1276,7 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags, intel_gra
         }
 
         LOGV("%s: mapping buffer at %d...\n", __func__, mNextBuffer);
-        mDataBuffers[mNextBuffer].handle = handle;
+        mDataBuffers[mNextBuffer].ui64Stamp = ui64Stamp;
         mDataBuffers[mNextBuffer].buffer = buffer;
         mDataBuffers[mNextBuffer].bufferType = bufferType;
 
@@ -1324,8 +1324,7 @@ bool IntelOverlayPlane::invalidateDataBuffer()
         if (mDataBuffers[i].bufferType == IntelBufferManager::TTM_BUFFER)
             mBufferManager->unwrap(mDataBuffers[i].buffer);
         else
-            mBufferManager->unmap(mDataBuffers[i].handle,
-                                  mDataBuffers[i].buffer);
+            mBufferManager->unmap(mDataBuffers[i].buffer);
     }
 
     // clear data buffers

@@ -243,7 +243,7 @@ private:
     };
     // overlay mapped data buffers
     struct {
-        uint32_t handle;
+        unsigned long long ui64Stamp;
         IntelDisplayBuffer *buffer;
         uint32_t bufferType;
     } mDataBuffers[OVERLAY_DATA_BUFFER_NUM_MAX];
@@ -254,7 +254,7 @@ public:
     IntelOverlayPlane(int fd, int index, IntelBufferManager *bufferManager);
     ~IntelOverlayPlane();
     virtual void setPosition(int left, int top, int right, int bottom);
-    virtual bool setDataBuffer(uint32_t handle, uint32_t flags, intel_gralloc_buffer_handle_t* nHandle);
+    virtual bool setDataBuffer(uint32_t handle, uint32_t flags, unsigned long long ui64Stamp, intel_gralloc_buffer_handle_t* nHandle);
     virtual bool setDataBuffer(IntelDisplayBuffer& buffer);
 
     virtual bool invalidateDataBuffer();

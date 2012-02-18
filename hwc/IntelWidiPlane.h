@@ -39,9 +39,9 @@ public:
     android::status_t  registerFlipListener(android::sp<IPageFlipListener> listener);
     void allowExtVideoMode(bool allow);
     bool isExtVideoAllowed() {return mAllowExtVideoMode;};
+    void setPlayerStatus(bool status);
     void setOrientation(uint32_t orientation);
     void setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t width, uint32_t height);
-    void overlayInUse(bool);
     bool isStreaming() { return (mState == WIDI_PLANE_STATE_STREAMING); };
 
     bool flip(uint32_t flags);
@@ -111,10 +111,10 @@ public:
     ~IntelWidiPlane(){};
     virtual void setPosition(int left, int top, int right, int bottom){return;};
     void setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t width, uint32_t height){};
-    void overlayInUse(bool){};
 
     void allowExtVideoMode(bool allow){return;};
     bool isExtVideoAllowed() {return true;};
+    void setPlayerStatus(bool status);
     void setOrientation(uint32_t orientation){return;};
 
     bool flip(uint32_t flags){return true;};

@@ -426,7 +426,6 @@ out:
 bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
 {
     IntelDisplayPlane *plane = 0;
-    bool overlayInUse = false;
     bool ret;
     IntelWidiPlane* widiplane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
 
@@ -538,7 +537,6 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                     mLayerList->detachPlane(i, plane);
                     layer->compositionType = HWC_FRAMEBUFFER;
                 }
-                overlayInUse = true;
 
             } else if (planeType == IntelDisplayPlane::DISPLAY_PLANE_SPRITE) {
                 // do nothing for sprite plane for now
@@ -547,10 +545,6 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                 continue;
             }
         }
-    }
-    if(mPlaneManager->isWidiActive()) {
-        IntelWidiPlane* p = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
-        p->overlayInUse(overlayInUse);
     }
 
     return true;

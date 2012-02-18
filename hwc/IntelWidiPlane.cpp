@@ -172,6 +172,18 @@ IntelWidiPlane::allowExtVideoMode(bool allow) {
 }
 
 void
+IntelWidiPlane::setPlayerStatus(bool status) {
+
+    LOGV("%s(), status = %d", __func__, status);
+    Mutex::Autolock _l(mLock);
+
+    if ( (mState == WIDI_PLANE_STATE_STREAMING) && status == 0) {
+        sendInitMode(IWirelessDisplay::WIDI_MODE_CLONE,0,0);
+
+    }
+}
+
+void
 IntelWidiPlane::setOrientation(uint32_t orientation) {
     mCurrentOrientation = orientation;
 }
@@ -285,27 +297,6 @@ IntelWidiPlane::isActive() {
     return false;
 }
 
-
-/* overlayInUse
- *
- * This method is used to inform the wireless display plane if any
- * of the layers in the list contained data targeted to the overlay
- * This how the Wireless Plane notices that a video clip has finished
- *
- * This method is used by the HWC updateLayersData method.
- *
- * */
-
-void
-IntelWidiPlane::overlayInUse(bool used) {
-
-    Mutex::Autolock _l(mLock);
-
-    if ( (mState == WIDI_PLANE_STATE_STREAMING) && !used) {
-        LOGV("Let's go back to clone mode");
-        sendInitMode(IWirelessDisplay::WIDI_MODE_CLONE,0,0);
-    }
-}
 
 bool
 IntelWidiPlane::isWidiStatusChanged() {

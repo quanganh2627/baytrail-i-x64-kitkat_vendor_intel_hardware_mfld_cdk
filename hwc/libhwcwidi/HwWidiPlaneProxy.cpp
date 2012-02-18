@@ -53,7 +53,8 @@ enum {
     ENABLE_HW_WIDI_PLANE = IBinder::FIRST_CALL_TRANSACTION,
     DISABLE_HW_WIDI_PLANE,
     REGISTER_FLIP_LISTENER,
-    ALLOW_EXT_VIDEO_MODE
+    ALLOW_EXT_VIDEO_MODE,
+    SET_PLAYER_STATUS
 
 };
 
@@ -95,6 +96,13 @@ public:
         remote()->transact(ALLOW_EXT_VIDEO_MODE, data, &reply);
         return;
     }
+    virtual void setPlayerStatus(bool status) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IHwWidiPlane::getInterfaceDescriptor());
+        data.writeInt32(((int32_t) status));
+        remote()->transact(SET_PLAYER_STATUS, data, &reply);
+        return;
+    }
 };
 
 IMPLEMENT_META_INTERFACE(HwWidiPlane, "android.widi.IHwWidiPlane");
@@ -129,6 +137,13 @@ status_t BnHwWidiPlane::onTransact(
             CHECK_INTERFACE(IHwWidiPlane, data, reply);
             int32_t allow = data.readInt32();
             allowExtVideoMode(allow);
+            reply->writeInt32(NO_ERROR);
+            return NO_ERROR;
+        } break;
+        case SET_PLAYER_STATUS: {
+            CHECK_INTERFACE(IHwWidiPlane, data, reply);
+            int32_t status = data.readInt32();
+            setPlayerStatus(status);
             reply->writeInt32(NO_ERROR);
             return NO_ERROR;
         } break;

@@ -24,6 +24,7 @@
 #include <cutils/atomic.h>
 #include <cutils/ashmem.h>
 #include <sys/mman.h>
+#include <display/MultiDisplayType.h>
 
 IntelHWComposerDrm *IntelHWComposerDrm::mInstance(0);
 
@@ -151,7 +152,7 @@ intel_overlay_mode_t IntelHWComposerDrm::getOldDisplayMode()
     return displayMode;
 }
 
-bool IntelHWComposerDrm::initialize(int bufferType)
+bool IntelHWComposerDrm::initialize(IntelHWComposer *hwc)
 {
     bool ret = false;
 
@@ -163,6 +164,14 @@ bool IntelHWComposerDrm::initialize(int bufferType)
             LOGE("%s: drmInit failed\n", __func__);
             return ret;
         }
+    }
+
+    // create external display monitor
+    mMonitor = new IntelExternalDisplayMonitor(hwc);
+    if (mMonitor == 0) {
+        LOGE("%s: failed to create external display monitor\n", __func__);
+        drmDestroy();
+        return false;
     }
 
     // detect display mode
@@ -273,24 +282,41 @@ bool IntelHWComposerDrm::detectDrmModeInfo()
     drmModeConnection mipi1 = getOutputConnection(OUTPUT_MIPI1);
     drmModeConnection hdmi = getOutputConnection(OUTPUT_HDMI);
 
-    if (hdmi == DRM_MODE_CONNECTED)
-        setDisplayMode(OVERLAY_EXTEND);
-    else if ((mipi0 == DRM_MODE_CONNECTED) && (mipi1 == mipi0))
-        setDisplayMode(OVERLAY_CLONE_DUAL);
-    else if (mipi0 == DRM_MODE_CONNECTED)
-        setDisplayMode(OVERLAY_CLONE_MIPI0);
-    else if (mipi1 == DRM_MODE_CONNECTED)
-        setDisplayMode(OVERLAY_CLONE_MIPI1);
-    else {
-        LOGW("%s: unknown display mode\n", __func__);
-        setDisplayMode(OVERLAY_UNKNOWN);
+    int mdsMode = IntelExternalDisplayMonitor::INVALID_MDS_MODE;
+    if (mMonitor != 0)
+        mdsMode = mMonitor->getDisplayMode();
+
+    if (mdsMode != IntelExternalDisplayMonitor::INVALID_MDS_MODE) {
+        switch (mdsMode) {
+        case MDS_HWC_OVERLAY_EXTEND:
+            setDisplayMode(OVERLAY_EXTEND);
+            break;
+        case MDS_HWC_HDMI_PLUGOUT:
+        case MDS_HWC_OVERLAY_CLONE_MIPI0:
+        default:
+            setDisplayMode(OVERLAY_CLONE_MIPI0);
+        }
+    } else {
+        if (hdmi == DRM_MODE_CONNECTED)
+            setDisplayMode(OVERLAY_EXTEND);
+        else if ((mipi0 == DRM_MODE_CONNECTED) && (mipi1 == mipi0))
+            setDisplayMode(OVERLAY_CLONE_DUAL);
+        else if (mipi0 == DRM_MODE_CONNECTED)
+            setDisplayMode(OVERLAY_CLONE_MIPI0);
+        else if (mipi1 == DRM_MODE_CONNECTED)
+            setDisplayMode(OVERLAY_CLONE_MIPI1);
+        else {
+            LOGW("%s: unknown display mode\n", __func__);
+            setDisplayMode(OVERLAY_UNKNOWN);
+        }
     }
 
-    LOGV("%s: mipi/lvds %s, mipi1 %s, hdmi %s\n",
+    LOGI("%s: mipi/lvds %s, mipi1 %s, hdmi %s, displayMode %d\n",
         __func__,
         ((mipi0 == DRM_MODE_CONNECTED) ? "connected" : "disconnected"),
         ((mipi1 == DRM_MODE_CONNECTED) ? "connected" : "disconnected"),
-        ((hdmi == DRM_MODE_CONNECTED) ? "connected" : "disconnected"));
+        ((hdmi == DRM_MODE_CONNECTED) ? "connected" : "disconnected"),
+        getDisplayMode());
 
     return true;
 }

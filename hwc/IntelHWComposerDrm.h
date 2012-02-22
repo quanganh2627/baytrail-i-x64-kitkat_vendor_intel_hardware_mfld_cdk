@@ -21,6 +21,7 @@
 #include <psb_drm.h>
 #include <pthread.h>
 #include <pvr2d.h>
+#include <IntelExternalDisplayMonitor.h>
 
 extern "C" {
 #include "xf86drm.h"
@@ -64,6 +65,7 @@ typedef struct {
     intel_overlay_mode_t old_display_mode;
 } intel_drm_output_state_t;
 
+
 /**
  * Class: Overlay HAL implementation
  * This is a singleton implementation of hardware overlay.
@@ -76,9 +78,10 @@ private:
     int mDrmFd;
     intel_drm_output_state_t mDrmOutputsState;
     static IntelHWComposerDrm *mInstance;
+    android::sp<IntelExternalDisplayMonitor> mMonitor;
 private:
     IntelHWComposerDrm()
-        : mDrmFd(-1) {
+        : mDrmFd(-1), mMonitor(0) {
         memset(&mDrmOutputsState, 0, sizeof(intel_drm_output_state_t));
     }
     IntelHWComposerDrm(const IntelHWComposerDrm&);
@@ -94,7 +97,7 @@ public:
         }
         return *instance;
     }
-    bool initialize(int bufferType);
+    bool initialize(IntelHWComposer *hwc);
     bool detectDrmModeInfo();
     int getDrmFd() const { return mDrmFd; }
 

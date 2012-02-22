@@ -33,8 +33,10 @@ private:
     IntelDisplayPlaneManager *mPlaneManager;
     IntelHWComposerLayerList *mLayerList;
     hwc_procs_t const *mProcs;
+    int mMonitoringMethod;
     bool mNeedSwapBuffer;
     bool mHotplugEvent;
+    android::Mutex mLock;
     bool mInitialized;
 private:
     void onGeometryChanged(hwc_layer_list_t *list);
@@ -60,8 +62,9 @@ private:
     bool isHWCBlending(uint32_t blending);
     bool isHWCLayer(hwc_layer_t *layer);
     bool areLayersIntersecting(hwc_layer_t *top, hwc_layer_t* bottom);
-protected:
-    void onUEvent(const char *msg, int msgLen);
+    void handleHotplugEvent();
+public:
+    void onUEvent(const char *msg, int msgLen, int msgType);
 public:
     bool initCheck() { return mInitialized; }
     bool initialize();
@@ -69,10 +72,11 @@ public:
     bool commit(hwc_display_t dpy, hwc_surface_t sur, hwc_layer_list_t *list);
     bool dump(char *buff, int buff_len, int *cur_len);
     void registerProcs(hwc_procs_t const *procs) { mProcs = procs; }
+
     IntelHWComposer()
         : IntelHWCUEventObserver(), IntelHWComposerDump(),
           mDrm(0), mBufferManager(0), mGrallocBufferManager(0),
-          mPlaneManager(0), mLayerList(0), mProcs(0),
+          mPlaneManager(0), mLayerList(0), mProcs(0), mMonitoringMethod(0),
           mNeedSwapBuffer(true), mHotplugEvent(false), mInitialized(false) {}
     ~IntelHWComposer();
 };

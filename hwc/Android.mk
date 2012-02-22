@@ -21,7 +21,9 @@ include $(CLEAR_VARS)
 
 LOCAL_PRELINK_MODULE := false
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
-LOCAL_SHARED_LIBRARIES := liblog libEGL libcutils libdrm libpvr2d libwsbm libsrv_um libui libutils libbinder
+LOCAL_SHARED_LIBRARIES := liblog libEGL libcutils libdrm libpvr2d \
+                          libwsbm libsrv_um libui libutils libbinder\
+                          libmultidisplay
 LOCAL_SRC_FILES := IntelHWComposerModule.cpp \
                    IntelHWComposer.cpp \
                    IntelHWComposerLayer.cpp \
@@ -34,7 +36,8 @@ LOCAL_SRC_FILES := IntelHWComposerModule.cpp \
                    MedfieldSpritePlane.cpp \
                    IntelWsbm.cpp \
                    IntelWsbmWrapper.c \
-                   IntelHWCUEventObserver.cpp
+                   IntelHWCUEventObserver.cpp \
+                   IntelExternalDisplayMonitor.cpp
 LOCAL_MODULE_TAGS := eng
 LOCAL_MODULE := hwcomposer.$(TARGET_DEVICE)
 LOCAL_CFLAGS:= -DLOG_TAG=\"hwcomposer\" -DLINUX
@@ -46,6 +49,7 @@ LOCAL_SRC_FILES += IntelWidiPlane.cpp
 endif
 
 LOCAL_C_INCLUDES := $(addprefix $(LOCAL_PATH)/../../, $(SGX_INCLUDES)) \
+            frameworks/base/include \
             hardware/intel/include/eurasia/pvr2d \
             hardware/intel/include/eurasia/include4 \
             hardware/intel/libdrm/libdrm \

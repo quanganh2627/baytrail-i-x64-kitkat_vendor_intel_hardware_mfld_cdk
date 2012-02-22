@@ -890,18 +890,7 @@ void IntelOverlayContext::checkPosition(int& x, int& y, int& w, int& h,
 
     mode = IntelHWComposerDrm::getInstance().getOutputMode(output);
 
-    // Display mode setting may ongoing, retry up to 20ms
-    // FIXME: HWC needs to be notified by HDMIObserver once mode setting
-    // was completed
-    int retry = 20;
-    while (--retry && (!mode || !mode->hdisplay || !mode->vdisplay)) {
-        LOGW("%s: Invalid mode %dx%d, trying detect again\n",
-             __func__, mode->hdisplay, mode->vdisplay);
-        IntelHWComposerDrm::getInstance().detectDrmModeInfo();
-        usleep(1000);
-    }
-
-    if (!retry || !mode || !mode->hdisplay || !mode->vdisplay) {
+    if (!mode || !mode->hdisplay || !mode->vdisplay) {
         LOGE("%s: failed to detect mode of output %d\n", __func__, output);
         return;
     }

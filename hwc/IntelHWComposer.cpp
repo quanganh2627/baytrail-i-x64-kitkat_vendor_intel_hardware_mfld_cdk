@@ -57,11 +57,7 @@ bool IntelHWComposer::overlayPrepare(int index, hwc_layer_t *layer, int flags)
     // setup plane parameters
     plane->setPosition(dstLeft, dstTop, dstRight, dstBottom);
 
-    // update plane context on video mode change
-    if (mHotplugEvent)
-        plane->onDrmModeChange();
-    else
-        plane->setPipeByMode(mDrm->getDisplayMode());
+    plane->setPipeByMode(mDrm->getDisplayMode());
 
     // attach plane to hwc layer
     mLayerList->attachPlane(index, plane, flags);
@@ -643,8 +639,31 @@ bool IntelHWComposer::areLayersIntersecting(hwc_layer_t *top,
     return true;
 }
 
-void IntelHWComposer::onUEvent(const char *msg, int msgLen)
+void IntelHWComposer::handleHotplugEvent()
 {
+    LOGV("handleHotplugEvent");
+
+    // go through layer list and call plane's onModeChange()
+    for (size_t i = 0 ; i < mLayerList->getLayersCount(); i++) {
+        IntelDisplayPlane *plane = mLayerList->getPlane(i);
+        if (plane)
+            plane->onDrmModeChange();
+    }
+}
+
+void IntelHWComposer::onUEvent(const char *msg, int msgLen, int msgType)
+{
+    android::Mutex::Autolock _l(mLock);
+
+    // if send by mds, set the hotplug event and return
+    if (msgType == IntelExternalDisplayMonitor::MSG_TYPE_MDS) {
+        LOGD("%s: got multiDisplay service event\n", __func__);
+        mDrm->detectDrmModeInfo();
+        handleHotplugEvent();
+        mHotplugEvent = true;
+        return;
+    }
+
     if (strcmp(msg, "change@/devices/pci0000:00/0000:00:02.0/drm/card0"))
         return;
     msg += strlen(msg) + 1;
@@ -652,6 +671,8 @@ void IntelHWComposer::onUEvent(const char *msg, int msgLen)
     do {
         if (!strncmp(msg, "HOTPLUG=1", strlen("HOTPLUG=1"))) {
             LOGD("%s: detected hdmi hotplug event\n", __func__);
+            mDrm->detectDrmModeInfo();
+            handleHotplugEvent();
             mHotplugEvent = true;
             break;
         }
@@ -673,8 +694,9 @@ bool IntelHWComposer::prepare(hwc_layer_list_t *list)
         return false;
     }
 
+    android::Mutex::Autolock _l(mLock);
+
     // disable useless overlay planes
-    //
     mPlaneManager->disableReclaimedPlanes(IntelDisplayPlane::DISPLAY_PLANE_OVERLAY);
 
     // handle geometry changing. attach display planes to layers
@@ -682,14 +704,7 @@ bool IntelHWComposer::prepare(hwc_layer_list_t *list)
     // plane control information (e.g. position) will be set here
     if ((list->flags & HWC_GEOMETRY_CHANGED) || mHotplugEvent
         || mPlaneManager->isWidiStatusChanged()) {
-
-        // detect display mode on hotplug event
-        if (mHotplugEvent)
-            mDrm->detectDrmModeInfo();
-
         onGeometryChanged(list);
-
-        // clear hotplug event
         if (mHotplugEvent)
             mHotplugEvent = false;
     }
@@ -712,6 +727,8 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
         LOGE("%s: failed to initialize HWComposer\n", __func__);
         return false;
     }
+
+    android::Mutex::Autolock _l(mLock);
 
     //HWComposer::release(). Need to reclaim and disable all the planes.
     if (!dpy || !sur || !list) {
@@ -814,7 +831,7 @@ bool IntelHWComposer::initialize()
 
     //create new DRM object if not exists
     if (!mDrm) {
-        ret = IntelHWComposerDrm::getInstance().initialize(bufferType);
+        ret = IntelHWComposerDrm::getInstance().initialize(this);
         if (ret == false) {
             LOGE("%s: failed to initialize DRM instance\n", __func__);
             goto drm_err;
@@ -827,13 +844,6 @@ bool IntelHWComposer::initialize()
         LOGE("%s: Invalid DRM object\n", __func__);
         ret = false;
         goto drm_err;
-    }
-
-    // start uevent observer
-    ret = startObserver();
-    if (ret == false) {
-        LOGE("%s: failed to start observer\n", __func__);
-        goto observer_err;
     }
 
     //create new buffer manager and initialize it

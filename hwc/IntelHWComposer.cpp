@@ -713,6 +713,18 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
         return false;
     }
 
+    //HWComposer::release(). Need to reclaim and disable all the planes.
+    if (!dpy || !sur || !list) {
+        bool ret = mLayerList->invalidatePlanes();
+        if (!ret) {
+            LOGE("%s: failed to reclaim allocated planes\n", __func__);
+            return false;
+        }
+        mPlaneManager->disableReclaimedPlanes(IntelDisplayPlane::DISPLAY_PLANE_OVERLAY);
+        mPlaneManager->disableReclaimedPlanes(IntelDisplayPlane::DISPLAY_PLANE_SPRITE);
+        return true;
+    }
+
     if(mPlaneManager->isWidiActive()) {
         IntelDisplayPlane *p = mPlaneManager->getWidiPlane();
         LOGV("Widi Plane is %p",p);

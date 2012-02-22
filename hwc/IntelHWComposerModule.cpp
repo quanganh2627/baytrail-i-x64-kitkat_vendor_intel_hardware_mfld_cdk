@@ -68,12 +68,6 @@ static int hwc_set(hwc_composer_device_t *dev,
         goto set_out;
     }
 
-    if (!list) {
-        LOGE("%s: Invalid layer list\n", __func__);
-        status = -EINVAL;
-        goto set_out;
-    }
-
     if (hwc->commit(dpy, sur, list) ==  false) {
         LOGE("%s: failed to commit\n", __func__);
         status = HWC_EGL_ERROR;

@@ -403,8 +403,8 @@ bool IntelOverlayContext::bufferOffsetSetup(IntelDisplayDataBuffer &buf)
     mOverlayBackBuffer->OSTART_1U = mOverlayBackBuffer->OSTART_0U;
     mOverlayBackBuffer->OSTART_1V = mOverlayBackBuffer->OSTART_0V;
     mOverlayBackBuffer->OBUF_0Y = srcY * yStride + srcX;
-    mOverlayBackBuffer->OBUF_0V = srcY * uvStride + srcX;
-    mOverlayBackBuffer->OBUF_0U = srcY * uvStride + srcX;
+    mOverlayBackBuffer->OBUF_0V = (srcY / 2) * uvStride + srcX;
+    mOverlayBackBuffer->OBUF_0U = (srcY / 2) * uvStride + srcX;
     mOverlayBackBuffer->OBUF_1Y = mOverlayBackBuffer->OBUF_0Y;
     mOverlayBackBuffer->OBUF_1U = mOverlayBackBuffer->OBUF_0U;
     mOverlayBackBuffer->OBUF_1V = mOverlayBackBuffer->OBUF_0V;

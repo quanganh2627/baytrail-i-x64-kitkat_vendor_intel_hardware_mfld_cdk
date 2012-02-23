@@ -201,6 +201,38 @@ static void vpc_set_modem_state(int status)
     vpc_lock.unlock();
 }
 
+/*-------------------------------*/
+/* Get audio voice routing state */
+/*-------------------------------*/
+
+static bool vpc_get_audio_routed()
+{
+    return vpc_audio_routed;
+}
+
+/*-----------------------------------------------------------------------------------*/
+/* Set audio voice routing state                                                     */
+/* Enable/disable volume keys wake up capability given the audio voice routing state */
+/* Set internal state variables                                                      */
+/*-----------------------------------------------------------------------------------*/
+
+static void vpc_set_audio_routed(bool isRouted)
+{
+    // Update internal state variables
+    prev_mode = current_mode;
+    prev_device = current_device;
+
+    if (vpc_audio_routed != isRouted) {
+        // Volume buttons & power management
+        if (isRouted) {
+            volume_keys::wakeup_enable();
+        } else {
+            volume_keys::wakeup_disable();
+        }
+        vpc_audio_routed = isRouted;
+    }
+}
+
 /*---------------------------------------------------------------------------*/
 /* Route/unroute functions                                                   */
 /*---------------------------------------------------------------------------*/
@@ -209,15 +241,13 @@ static int vpc_unroute_voip()
 {
     LOGD("%s", __FUNCTION__);
 
-    if (!vpc_audio_routed)
+    if (!vpc_get_audio_routed())
         return NO_ERROR;
 
     msic::pcm_disable();
 
     // Update internal state variables
-    prev_mode = current_mode;
-    prev_device = current_device;
-    vpc_audio_routed = false;
+    vpc_set_audio_routed(false);
 
     return NO_ERROR;
 }
@@ -226,7 +256,7 @@ static int vpc_unroute_csvcall()
 {
     LOGD("%s", __FUNCTION__);
 
-    if (!vpc_audio_routed)
+    if (!vpc_get_audio_routed())
         return NO_ERROR;
 
     int ret = volume_keys::wakeup_disable();
@@ -240,9 +270,7 @@ static int vpc_unroute_csvcall()
     mixing_enable = false;
 
     // Update internal state variables
-    prev_mode = current_mode;
-    prev_device = current_device;
-    vpc_audio_routed = false;
+    vpc_set_audio_routed(false);
 
     return ret;
 }
@@ -297,20 +325,6 @@ static int vpc_route(vpc_route_t route)
         {
             LOGD("VPC_ROUTE_OPEN request\n");
 
-            /* --------------------------------------------- */
-            /* Volume buttons & power management             */
-            /* --------------------------------------------- */
-            if ((current_mode == AudioSystem::MODE_IN_CALL) && (prev_mode != AudioSystem::MODE_IN_CALL))
-            {
-                ret = volume_keys::wakeup_enable();
-                if (ret) goto return_error;
-            }
-            else if ((current_mode != AudioSystem::MODE_IN_CALL) && (prev_mode == AudioSystem::MODE_IN_CALL))
-            {
-                ret = volume_keys::wakeup_disable();
-                if (ret) goto return_error;
-            }
-
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
             if (vpc_wakeup_audience())
                 goto return_error;
@@ -328,7 +342,7 @@ static int vpc_route(vpc_route_t route)
                     goto return_error;
                 }
                 /* MODEM is UP, apply the changes only if devices, or mode, or audio is not route due to modem reset or call disconnected */
-                if ((prev_mode != current_mode) || (prev_device != current_device) || !vpc_audio_routed)
+                if ((prev_mode != current_mode) || (prev_device != current_device) || !vpc_get_audio_routed())
                 {
                     switch (current_device)
                     {
@@ -352,7 +366,7 @@ static int vpc_route(vpc_route_t route)
                             if (ret) goto return_error;
 #endif
 
-                            if ((prev_mode != AudioSystem::MODE_IN_CALL) || (prev_device & DEVICE_OUT_BLUETOOTH_SCO_ALL) || (!vpc_audio_routed))
+                            if ((prev_mode != AudioSystem::MODE_IN_CALL) || (prev_device & DEVICE_OUT_BLUETOOTH_SCO_ALL) || (!vpc_get_audio_routed()))
                             {
                                 amc_modem_conf_msic_dev(tty_call);
                             }
@@ -379,7 +393,7 @@ static int vpc_route(vpc_route_t route)
                              * Audience requirement: the previous mode clock must be running
                              * while the BT preset is selected, during 50ms at least.
                              */
-                            if(!vpc_audio_routed)
+                            if(!vpc_get_audio_routed())
                             {
                                 amc_modem_conf_msic_dev(tty_call);
                                 amc_on();
@@ -406,9 +420,7 @@ static int vpc_route(vpc_route_t route)
                     voice_call_record_restore();
 
                     // Update internal state variables
-                    prev_mode = current_mode;
-                    prev_device = current_device;
-                    vpc_audio_routed = true;
+                    vpc_set_audio_routed(true);
                 }
                 /* Else: nothing to do, input params of VPC did not change */
             }
@@ -425,7 +437,7 @@ static int vpc_route(vpc_route_t route)
                 }
 
                 /* MODEM is not in cold reset, apply the changes only if devices, or mode, or modem status was changed */
-                if ((prev_mode != current_mode) || (prev_device != current_device) || !vpc_audio_routed)
+                if ((prev_mode != current_mode) || (prev_device != current_device) || !vpc_get_audio_routed())
                 {
                     switch (current_device)
                     {
@@ -481,9 +493,7 @@ static int vpc_route(vpc_route_t route)
                     }
 
                     // Update internal state variables
-                    prev_mode = current_mode;
-                    prev_device = current_device;
-                    vpc_audio_routed = true;
+                    vpc_set_audio_routed(true);
                 }
                 /* else: nothing to do, VPC input params did not change */
             }
@@ -597,6 +607,7 @@ static int vpc_volume(float volume)
     if ((at_thread_init == true) && (current_mode == AudioSystem::MODE_IN_CALL))
     {
         amc_setGaindest(AMC_I2S1_TX, gain);
+	LOGD("%s: change modem volume", __FUNCTION__);
     }
 
     // Backup modem gain

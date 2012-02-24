@@ -101,9 +101,11 @@ bool MedfieldSpritePlane::setDataBuffer(IntelDisplayBuffer& buffer)
     return false;
 }
 
-bool MedfieldSpritePlane::setDataBuffer(uint32_t handle, uint32_t flags)
+bool MedfieldSpritePlane::setDataBuffer(uint32_t handle, uint32_t flags, intel_gralloc_buffer_handle_t* nHandle)
 {
+    unsigned long long ui64Stamp = nHandle->ui64Stamp;
     IntelDisplayBuffer *buffer = 0;
+    int i;
 
     if (!initCheck()) {
         LOGE("%s: overlay plane wasn't initialized\n", __func__);
@@ -112,27 +114,38 @@ bool MedfieldSpritePlane::setDataBuffer(uint32_t handle, uint32_t flags)
 
     LOGV("%s: next buffer %d\n", __func__, mNextBuffer);
 
-    // release the buffer in the next slot
-    if (mDataBuffers[mNextBuffer].handle ||
-        mDataBuffers[mNextBuffer].buffer) {
-        LOGV("%s: releasing buffer %d...\n", __func__, mNextBuffer);
-        mBufferManager->unmap(mDataBuffers[mNextBuffer].buffer);
-        mDataBuffers[mNextBuffer].handle = 0;
-        mDataBuffers[mNextBuffer].buffer = 0;
+    // Notice!!! Maybe handle can be reused, it will cause problem.
+    for (i = 0; i < SPRITE_DATA_BUFFER_NUM_MAX; i++) {
+        if (mDataBuffers[i].ui64Stamp == ui64Stamp) {
+            buffer = mDataBuffers[i].buffer;
+            break;
+        }
     }
 
-    buffer = mBufferManager->map(handle);
     if (!buffer) {
-         LOGE("%s: failed to map handle %d\n", __func__, handle);
-         disable();
-         return false;
+            // release the buffer in the next slot
+            if (mDataBuffers[mNextBuffer].ui64Stamp ||
+                            mDataBuffers[mNextBuffer].buffer) {
+                    LOGV("%s: releasing buffer %d...\n", __func__, mNextBuffer);
+                    mBufferManager->unmap(mDataBuffers[mNextBuffer].buffer);
+                    mDataBuffers[mNextBuffer].ui64Stamp = 0;
+                    mDataBuffers[mNextBuffer].handle = 0;
+                    mDataBuffers[mNextBuffer].buffer = 0;
+            }
+
+            buffer = mBufferManager->map(handle);
+            if (!buffer) {
+                    LOGE("%s: failed to map handle %d\n", __func__, handle);
+                    disable();
+                    return false;
+            }
+
+            mDataBuffers[mNextBuffer].ui64Stamp = ui64Stamp;
+            mDataBuffers[mNextBuffer].handle = handle;
+            mDataBuffers[mNextBuffer].buffer = buffer;
+            // move mNextBuffer pointer
+            mNextBuffer = (mNextBuffer + 1) % SPRITE_DATA_BUFFER_NUM_MAX;
     }
-
-    mDataBuffers[mNextBuffer].handle = handle;
-    mDataBuffers[mNextBuffer].buffer = buffer;
-
-    // move mNextBuffer pointer
-    mNextBuffer = (mNextBuffer + 1) % SPRITE_DATA_BUFFER_NUM_MAX;
 
     IntelDisplayDataBuffer *spriteDataBuffer =
         reinterpret_cast<IntelDisplayDataBuffer*>(mDataBuffer);

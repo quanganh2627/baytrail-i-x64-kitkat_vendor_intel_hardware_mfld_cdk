@@ -74,10 +74,6 @@ bool IntelHWComposer::spritePrepare(int index, hwc_layer_t *layer, int flags)
         LOGE("%s: Invalid layer\n", __func__);
         return false;
     }
-    int srcX = layer->sourceCrop.left;
-    int srcY = layer->sourceCrop.top;
-    int srcWidth = layer->sourceCrop.right - layer->sourceCrop.left;
-    int srcHeight = layer->sourceCrop.bottom - layer->sourceCrop.top;
     int dstLeft = layer->displayFrame.left;
     int dstTop = layer->displayFrame.top;
     int dstRight = layer->displayFrame.right;
@@ -90,26 +86,8 @@ bool IntelHWComposer::spritePrepare(int index, hwc_layer_t *layer, int flags)
         return false;
     }
 
-    // map data buffer
-    intel_gralloc_buffer_handle_t *grallocHandle =
-        (intel_gralloc_buffer_handle_t*)layer->handle;
-
-    if (!grallocHandle)
-        return false;
-
-    IntelDisplayDataBuffer *dataBuffer =
-        reinterpret_cast<IntelDisplayDataBuffer*>(plane->getDataBuffer());
-
-    dataBuffer->setFormat(grallocHandle->format);
-    dataBuffer->setWidth(grallocHandle->width);
-    dataBuffer->setHeight(grallocHandle->height);
-    dataBuffer->setCrop(srcX, srcY, srcWidth, srcHeight);
-
     // setup plane parameters
     plane->setPosition(dstLeft, dstTop, dstRight, dstBottom);
-
-    // set the data buffer back to plane
-    plane->setDataBuffer(grallocHandle->fd[GRALLOC_SUB_BUFFER0], 0);
 
     // attach plane to hwc layer
     mLayerList->attachPlane(index, plane, flags);
@@ -464,26 +442,26 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                 continue;
             }
 
-            if (planeType == IntelDisplayPlane::DISPLAY_PLANE_OVERLAY) {
-                IntelOverlayContext *overlayContext =
-                    reinterpret_cast<IntelOverlayContext*>(plane->getContext());
-
-                intel_gralloc_buffer_handle_t *grallocHandle =
+            intel_gralloc_buffer_handle_t *grallocHandle =
                     (intel_gralloc_buffer_handle_t*)layer->handle;
 
-                // if invalid gralloc buffer handle, throw back this layer to SF
-                if (!grallocHandle) {
+            // if invalid gralloc buffer handle, throw back this layer to SF
+            if (!grallocHandle) {
                     LOGE("%s: invalid buffer handle\n", __func__);
                     mLayerList->detachPlane(i, plane);
                     layer->compositionType = HWC_FRAMEBUFFER;
                     continue;
-                }
+            }
 
-                int bufferWidth = grallocHandle->width;
-                int bufferHeight = grallocHandle->height;
-                uint32_t bufferHandle = grallocHandle->fd[GRALLOC_SUB_BUFFER0];
-                unsigned long long ui64Stamp = grallocHandle->ui64Stamp;
-                uint32_t transform = layer->transform;
+            int bufferWidth = grallocHandle->width;
+            int bufferHeight = grallocHandle->height;
+            uint32_t bufferHandle = grallocHandle->fd[GRALLOC_SUB_BUFFER0];
+            int format = grallocHandle->format;
+            uint32_t transform = layer->transform;
+
+            if (planeType == IntelDisplayPlane::DISPLAY_PLANE_OVERLAY) {
+                IntelOverlayContext *overlayContext =
+                    reinterpret_cast<IntelOverlayContext*>(plane->getContext());
 
                 // check if can switch to overlay
                 bool useOverlay = useOverlayRotation(layer, i,
@@ -511,7 +489,6 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
 
                 // now let us set up the overlay
                 uint32_t yStride, uvStride;
-                int format = grallocHandle->format;
 
                 // set stride
                 switch (format) {
@@ -538,7 +515,7 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                 dataBuffer->setCrop(srcX, srcY, srcWidth, srcHeight);
 
                 // set the data buffer back to plane
-                ret = ((IntelOverlayPlane*)plane)->setDataBuffer(bufferHandle, transform, ui64Stamp, grallocHandle);
+                ret = plane->setDataBuffer(bufferHandle, transform, grallocHandle);
                 if (!ret) {
                     LOGE("%s: failed to update overlay data buffer\n", __func__);
                     mLayerList->detachPlane(i, plane);
@@ -553,7 +530,20 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                 }
 
             } else if (planeType == IntelDisplayPlane::DISPLAY_PLANE_SPRITE) {
-                // do nothing for sprite plane for now
+
+                // set data buffer format
+                dataBuffer->setFormat(format);
+                dataBuffer->setWidth(bufferWidth);
+                dataBuffer->setHeight(bufferHeight);
+                dataBuffer->setCrop(srcX, srcY, srcWidth, srcHeight);
+
+                // set the data buffer back to plane
+                ret = plane->setDataBuffer(bufferHandle, transform, grallocHandle);
+                if (!ret) {
+                    LOGE("%s: failed to update sprite data buffer\n", __func__);
+                    mLayerList->detachPlane(i, plane);
+                    layer->compositionType = HWC_FRAMEBUFFER;
+                }
             } else {
                 LOGW("%s: invalid plane type %d\n", __func__, planeType);
                 continue;

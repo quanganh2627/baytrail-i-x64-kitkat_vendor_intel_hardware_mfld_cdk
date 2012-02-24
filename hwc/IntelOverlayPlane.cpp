@@ -1192,9 +1192,9 @@ void IntelOverlayPlane::setPosition(int left, int top, int right, int bottom)
 }
 
 bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
-                                      unsigned long long ui64Stamp,
-                                      intel_gralloc_buffer_handle_t* nHandle = NULL)
+                                      intel_gralloc_buffer_handle_t* nHandle)
 {
+    unsigned long long ui64Stamp = nHandle->ui64Stamp;
     IntelDisplayBuffer *buffer = 0;
     uint32_t bufferType;
 

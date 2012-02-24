@@ -357,7 +357,10 @@ static status_t setHardwareParams(alsa_handle_t *handle)
             snd_pcm_hw_params_free(hardwareParams);
             return err;
         }
-        periodTime = latency/4;
+        if (handle->curMode == AudioSystem::MODE_NORMAL)
+            periodTime = latency/2;
+        else
+            periodTime = latency/4;
         err = snd_pcm_hw_params_set_period_time_near(handle->handle,
                 hardwareParams, &periodTime, NULL);
         if (err < 0) {

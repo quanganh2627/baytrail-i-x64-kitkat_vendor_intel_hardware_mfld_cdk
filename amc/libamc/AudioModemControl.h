@@ -252,6 +252,7 @@ int amc_off();
 int amc_on();
 int amc_mute();
 int amc_unmute(int gainDL, int gainUL);
+void amc_set_default_clocks(uint32_t uiIfxI2s1ClkSelect, uint32_t uiIfxI2s2ClkSelect);
 
 #ifdef __cplusplus
 }

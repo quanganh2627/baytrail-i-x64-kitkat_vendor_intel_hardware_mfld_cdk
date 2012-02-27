@@ -58,7 +58,7 @@ typedef enum {
     AT_STATUS_NB
 } AT_STATUS;
 
-AT_STATUS at_start(const char *pATchannel);
+AT_STATUS at_start(const char *pATchannel, uint32_t uiIfxI2s1ClkSelect, uint32_t uiIfxI2s2ClkSelect);
 AT_STATUS at_send(const char *pATcmd, const char *pRespPrefix);
 
 #ifdef __cplusplus

@@ -36,7 +36,7 @@ namespace android_audio_legacy
 /* API                                                                       */
 /*===========================================================================*/
 
-static int vpc_init(void);
+static int vpc_init(uint32_t uiIfxI2s1ClkSelect, uint32_t uiIfxI2s2ClkSelect);
 static int vpc_params(int mode, uint32_t device);
 static void vpc_set_mode(int mode);
 static void vpc_set_modem_state(int state);
@@ -63,6 +63,8 @@ static const AMC_TTY_STATE translate_vpc_to_amc_tty[] = {
     AMC_TTY_HCO, /*[VPC_TTY_HCO] */
 };
 
+const uint32_t DEFAULT_IS21_CLOCK_SELECTION = IFX_CLK1;
+const uint32_t DEFAULT_IS22_CLOCK_SELECTION = IFX_CLK0;
 
 /*---------------------------------------------------------------------------*/
 /* Global variables                                                          */
@@ -95,14 +97,23 @@ static void voice_call_record_restore();
 /*---------------------------------------------------------------------------*/
 /* Initialization                                                            */
 /*---------------------------------------------------------------------------*/
-static int vpc_init(void)
+static int vpc_init(uint32_t uiIfxI2s1ClkSelect, uint32_t uiIfxI2s2ClkSelect)
 {
     vpc_lock.lock();
     LOGD("Initialize VPC\n");
+    
+    if (uiIfxI2s1ClkSelect == -1) {
+		// Not provided: use default
+		uiIfxI2s1ClkSelect = DEFAULT_IS21_CLOCK_SELECTION;
+    }
+    if (uiIfxI2s2ClkSelect == -1) {
+		// Not provided: use default
+		uiIfxI2s2ClkSelect = DEFAULT_IS22_CLOCK_SELECTION;
+    }
 
     if (at_thread_init == false)
     {
-        AT_STATUS cmd_status = at_start(AUDIO_AT_CHANNEL_NAME);
+        AT_STATUS cmd_status = at_start(AUDIO_AT_CHANNEL_NAME, uiIfxI2s1ClkSelect, uiIfxI2s2ClkSelect);
         if (cmd_status != AT_OK) goto return_error;
         LOGD("AT thread started\n");
         at_thread_init = true;

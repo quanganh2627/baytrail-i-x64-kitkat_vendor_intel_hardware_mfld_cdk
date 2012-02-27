@@ -24,6 +24,9 @@
 #include <unistd.h>
 
 static  destForSourceRoute *pdestForSource[NBR_ROUTE] = { NULL, };
+// Default clock selection
+static uint32_t guiIfxI2s1ClkSelect, guiIfxI2s2ClkSelect;
+
 static void get_route_id(AMC_ROUTE_ID route, destForSourceRoute *pdestForSource);
 
 void amc_dest_for_source()
@@ -54,6 +57,12 @@ void amc_dest_for_source()
         get_route_id((AMC_ROUTE_ID)i, &pdestForSourceTmp[i][0]);
         pdestForSource[i] = pdestForSourceTmp[i];
     }
+}
+
+void amc_set_default_clocks(uint32_t uiIfxI2s1ClkSelect, uint32_t uiIfxI2s2ClkSelect)
+{
+	guiIfxI2s1ClkSelect = uiIfxI2s1ClkSelect;
+	guiIfxI2s2ClkSelect = uiIfxI2s2ClkSelect;
 }
 
 void get_route_id(AMC_ROUTE_ID route, destForSourceRoute *pdestForSource)
@@ -128,10 +137,15 @@ int amc_modem_conf_msic_dev(AMC_TTY_STATE tty)
     default:
         return -1;
     }
-    amc_configure_source(AMC_I2S1_RX, IFX_CLK1, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, modeTtySource);
-    amc_configure_dest(AMC_I2S1_TX, IFX_CLK1, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, modeTtyDest);
-    amc_configure_source(AMC_I2S2_RX, IFX_CLK0, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
-    amc_configure_dest(AMC_I2S2_TX, IFX_CLK0, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_D);
+    // Configure I2S1
+    amc_configure_source(AMC_I2S1_RX, guiIfxI2s1ClkSelect, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, modeTtySource);
+    amc_configure_dest(AMC_I2S1_TX, guiIfxI2s1ClkSelect, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, modeTtyDest);
+
+    // Configure I2S2
+    amc_configure_source(AMC_I2S2_RX, guiIfxI2s2ClkSelect, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
+    amc_configure_dest(AMC_I2S2_TX, guiIfxI2s2ClkSelect, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_D);
+
+    // Route
     amc_route(&pdestForSource[ROUTE_DISCONNECT_RADIO][0]);
     amc_route(&pdestForSource[ROUTE_I2S1][0]);
     amc_route(&pdestForSource[ROUTE_I2S2][0]);
@@ -141,10 +155,15 @@ int amc_modem_conf_msic_dev(AMC_TTY_STATE tty)
 
 int amc_modem_conf_bt_dev()
 {
-    amc_configure_source(AMC_I2S1_RX, IFX_CLK1, IFX_MASTER, IFX_SR_8KHZ, IFX_SW_16, IFX_PCM, I2S_SETTING_NORMAL, IFX_MONO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
-    amc_configure_source(AMC_I2S2_RX, IFX_CLK0, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
-    amc_configure_dest(AMC_I2S1_TX, IFX_CLK1, IFX_MASTER, IFX_SR_8KHZ, IFX_SW_16, IFX_PCM, I2S_SETTING_NORMAL, IFX_MONO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_D);
-    amc_configure_dest(AMC_I2S2_TX, IFX_CLK0, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_D);
+    // Configure I2S1
+    amc_configure_source(AMC_I2S1_RX, guiIfxI2s1ClkSelect, IFX_MASTER, IFX_SR_8KHZ, IFX_SW_16, IFX_PCM, I2S_SETTING_NORMAL, IFX_MONO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
+    amc_configure_dest(AMC_I2S1_TX, guiIfxI2s1ClkSelect, IFX_MASTER, IFX_SR_8KHZ, IFX_SW_16, IFX_PCM, I2S_SETTING_NORMAL, IFX_MONO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_D);
+
+    // Configure I2S2
+    amc_configure_source(AMC_I2S2_RX, guiIfxI2s2ClkSelect, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
+    amc_configure_dest(AMC_I2S2_TX, guiIfxI2s2ClkSelect, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_D);
+
+    // Route
     amc_route(&pdestForSource[ROUTE_DISCONNECT_RADIO][0]);
     amc_route(&pdestForSource[ROUTE_I2S1][0]);
     amc_route(&pdestForSource[ROUTE_I2S2][0]);

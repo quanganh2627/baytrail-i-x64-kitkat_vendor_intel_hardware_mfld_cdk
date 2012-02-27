@@ -42,7 +42,7 @@ CATManager* getInstance()
 }
 
 
-AT_STATUS at_start(const char *pATchannel)
+AT_STATUS at_start(const char *pATchannel, uint32_t uiIfxI2s1ClkSelect, uint32_t uiIfxI2s2ClkSelect)
 {
     AT_CMD_STATUS eStatus = getInstance()->start(pATchannel, MAX_WAIT_ACK_SECONDS);
 
@@ -52,6 +52,7 @@ AT_STATUS at_start(const char *pATchannel)
     }
     LOGD("*** ATmodemControl started");
     amc_dest_for_source();
+    amc_set_default_clocks(uiIfxI2s1ClkSelect, uiIfxI2s2ClkSelect);
     LOGV("After dest for source init matrix");
 
     return translate_error_code[eStatus];

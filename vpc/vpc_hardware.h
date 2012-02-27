@@ -37,7 +37,7 @@ typedef enum { VPC_BT_NREC_OFF, VPC_BT_NREC_ON } vpc_bt_nrec_t;
 typedef struct vpc_device_t {
     hw_device_t common;
 
-    int (*init)(void);
+    int (*init)(uint32_t uiIfxI2s1ClkSelect, uint32_t uiIfxI2s2ClkSelect);
     int (*params)(int mode, uint32_t device);
     void (*set_mode)(int mode);
     void (*set_call_status)(bool isConnected);

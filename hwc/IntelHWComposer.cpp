@@ -489,6 +489,7 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                     if (!useOverlay) {
                         layer->compositionType = HWC_FRAMEBUFFER;
                         layer->hints &= ~HWC_HINT_CLEAR_FB;
+                        mLayerList->detachPlane(i, plane);
                         continue;
                     }
 

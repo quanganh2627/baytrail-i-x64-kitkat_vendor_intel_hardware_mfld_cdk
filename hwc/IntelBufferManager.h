@@ -191,6 +191,7 @@ typedef struct {
     int surface_protected;
     int force_output_method;
     uint32_t rotated_buffer_handle;
+    uint32_t renderStatus;
     uint32_t nativebuf_count;
     uint32_t nativebuf_idx;
     uint32_t nativebuf_handle[0];

@@ -27,6 +27,11 @@
 
 static const unsigned int EXT_VIDEO_MODE_MAX_SURFACE = 32;
 
+typedef struct {
+        intel_gralloc_payload_t *p;
+        IntelDisplayBuffer      *pDB;
+}widiPayloadBuffer_t;
+
 class IntelWidiPlane : public IntelDisplayPlane , public intel::widi::BnHwWidiPlane {
 
 public:
@@ -52,8 +57,9 @@ public:
 protected:
     void init();
     android::status_t sendInitMode(int mode, uint32_t width, uint32_t height);
-    intel_gralloc_payload_t * mapPayloadBuffer(intel_gralloc_buffer_handle_t* gHandle);
-    void unmapPayloadBuffer(intel_gralloc_buffer_handle_t* gHandle);
+    bool mapPayloadBuffer(intel_gralloc_buffer_handle_t* gHandle, widiPayloadBuffer_t* wPayload);
+    void unmapPayloadBuffer(widiPayloadBuffer_t* wPayload);
+    void clearExtVideoModeContext();
 
     class WidiInitThread: public android::Thread {
     public:
@@ -83,11 +89,13 @@ protected:
         android::sp<IntelWidiPlane> mSelf;
     };
 
+
+
     int32_t                         mAllowExtVideoMode;
     WidiPlaneState                  mState;
     bool                            mWidiStatusChanged;
+    bool                            mPlayerStatus;
 
-    IntelDisplayBuffer              *mCurrentDisplayBuffer;
     android::Mutex                  mLock;
     android::sp<WidiInitThread>     mInitThread;
     android::sp<IPageFlipListener>  mFlipListener;
@@ -98,6 +106,7 @@ protected:
 
 
     intel_gralloc_buffer_handle_t   mExtVideoBuffers[EXT_VIDEO_MODE_MAX_SURFACE];
+    widiPayloadBuffer_t             mExtVideoPayloadBuffers[EXT_VIDEO_MODE_MAX_SURFACE];
     int32_t                         mExtVideoBuffersCount;
     android::KeyedVector<intel_gralloc_buffer_handle_t*, uint32_t> mExtVideoBuffersMapping;
 };

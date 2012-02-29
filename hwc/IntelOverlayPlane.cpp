@@ -170,7 +170,7 @@ bool IntelOverlayContext::destroy()
     }
 
     if (android_atomic_dec(&mContext->refCount) == 1) {
-	LOGV("%s: refcount = 0, destroy mutex\n", __func__);
+        LOGV("%s: refcount = 0, destroy mutex\n", __func__);
         if (pthread_mutex_destroy(&mContext->lock)) {
             LOGE("%s: destroy share context lock failed\n", __func__);
             ret = false;

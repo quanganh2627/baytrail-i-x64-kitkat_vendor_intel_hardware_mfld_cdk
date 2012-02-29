@@ -59,7 +59,9 @@ bool MedfieldSpritePlane::setDataBuffer(IntelDisplayBuffer& buffer)
             bpp = 4;
             break;
         case HAL_PIXEL_FORMAT_BGRA_8888:
-            spriteFormat = INTEL_SPRITE_PIXEL_FORMAT_BGRA8888;
+            //workaround for glbenchmarkes1.0 case 1 test. need to confirm with HW engineer
+            //why BGRA8888 pre multiplied setting takes no effect on alpha channel.
+            spriteFormat = INTEL_SPRITE_PIXEL_FORMAT_BGRX8888;
             bpp = 4;
             break;
         case HAL_PIXEL_FORMAT_RGB_565:

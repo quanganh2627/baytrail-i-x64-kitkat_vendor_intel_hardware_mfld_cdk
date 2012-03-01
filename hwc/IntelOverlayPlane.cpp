@@ -1340,13 +1340,20 @@ bool IntelOverlayPlane::flip(uint32_t flags)
     if (initCheck()) {
         IntelOverlayContext *overlayContext =
             reinterpret_cast<IntelOverlayContext*>(mContext);
-        flags |= IntelDisplayPlane::FLASH_NEEDED |
-                 IntelDisplayPlane::UPDATE_COEF |
-                 IntelDisplayPlane::WAIT_VBLANK;
 
-        ret = overlayContext->flush(flags);
-        if (ret == false)
-            LOGE("%s: failed to do overlay flip\n", __func__);
+        if (mWidiPlane && mWidiPlane->isStreaming()) {
+            ret = overlayContext->disable();
+            if (ret == false)
+                LOGE("%s: failed to reset overlay\n", __func__);
+        } else {
+            flags |= IntelDisplayPlane::FLASH_NEEDED |
+                    IntelDisplayPlane::UPDATE_COEF |
+                    IntelDisplayPlane::WAIT_VBLANK;
+
+            ret = overlayContext->flush(flags);
+            if (ret == false)
+                LOGE("%s: failed to do overlay flip\n", __func__);
+        }
     }
 
     return ret;

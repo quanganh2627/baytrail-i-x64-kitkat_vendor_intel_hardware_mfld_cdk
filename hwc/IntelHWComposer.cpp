@@ -733,16 +733,6 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
              LOGE("Widi Plane is NULL");
     }
 
-    // need check whether eglSwapBuffers is necessary
-    bool needSwapBuffer = false;
-    bool needRepaint = false;
-    // if all layers were attached with display planes then we don't need
-    // swap buffers.
-    if (mLayerList->getLayersCount() == mLayerList->getAttachedPlanesCount())
-        needSwapBuffer = false;
-    else
-	needSwapBuffer = true;
-
     // Call plane's flip for each layer in hwc_layer_list, if a plane has
     // been attached to a layer
     for (size_t i=0 ; i<list->numHwLayers ; i++) {
@@ -759,13 +749,6 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
             plane->waitForFlipCompletion();
         }
 
-        // if layer requires clear FB, force swap buffers
-        if (list->hwLayers[i].hints & HWC_HINT_CLEAR_FB)
-            needSwapBuffer = true;
-
-        if (list->hwLayers[i].compositionType == HWC_FRAMEBUFFER)
-            needSwapBuffer = true;
-
         // clear flip flags
         mLayerList->setFlags(i, 0);
 
@@ -779,17 +762,12 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
     mPlaneManager->disableReclaimedPlanes(IntelDisplayPlane::DISPLAY_PLANE_SPRITE);
 
     // check whether eglSwapBuffers is still needed for the given layer list
-    if (needSwapBuffer) {
+    if (list->flags & HWC_NEED_SWAPBUFFERS) {
         EGLBoolean sucess = eglSwapBuffers((EGLDisplay)dpy, (EGLSurface)sur);
         if (!sucess) {
             return false;
         }
     }
-
-    // check whether screen need to be repainted
-    needRepaint =  (mLayerList->getAttachedPlanesCount()) && needSwapBuffer;
-    if (needRepaint && mProcs && mProcs->invalidate)
-        mProcs->invalidate((hwc_procs_t*)mProcs);
 
     return true;
 }

@@ -225,7 +225,8 @@ bool IntelHWComposer::isSpriteLayer(hwc_layer_list_t *list,
     if (!list || !layer)
         return false;
 
-    if (mPlaneManager->isWidiActive() == false) {
+    if ((mPlaneManager->isWidiActive() == false) &&
+        (mDrm->getOutputConnection(OUTPUT_HDMI) != DRM_MODE_CONNECTED)) {
         intel_gralloc_buffer_handle_t *grallocHandle =
             (intel_gralloc_buffer_handle_t*)layer->handle;
 

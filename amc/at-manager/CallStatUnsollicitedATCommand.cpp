@@ -91,7 +91,8 @@ void CCallStatUnsollicitedATCommand::doProcessAnswer()
         goto clear_cmd;
     }
 
-    _abCallSessionStat[iCallIndex] = uiCallStatus;
+    // Call Index received from the modem starts from 1
+    _abCallSessionStat[iCallIndex - 1] = uiCallStatus;
 
     _bAudioPathAvailable = isModemAudioPathEnabled();
 

@@ -391,6 +391,7 @@ IntelWidiPlane::clearExtVideoModeContext() {
 
     LOGI("Clearing extVideo Mode context");
     for (int i = 0; i< mExtVideoBuffersCount; i++) {
+        mExtVideoPayloadBuffers[i].p->renderStatus = 0;
         unmapPayloadBuffer(&mExtVideoPayloadBuffers[i]);
     }
     memset(mExtVideoPayloadBuffers, 0, sizeof(widiPayloadBuffer_t)*EXT_VIDEO_MODE_MAX_SURFACE);
@@ -404,7 +405,8 @@ void
 IntelWidiPlane::returnBuffer(int index) {
     LOGV("Buffer returned, index = %d", index);
 
-    mExtVideoPayloadBuffers[index].p->renderStatus = 0;
+    if (mExtVideoPayloadBuffers[index].p != NULL)
+        mExtVideoPayloadBuffers[index].p->renderStatus = 0;
 }
 
 void

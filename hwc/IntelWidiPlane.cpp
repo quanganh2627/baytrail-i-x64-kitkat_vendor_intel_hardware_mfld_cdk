@@ -72,6 +72,7 @@ IntelWidiPlane::IntelWidiPlane(int fd, int index, IntelBufferManager *bm)
       mFlipListener(NULL),
       mWirelessDisplay(NULL),
       mCurrentOrientation(0),
+      mNextExtFrame(-1),
       mExtVideoBuffersCount(0)
 
 {
@@ -159,9 +160,24 @@ bool
 IntelWidiPlane::flip(uint32_t flags) {
 
     LOGV("Widi Plane flip, flip listener = %p", mFlipListener.get());
-    if (mFlipListener != NULL && mState == WIDI_PLANE_STATE_ACTIVE)
+    if (mFlipListener != NULL && mState == WIDI_PLANE_STATE_ACTIVE) {
         mFlipListener->pageFlipped(systemTime(),mCurrentOrientation);
 
+    } else if (mState == WIDI_PLANE_STATE_STREAMING) {
+        sp<IWirelessDisplay> wd = interface_cast<IWirelessDisplay>(mWirelessDisplay);
+
+        LOGV("Sending buffer, index %d", mNextExtFrame);
+        if (mNextExtFrame != -1) {
+            widiPayloadBuffer_t wPayload = mExtVideoPayloadBuffers[mNextExtFrame];
+            status_t ret = wd->sendBuffer(wPayload.p->nativebuf_idx);
+
+            if (ret == NO_ERROR) {
+                wPayload.p->renderStatus = 1;
+            } else {
+                LOGV("Could not send buffer to Widi");
+            }
+        }
+    }
     return true;
 }
 
@@ -239,18 +255,13 @@ IntelWidiPlane::setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t 
         } else {
             int native_index = mExtVideoBuffersMapping.valueAt(index);
 
-            widiPayloadBuffer_t wPayload = mExtVideoPayloadBuffers[native_index];
-
-            LOGV("Sending Buffer , index = %d",  wPayload.p->nativebuf_idx);
-
-            sp<IWirelessDisplay> wd = interface_cast<IWirelessDisplay>(mWirelessDisplay);
-            ret = wd->sendBuffer(wPayload.p->nativebuf_idx);
-
-            if (ret == NO_ERROR) {
-                wPayload.p->renderStatus = 1;
-            }else{
-                LOGV("Could not send buffer to Widi");
+            if (mNextExtFrame == native_index) {
+                LOGV("Skipping duplicate index: %d", native_index);
+                return;
             }
+
+            LOGV("Next Buffer index = %d",  native_index);
+            mNextExtFrame = native_index;
         }
 
     } else if ((mState == WIDI_PLANE_STATE_ACTIVE)  && (mPlayerStatus == 1)){
@@ -398,7 +409,7 @@ IntelWidiPlane::clearExtVideoModeContext() {
     memset(mExtVideoBuffers, 0, sizeof(intel_gralloc_buffer_handle_t)*EXT_VIDEO_MODE_MAX_SURFACE);
     mExtVideoBuffersCount = 0;
     mExtVideoBuffersMapping.clear();
-
+    mNextExtFrame = -1;
 }
 
 void

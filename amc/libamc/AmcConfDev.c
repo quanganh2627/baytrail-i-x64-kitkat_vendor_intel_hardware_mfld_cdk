@@ -111,36 +111,36 @@ void get_route_id(AMC_ROUTE_ID route, destForSourceRoute *pdestForSource)
     }
 }
 
-int amc_modem_conf_msic_dev(AMC_TTY_STATE tty)
+int amc_conf_i2s1(AMC_TTY_STATE tty, IFX_TRANSDUCER_MODE_SOURCE modeSource, IFX_TRANSDUCER_MODE_DEST modeDest)
 {
-    IFX_TRANSDUCER_MODE_SOURCE modeTtySource;
-    IFX_TRANSDUCER_MODE_DEST modeTtyDest;
-
+    // Check TTY mode
     switch (tty)
     {
     case AMC_TTY_OFF:
-        modeTtySource = IFX_USER_DEFINED_15_S;
-        modeTtyDest = IFX_USER_DEFINED_15_D;
         break;
     case AMC_TTY_FULL:
-        modeTtySource = IFX_TTY_S;
-        modeTtyDest = IFX_TTY_D;
+        modeSource = IFX_TTY_S;
+        modeDest = IFX_TTY_D;
         break;
     case AMC_TTY_VCO:
-        modeTtySource = IFX_USER_DEFINED_15_S;
-        modeTtyDest = IFX_TTY_D;
+        modeDest = IFX_TTY_D;
         break;
     case AMC_TTY_HCO:
-        modeTtySource = IFX_TTY_S;
-        modeTtyDest = IFX_USER_DEFINED_15_D;
+        modeSource = IFX_TTY_S;
         break;
     default:
         return -1;
     }
-    // Configure I2S1
-    amc_configure_source(AMC_I2S1_RX, guiIfxI2s1ClkSelect, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, modeTtySource);
-    amc_configure_dest(AMC_I2S1_TX, guiIfxI2s1ClkSelect, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, modeTtyDest);
 
+    // Configure I2S1
+    LOGD("mode_Source: %d\nmode_Dest:%d\n tty_mode:%d",modeSource, modeDest, tty);
+    amc_configure_source(AMC_I2S1_RX, guiIfxI2s1ClkSelect, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, modeSource);
+    amc_configure_dest(AMC_I2S1_TX, guiIfxI2s1ClkSelect, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, modeDest);
+    return 0;
+}
+
+int amc_conf_i2s2_route()
+{
     // Configure I2S2
     amc_configure_source(AMC_I2S2_RX, guiIfxI2s2ClkSelect, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
     amc_configure_dest(AMC_I2S2_TX, guiIfxI2s2ClkSelect, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_D);
@@ -153,11 +153,12 @@ int amc_modem_conf_msic_dev(AMC_TTY_STATE tty)
     return 0;
 }
 
-int amc_modem_conf_bt_dev()
+int amc_modem_conf_bt_dev(IFX_TRANSDUCER_MODE_SOURCE modeSource, IFX_TRANSDUCER_MODE_DEST modeDest)
 {
     // Configure I2S1
-    amc_configure_source(AMC_I2S1_RX, guiIfxI2s1ClkSelect, IFX_MASTER, IFX_SR_8KHZ, IFX_SW_16, IFX_PCM, I2S_SETTING_NORMAL, IFX_MONO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);
-    amc_configure_dest(AMC_I2S1_TX, guiIfxI2s1ClkSelect, IFX_MASTER, IFX_SR_8KHZ, IFX_SW_16, IFX_PCM, I2S_SETTING_NORMAL, IFX_MONO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_D);
+    LOGD("mode_Source(BT): %d\nmode_Dest(BT):%d\n",modeSource, modeDest);
+    amc_configure_source(AMC_I2S1_RX, guiIfxI2s1ClkSelect, IFX_MASTER, IFX_SR_8KHZ, IFX_SW_16, IFX_PCM, I2S_SETTING_NORMAL, IFX_MONO, IFX_UPDATE_ALL, modeSource);
+    amc_configure_dest(AMC_I2S1_TX, guiIfxI2s1ClkSelect, IFX_MASTER, IFX_SR_8KHZ, IFX_SW_16, IFX_PCM, I2S_SETTING_NORMAL, IFX_MONO, IFX_UPDATE_ALL, modeDest);
 
     // Configure I2S2
     amc_configure_source(AMC_I2S2_RX, guiIfxI2s2ClkSelect, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, IFX_USER_DEFINED_15_S);

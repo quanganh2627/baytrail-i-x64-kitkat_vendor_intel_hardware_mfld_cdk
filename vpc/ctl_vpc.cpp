@@ -45,6 +45,7 @@ static int vpc_volume(float);
 static int vpc_mixing_disable(bool isOut);
 static int vpc_mixing_enable(bool isOut, uint32_t device);
 static int vpc_tty(vpc_tty_t);
+static void translate_to_amc_device(const uint32_t current_device, IFX_TRANSDUCER_MODE_SOURCE* mode_source, IFX_TRANSDUCER_MODE_DEST* mode_dest);
 static int vpc_bt_nrec(vpc_bt_nrec_t);
 
 
@@ -355,6 +356,8 @@ static int vpc_route(vpc_route_t route)
                 /* MODEM is UP, apply the changes only if devices, or mode, or audio is not route due to modem reset or call disconnected */
                 if ((prev_mode != current_mode) || (prev_device != current_device) || !vpc_get_audio_routed())
                 {
+                    IFX_TRANSDUCER_MODE_SOURCE mode_source;
+                    IFX_TRANSDUCER_MODE_DEST mode_dest;
                     switch (current_device)
                     {
                         /* ------------------------------------ */
@@ -375,11 +378,19 @@ static int vpc_route(vpc_route_t route)
                             device_profile = (tty_call == AMC_TTY_OFF) ? current_device : device_out_defaut;
                             ret = acoustic::process_profile(device_profile, current_mode);
                             if (ret) goto return_error;
+                            mode_source = IFX_USER_DEFINED_15_S;
+                            mode_dest = IFX_USER_DEFINED_15_D;
+#else
+                            // No Audience, Acoustics in modem
+                            translate_to_amc_device(current_device, &mode_source, &mode_dest);
 #endif
+                            // Configure modem I2S1
+                            amc_conf_i2s1(tty_call, mode_source, mode_dest);
 
                             if ((prev_mode != AudioSystem::MODE_IN_CALL) || (prev_device & DEVICE_OUT_BLUETOOTH_SCO_ALL) || (!vpc_get_audio_routed()))
                             {
-                                amc_modem_conf_msic_dev(tty_call);
+                                 // Configure modem I2S2 and do the modem routing
+                                 amc_conf_i2s2_route();
                             }
 
                             amc_on();
@@ -399,6 +410,8 @@ static int vpc_route(vpc_route_t route)
 
                             msic::pcm_disable();
 
+                            device_profile = (bt_acoustic == false) ? device_out_defaut : current_device;
+
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
                             /*
                              * Audience requirement: the previous mode clock must be running
@@ -406,17 +419,29 @@ static int vpc_route(vpc_route_t route)
                              */
                             if(!vpc_get_audio_routed())
                             {
-                                amc_modem_conf_msic_dev(tty_call);
+                                // configure modem I2S1
+                                amc_conf_i2s1(tty_call, IFX_USER_DEFINED_15_S, IFX_USER_DEFINED_15_D);
+                                // Configure modem I2S2 and do the modem routing
+                                amc_conf_i2s2_route();
                                 amc_on();
                             }
 
-                            device_profile = (bt_acoustic == false) ? device_out_defaut : current_device;
+
                             ret = acoustic::process_profile(device_profile, current_mode);
                             if (ret) goto return_error;
                             usleep(50000);
+
+                            mode_source = IFX_USER_DEFINED_15_S;
+                            mode_dest = IFX_USER_DEFINED_15_D;
+
+#else
+                            // No Audience, Acoustics in modem
+                            translate_to_amc_device(device_profile, &mode_source, &mode_dest);
 #endif
                             amc_off();
-                            amc_modem_conf_bt_dev();
+
+                            // Do the modem config for BT devices
+                            amc_modem_conf_bt_dev(mode_source, mode_dest);
 
                             amc_on();
                             bt::pcm_enable();
@@ -743,6 +768,53 @@ static int vpc_tty(vpc_tty_t tty)
     vpc_lock.unlock();
 
     return NO_ERROR;
+}
+
+/*---------------------------------------------------------------------------*/
+/* Translate Device                                                          */
+/*---------------------------------------------------------------------------*/
+static void translate_to_amc_device(const uint32_t current_device, IFX_TRANSDUCER_MODE_SOURCE* mode_source, IFX_TRANSDUCER_MODE_DEST* mode_dest)
+{
+    switch (current_device)
+    {
+    /* ------------------------------------ */
+    /* Voice paths control for MSIC devices */
+    /* ------------------------------------ */
+    case AudioSystem::DEVICE_OUT_EARPIECE:
+        *mode_source = IFX_HANDSET_S;
+        *mode_dest = IFX_HANDSET_D;
+        break;
+    case AudioSystem::DEVICE_OUT_SPEAKER:
+        *mode_source = IFX_HF_S;
+        *mode_dest = IFX_BACKSPEAKER_D;
+        break;
+    case AudioSystem::DEVICE_OUT_WIRED_HEADSET:
+        *mode_source = IFX_HEADSET_S;
+        *mode_dest = IFX_HEADSET_D;
+        break;
+    case AudioSystem::DEVICE_OUT_WIRED_HEADPHONE:
+        *mode_source = IFX_HF_S;
+        *mode_dest = IFX_HEADSET_D;
+        break;
+    /* ------------------------------------ */
+    /* Voice paths control for BT devices   */
+    /* ------------------------------------ */
+    case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO:
+    case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET:
+    case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_CARKIT:
+        *mode_source = IFX_BLUETOOTH_S;
+        *mode_dest = IFX_BLUETOOTH_D;
+        break;
+    case AudioSystem::DEVICE_OUT_DEFAULT:
+        // Used for BT with acoustics devices
+        *mode_source = IFX_USER_DEFINED_15_S;
+        *mode_dest = IFX_USER_DEFINED_15_D;
+        break;
+    default:
+        *mode_source  = IFX_DEFAULT_S;
+        *mode_dest = IFX_DEFAULT_D;
+        break;
+    }
 }
 
 /*---------------------------------------------------------------------------*/

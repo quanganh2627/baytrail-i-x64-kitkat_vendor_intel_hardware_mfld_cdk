@@ -536,6 +536,13 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                     layer->compositionType = HWC_FRAMEBUFFER;
                 }
 
+                if (mPlaneManager->isWidiActive()) {
+                    IntelWidiPlane* widiplane = (IntelWidiPlane*) mPlaneManager->getWidiPlane();
+                    if (widiplane) {
+                        widiplane->setOverlayData(grallocHandle, srcWidth, srcHeight);
+                    }
+                }
+
             } else if (planeType == IntelDisplayPlane::DISPLAY_PLANE_SPRITE) {
                 // do nothing for sprite plane for now
             } else {

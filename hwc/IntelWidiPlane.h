@@ -104,6 +104,7 @@ protected:
     android::sp<IBinder>            mWirelessDisplay;
     uint32_t                        mCurrentOrientation;
     int                             mNextExtFrame;
+    int                             mCurrExtFrame;
 
     intel_gralloc_buffer_handle_t   mExtVideoBuffers[EXT_VIDEO_MODE_MAX_SURFACE];
     widiPayloadBuffer_t             mExtVideoPayloadBuffers[EXT_VIDEO_MODE_MAX_SURFACE];

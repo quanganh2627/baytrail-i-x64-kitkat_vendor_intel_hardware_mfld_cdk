@@ -1277,9 +1277,6 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
         reinterpret_cast<IntelDisplayDataBuffer*>(mDataBuffer);
     overlayDataBuffer->setBuffer(buffer);
 
-    if (mWidiPlane) {
-        mWidiPlane->setOverlayData(nHandle, overlayDataBuffer->getSrcWidth(), overlayDataBuffer->getSrcHeight());
-    }
     // set data buffer :-)
     return setDataBuffer(*overlayDataBuffer);
 }

@@ -73,6 +73,8 @@ IntelWidiPlane::IntelWidiPlane(int fd, int index, IntelBufferManager *bm)
       mWirelessDisplay(NULL),
       mCurrentOrientation(0),
       mNextExtFrame(-1),
+      mCurrExtFrame(-1),
+      mPlayerStatus(false),
       mExtVideoBuffersCount(0)
 
 {
@@ -168,6 +170,12 @@ IntelWidiPlane::flip(uint32_t flags) {
 
         LOGV("Sending buffer, index %d", mNextExtFrame);
         if (mNextExtFrame != -1) {
+            // WiDi stack does not handle consecutive buffers
+            // with same value. Here, we simply return
+            if(mCurrExtFrame == mNextExtFrame) {
+               return true;
+            }
+
             widiPayloadBuffer_t wPayload = mExtVideoPayloadBuffers[mNextExtFrame];
             status_t ret = wd->sendBuffer(wPayload.p->nativebuf_idx);
 
@@ -176,6 +184,8 @@ IntelWidiPlane::flip(uint32_t flags) {
             } else {
                 LOGV("Could not send buffer to Widi");
             }
+
+            mCurrExtFrame = mNextExtFrame;
         }
     }
     return true;
@@ -195,7 +205,7 @@ IntelWidiPlane::setPlayerStatus(bool status) {
     Mutex::Autolock _l(mLock);
 
     mPlayerStatus = status;
-    if ( (mState == WIDI_PLANE_STATE_STREAMING) && status == 0) {
+    if ( (mState == WIDI_PLANE_STATE_STREAMING) && status == false) {
         sendInitMode(IWirelessDisplay::WIDI_MODE_CLONE,0,0);
 
     }
@@ -253,18 +263,12 @@ IntelWidiPlane::setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t 
             sendInitMode(IWirelessDisplay::WIDI_MODE_CLONE,0,0);
 
         } else {
-            int native_index = mExtVideoBuffersMapping.valueAt(index);
 
-            if (mNextExtFrame == native_index) {
-                LOGV("Skipping duplicate index: %d", native_index);
-                return;
-            }
+            mNextExtFrame = mExtVideoBuffersMapping.valueAt(index);
 
-            LOGV("Next Buffer index = %d",  native_index);
-            mNextExtFrame = native_index;
         }
 
-    } else if ((mState == WIDI_PLANE_STATE_ACTIVE)  && (mPlayerStatus == 1)){
+    } else if ((mState == WIDI_PLANE_STATE_ACTIVE)  && (mPlayerStatus == true)){
         /* Map payload buffer
          * get the decoder buffer count
          * Store handle to array until we have them all
@@ -300,18 +304,13 @@ IntelWidiPlane::setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t 
                     if(ret != NO_ERROR) {
                       LOGE("Something went wrong setting the mode, we continue in clone mode");
                     }
-
                 }
 
             } else {
                 unmapPayloadBuffer(&payload);
             }
-
         }
     }
-
-
-
 }
 
 bool
@@ -410,6 +409,7 @@ IntelWidiPlane::clearExtVideoModeContext() {
     mExtVideoBuffersCount = 0;
     mExtVideoBuffersMapping.clear();
     mNextExtFrame = -1;
+    mCurrExtFrame = -1;
 }
 
 void

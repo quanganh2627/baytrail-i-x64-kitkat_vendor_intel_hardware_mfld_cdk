@@ -243,6 +243,7 @@ private:
     };
     // overlay mapped data buffers
     struct {
+        uint32_t handle;
         unsigned long long ui64Stamp;
         IntelDisplayBuffer *buffer;
         uint32_t bufferType;

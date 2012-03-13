@@ -433,6 +433,12 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
             int srcHeight = layer->sourceCrop.bottom - layer->sourceCrop.top;
             int planeType = plane->getPlaneType();
 
+            if(srcHeight == 1 || srcWidth == 1) {
+                mLayerList->detachPlane(i, plane);
+                layer->compositionType = HWC_FRAMEBUFFER;
+                continue;
+            }
+
             // get & setup overlay data buffer
             IntelDisplayBuffer *buffer = plane->getDataBuffer();
             IntelDisplayDataBuffer *dataBuffer =

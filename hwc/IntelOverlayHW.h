@@ -20,8 +20,11 @@
 
 /*only one overlay data buffer for testing*/
 #define PVR_OVERLAY_BUFFER_NUM          1
-#define INTEL_OVERLAY_MAX_WIDTH           2048
-#define INTEL_OVERLAY_MAX_HEIGHT          2048
+#define INTEL_OVERLAY_MAX_WIDTH         2048
+#define INTEL_OVERLAY_MAX_HEIGHT        2048
+#define INTEL_OVERLAY_MIN_STRIDE        512
+#define INTEL_OVERLAY_MAX_STRIDE_PACKED (8 * 1024)
+#define INTEL_OVERLAY_MAX_STRIDE_LINEAR (4 * 1024)
 #define PVR_OVERLAY_MAX_SCALING_RATIO   7
 
 /* Polyphase filter coefficients */

@@ -487,35 +487,20 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                 // switch to overlay
                 layer->compositionType = HWC_OVERLAY;
 
-                // now let us set up the overlay
-                uint32_t yStride, uvStride;
-
-                // set stride
-                switch (format) {
-                case HAL_PIXEL_FORMAT_YV12:
-                // HW requires to align to 512 bytes
-                    yStride = bufferWidth;
-                    uvStride = align_to(yStride >> 1, 16);
-                    break;
-                case HAL_PIXEL_FORMAT_INTEL_HWC_NV12:
-                    yStride = align_to(bufferWidth, 32);
-                    uvStride = yStride;
-                    break;
-                default:
-                    LOGE("%s: unsupported format 0x%x\n", __func__, format);
-                    mLayerList->detachPlane(i, plane);
-                    layer->compositionType = HWC_FRAMEBUFFER;
-                    continue;
-                }
+                // gralloc buffer is not aligned to 32 pixels
+                uint32_t grallocStride = align_to(bufferWidth, 32);
+                int format = grallocHandle->format;
 
                 dataBuffer->setFormat(format);
-                dataBuffer->setStride(yStride, uvStride);
+                dataBuffer->setStride(grallocStride);
                 dataBuffer->setWidth(bufferWidth);
                 dataBuffer->setHeight(bufferHeight);
                 dataBuffer->setCrop(srcX, srcY, srcWidth, srcHeight);
 
                 // set the data buffer back to plane
-                ret = plane->setDataBuffer(bufferHandle, transform, grallocHandle);
+                ret = ((IntelOverlayPlane*)plane)->setDataBuffer(bufferHandle,
+                                                                 transform,
+                                                                 grallocHandle);
                 if (!ret) {
                     LOGE("%s: failed to update overlay data buffer\n", __func__);
                     mLayerList->detachPlane(i, plane);

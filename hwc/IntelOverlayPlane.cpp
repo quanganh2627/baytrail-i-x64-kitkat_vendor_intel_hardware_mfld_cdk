@@ -362,10 +362,9 @@ bool IntelOverlayContext::bufferOffsetSetup(IntelDisplayDataBuffer &buf)
         break;
     case HAL_PIXEL_FORMAT_INTEL_HWC_I420:    /*I420*/
         mOverlayBackBuffer->OSTART_0Y = gttOffsetInBytes;
-        mOverlayBackBuffer->OSTART_0U = gttOffsetInBytes +
-                     align_to((yStride * h), 4096);
+        mOverlayBackBuffer->OSTART_0U = gttOffsetInBytes + (yStride * h);
         mOverlayBackBuffer->OSTART_0V = mOverlayBackBuffer->OSTART_0U +
-                     align_to((uvStride * (h / 2)), 4096);
+                                        (uvStride * (h / 2));
 
         mOverlayBackBuffer->OCMD |= OVERLAY_FORMAT_PLANAR_YUV420;
         break;
@@ -467,7 +466,7 @@ bool IntelOverlayContext::coordinateSetup(IntelDisplayDataBuffer& buf)
         return false;
     }
 
-    if (yStride <=0 || uvStride <= 0) {
+    if (yStride <=0 && uvStride <= 0) {
         LOGE("%s: invalid source stride\n", __func__);
         return false;
     }
@@ -1203,6 +1202,55 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
         return false;
     }
 
+    // verify if HW overlay capable for this data buffer
+    IntelDisplayDataBuffer *overlayDataBuffer =
+        reinterpret_cast<IntelDisplayDataBuffer*>(mDataBuffer);
+    uint32_t yStride, uvStride;
+    bool isYUVPacked = false;
+    int format = overlayDataBuffer->getFormat();
+    uint32_t grallocStride = overlayDataBuffer->getStride();
+
+    // calculate YUV stride, HW overlay requires 64 bytes alignment.
+    switch (format) {
+    case HAL_PIXEL_FORMAT_YV12:
+    case HAL_PIXEL_FORMAT_INTEL_HWC_I420:
+        //
+        yStride = align_to(grallocStride, 64);
+        uvStride = align_to(yStride >> 1, 64);
+        break;
+    case HAL_PIXEL_FORMAT_INTEL_HWC_NV12:
+        yStride = align_to(grallocStride, 64);
+        uvStride = yStride;
+        break;
+    case HAL_PIXEL_FORMAT_INTEL_HWC_YUY2:
+    case HAL_PIXEL_FORMAT_INTEL_HWC_UYVY:
+        yStride = align_to(grallocStride << 1, 64);
+        uvStride = 0;
+        isYUVPacked = true;
+        break;
+    default:
+        LOGE("%s: unsupported YUV format 0x%x\n", __func__, format);
+        return false;
+    }
+
+    // check the minimum and maximun stride restriction of HW overlay
+    if (yStride < INTEL_OVERLAY_MIN_STRIDE) {
+        LOGW("%s: yStride %d is too small, switch to ST", __func__, yStride);
+        return false;
+    }
+
+    if (isYUVPacked && (yStride > INTEL_OVERLAY_MAX_STRIDE_PACKED)) {
+        LOGW("%s: packed YUV stride %d is too big, switch to ST",
+             __func__, yStride);
+        return false;
+    } else if (!isYUVPacked && (yStride > INTEL_OVERLAY_MAX_STRIDE_LINEAR)) {
+        LOGW("%s: planar YUV stride %d is too big, switch to ST",
+             __func__, yStride);
+        return false;
+    }
+
+    // update data buffer's yuv strides and continue
+    overlayDataBuffer->setStride(yStride, uvStride);
 
     if (flags)
         bufferType = IntelBufferManager::TTM_BUFFER;
@@ -1278,8 +1326,7 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
         mNextBuffer = (mNextBuffer + 1) % OVERLAY_DATA_BUFFER_NUM_MAX;
     }
 
-    IntelDisplayDataBuffer *overlayDataBuffer =
-        reinterpret_cast<IntelDisplayDataBuffer*>(mDataBuffer);
+
     overlayDataBuffer->setBuffer(buffer);
 
     // set data buffer :-)

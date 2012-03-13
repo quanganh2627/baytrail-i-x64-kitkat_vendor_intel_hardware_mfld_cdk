@@ -33,43 +33,10 @@ IntelDisplayDataBuffer::IntelDisplayDataBuffer(uint32_t format,
 {
     LOGV("%s: width %d, format 0x%x\n", __func__, w, format);
 
-    uint32_t yStride;
-    uint32_t uvStride;
 
-    switch (format) {
-    case HAL_PIXEL_FORMAT_INTEL_HWC_I420:       /*I420*/
-        yStride = align_to(w, 64);
-        uvStride = yStride >> 1;
-        break;
-    case HAL_PIXEL_FORMAT_INTEL_HWC_NV12:       /*NV12*/
-        if (w <= 512)
-            yStride = 512;
-        else if (w <= 1024)
-            yStride = 1024;
-        else if (w <= 1280)
-            yStride = 1280;
-        else if (w <= 2048)
-            yStride = 2048;
-        else if (w <= 4096)
-            yStride = 4096;
-        else
-            yStride = align_to(w, 64);
-
-        uvStride = yStride;
-        break;
-#if 0
-    case OVERLAY_FORMAT_YCbYCr_422_I:       /*YUY2*/
-        yStride = align_to(w << 2, 64);
-        uvStride = 0;
-        break;
-#endif
-    default:
-        LOGE("%s: unsupported format %d\n", __func__, format);
-        return;
-    }
-
-    mYStride = yStride;
-    mUVStride = uvStride;
+    mRawStride = 0;
+    mYStride = 0;
+    mUVStride = 0;
     mSrcX = 0;
     mSrcY = 0;
     mSrcWidth = w;
@@ -90,30 +57,15 @@ void IntelDisplayDataBuffer::setBuffer(IntelDisplayBuffer *buffer)
     mGttOffsetInPage = buffer->getGttOffsetInPage();
     mSize = buffer->getSize();
     mVirtAddr = buffer->getCpuAddr();
-//    mYStride = buffer->getStride();
-//    mUVStride = mYStride;
 }
 
-void IntelDisplayDataBuffer::setStride(uint32_t w)
+void IntelDisplayDataBuffer::setStride(uint32_t stride)
 {
-    if (w <= 512)
-        mYStride = 512;
-    else if (w <= 1024)
-        mYStride = 1024;
-    else if (w <= 1280)
-        mYStride = 1280;
-    else if (w <= 2048)
-        mYStride = 2048;
-    else if (w <= 4096)
-        mYStride = 4096;
-    else
-        mYStride = align_to(w, 64);
-        mUVStride = mYStride;
+   mRawStride = stride;
 }
 
 void IntelDisplayDataBuffer::setStride(uint32_t yStride, uint32_t uvStride)
 {
-    // TODO: check value
     mYStride = yStride;
     mUVStride = uvStride;
 }

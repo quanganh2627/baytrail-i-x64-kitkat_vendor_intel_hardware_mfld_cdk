@@ -59,9 +59,9 @@ public:
 // TODO: share the extended pixel format with gralloc HAL
 enum {
     HAL_PIXEL_FORMAT_INTEL_HWC_NV12 = HAL_PIXEL_FORMAT_NV12_VED,
-    HAL_PIXEL_FORMAT_INTEL_HWC_YUY2 = 0x101,
-    HAL_PIXEL_FORMAT_INTEL_HWC_UYVY = 0x102,
-    HAL_PIXEL_FORMAT_INTEL_HWC_I420 = 0x103,
+    HAL_PIXEL_FORMAT_INTEL_HWC_YUY2 = HAL_PIXEL_FORMAT_YUY2,
+    HAL_PIXEL_FORMAT_INTEL_HWC_UYVY = HAL_PIXEL_FORMAT_UYVY,
+    HAL_PIXEL_FORMAT_INTEL_HWC_I420 = HAL_PIXEL_FORMAT_I420,
 };
 
 class IntelDisplayDataBuffer : public IntelDisplayBuffer
@@ -77,6 +77,7 @@ private:
     uint32_t mHeight;
     uint32_t mYStride;
     uint32_t mUVStride;
+    uint32_t mRawStride;
     uint32_t mSrcX;
     uint32_t mSrcY;
     uint32_t mSrcWidth;
@@ -92,7 +93,7 @@ public:
     IntelDisplayBuffer* getBuffer() { return mBuffer; }
     void setWidth(uint32_t w);
     void setHeight(uint32_t h);
-    void setStride(uint32_t width);
+    void setStride(uint32_t stride);
     void setStride(uint32_t yStride, uint32_t uvStride);
     void setCrop(int x, int y, int w, int h);
     void inline appendFlags(uint32_t flags) { mUpdateFlags |= flags; }
@@ -104,6 +105,7 @@ public:
     uint32_t inline getFormat() const { return mFormat; }
     uint32_t inline getWidth() const { return mWidth; }
     uint32_t inline getHeight() const { return mHeight; }
+    uint32_t inline getStride() const { return mRawStride; }
     uint32_t inline getYStride() const { return mYStride; }
     uint32_t inline getUVStride() const { return mUVStride; }
     uint32_t inline getSrcX() const { return mSrcX; }

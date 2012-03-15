@@ -31,6 +31,38 @@ MedfieldSpritePlane::~MedfieldSpritePlane()
 
 void MedfieldSpritePlane::setPosition(int left, int top, int right, int bottom)
 {
+    drmModeConnection mipi0 = IntelHWComposerDrm::getInstance().getOutputConnection(OUTPUT_MIPI0);
+    drmModeConnection hdmi = IntelHWComposerDrm::getInstance().getOutputConnection(OUTPUT_HDMI);
+
+    drmModeFBPtr crtcMode;
+    if (hdmi == DRM_MODE_CONNECTED) {
+        crtcMode = IntelHWComposerDrm::getInstance().getOutputFBInfo(OUTPUT_HDMI);
+    } else {
+        crtcMode = IntelHWComposerDrm::getInstance().getOutputFBInfo(OUTPUT_MIPI0);
+    }
+    int active_width = crtcMode->width;
+    int active_height = crtcMode->height;
+
+    if (left < 0 && right - left > active_width) {
+        left = 0;
+        right = active_width;
+    } else if (left < 0 && right -left < active_width) {
+        left = 0;
+        right = right - left;
+    } else if (left > 0  && right -left > active_width) {
+        right = active_width;
+    }
+
+    if (top < 0 && bottom - top > active_height) {
+        top = 0;
+        bottom = active_height;
+    } else if (top < 0 && bottom - top < active_height) {
+        top = 0;
+        bottom = bottom - top;
+    } else if (top > 0  && bottom -top > active_height) {
+        bottom = active_height;
+    }
+
     // Never do this on Medfield
     IntelSpritePlane::setPosition(left, top, right, bottom);
 }

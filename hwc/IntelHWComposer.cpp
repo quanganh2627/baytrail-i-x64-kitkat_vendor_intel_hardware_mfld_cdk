@@ -407,6 +407,18 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
     bool ret;
     IntelWidiPlane* widiplane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
 
+    drmModeConnection mipi0 = IntelHWComposerDrm::getInstance().getOutputConnection(OUTPUT_MIPI0);
+    drmModeConnection hdmi = IntelHWComposerDrm::getInstance().getOutputConnection(OUTPUT_HDMI);
+
+    drmModeFBPtr crtcMode;
+    if (hdmi == DRM_MODE_CONNECTED) {
+        crtcMode = IntelHWComposerDrm::getInstance().getOutputFBInfo(OUTPUT_HDMI);
+    } else {
+        crtcMode = IntelHWComposerDrm::getInstance().getOutputFBInfo(OUTPUT_MIPI0);
+    }
+    int active_width = crtcMode->width;
+    int active_height = crtcMode->height;
+
     for (size_t i=0 ; i<list->numHwLayers ; i++) {
         plane = mLayerList->getPlane(i);
         if (plane) {
@@ -519,6 +531,10 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                 dataBuffer->setFormat(format);
                 dataBuffer->setWidth(bufferWidth);
                 dataBuffer->setHeight(bufferHeight);
+                if (srcWidth > active_width)
+                    srcWidth = active_width;
+                if (srcHeight > active_height)
+                    srcHeight = active_height;
                 dataBuffer->setCrop(srcX, srcY, srcWidth, srcHeight);
 
                 // set the data buffer back to plane

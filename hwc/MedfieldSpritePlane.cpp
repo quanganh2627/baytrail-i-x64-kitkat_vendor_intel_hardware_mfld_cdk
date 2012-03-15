@@ -58,6 +58,10 @@ bool MedfieldSpritePlane::setDataBuffer(IntelDisplayBuffer& buffer)
             spriteFormat = INTEL_SPRITE_PIXEL_FORMAT_RGBX8888;
             bpp = 4;
             break;
+        case HAL_PIXEL_FORMAT_BGRX_8888:
+            spriteFormat = INTEL_SPRITE_PIXEL_FORMAT_BGRX8888;
+            bpp = 4;
+            break;
         case HAL_PIXEL_FORMAT_BGRA_8888:
             //workaround for glbenchmarkes1.0 case 1 test. need to confirm with HW engineer
             //why BGRA8888 pre multiplied setting takes no effect on alpha channel.
@@ -151,25 +155,32 @@ bool MedfieldSpritePlane::setDataBuffer(uint32_t handle, uint32_t flags, intel_g
         reinterpret_cast<IntelDisplayDataBuffer*>(mDataBuffer);
     spriteDataBuffer->setBuffer(buffer);
 
+    mDataBufferHandle = (uint32_t)nHandle;
+
     // set data buffer :-)
     return setDataBuffer(*spriteDataBuffer);
 }
 
-bool MedfieldSpritePlane::flip(uint32_t flags)
+bool MedfieldSpritePlane::flip(void *contexts, uint32_t flags)
 {
     IntelSpriteContext *spriteContext =
             reinterpret_cast<IntelSpriteContext*>(mContext);
     intel_sprite_context_t *context = spriteContext->getContext();
+    mdfld_plane_contexts_t *planeContexts;
     bool ret = true;
+
+    if (!contexts) {
+        LOGE("%s: Invalid plane contexts\n", __func__);
+        return false;
+    }
+
+    planeContexts = (mdfld_plane_contexts_t*)contexts;
 
     // if no update, return
     if (!context->update_mask)
         return true;
 
     LOGV("%s: flip to surface 0x%x\n", __func__, context->surf);
-
-    // detect connection status
-    IntelHWComposerDrm::getInstance().detectDrmModeInfo();
 
     // update context
     for (int output = 0; output < OUTPUT_MAX; output++) {
@@ -181,21 +192,14 @@ bool MedfieldSpritePlane::flip(uint32_t flags)
             continue;
         }
 
-        struct drm_psb_register_rw_arg arg;
-        memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
-        memcpy(&arg.sprite_context, context, sizeof(intel_sprite_context_t));
-        arg.sprite_context.index = output;
-        arg.sprite_context_mask = REGRWBITS_SPRITE_UPDATE;
-        arg.sprite_context.update_mask &= ~SPRITE_UPDATE_POSITION;
-        int res = drmCommandWriteRead(mDrmFd,
-                                      DRM_PSB_REGISTER_RW,
-                                      &arg, sizeof(arg));
-        if (res) {
-            LOGW("%s: sprite update failed with error code %d\n",
-                __func__, res);
-            ret = false;
-            continue;
-        }
+        context->index = output;
+        context->pipe = output;
+        context->update_mask &= ~SPRITE_UPDATE_POSITION;
+
+        // update plane contexts
+        memcpy(&planeContexts->sprite_contexts[output],
+               context, sizeof(intel_sprite_context_t));
+        planeContexts->active_sprites |= (1 << output);
     }
 
     // clear update_mask
@@ -205,64 +209,12 @@ bool MedfieldSpritePlane::flip(uint32_t flags)
 
 bool MedfieldSpritePlane::reset()
 {
-    bool ret = true;
-
-    if (initCheck()) {
-        IntelSpriteContext *spriteContext =
-            reinterpret_cast<IntelSpriteContext*>(mContext);
-        intel_sprite_context_t *context = spriteContext->getContext();
-
-        // detect connection status
-        IntelHWComposerDrm::getInstance().detectDrmModeInfo();
-
-        for (int output = 0; output < OUTPUT_MAX; output++) {
-            drmModeFBPtr fbInfo =
-                IntelHWComposerDrm::getInstance().getOutputFBInfo(output);
-            bool mode_valid =
-                IntelHWComposerDrm::getInstance().isValidOutputMode(output);
-            drmModeConnection connection =
-                IntelHWComposerDrm::getInstance().getOutputConnection(output);
-
-            if (!mode_valid ||
-                !fbInfo->width || !fbInfo->height ||
-                connection != DRM_MODE_CONNECTED)
-                continue;
-
-            context->pos = 0;
-            context->size = ((fbInfo->height - 1) & 0xfff) << 16 |
-                            ((fbInfo->width - 1) & 0xfff);
-            context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRX8888 | 0x80000000;
-            context->linoff = 0;
-            context->surf = 0;
-            context->stride = align_to(fbInfo->pitch, 64);
-            context->update_mask = (SPRITE_UPDATE_POSITION |
-                                    SPRITE_UPDATE_SIZE |
-                                    SPRITE_UPDATE_CONTROL);
-
-            struct drm_psb_register_rw_arg arg;
-            memset(&arg, 0, sizeof(arg));
-            memcpy(&arg.sprite_context, context, sizeof(intel_sprite_context_t));
-            arg.sprite_context.index = output;
-            arg.sprite_context_mask = REGRWBITS_SPRITE_UPDATE;
-            arg.sprite_context.update_mask &= ~SPRITE_UPDATE_POSITION;
-            int res = drmCommandWriteRead(mDrmFd,
-                                          DRM_PSB_REGISTER_RW,
-                                          &arg, sizeof(arg));
-            if (res) {
-                LOGW("%s: sprite update failed with error code %d\n",
-                     __func__, ret);
-                ret = false;
-                continue;
-            }
-        }
-    }
-
-    return ret;
+   return true;
 }
 
 bool MedfieldSpritePlane::disable()
 {
-    return reset();
+    return true;
 }
 
 bool MedfieldSpritePlane::invalidateDataBuffer()

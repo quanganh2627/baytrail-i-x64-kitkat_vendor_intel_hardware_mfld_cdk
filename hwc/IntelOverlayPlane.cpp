@@ -1372,7 +1372,7 @@ bool IntelOverlayPlane::invalidateDataBuffer()
     return true;
 }
 
-bool IntelOverlayPlane::flip(uint32_t flags)
+bool IntelOverlayPlane::flip(void *context, uint32_t flags)
 {
     bool ret = true;
     if (initCheck()) {

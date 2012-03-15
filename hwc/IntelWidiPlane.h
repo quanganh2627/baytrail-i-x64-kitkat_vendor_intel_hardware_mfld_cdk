@@ -50,7 +50,7 @@ public:
     bool isStreaming() { return (mState == WIDI_PLANE_STATE_STREAMING); };
     void returnBuffer(int index);
 
-    bool flip(uint32_t flags);
+    bool flip(void *contexts, uint32_t flags);
     bool isActive();
     bool isWidiStatusChanged();
 
@@ -128,7 +128,7 @@ public:
     void setPlayerStatus(bool status);
     void setOrientation(uint32_t orientation){return;};
 
-    bool flip(uint32_t flags){return true;};
+    bool flip(void *contexts, uint32_t flags){return true;};
     bool isActive(){return false;};
     bool isStreaming() { return false; };
     bool isWidiStatusChanged(){return false;};

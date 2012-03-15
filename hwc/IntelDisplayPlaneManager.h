@@ -19,13 +19,20 @@
 
 #include <cutils/log.h>
 #include <cutils/atomic.h>
-
+#include <hardware/hardware.h>
+#include <hardware/gralloc.h>
+#include <hal_public.h>
 #include <IntelHWComposerDrm.h>
 #include <IntelHWComposerDump.h>
 #include <IntelBufferManager.h>
 #include <IntelOverlayHW.h>
 
 #include <psb_drm.h>
+
+typedef struct intel_sprite_context sprite_plane_context_t;
+typedef struct intel_overlay_context overlay_plane_context_t;
+typedef struct intel_sprite_context intel_sprite_context_t;
+typedef struct mdfld_plane_contexts mdfld_plane_contexts_t;
 
 class IntelDisplayPlaneContext {
 public:
@@ -70,6 +77,7 @@ protected:
 
     // plane parameters
     IntelDisplayBuffer *mDataBuffer;
+    uint32_t mDataBufferHandle;
     intel_display_plane_position_t mPosition;
 
     bool mInitialized;
@@ -78,7 +86,8 @@ public:
                       int index, IntelBufferManager *bufferManager)
         : mDrmFd(fd), mType(type), mIndex(index),
           mBufferManager(bufferManager),
-          mContext(0), mDataBuffer(0), mInitialized(false) {
+          mContext(0), mDataBuffer(0), mDataBufferHandle(0),
+          mInitialized(false) {
 	    memset(&mPosition, 0, sizeof(intel_display_plane_position_t));
     }
     virtual ~IntelDisplayPlane() {}
@@ -99,8 +108,11 @@ public:
     virtual IntelDisplayBuffer* getDataBuffer() {
         return mDataBuffer;
     }
+    virtual uint32_t getDataBufferHandle() {
+        return mDataBufferHandle;
+    }
     virtual bool invalidateDataBuffer() { return true; }
-    virtual bool flip(uint32_t flags) { return true; }
+    virtual bool flip(void *context, uint32_t flags) { return true; }
     virtual void waitForFlipCompletion() {}
     virtual bool enable() { return true; }
     virtual bool disable() { return true; }
@@ -259,7 +271,7 @@ public:
     virtual bool setDataBuffer(IntelDisplayBuffer& buffer);
 
     virtual bool invalidateDataBuffer();
-    virtual bool flip(uint32_t flags);
+    virtual bool flip(void *context, uint32_t flags);
     virtual void waitForFlipCompletion();
     virtual bool reset();
     virtual bool disable();
@@ -279,8 +291,6 @@ enum {
     INTEL_SPRITE_PIXEL_FORMAT_RGBA8888 = 0x3c000000UL,
 };
 
-typedef struct intel_sprite_context intel_sprite_context_t;
-
 class IntelSpriteContext : public IntelDisplayPlaneContext {
 private:
     intel_sprite_context_t mContext;
@@ -299,7 +309,7 @@ public:
     virtual void setPosition(int left, int top, int right, int bottom);
     virtual bool setDataBuffer(IntelDisplayBuffer& buffer);
     virtual bool invalidateDataBuffer();
-    virtual bool flip(uint32_t flags);
+    virtual bool flip(void *context, uint32_t flags);
     virtual bool reset();
     virtual bool disable();
 };
@@ -323,7 +333,7 @@ public:
     virtual bool setDataBuffer(IntelDisplayBuffer& buffer);
     virtual bool setDataBuffer(uint32_t handle, uint32_t flags, intel_gralloc_buffer_handle_t* nHandle);
     virtual bool invalidateDataBuffer();
-    virtual bool flip(uint32_t flags);
+    virtual bool flip(void *context, uint32_t flags);
     virtual bool reset();
     virtual bool disable();
 };
@@ -346,6 +356,16 @@ private:
     IntelBufferManager *mBufferManager;
     IntelBufferManager *mGrallocBufferManager;
 
+    // raw data structure of display planes context
+    // the length of the plane context should be different for different
+    // platforms, but they follow the same structure as below
+    // uint32_t active_sprites
+    // uint32_t active_overlays
+    // An array of sprite context
+    // An array of overlay_context
+    void *mPlaneContexts;
+    int mContextLength;
+
     bool mInitialized;
 private:
     int getPlane(uint32_t& mask);
@@ -366,6 +386,8 @@ public:
     bool isWidiStatusChanged();
     void reclaimPlane(IntelDisplayPlane *plane);
     void disableReclaimedPlanes(int type);
+    void *getPlaneContexts() const;
+    int getContextLength() const;
 
     // dump plane info
     bool dump(char *buff, int buff_len, int *cur_len);

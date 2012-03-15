@@ -64,6 +64,9 @@ enum {
     HAL_PIXEL_FORMAT_INTEL_HWC_I420 = HAL_PIXEL_FORMAT_I420,
 };
 
+// this is toooooooooooo ugly, but gralloc refined it
+#define HAL_PIXEL_FORMAT_BGRX_8888 0x1FF
+
 class IntelDisplayDataBuffer : public IntelDisplayBuffer
 {
 public:

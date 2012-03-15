@@ -55,7 +55,7 @@ IntelSpritePlane::~IntelSpritePlane()
 {
     if (mContext) {
 	// flush context
-        flip(IntelDisplayPlane::FLASH_NEEDED);
+        //flip(IntelDisplayPlane::FLASH_NEEDED);
 
         // disable sprite
         disable();
@@ -141,83 +141,25 @@ bool IntelSpritePlane::setDataBuffer(IntelDisplayBuffer& buffer)
         context->surf = gttOffsetInPage << 12;
         context->update_mask = SPRITE_UPDATE_ALL;
 
-        // update context
-        struct drm_psb_register_rw_arg arg;
-
-        memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
-        arg.sprite_context_mask = REGRWBITS_SPRITE_UPDATE;
-        memcpy(&arg.sprite_context, context, sizeof(intel_sprite_context_t));
-
-        int ret = drmCommandWriteRead(mDrmFd,
-                                      DRM_PSB_REGISTER_RW,
-                                      &arg, sizeof(arg));
-        if (ret) {
-            LOGW("%s: sprite update failed with error code %d\n",
-                 __func__, ret);
-            return false;
-        }
-
         return true;
     }
     LOGE("%s: sprite plane was not initialized\n", __func__);
     return false;
 }
 
-bool IntelSpritePlane::flip(uint32_t flags)
+bool IntelSpritePlane::flip(void *context, uint32_t flags)
 {
-    if (initCheck()) {
-        IntelSpriteContext *spriteContext =
-            reinterpret_cast<IntelSpriteContext*>(mContext);
-        intel_sprite_context_t *context = spriteContext->getContext();
-        struct drm_psb_register_rw_arg arg;
-
-        memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
-        arg.sprite_context_mask = REGRWBITS_SPRITE_UPDATE;
-        arg.sprite_context.update_mask = SPRITE_UPDATE_CONTROL;
-        arg.sprite_context.linoff = context->linoff;
-        arg.sprite_context.surf = context->surf;
-        int ret = drmCommandWriteRead(mDrmFd,
-                                      DRM_PSB_REGISTER_RW,
-                                      &arg, sizeof(arg));
-        if (ret) {
-            LOGW("%s: sprite update failed with error code %d\n",
-                 __func__, ret);
-            return false;
-        }
-
-        return true;
-    }
-    LOGE("%s: sprite plane was not initialized\n", __func__);
-    return false;
+    return true;
 }
 
 bool IntelSpritePlane::reset()
 {
-    if (initCheck()) {
-        IntelSpriteContext *spriteContext =
-            reinterpret_cast<IntelSpriteContext*>(mContext);
-        intel_sprite_context_t *context = spriteContext->getContext();
-        struct drm_psb_register_rw_arg arg;
-        memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
-        arg.sprite_context_mask = REGRWBITS_SPRITE_UPDATE;
-        arg.sprite_context.update_mask = SPRITE_UPDATE_ALL;
-        int ret = drmCommandWriteRead(mDrmFd,
-                                      DRM_PSB_REGISTER_RW,
-                                      &arg, sizeof(arg));
-        if (ret) {
-            LOGW("%s: sprite update failed with error code %d\n",
-                 __func__, ret);
-            return false;
-        }
-        return true;
-    }
-    LOGE("%s: sprite plane was not initialized\n", __func__);
-    return false;
+    return true;
 }
 
 bool IntelSpritePlane::disable()
 {
-    return reset();
+    return true;
 }
 
 bool IntelSpritePlane::invalidateDataBuffer()

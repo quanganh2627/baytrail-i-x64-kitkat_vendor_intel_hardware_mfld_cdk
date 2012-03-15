@@ -37,6 +37,7 @@ private:
     bool mNeedSwapBuffer;
     bool mHotplugEvent;
     android::Mutex mLock;
+    IMG_framebuffer_device_public_t *mFBDev;
     bool mInitialized;
 private:
     void onGeometryChanged(hwc_layer_list_t *list);

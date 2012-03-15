@@ -311,7 +311,7 @@ bool IntelHWComposerDrm::detectDrmModeInfo()
         }
     }
 
-    LOGI("%s: mipi/lvds %s, mipi1 %s, hdmi %s, displayMode %d\n",
+    LOGV("%s: mipi/lvds %s, mipi1 %s, hdmi %s, displayMode %d\n",
         __func__,
         ((mipi0 == DRM_MODE_CONNECTED) ? "connected" : "disconnected"),
         ((mipi1 == DRM_MODE_CONNECTED) ? "connected" : "disconnected"),

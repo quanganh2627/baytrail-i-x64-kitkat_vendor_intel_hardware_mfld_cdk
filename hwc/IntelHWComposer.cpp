@@ -221,6 +221,7 @@ bool IntelHWComposer::isSpriteLayer(hwc_layer_list_t *list,
         // check pixel format
         if (grallocHandle->format != HAL_PIXEL_FORMAT_RGB_565 &&
             grallocHandle->format != HAL_PIXEL_FORMAT_BGRA_8888 &&
+            grallocHandle->format != HAL_PIXEL_FORMAT_BGRX_8888 &&
             grallocHandle->format != HAL_PIXEL_FORMAT_RGBX_8888 &&
             grallocHandle->format != HAL_PIXEL_FORMAT_RGBA_8888) {
             LOGV("%s: invalid format 0x%x\n", __func__, grallocHandle->format);
@@ -293,8 +294,10 @@ void IntelHWComposer::onGeometryChanged(hwc_layer_list_t *list)
                  firstTime = false;
              }
          }
-
      }
+
+     // disable reclaimed planes
+     mPlaneManager->disableReclaimedPlanes(IntelDisplayPlane::DISPLAY_PLANE_SPRITE);
 }
 
 // This function performs:
@@ -739,29 +742,43 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
         return true;
     }
 
+    void *context = mPlaneManager->getPlaneContexts();
+    if (!context) {
+        LOGE("%s: invalid plane contexts\n", __func__);
+        return false;
+    }
+
     if(mPlaneManager->isWidiActive()) {
         IntelDisplayPlane *p = mPlaneManager->getWidiPlane();
         LOGV("Widi Plane is %p",p);
          if (p)
-             p->flip(0);
+             p->flip(context, 0);
          else
              LOGE("Widi Plane is NULL");
     }
 
     // Call plane's flip for each layer in hwc_layer_list, if a plane has
     // been attached to a layer
+    buffer_handle_t bufferHandles[INTEL_DISPLAY_PLANE_NUM];
+    int numBuffers = 0;
+
     for (size_t i=0 ; i<list->numHwLayers ; i++) {
         IntelDisplayPlane *plane = mLayerList->getPlane(i);
         int flags = mLayerList->getFlags(i);
         if (plane &&
             (!(list->hwLayers[i].flags & HWC_SKIP_LAYER)) &&
             (list->hwLayers[i].compositionType == HWC_OVERLAY)) {
-            bool ret = plane->flip(flags);
+            bool ret = plane->flip(context, flags);
             if (!ret)
                 LOGW("%s: failed to flip plane %d\n", __func__, i);
 
-            // wait for flip completion
-            plane->waitForFlipCompletion();
+            // add bufferHandle
+            // NOTE: since overlay flip was not using Post2 yet
+            // so only append the sprite plane buffers right now
+            // TODO: support both overlay & sprite flip via Post2
+            if (plane->getPlaneType() == IntelDisplayPlane::DISPLAY_PLANE_SPRITE)
+                bufferHandles[numBuffers++] =
+                    (buffer_handle_t)plane->getDataBufferHandle();
         }
 
         // clear flip flags
@@ -771,10 +788,18 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
         list->hwLayers[i].hints = 0;
     }
 
-    // NOTE: Medfield only!
-    // we need to restore sprite plane back to FB configuration
-    // since sprite plane are used for both FB and bypass compostion
-    mPlaneManager->disableReclaimedPlanes(IntelDisplayPlane::DISPLAY_PLANE_SPRITE);
+    // commit plane contexts
+    if (mFBDev && numBuffers) {
+        LOGV("%s: commits %d buffers\n", __func__, numBuffers);
+        int err = mFBDev->Post2(&mFBDev->base,
+                                bufferHandles,
+                                numBuffers,
+                                context,
+                                mPlaneManager->getContextLength());
+        if (err) {
+            LOGE("%s: Post2 failed with errno %d\n", __func__, err);
+        }
+    }
 
     // check whether eglSwapBuffers is still needed for the given layer list
     if (list->flags & HWC_NEED_SWAPBUFFERS) {
@@ -825,6 +850,20 @@ bool IntelHWComposer::initialize()
     int bufferType = IntelBufferManager::TTM_BUFFER;
 
     LOGV("%s\n", __func__);
+
+    // open IMG frame buffer device
+    hw_module_t const* module;
+    if (hw_get_module(GRALLOC_HARDWARE_MODULE_ID, &module) == 0) {
+        IMG_gralloc_module_public_t *imgGrallocModule;
+        imgGrallocModule = (IMG_gralloc_module_public_t*)module;
+        mFBDev = imgGrallocModule->psFrameBufferDevice;
+        //mFBDev->bBypassPost = 1;
+    }
+
+    if (!mFBDev) {
+        LOGE("%s: failed to open IMG FB device\n", __func__);
+        return false;
+    }
 
     //create new DRM object if not exists
     if (!mDrm) {

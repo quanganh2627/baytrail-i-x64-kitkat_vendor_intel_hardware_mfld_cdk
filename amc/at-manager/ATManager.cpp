@@ -40,11 +40,14 @@
 #define STMD_CONNECTION_RETRY_TIME_MS 200
 #define AT_ANSWER_TIMEOUT_MS 1000
 #define INFINITE_TIMEOUT (-1)
+#define TTY_OPEN_DELAY_US 200000
+#define RECOVER_TIMEOUT_MS 2000
+#define MAX_RETRY_AFTER_TIMEOUT 5
 
 CATManager::CATManager(IATNotifier *observer) :
     _pAwaitedTransactionEndATCommand(NULL), _bStarted(false), _bModemAlive(false), _bClientWaiting(false), _pCurrentATCommand(NULL), _pPendingClientATCommand(NULL), _uiTimeoutSec(-1),
     _pEventThread(new CEventThread(this)), _bFirstModemStatusReceivedSemaphoreCreated(false),
-    _pATParser(new CATParser), _bTtyListenersStarted(false), _pIATNotifier(observer)
+    _pATParser(new CATParser), _bTtyListenersStarted(false), _pIATNotifier(observer), _iTimeoutRetry(0)
 {
     // Client Mutex
     bzero(&_clientMutex, sizeof(_clientMutex));
@@ -399,8 +402,12 @@ int CATManager::getModemStatus() const
 // terminate the transaction
 void CATManager::terminateTransaction(bool bSuccess)
 {
-    LOGD("%s: in", __FUNCTION__);
+    LOGD("%s on %s", __FUNCTION__, _strModemTty.c_str());
+
     if (_pCurrentATCommand) {
+
+        // Clear timeout retry counter
+        _iTimeoutRetry = 0;
 
         // Record failure status
         _pCurrentATCommand->setAnswerOK(bSuccess);
@@ -431,7 +438,7 @@ void CATManager::terminateTransaction(bool bSuccess)
 //
 bool CATManager::onEvent(int iFd)
 {
-    LOGD("%s", __FUNCTION__);
+    LOGD("%s on %s", __FUNCTION__, _strModemTty.c_str());
 
     bool bFdChanged;
 
@@ -445,7 +452,9 @@ bool CATManager::onEvent(int iFd)
 
         // FD list changed
         bFdChanged = true;
+
     } else {
+
         assert(_bTtyListenersStarted);
         // FdFromModem
         readResponse();
@@ -453,8 +462,9 @@ bool CATManager::onEvent(int iFd)
         // FD list not changed
         bFdChanged = false;
 
-        // Process the cmd list
-        processSendList();
+        // Could have been an unsollocited cmd
+        // So, check if a command is on going
+        checksAndProcessSendList();
     }
     // } Block
     pthread_mutex_unlock(&_clientMutex);
@@ -467,18 +477,35 @@ bool CATManager::onEvent(int iFd)
 //
 bool CATManager::onError(int iFd)
 {
+    LOGD("%s on %s", __FUNCTION__, _strModemTty.c_str());
+
     bool bFdChanged;
 
     // Block {
     pthread_mutex_lock(&_clientMutex);
     // Concerns any TTY?
     if (iFd == _pEventThread->getFd(FdFromModem) || iFd == _pEventThread->getFd(FdToModem)) {
+
+        // Stop receiving AT answer (if AT cmd was on going)
+        terminateTransaction(false);
+
         // Stop the listeners on modem TTYs
         stopModemTtyListeners();
 
         // We'll need a modem up event to reopen them
         // FD list changed
         bFdChanged = true;
+
+        if (_bModemAlive) {
+
+            // Modem is alive and we got a POLLERR, arms a timeout
+            // to perform a recovery (ie a modem reset) if modem
+            // is still UP after timeout.
+            // If modem is DOWN after the timeout, wait for next up
+            LOGE("%s: Modem still alive, try to recover after %d ms", __FUNCTION__, RECOVER_TIMEOUT_MS);
+            _pEventThread->setTimeoutMs(RECOVER_TIMEOUT_MS);
+        }
+
     } else {
         // FD list not changed
         bFdChanged = false;
@@ -503,17 +530,65 @@ bool CATManager::onHangup(int iFd)
 //
 void CATManager::onTimeout()
 {
-    LOGD("%s", __FUNCTION__);
+    LOGD("%s on %s", __FUNCTION__, _strModemTty.c_str());
 
     // Block {
     pthread_mutex_lock(&_clientMutex);
 
-    // Stop receiving AT answer (if AT cmd was on going ie _pCurrentATCommand is set)
-    terminateTransaction(false);
+    // Timeout case 1:
+    // Modem alive, TTy closed -> cleanup request
+    if (_bModemAlive && !_bTtyListenersStarted) {
 
+        // Clear timeout
+        _pEventThread->setTimeoutMs(INFINITE_TIMEOUT);
+
+        // Recovery needed: ask for a reset of the modem
+        LOGE("%s: Modem is alive, %s closed -> TRYING RECOVER", __FUNCTION__, _strModemTty.c_str());
+        sendRequestCleanup();
+
+        goto finish;
+    }
+
+    // Timeout case 2:
+    // AT command sent to the modem without answer
+    if (_pCurrentATCommand) {
+
+        // Increment timeout counter
+        _iTimeoutRetry += 1;
+
+        if (_iTimeoutRetry < MAX_RETRY_AFTER_TIMEOUT) {
+
+            LOGE("%s: retry #%d -> try again", __FUNCTION__, _iTimeoutRetry);
+            // Retry to send the command
+            resendCurrentCommand();
+
+            goto finish;
+        }
+
+        // Stop receiving AT answer (if AT cmd was on going ie _pCurrentATCommand is set)
+        terminateTransaction(false);
+
+        // Stop the listeners on modem TTYs
+        stopModemTtyListeners();
+
+        if (_bModemAlive) {
+
+            // Modem is alive but cannot get answer for AT command after 5 retries.
+            LOGE("%s: %d retries failed, trying to RECOVER ", __FUNCTION__, MAX_RETRY_AFTER_TIMEOUT);
+            _pEventThread->setTimeoutMs(INFINITE_TIMEOUT);
+
+            sendRequestCleanup();
+        }
+
+        goto finish;
+    }
+
+    // Timeout case 3:
+    // periodic AT command to be sent
     // Process the cmd list
     processSendList();
 
+finish:
     // } Block
     pthread_mutex_unlock(&_clientMutex);
 }
@@ -540,18 +615,15 @@ void CATManager::onPollError()
 //
 void CATManager::onProcess()
 {
-    LOGD("%s", __FUNCTION__);
+    LOGD("%s on %s", __FUNCTION__, _strModemTty.c_str());
 
     // Block {
     pthread_mutex_lock(&_clientMutex);
 
-    // Ensure serialization of the communication with modem
-    // by checking if a transaction is on going
-    if (!_pCurrentATCommand) {
+    assert(_bTtyListenersStarted);
 
-        // Process the tosend command list
-        processSendList();
-    }
+    // Checks and process if need the send list
+    checksAndProcessSendList();
 
     // } Block
     pthread_mutex_unlock(&_clientMutex);
@@ -582,15 +654,55 @@ CATCommand* CATManager::popCommandFromSendList(void)
     return atCmd;
 }
 
+void CATManager::resendCurrentCommand()
+{
+    LOGD("%s on %s", __FUNCTION__, _strModemTty.c_str());
+
+    assert(_pCurrentATCommand);
+
+    // Send the command
+    if (!sendString(_pCurrentATCommand->getCommand().c_str(), _pEventThread->getFd(FdToModem))) {
+
+        LOGE("%s: Could not write AT command", __FUNCTION__);
+        terminateTransaction(false);
+        return ;
+    }
+    // End of line
+    if (!sendString("\r\n", _pEventThread->getFd(FdToModem))) {
+
+        LOGE("%s: Could not write AT command", __FUNCTION__);
+        terminateTransaction(false);
+        return ;
+    }
+}
+
+
+//
+// Worker thread context
+// Checks if no activity in on going and
+// process the send command list
+//
+void CATManager::checksAndProcessSendList()
+{
+    // To Ensure serialization of the communication with modem
+    // by checking if a transaction is on going before processing
+    // the tosend list
+    if (!_pCurrentATCommand) {
+
+        // Process the tosend command list
+        processSendList();
+    }
+}
+
 //
 // Worker thread context
 // Process the send command list
 //
 void CATManager::processSendList()
 {
-    LOGD("%s: IN", __FUNCTION__);
+    LOGD("%s on %s", __FUNCTION__, _strModemTty.c_str());
 
-    // If the tosend command list if empty, returning
+    // If the tosend command list is empty, bailing out
     if(_toSendATList.empty()) {
 
         // if periodic command(s) to be processed, update
@@ -608,6 +720,9 @@ void CATManager::processSendList()
     // Keep command
     _pCurrentATCommand = pATCommand;
 
+    // Set the timeout
+    _pEventThread->setTimeoutMs(AT_ANSWER_TIMEOUT_MS);
+
     // Send the command
     if (!sendString(pATCommand->getCommand().c_str(), _pEventThread->getFd(FdToModem))) {
 
@@ -624,8 +739,6 @@ void CATManager::processSendList()
     }
 
     LOGD("Sent: %s", pATCommand->getCommand().c_str());
-
-    LOGD("%s: OUT", __FUNCTION__);
 }
 
 //
@@ -663,8 +776,10 @@ void CATManager::processUnsollicited(const string& strResponse)
 
         pUnsollicitedCmd->doProcessAnswer();
 
-        getATNotifier()->onUnsollicitedReceived(pUnsollicitedCmd);
+        if (getATNotifier()) {
 
+            getATNotifier()->onUnsollicitedReceived(pUnsollicitedCmd);
+        }
     }
 }
 
@@ -771,6 +886,9 @@ void CATManager::updateModemStatus()
     // Update status
     _bModemAlive = uiStatus == MODEM_UP;
 
+    // Reset the timeout
+    _pEventThread->setTimeoutMs(INFINITE_TIMEOUT);
+
     LOGD("Modem status: %s", _bModemAlive ? "UP" : "DOWN");
 
     // Take care of current request
@@ -808,6 +926,7 @@ void CATManager::setModemStatus(uint32_t status)
 
     /* Informs of the modem state to who implements the observer class */
     if (getATNotifier()) {
+
         getATNotifier()->onModemStateChanged();
     }
 }
@@ -881,7 +1000,7 @@ void CATManager::stopModemTtyListeners()
 {
     if (_bTtyListenersStarted) {
 
-        LOGD("%s", __FUNCTION__);
+        LOGD("%s: %s", __FUNCTION__, _strModemTty.c_str());
 
         // Close descriptors
         _pEventThread->closeAndRemoveFd(FdToModem);
@@ -959,4 +1078,55 @@ CUnsollicitedATCommand* CATManager::findUnsollicitedCmdByPrefix(const string& st
     }
     LOGD("%s: NOT FOUND -> UNSOLLICITED UNKNOWN", __FUNCTION__);
     return NULL;
+}
+
+//
+// Send Cleanup Request to the modem
+//
+bool CATManager::sendRequestCleanup()
+{
+    LOGD("%s: RECOVER PROCEDURE", __FUNCTION__);
+
+    int fdCleanupSocket;
+    bool ret = false;
+
+    uint32_t iMaxConnectionAttempts = MAX_WAIT_FOR_STMD_CONNECTION_SECONDS * 1000 / STMD_CONNECTION_RETRY_TIME_MS;
+
+    while (iMaxConnectionAttempts-- != 0) {
+
+        // Try to connect
+        fdCleanupSocket = socket_local_client(SOCKET_NAME_CLEAN_UP, ANDROID_SOCKET_NAMESPACE_RESERVED, SOCK_STREAM);
+
+        if (fdCleanupSocket >= 0) {
+
+            break;
+        }
+        // Wait
+        usleep(STMD_CONNECTION_RETRY_TIME_MS * 1000);
+    }
+    // Check for uccessfull connection
+    if (fdCleanupSocket < 0) {
+
+        LOGE("Failed to connect to Cleanup socket %s", strerror(errno));
+
+        return false;
+    }
+    uint32_t uiData = REQUEST_CLEANUP;
+
+    int iNbSentChars = write(fdCleanupSocket, &uiData, sizeof(uiData));
+
+    if (iNbSentChars != sizeof(uiData)) {
+
+        LOGE("Could not send CLEANUP REQUEST\n");
+
+        ret = false;
+    } else {
+
+        LOGD("%s: CLEANUP REQUEST success", __FUNCTION__);
+        ret = true;
+    }
+
+    close(fdCleanupSocket);
+    return ret;
+
 }

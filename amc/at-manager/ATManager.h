@@ -115,6 +115,8 @@ private:
     AT_CMD_STATUS waitEndOfTransaction(CATCommand* pATCommand);
     // terminate the transaction
     void terminateTransaction(bool bSuccess);
+    // Resend the current command
+    void resendCurrentCommand();
     // Process the send command list
     void processSendList();
     // Get Next Periodic Timeout
@@ -150,6 +152,13 @@ private:
     {
         return cmd->hasPrefix() && !strRespPrefix.find(cmd->getPrefix());
     }
+
+    // Checks if need to send cmd
+    void checksAndProcessSendList();
+
+    // Recovery procedure: reset of the modem
+    bool sendRequestCleanup();
+
 
 public:
     // Periodic command list
@@ -202,5 +211,7 @@ private:
     IATNotifier* _pIATNotifier;
     // Modem Status
     uint32_t _mModemStatus;
+    // Timeout retry counter
+    int _iTimeoutRetry;
 };
 

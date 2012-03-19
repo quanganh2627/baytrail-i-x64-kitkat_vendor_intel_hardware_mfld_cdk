@@ -465,6 +465,7 @@ bool IntelHWComposer::isBobDeinterlace(hwc_layer_t *layer)
 bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
 {
     IntelDisplayPlane *plane = 0;
+    IntelWidiPlane* widiplane = NULL;
     bool ret;
 
     drmModeConnection mipi0 = IntelHWComposerDrm::getInstance().getOutputConnection(OUTPUT_MIPI0);
@@ -478,6 +479,11 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
     }
     int active_width = crtcMode->width;
     int active_height = crtcMode->height;
+
+    if (mPlaneManager->isWidiActive()) {
+         widiplane = (IntelWidiPlane*) mPlaneManager->getWidiPlane();
+    }
+
 
     for (size_t i=0 ; i<list->numHwLayers ; i++) {
         plane = mLayerList->getPlane(i);
@@ -522,7 +528,13 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
             int format = grallocHandle->format;
             uint32_t transform = layer->transform;
 
+
             if (planeType == IntelDisplayPlane::DISPLAY_PLANE_OVERLAY) {
+                if (widiplane) {
+                   widiplane->setOverlayData(grallocHandle, srcWidth, srcHeight);
+                   continue;
+                }
+
                 IntelOverlayContext *overlayContext =
                     reinterpret_cast<IntelOverlayContext*>(plane->getContext());
 
@@ -579,12 +591,6 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                     layer->compositionType = HWC_FRAMEBUFFER;
                 }
 
-                if (mPlaneManager->isWidiActive()) {
-                    IntelWidiPlane* widiplane = (IntelWidiPlane*) mPlaneManager->getWidiPlane();
-                    if (widiplane) {
-                        widiplane->setOverlayData(grallocHandle, srcWidth, srcHeight);
-                    }
-                }
 
             } else if (planeType == IntelDisplayPlane::DISPLAY_PLANE_SPRITE) {
 

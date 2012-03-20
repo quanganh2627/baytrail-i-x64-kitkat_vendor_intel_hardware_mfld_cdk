@@ -417,6 +417,47 @@ bool IntelHWComposer::useOverlayRotation(hwc_layer_t *layer,
     return useOverlay;
 }
 
+// This function performs:
+// Acquire bool BobDeinterlace from video driver
+// If ture, use bob deinterlace, otherwise, use weave deinterlace
+bool IntelHWComposer::isBobDeinterlace(hwc_layer_t *layer)
+{
+    int bobDeinterlace = 0;
+
+    LOGE("useOverlayRotation enter.\n");
+
+    if (!layer)
+        return bobDeinterlace;
+
+    intel_gralloc_buffer_handle_t *grallocHandle =
+        (intel_gralloc_buffer_handle_t*)layer->handle;
+
+    if (!grallocHandle) {
+        LOGE("1.\n");
+        return bobDeinterlace;
+    }
+
+    // map payload buffer
+    IntelDisplayBuffer *buffer =
+        mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
+    if (!buffer) {
+        LOGE("%s: failed to map payload buffer.\n", __func__);
+        return false;
+    }
+
+    intel_gralloc_payload_t *payload =
+        (intel_gralloc_payload_t*)buffer->getCpuAddr();
+    if (!payload) {
+        LOGE("%s: invalid address\n", __func__);
+        return bobDeinterlace;
+    }
+
+    bobDeinterlace = payload->bob_deinterlace;
+
+    mGrallocBufferManager->unmap(buffer);
+    return bobDeinterlace;
+}
+
 // when buffer handle is changed, we need
 // 0) get plane's data buffer if a plane was attached to a layer
 // 1) update plane's data buffer with the new buffer handle
@@ -442,6 +483,7 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
         plane = mLayerList->getPlane(i);
         if (plane) {
             hwc_layer_t *layer = &list->hwLayers[i];
+            int bobDeinterlace;
             int srcX = layer->sourceCrop.left;
             int srcY = layer->sourceCrop.top;
             int srcWidth = layer->sourceCrop.right - layer->sourceCrop.left;
@@ -501,6 +543,15 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                     continue;
                 }
 
+                bobDeinterlace = isBobDeinterlace(layer);
+                int flags = mLayerList->getFlags(i);
+                if (bobDeinterlace) {
+                    flags |= IntelDisplayPlane::BOB_DEINTERLACE;
+                } else {
+                    flags &= ~IntelDisplayPlane::BOB_DEINTERLACE;
+                }
+                mLayerList->setFlags(i, flags);
+
                 // clear FB first on first overlay frame
                 if (layer->compositionType == HWC_FRAMEBUFFER)
                     layer->hints = HWC_HINT_CLEAR_FB;
@@ -546,7 +597,7 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                 if (srcHeight > active_height)
                     srcHeight = active_height;
                 dataBuffer->setCrop(srcX, srcY, srcWidth, srcHeight);
-
+                dataBuffer->setDeinterlaceType(bobDeinterlace);
                 // set the data buffer back to plane
                 ret = plane->setDataBuffer(bufferHandle, transform, grallocHandle);
                 if (!ret) {

@@ -76,6 +76,19 @@
 #define OVERLAY_MIRRORING_VERTIACAL     (0x2 << 17)
 #define OVERLAY_MIRRORING_BOTH          (0x3 << 17)
 
+#define BUF_TYPE                (0x1<<5)
+#define BUF_TYPE_FRAME          (0x0<<5)
+#define BUF_TYPE_FIELD          (0x1<<5)
+#define TEST_MODE               (0x1<<4)
+#define BUFFER_SELECT           (0x3<<2)
+#define BUFFER0                 (0x0<<2)
+#define BUFFER1                 (0x1<<2)
+#define FIELD_SELECT            (0x1<<1)
+#define FIELD0                  (0x0<<1)
+#define FIELD1                  (0x1<<1)
+#define OVERLAY_ENABLE          0x1
+
+
 /* Overlay contorl registers*/
 typedef struct pvr_overlay_control_block_t {
     uint32_t OBUF_0Y;

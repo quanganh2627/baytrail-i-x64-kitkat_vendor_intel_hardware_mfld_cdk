@@ -98,6 +98,11 @@ void IntelDisplayDataBuffer::setCrop(int x, int y, int w, int h)
     mSrcHeight = h;
 }
 
+void IntelDisplayDataBuffer::setDeinterlaceType(uint32_t bob_deinterlace)
+{
+    mBobDeinterlace = bob_deinterlace;
+}
+
 bool IntelTTMBufferManager::getVideoBridgeIoctl()
 {
     union drm_psb_extension_arg arg;

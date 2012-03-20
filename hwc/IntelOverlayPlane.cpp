@@ -341,8 +341,8 @@ bool IntelOverlayContext::bufferOffsetSetup(IntelDisplayDataBuffer &buf)
 
     uint32_t format = buf.getFormat();
     uint32_t gttOffsetInBytes = (buf.getGttOffsetInPage() << 12);
-    uint32_t yStride = buf.getYStride();
-    uint32_t uvStride = buf.getUVStride();
+    yStride = buf.getYStride();
+    uvStride = buf.getUVStride();
     uint32_t w = buf.getWidth();
     uint32_t h = buf.getHeight();
     uint32_t srcX= buf.getSrcX();
@@ -614,6 +614,7 @@ bool IntelOverlayContext::scalingSetup(IntelDisplayDataBuffer& buffer)
     int xscaleInt, xscaleFract, yscaleInt, yscaleFract;
     int xscaleIntUV, xscaleFractUV;
     int yscaleIntUV, yscaleFractUV;
+    int deinterlace_factor;
     /* UV is half the size of Y -- YUV420 */
     int uvratio = 2;
     uint32_t newval;
@@ -622,6 +623,11 @@ bool IntelOverlayContext::scalingSetup(IntelDisplayDataBuffer& buffer)
     int i, j, pos;
     bool scaleChanged = false;
     int x, y, w, h;
+    if (buffer.mBobDeinterlace) {
+        deinterlace_factor = 2;
+    } else {
+        deinterlace_factor = 1;
+    }
 
     if ((buffer.isFlags(IntelDisplayDataBuffer::SIZE_CHANGE) == false) &&
         (mContext->position_changed == false))
@@ -657,10 +663,10 @@ bool IntelOverlayContext::scalingSetup(IntelDisplayDataBuffer& buffer)
      */
     if (srcWidth == dstWidth && srcHeight == dstHeight) {
         xscaleFract = (1 << 12);
-        yscaleFract = (1 << 12);
+        yscaleFract = (1 << 12)/deinterlace_factor;
     } else {
         xscaleFract = ((srcWidth - 1) << 12) / dstWidth;
-        yscaleFract = ((srcHeight - 1) << 12) / dstHeight;
+        yscaleFract = ((srcHeight - 1) << 12) / (dstHeight * deinterlace_factor);
     }
 
     /* Calculate the UV scaling factor. */
@@ -794,6 +800,19 @@ bool IntelOverlayContext::setDataBuffer(IntelDisplayDataBuffer& buffer)
 
     mOverlayBackBuffer->OCMD |= 0x1;
 
+    if (buffer.mBobDeinterlace) {
+        mOverlayBackBuffer->OCMD |= BUF_TYPE_FIELD;
+        mOverlayBackBuffer->OCMD &= ~FIELD_SELECT;
+        mOverlayBackBuffer->OCMD |= FIELD0;
+        mOverlayBackBuffer->OCMD &= ~(BUFFER_SELECT);
+        mOverlayBackBuffer->OCMD |= BUFFER0;
+    } else {
+        mOverlayBackBuffer->OCMD |= BUF_TYPE_FRAME;
+        mOverlayBackBuffer->OCMD &= ~BUF_TYPE_FIELD;
+        mOverlayBackBuffer->OCMD &= ~FIELD_SELECT;
+        mOverlayBackBuffer->OCMD &= ~(BUFFER_SELECT);
+        mOverlayBackBuffer->OCMD |= BUFFER0;
+    }
     buffer.clearFlags();
     mContext->position_changed = false;
 
@@ -1112,6 +1131,94 @@ mode_change_done:
     return newDisplayMode;
 }
 
+bool IntelOverlayContextMfld::flush_bottom_field(uint32_t flags)
+{
+    mOverlayBackBuffer->OCMD |= FIELD1;
+    mOverlayBackBuffer->OBUF_0Y = mOverlayBackBuffer->OBUF_0Y - yStride;
+    mOverlayBackBuffer->OBUF_0V = mOverlayBackBuffer->OBUF_0V - uvStride;
+    mOverlayBackBuffer->OBUF_0U = mOverlayBackBuffer->OBUF_0U - uvStride;
+    mOverlayBackBuffer->OBUF_1Y = mOverlayBackBuffer->OBUF_1Y - yStride;
+    mOverlayBackBuffer->OBUF_1U = mOverlayBackBuffer->OBUF_1U - uvStride;
+    mOverlayBackBuffer->OBUF_1V = mOverlayBackBuffer->OBUF_1V - uvStride;
+
+    LOGV("%s: done. offset (%d, %d, %d)\n", __func__,
+                      mOverlayBackBuffer->OBUF_0Y,
+                      mOverlayBackBuffer->OBUF_0U,
+                      mOverlayBackBuffer->OBUF_0V);
+
+    if (!flags || mDrmFd <= 0)
+        return false;
+
+    if (!mContext || !(flags & IntelDisplayPlane::FLASH_NEEDED))
+        return false;
+
+    if (!mContext->gtt_offset_in_page) {
+        LOGE("%s: invalid gtt offset\n", __func__);
+        return false;
+    }
+
+    struct drm_psb_register_rw_arg arg;
+
+    memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
+    arg.overlay_write_mask = 1;
+    arg.overlay_read_mask = 0;
+    /*will not wait vblank, otherwise, wait too long will lead to intermittent issue*/
+    arg.overlay.b_wait_vblank = 0; //(flags & IntelDisplayPlane::WAIT_VBLANK) ? 1 : 0;
+    arg.overlay.OVADD = (mContext->gtt_offset_in_page << 12);
+    // pipe select
+    arg.overlay.OVADD |= mContext->pipe;
+    if (flags & IntelDisplayPlane::UPDATE_COEF)
+        arg.overlay.OVADD |= 1;
+    int ret = drmCommandWriteRead(mDrmFd,
+                                  DRM_PSB_REGISTER_RW,
+                                  &arg, sizeof(arg));
+    if (ret) {
+        LOGW("%s: overlay update failed with error code in bottom %d\n",
+             __func__, ret);
+        return false;
+    }
+
+    return true;
+}
+
+bool IntelOverlayContextMfld::flush_frame_or_top_field(uint32_t flags)
+{
+    if (!flags || mDrmFd <= 0)
+        return false;
+
+    if (!mContext || !(flags & IntelDisplayPlane::FLASH_NEEDED))
+        return false;
+
+    if (!mContext->gtt_offset_in_page) {
+        LOGE("%s: invalid gtt offset\n", __func__);
+        return false;
+    }
+
+    struct drm_psb_register_rw_arg arg;
+
+    memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
+    arg.overlay_write_mask = 1;
+    arg.overlay_read_mask = 0;
+    arg.overlay.b_wait_vblank = (flags & IntelDisplayPlane::WAIT_VBLANK) ? 1 : 0;
+    arg.overlay.OVADD = (mContext->gtt_offset_in_page << 12);
+    // pipe select
+    arg.overlay.OVADD |= mContext->pipe;
+    if (flags & IntelDisplayPlane::UPDATE_COEF)
+        arg.overlay.OVADD |= 1;
+    int ret = drmCommandWriteRead(mDrmFd,
+                                  DRM_PSB_REGISTER_RW,
+                                  &arg, sizeof(arg));
+    if (ret) {
+        LOGW("%s: overlay update failed with error code %d\n",
+             __func__, ret);
+        return false;
+    }
+    if (flags & IntelDisplayPlane::BOB_DEINTERLACE)
+        flush_bottom_field(flags);
+    LOGV("%s: done\n", __func__);
+    return true;
+}
+
 IntelOverlayPlane::IntelOverlayPlane(int fd, int index, IntelBufferManager *bm)
     : IntelDisplayPlane(fd, IntelDisplayPlane::DISPLAY_PLANE_OVERLAY, index, bm)
 {
@@ -1127,7 +1234,7 @@ IntelOverlayPlane::IntelOverlayPlane(int fd, int index, IntelBufferManager *bm)
     }
 
     // create overlay context
-    IntelOverlayContext *overlayContext = new IntelOverlayContext(fd, bm);
+    IntelOverlayContextMfld *overlayContext = new IntelOverlayContextMfld(fd, bm);
     if (!overlayContext) {
         LOGE("%s: Failed to create overlay context\n", __func__);
         goto overlay_create_err;
@@ -1376,8 +1483,8 @@ bool IntelOverlayPlane::flip(void *context, uint32_t flags)
 {
     bool ret = true;
     if (initCheck()) {
-        IntelOverlayContext *overlayContext =
-            reinterpret_cast<IntelOverlayContext*>(mContext);
+        IntelOverlayContextMfld *overlayContext =
+            reinterpret_cast<IntelOverlayContextMfld*>(mContext);
 
         if (mWidiPlane && mWidiPlane->isStreaming()) {
             ret = overlayContext->disable();
@@ -1388,7 +1495,7 @@ bool IntelOverlayPlane::flip(void *context, uint32_t flags)
                     IntelDisplayPlane::UPDATE_COEF |
                     IntelDisplayPlane::WAIT_VBLANK;
 
-            ret = overlayContext->flush(flags);
+            ret = overlayContext->flush_frame_or_top_field(flags);
             if (ret == false)
                 LOGE("%s: failed to do overlay flip\n", __func__);
         }

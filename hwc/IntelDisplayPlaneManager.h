@@ -67,6 +67,7 @@ public:
             UPDATE_COEF      = 0x00000004UL,
             UPDATE_CONTROL   = 0x00000008UL,
             UPDATE_SURFACE   = 0x00000010UL,
+            BOB_DEINTERLACE  = 0x00000020UL,
         };
 protected:
     int mDrmFd;
@@ -178,7 +179,7 @@ typedef struct {
 
 class IntelOverlayContext : public IntelDisplayPlaneContext
 {
-private:
+protected:
     int mHandle;
     intel_overlay_context_t *mContext;
     intel_overlay_back_buffer_t *mOverlayBackBuffer;
@@ -186,7 +187,9 @@ private:
     int mSize;
     int mDrmFd;
     IntelBufferManager *mBufferManager;
-protected:
+    int yStride;
+    int uvStride;
+
     bool backBufferInit();
     bool bufferOffsetSetup(IntelDisplayDataBuffer& buf);
     uint32_t calculateSWidthSW(uint32_t offset, uint32_t width);
@@ -211,6 +214,13 @@ public:
          mBackBuffer(0),
          mSize(0), mDrmFd(drmFd),
          mBufferManager(bufferManager) {}
+    IntelOverlayContext()
+        :mHandle(0),
+         mContext(0),
+         mOverlayBackBuffer(0),
+         mBackBuffer(0),
+         mSize(0) {}
+
     ~IntelOverlayContext();
 
     // ashmen operations
@@ -244,6 +254,22 @@ public:
 
     // DRM mode change handle
     intel_overlay_mode_t onDrmModeChange();
+};
+
+class IntelOverlayContextMfld : public IntelOverlayContext
+{
+public:
+    IntelOverlayContextMfld(int drmFd, IntelBufferManager *bufferManager = NULL) {
+        mHandle = 0;
+        mContext = 0;
+        mOverlayBackBuffer = 0;
+        mBackBuffer = 0;
+        mSize = 0;
+        mDrmFd = drmFd;
+        mBufferManager = bufferManager;
+    }
+    bool flush_frame_or_top_field(uint32_t flags);
+    bool flush_bottom_field(uint32_t flags);
 };
 
 class IntelWidiPlane; // forward declaration

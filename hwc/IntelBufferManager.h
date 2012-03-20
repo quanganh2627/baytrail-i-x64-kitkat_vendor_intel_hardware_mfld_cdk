@@ -74,6 +74,7 @@ public:
         BUFFER_CHANGE = 0x00000001UL,
         SIZE_CHANGE   = 0x00000002UL,
     };
+    uint32_t mBobDeinterlace;
 private:
     uint32_t mFormat;
     uint32_t mWidth;
@@ -99,6 +100,7 @@ public:
     void setStride(uint32_t stride);
     void setStride(uint32_t yStride, uint32_t uvStride);
     void setCrop(int x, int y, int w, int h);
+    void setDeinterlaceType(uint32_t bob_deinterlace);
     void inline appendFlags(uint32_t flags) { mUpdateFlags |= flags; }
     void inline removeFlags(uint32_t flags) { mUpdateFlags &= ~flags; }
     void inline clearFlags() { mUpdateFlags = 0; }
@@ -201,7 +203,7 @@ typedef struct {
     uint32_t nativebuf_count;
     uint32_t nativebuf_idx;
     uint32_t nativebuf_handle[0];
-
+    int bob_deinterlace;
 } intel_gralloc_payload_t;
 
 class IntelPVRBufferManager : public IntelBufferManager {

@@ -48,6 +48,7 @@ public:
     void setOrientation(uint32_t orientation);
     void setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t width, uint32_t height);
     bool isStreaming() { return (mState == WIDI_PLANE_STATE_STREAMING); };
+    bool isPlayerOn() { return mPlayerStatus; };
     void returnBuffer(int index);
 
     bool flip(void *contexts, uint32_t flags);
@@ -131,6 +132,7 @@ public:
     bool flip(void *contexts, uint32_t flags){return true;};
     bool isActive(){return false;};
     bool isStreaming() { return false; };
+    bool isPlayerOn() { return false; };
     bool isWidiStatusChanged(){return false;};
 
 

@@ -153,8 +153,10 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
 
     // force to use overlay in video extend mode
     intel_overlay_mode_t displayMode = mDrm->getDisplayMode();
-    if(widiPlane->isStreaming())
+    if(widiPlane->isPlayerOn() && widiPlane->isActive()
+        && widiPlane->isExtVideoAllowed()) {
         displayMode = OVERLAY_EXTEND;
+    }
 
     if (displayMode == OVERLAY_EXTEND) {
         // clear HWC_SKIP_LAYER flag so that force to use overlay

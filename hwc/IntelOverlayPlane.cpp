@@ -1259,6 +1259,7 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
 
     for (int i = 0; i < OVERLAY_DATA_BUFFER_NUM_MAX; i++) {
         if (mDataBuffers[i].ui64Stamp == ui64Stamp &&
+            mDataBuffers[i].handle == handle &&
             mDataBuffers[i].bufferType == bufferType) {
             buffer = mDataBuffers[i].buffer;
             break;
@@ -1271,6 +1272,7 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
     if (!buffer) {
         // release the buffer in the next slot
         if (mDataBuffers[mNextBuffer].ui64Stamp ||
+            mDataBuffers[mNextBuffer].handle ||
             mDataBuffers[mNextBuffer].buffer) {
             LOGV("%s: releasing buffer %d...\n", __func__, mNextBuffer);
             if (mDataBuffers[mNextBuffer].bufferType ==
@@ -1279,6 +1281,7 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
             else
                 mBufferManager->unmap(mDataBuffers[mNextBuffer].buffer);
             mDataBuffers[mNextBuffer].ui64Stamp = 0;
+            mDataBuffers[mNextBuffer].handle = 0;
             mDataBuffers[mNextBuffer].buffer = 0;
             mDataBuffers[mNextBuffer].bufferType = 0;
         }
@@ -1296,6 +1299,7 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
              else
                  mBufferManager->unmap(mDataBuffers[0].buffer);
              mDataBuffers[0].ui64Stamp = 0;
+             mDataBuffers[0].handle = 0;
              mDataBuffers[0].buffer = 0;
              mDataBuffers[0].bufferType = 0;
              mNextBuffer = 0;
@@ -1314,6 +1318,7 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
 
         LOGV("%s: mapping buffer at %d...\n", __func__, mNextBuffer);
         mDataBuffers[mNextBuffer].ui64Stamp = ui64Stamp;
+        mDataBuffers[mNextBuffer].handle = handle;
         mDataBuffers[mNextBuffer].buffer = buffer;
         mDataBuffers[mNextBuffer].bufferType = bufferType;
 

@@ -312,13 +312,17 @@ bool IntelHWComposer::useOverlayRotation(hwc_layer_t *layer,
                                          uint32_t& handle,
                                          int& w, int& h,
                                          int& srcX, int& srcY,
-                                         int& srcW, int& srcH)
+                                         int& srcW, int& srcH,
+                                         uint32_t &transform)
 {
     bool useOverlay = false;
     uint32_t hwcLayerTransform;
+    IntelWidiPlane* widiplane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
 
     // FIXME: workaround for rotation issue, remove it later
     static int counter = 0;
+    uint32_t metadata_transform = 0;
+    uint32_t displayMode = 0;
 
     if (!layer)
         return false;
@@ -329,71 +333,87 @@ bool IntelHWComposer::useOverlayRotation(hwc_layer_t *layer,
     if (!grallocHandle)
         return false;
 
-    if (!layer->transform) {
-        return true;
+    // detect video mode change
+    displayMode = mDrm->getDisplayMode();
+    if(widiplane->isStreaming())
+        displayMode = OVERLAY_EXTEND;
+
+    if (grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12) {
+        // map payload buffer
+        IntelDisplayBuffer *buffer =
+            mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
+        if (!buffer) {
+            LOGE("%s: failed to map payload buffer.\n", __func__);
+            return false;
+        }
+
+        intel_gralloc_payload_t *payload =
+            (intel_gralloc_payload_t*)buffer->getCpuAddr();
+
+        // unmap payload buffer
+        mGrallocBufferManager->unmap(buffer);
+        if (!payload) {
+            LOGE("%s: invalid address\n", __func__);
+            return false;
+        }
+        metadata_transform = payload->metadata_transform;
+
+        //For extend mode, we ignore WM rotate info
+        if (displayMode == OVERLAY_EXTEND) {
+            transform = metadata_transform;
+        }
+
+        if (!transform) {
+            LOGV("%s: use overlay to display original buffer.", __func__);
+            return true;
+        }
+
+        if (transform != payload->client_transform) {
+            LOGV("%s: rotation buffer is not done by client, fallback...need rotate buffer with degree %d\n",
+                __func__, transform);
+            return false;
+        }
+
+        // update handle, w & h to rotation buffer
+        handle = payload->rotated_buffer_handle;
+        w = payload->rotated_width;
+        h = payload->rotated_height;
+        // NOTE: exchange the srcWidth & srcHeight since
+        // video driver currently doesn't call native_window_*
+        // helper functions to update info for rotation buffer.
+        if (transform == HAL_TRANSFORM_ROT_90 ||
+                transform == HAL_TRANSFORM_ROT_270) {
+            int temp = srcH;
+            srcH = srcW;
+            srcW = temp;
+        }
+
+        // skip pading bytes in rotate buffer
+        switch(transform) {
+            case HAL_TRANSFORM_ROT_90:
+                srcX += ((srcW + 0xf) & ~0xf) - srcW;
+                break;
+            case HAL_TRANSFORM_ROT_180:
+                srcX += ((srcW + 0xf) & ~0xf) - srcW;
+                srcY += ((srcH + 0xf) & ~0xf) - srcH;
+                break;
+            case HAL_TRANSFORM_ROT_270:
+                srcY += ((srcH + 0xf) & ~0xf) - srcH;
+                break;
+            default:
+                break;
+        }
+    } else {
+        //For software codec, overlay can't handle rotate 
+        //and fallback to surface texture.
+        if ((displayMode != OVERLAY_EXTEND) && transform)
+            return false;
+        //set this flag for mapping correct buffer
+        transform = 0;
     }
 
-    if (grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12)
-        return false;
-
-    // map payload buffer
-    IntelDisplayBuffer *buffer =
-        mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
-    if (!buffer) {
-        LOGE("%s: failed to map payload buffer.\n", __func__);
-        return false;
-    }
-
-    intel_gralloc_payload_t *payload =
-        (intel_gralloc_payload_t*)buffer->getCpuAddr();
-    if (!payload) {
-        LOGE("%s: invalid address\n", __func__);
-        useOverlay = false;
-        goto out;
-    }
-
-    if (layer->transform != payload->client_transform) {
-        LOGD("%s: rotation is not done by client, fallback...\n", __func__);
-        useOverlay = false;
-        goto out;
-    }
-
-    // update handle, w & h to rotation buffer
-    handle = payload->rotated_buffer_handle;
-    w = payload->rotated_width;
-    h = payload->rotated_height;
-    // NOTE: exchange the srcWidth & srcHeight since
-    // video driver currently doesn't call native_window_*
-    // helper functions to update info for rotation buffer.
-    if (layer->transform == HAL_TRANSFORM_ROT_90 ||
-        layer->transform == HAL_TRANSFORM_ROT_270) {
-        int temp = srcH;
-        srcH = srcW;
-        srcW = temp;
-    }
-
-    // skip pading bytes in rotate buffer
-    switch(layer->transform) {
-    case HAL_TRANSFORM_ROT_90:
-        srcX += ((srcW + 0xf) & ~0xf) - srcW;
-        break;
-    case HAL_TRANSFORM_ROT_180:
-        srcX += ((srcW + 0xf) & ~0xf) - srcW;
-        srcY += ((srcH + 0xf) & ~0xf) - srcH;
-        break;
-    case HAL_TRANSFORM_ROT_270:
-        srcY += ((srcH + 0xf) & ~0xf) - srcH;
-        break;
-    default:
-        break;
-    }
-
-    // now, switch to overlay
+    //for most of cases, we handle rotate by overlay
     useOverlay = true;
-
-out:
-    // unmap payload buffer
-    mGrallocBufferManager->unmap(buffer);
     return useOverlay;
 }
 
@@ -405,7 +425,6 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
 {
     IntelDisplayPlane *plane = 0;
     bool ret;
-    IntelWidiPlane* widiplane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
 
     drmModeConnection mipi0 = IntelHWComposerDrm::getInstance().getOutputConnection(OUTPUT_MIPI0);
     drmModeConnection hdmi = IntelHWComposerDrm::getInstance().getOutputConnection(OUTPUT_HDMI);
@@ -459,36 +478,27 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
             int bufferHeight = grallocHandle->height;
             uint32_t bufferHandle = grallocHandle->fd[GRALLOC_SUB_BUFFER0];
             int format = grallocHandle->format;
-            uint32_t transform = 0;
+            uint32_t transform = layer->transform;
 
             if (planeType == IntelDisplayPlane::DISPLAY_PLANE_OVERLAY) {
                 IntelOverlayContext *overlayContext =
                     reinterpret_cast<IntelOverlayContext*>(plane->getContext());
 
-                // detect video mode change
-                uint32_t displayMode = mDrm->getDisplayMode();
-                if(widiplane->isStreaming())
-                    displayMode = OVERLAY_EXTEND;
+                // check if can switch to overlay
+                bool useOverlay = useOverlayRotation(layer, i,
+                        bufferHandle,
+                        bufferWidth,
+                        bufferHeight,
+                        srcX,
+                        srcY,
+                        srcWidth,
+                        srcHeight,
+                        transform);
 
-                if (displayMode != OVERLAY_EXTEND) {
-                    // check if can switch to overlay
-                    bool useOverlay = useOverlayRotation(layer, i,
-                                                         bufferHandle,
-                                                         bufferWidth,
-                                                         bufferHeight,
-                                                         srcX,
-                                                         srcY,
-                                                         srcWidth,
-                                                         srcHeight);
-
-                    if (!useOverlay) {
-                        layer->compositionType = HWC_FRAMEBUFFER;
-                        layer->hints &= ~HWC_HINT_CLEAR_FB;
-                        continue;
-                    }
-
-                    // update transform
-                    transform = layer->transform;
+                if (!useOverlay) {
+                    layer->compositionType = HWC_FRAMEBUFFER;
+                    layer->hints &= ~HWC_HINT_CLEAR_FB;
+                    continue;
                 }
 
                 // clear FB first on first overlay frame

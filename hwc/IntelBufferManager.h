@@ -191,6 +191,7 @@ typedef struct {
 typedef struct {
     // transform made by clients (clients to hwc)
     int client_transform;
+    int metadata_transform;
     int rotated_width;
     int rotated_height;
     int surface_protected;

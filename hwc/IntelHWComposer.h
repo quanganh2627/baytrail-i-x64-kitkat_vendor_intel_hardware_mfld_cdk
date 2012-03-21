@@ -55,7 +55,7 @@ private:
                        int& flags);
     bool useOverlayRotation(hwc_layer_t *layer, int index, uint32_t& handle,
                            int& w, int& h,
-                           int& srcX, int& srcY, int& srcW, int& srcH);
+                           int& srcX, int& srcY, int& srcW, int& srcH, uint32_t& transform);
     bool updateLayersData(hwc_layer_list_t *list);
     bool isHWCUsage(int usage);
     bool isHWCFormat(int format);

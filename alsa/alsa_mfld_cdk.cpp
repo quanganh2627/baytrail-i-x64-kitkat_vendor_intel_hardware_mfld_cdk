@@ -75,7 +75,7 @@ namespace android_audio_legacy
 static int s_device_open(const hw_module_t*, const char*, hw_device_t**);
 static int s_device_close(hw_device_t*);
 static status_t s_init(alsa_device_t *, ALSAHandleList &);
-static status_t s_open(alsa_handle_t *, uint32_t, int);
+static status_t s_open(alsa_handle_t *, uint32_t, int, int);
 static status_t s_init_stream(alsa_handle_t *handle, uint32_t devices, int mode);
 static status_t s_standby(alsa_handle_t *);
 static status_t s_close(alsa_handle_t *);
@@ -181,7 +181,7 @@ static snd_pcm_stream_t direction(alsa_handle_t *handle)
             SND_PCM_STREAM_PLAYBACK : SND_PCM_STREAM_CAPTURE;
 }
 
-static const char *deviceName(alsa_handle_t *handle, uint32_t device, int mode)
+static const char *deviceName(alsa_handle_t *handle, uint32_t device, int mode, int fmrx_mode)
 {
     static char devString[ALSA_NAME_MAX];
     int hasDevExt = 0;
@@ -200,7 +200,10 @@ static const char *deviceName(alsa_handle_t *handle, uint32_t device, int mode)
 
     if (hasDevExt) switch (mode) {
         case AudioSystem::MODE_NORMAL:
-            ALSA_STRCAT(devString, "_normal");
+            if (fmrx_mode == AudioSystem::MODE_FM_ON)
+                ALSA_STRCAT(devString, "_infmrx");
+            else
+                ALSA_STRCAT(devString, "_normal");
             break;
         case AudioSystem::MODE_RINGTONE:
             ALSA_STRCAT(devString, "_ringtone");
@@ -510,7 +513,7 @@ static status_t s_init_stream(alsa_handle_t *handle, uint32_t devices, int mode)
     LOGD("s_init_stream called for devices %08x in mode %d...", devices, mode);
 
     const char *stream = streamName(handle);
-    const char *devName = deviceName(handle, devices, mode);
+    const char *devName = deviceName(handle, devices, mode, AudioSystem::MODE_FM_OFF);
 
     LOGD("s_init_stream called for devices %s", devName);
     if (devices & AudioSystem::DEVICE_IN_ALL) {
@@ -561,7 +564,7 @@ static int s_device_open(const hw_module_t* module, const char* name,
     return 0;
 }
 
-static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
+static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode, int fmrx_mode)
 {
     // Close off previously opened device.
     // It would be nice to determine if the underlying device actually
@@ -574,7 +577,7 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
     LOGD("open called for devices %08x in mode %d...", devices, mode);
 
     const char *stream = streamName(handle);
-    const char *devName = deviceName(handle, devices, mode);
+    const char *devName = deviceName(handle, devices, mode, fmrx_mode);
 
     LOGD("open called for devices %s", devName);
 

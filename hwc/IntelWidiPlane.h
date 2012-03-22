@@ -90,8 +90,6 @@ protected:
         android::sp<IntelWidiPlane> mSelf;
     };
 
-
-
     int32_t                         mAllowExtVideoMode;
     WidiPlaneState                  mState;
     bool                            mWidiStatusChanged;
@@ -104,13 +102,12 @@ protected:
     android::sp<IBinder>            mWirelesDisplayservice;
     android::sp<IBinder>            mWirelessDisplay;
     uint32_t                        mCurrentOrientation;
-    int                             mNextExtFrame;
-    int                             mCurrExtFrame;
 
-    intel_gralloc_buffer_handle_t   mExtVideoBuffers[EXT_VIDEO_MODE_MAX_SURFACE];
-    widiPayloadBuffer_t             mExtVideoPayloadBuffers[EXT_VIDEO_MODE_MAX_SURFACE];
-    int32_t                         mExtVideoBuffersCount;
-    android::KeyedVector<intel_gralloc_buffer_handle_t*, uint32_t> mExtVideoBuffersMapping;
+    widiPayloadBuffer_t             mCurrExtFramePayload;
+    uint32_t                        mPrevExtFrame;
+    uint32_t                        mExtVideoBuffersCount;
+    intel_widi_ext_video_buffer_t   mExtVideoBuffers[EXT_VIDEO_MODE_MAX_SURFACE];
+    android::KeyedVector<intel_gralloc_buffer_handle_t*, widiPayloadBuffer_t> mExtVideoBuffersMapping;
 };
 
 #else  // Stub implementation in case of widi module is not compiled

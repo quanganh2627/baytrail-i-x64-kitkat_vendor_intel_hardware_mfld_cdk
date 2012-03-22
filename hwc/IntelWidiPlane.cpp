@@ -72,14 +72,14 @@ IntelWidiPlane::IntelWidiPlane(int fd, int index, IntelBufferManager *bm)
       mFlipListener(NULL),
       mWirelessDisplay(NULL),
       mCurrentOrientation(0),
-      mNextExtFrame(-1),
-      mCurrExtFrame(-1),
+      mPrevExtFrame((uint32_t)-1),
       mPlayerStatus(false),
       mExtVideoBuffersCount(0)
 
 {
     LOGV("Intel Widi Plane constructor");
 
+    memset(&mCurrExtFramePayload, 0, sizeof(mCurrExtFramePayload));
     mExtVideoBuffersMapping.setCapacity(EXT_VIDEO_MODE_MAX_SURFACE);
     clearExtVideoModeContext();
 
@@ -142,7 +142,7 @@ IntelWidiPlane::disablePlane() {
         LOGV("Plane Disabled !!");
         mWirelessDisplay = NULL;
         mState = WIDI_PLANE_STATE_INITIALIZED;
-        memset(mExtVideoBuffers, 0, sizeof(intel_gralloc_buffer_handle_t)*EXT_VIDEO_MODE_MAX_SURFACE);
+        memset(mExtVideoBuffers, 0, sizeof(intel_widi_ext_video_buffer_t)*EXT_VIDEO_MODE_MAX_SURFACE);
         mExtVideoBuffersCount = 0;
         mExtVideoBuffersMapping.clear();
         mWidiStatusChanged = true;
@@ -166,28 +166,25 @@ IntelWidiPlane::flip(void *context, uint32_t flags) {
         mFlipListener->pageFlipped(systemTime(),mCurrentOrientation);
 
     } else if (mState == WIDI_PLANE_STATE_STREAMING) {
-        sp<IWirelessDisplay> wd = interface_cast<IWirelessDisplay>(mWirelessDisplay);
+        sp<IWirelessDisplay> wd = interface_cast<IWirelessDisplay> (mWirelessDisplay);
 
-        LOGV("Sending buffer, index %d", mNextExtFrame);
-        if (mNextExtFrame != -1) {
-            // WiDi stack does not handle consecutive buffers
-            // with same value. Here, we simply return
-            if(mCurrExtFrame == mNextExtFrame) {
-               return true;
-            }
-
-            widiPayloadBuffer_t wPayload = mExtVideoPayloadBuffers[mNextExtFrame];
-            status_t ret = wd->sendBuffer(wPayload.p->nativebuf_idx);
-
-            if (ret == NO_ERROR) {
-                wPayload.p->renderStatus = 1;
-            } else {
-                LOGV("Could not send buffer to Widi");
-            }
-
-            mCurrExtFrame = mNextExtFrame;
+        if(mCurrExtFramePayload.p == NULL) {
+            return true;
         }
+
+        if(mPrevExtFrame == mCurrExtFramePayload.p->khandle) {
+            return true;
+        }
+
+        status_t ret = wd->sendBuffer(mCurrExtFramePayload.p->khandle);
+
+        if (ret == NO_ERROR) {
+            mCurrExtFramePayload.p->renderStatus = 1;
+        }
+
+        mPrevExtFrame = mCurrExtFramePayload.p->khandle;
     }
+
     return true;
 }
 
@@ -248,68 +245,47 @@ void
 IntelWidiPlane::setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t width, uint32_t height) {
 
     status_t ret = NO_ERROR;
+    widiPayloadBuffer_t payload;
 
-    if (mState == WIDI_PLANE_STATE_STREAMING) {
-        /* Retrieve index from mapping vector
-         * send it to Widi Stack
-         * handle error in case not found
-         */
+    ssize_t index = mExtVideoBuffersMapping.indexOfKey(nHandle);
 
-        ssize_t index = mExtVideoBuffersMapping.indexOfKey(nHandle);
-
-        if ((index == NAME_NOT_FOUND) || (index >= mExtVideoBuffersCount)) {
-
-            LOGE("Received an unexpectd gralloc handle while buffering %ld --> going to CloneMode", index);
-            sendInitMode(IWirelessDisplay::WIDI_MODE_CLONE,0,0);
-
-        } else {
-
-            mNextExtFrame = mExtVideoBuffersMapping.valueAt(index);
-
-        }
-
-    } else if ((mState == WIDI_PLANE_STATE_ACTIVE)  && (mPlayerStatus == true)){
-        /* Map payload buffer
-         * get the decoder buffer count
-         * Store handle to array until we have them all
-         * initialize Widi to extVideo Mode
-         *
-         */
-        widiPayloadBuffer_t payload;
-
+    if (index == NAME_NOT_FOUND) {
         if (mapPayloadBuffer(nHandle, &payload)) {
 
-            if (mExtVideoBuffersCount == 0) {
-                mExtVideoBuffersCount = payload.p->nativebuf_count;
-                LOGI("Got FIRST gralloc buffer with native handle index %d", payload.p->nativebuf_idx);
-                LOGI("decoder context has %d surfaces", mExtVideoBuffersCount);
-            }
+            if ((mState == WIDI_PLANE_STATE_ACTIVE) && (mPlayerStatus == true)) {
 
-            ssize_t index = mExtVideoBuffersMapping.indexOfKey(nHandle);
-            if ((index == NAME_NOT_FOUND) && (payload.p->nativebuf_idx < (unsigned int)(mExtVideoBuffersCount))){
-
-                LOGI("Mapping nHandle %p to index %d", nHandle, payload.p->nativebuf_idx);
-
-                mExtVideoBuffersMapping.add(nHandle, payload.p->nativebuf_idx);
-                mExtVideoBuffers[payload.p->nativebuf_idx] = *nHandle;
-                mExtVideoPayloadBuffers[payload.p->nativebuf_idx] = payload;
-
-                int currentSize = mExtVideoBuffersMapping.size();
-
-                if( currentSize == mExtVideoBuffersCount) {
-
-                    LOGI("Changing to ExtVideo with %d surfaces", mExtVideoBuffersMapping.size());
-                    ret = sendInitMode(IWirelessDisplay::WIDI_MODE_EXTENDED_VIDEO, width, height);
-
-                    if(ret != NO_ERROR) {
-                      LOGE("Something went wrong setting the mode, we continue in clone mode");
-                    }
+                mExtVideoBuffersCount = payload.p->khandles_count;
+                for (int i = 0; i < payload.p->khandles_count; i++) {
+                    mExtVideoBuffers[i].khandle = payload.p->khandles[i];
+                    mExtVideoBuffers[i].width = payload.p->width;
+                    mExtVideoBuffers[i].height = payload.p->height;
+                    mExtVideoBuffers[i].luma_stride = payload.p->luma_stride;
+                    mExtVideoBuffers[i].chroma_u_stride = payload.p->chroma_u_stride;
+                    mExtVideoBuffers[i].chroma_v_stride = payload.p->chroma_v_stride;
+                    mExtVideoBuffers[i].format = payload.p->format;
+                    LOGI("khandle = 0x%x width = %d height = %d luma_stride = %d chroma_u_stride = %d chroma_v_stride = %d format = 0x%x", 
+                         mExtVideoBuffers[i].khandle, mExtVideoBuffers[i].width,  mExtVideoBuffers[i].height, mExtVideoBuffers[i].luma_stride,
+                         mExtVideoBuffers[i].chroma_u_stride, mExtVideoBuffers[i].chroma_v_stride, mExtVideoBuffers[i].format);
                 }
+                ret = sendInitMode(IWirelessDisplay::WIDI_MODE_EXTENDED_VIDEO, width, height);
 
-            } else {
-                unmapPayloadBuffer(&payload);
+                if (ret != NO_ERROR) {
+                    LOGE("Something went wrong setting the mode, we continue in clone mode");
+                }
             }
+
+            mExtVideoBuffersMapping.add(nHandle, payload);
         }
+    } else {
+
+        payload = mExtVideoBuffersMapping.valueAt(index);
+
+    }
+
+    if (mState == WIDI_PLANE_STATE_STREAMING) {
+
+        mCurrExtFramePayload = payload;
+
     }
 }
 
@@ -370,7 +346,7 @@ IntelWidiPlane::sendInitMode(int mode, uint32_t width, uint32_t height) {
         mState = WIDI_PLANE_STATE_ACTIVE;
         clearExtVideoModeContext();
 
-    }else if(mode == IWirelessDisplay::WIDI_MODE_EXTENDED_VIDEO) {
+    } else if(mode == IWirelessDisplay::WIDI_MODE_EXTENDED_VIDEO) {
 
         /* Adjust for orientations different than 0 (i.e. 90 and 270) */
        if(mCurrentOrientation) {
@@ -384,8 +360,7 @@ IntelWidiPlane::sendInitMode(int mode, uint32_t width, uint32_t height) {
 
        if (ret == NO_ERROR ) {
            mState = WIDI_PLANE_STATE_STREAMING;
-       } else
-       {
+       } else {
            clearExtVideoModeContext();
            LOGE("Error setting Extended video mode ");
        }
@@ -399,25 +374,34 @@ IntelWidiPlane::sendInitMode(int mode, uint32_t width, uint32_t height) {
 void
 IntelWidiPlane::clearExtVideoModeContext() {
 
-    LOGI("Clearing extVideo Mode context");
-    for (int i = 0; i< mExtVideoBuffersCount; i++) {
-        mExtVideoPayloadBuffers[i].p->renderStatus = 0;
-        unmapPayloadBuffer(&mExtVideoPayloadBuffers[i]);
+    if(mExtVideoBuffersMapping.size()) {
+        for(int i = 0; i < mExtVideoBuffersMapping.size(); i ++) {
+            widiPayloadBuffer_t payload = mExtVideoBuffersMapping.valueAt(i);
+            payload.p->renderStatus = 0;
+            unmapPayloadBuffer(&payload);
+        }
     }
-    memset(mExtVideoPayloadBuffers, 0, sizeof(widiPayloadBuffer_t)*EXT_VIDEO_MODE_MAX_SURFACE);
-    memset(mExtVideoBuffers, 0, sizeof(intel_gralloc_buffer_handle_t)*EXT_VIDEO_MODE_MAX_SURFACE);
+
+    memset(mExtVideoBuffers, 0, sizeof(intel_widi_ext_video_buffer_t)*EXT_VIDEO_MODE_MAX_SURFACE);
     mExtVideoBuffersCount = 0;
     mExtVideoBuffersMapping.clear();
-    mNextExtFrame = -1;
-    mCurrExtFrame = -1;
+    memset(&mCurrExtFramePayload, 0, sizeof(mCurrExtFramePayload));
+    mPrevExtFrame = (uint32_t)-1;
 }
 
 void
-IntelWidiPlane::returnBuffer(int index) {
+IntelWidiPlane::returnBuffer(int khandle) {
     LOGV("Buffer returned, index = %d", index);
 
-    if (mExtVideoPayloadBuffers[index].p != NULL)
-        mExtVideoPayloadBuffers[index].p->renderStatus = 0;
+    if(mExtVideoBuffersMapping.size()) {
+        for(int i = 0; i < mExtVideoBuffersMapping.size(); i++) {
+            widiPayloadBuffer_t payload = mExtVideoBuffersMapping.valueAt(i);
+            if(payload.p->khandle == khandle) {
+                payload.p->renderStatus = 0;
+                break;
+            }
+        }
+    }
 }
 
 void

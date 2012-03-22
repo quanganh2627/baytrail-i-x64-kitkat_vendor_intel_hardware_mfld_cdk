@@ -200,11 +200,27 @@ typedef struct {
     int force_output_method;
     uint32_t rotated_buffer_handle;
     uint32_t renderStatus;
-    uint32_t nativebuf_count;
-    uint32_t nativebuf_idx;
-    uint32_t nativebuf_handle[0];
     int bob_deinterlace;
+    uint32_t width;
+    uint32_t height;
+    uint32_t luma_stride;
+    uint32_t chroma_u_stride;
+    uint32_t chroma_v_stride;
+    uint32_t format;
+    uint32_t khandle;
+    uint32_t khandles_count;
+    uint32_t khandles[32];
 } intel_gralloc_payload_t;
+
+typedef struct {
+    uint32_t width;
+    uint32_t height;
+    uint32_t luma_stride;
+    uint32_t chroma_u_stride;
+    uint32_t chroma_v_stride;
+    uint32_t format;
+    uint32_t khandle;
+} intel_widi_ext_video_buffer_t;
 
 class IntelPVRBufferManager : public IntelBufferManager {
 private:

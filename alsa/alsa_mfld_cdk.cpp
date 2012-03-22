@@ -52,6 +52,7 @@
 
 #ifndef WIDI_DEFAULT_SAMPLE_RATE
 #define WIDI_DEFAULT_SAMPLE_RATE 48000 // in Hz
+#define WIDI_DEFAULT_LATENCY     40000 // in usec
 #endif
 
 #ifndef VOICE_CODEC_DEFAULT_SAMPLE_RATE
@@ -611,6 +612,7 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
         // reset the initial value for playback
         handle->sampleRate = _defaultsOut.sampleRate;
         handle->expectedSampleRate = _defaultsOut.expectedSampleRate;
+        handle->latency = PERIOD_TIME * 4;
 
         if (mode == AudioSystem::MODE_IN_CALL) {
             LOGD("Setting expected sample rate to %d (IN_CALL)", VOICE_MODEM_DEFAULT_SAMPLE_RATE);
@@ -629,6 +631,7 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode)
         else if (devices & AudioSystem::DEVICE_OUT_WIDI_LOOPBACK) {
             LOGV("Setting expected sample rate to %d (WIDI)", WIDI_DEFAULT_SAMPLE_RATE);
             handle->expectedSampleRate = WIDI_DEFAULT_SAMPLE_RATE;
+            handle->latency = WIDI_DEFAULT_LATENCY;
         }
     }
 

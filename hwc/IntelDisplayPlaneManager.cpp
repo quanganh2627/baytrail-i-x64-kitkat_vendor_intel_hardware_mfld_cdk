@@ -43,6 +43,7 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
         LOGE("%s: failed to allocate plane contexts\n", __func__);
         return;
     }
+    memset(mPlaneContexts, 0, mContextLength);
 
     // allocate sprite plane pool
     mSpritePlanes =

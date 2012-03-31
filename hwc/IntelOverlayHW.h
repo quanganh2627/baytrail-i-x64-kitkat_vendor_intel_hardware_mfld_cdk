@@ -50,7 +50,7 @@
 #define OVERLAY_INIT_GAMMA4             0x808080
 #define OVERLAY_INIT_GAMMA5             0xc0c0c0
 #define OVERLAY_INIT_COLORKEY           0
-#define OVERLAY_INIT_COLORKEYMASK       ((0x1 << 31) | (0X0 << 30))
+#define OVERLAY_INIT_COLORKEYMASK       ((0x0 << 31) | (0X0 << 30))
 #define OVERLAY_INIT_CONFIG             ((0x1 << 18) | (0x1 << 3))
 
 /*overlay register values*/

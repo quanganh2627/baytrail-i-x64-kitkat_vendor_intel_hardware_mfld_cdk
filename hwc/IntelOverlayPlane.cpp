@@ -1048,8 +1048,8 @@ void IntelOverlayContext::setPipe(intel_display_pipe_t pipe)
     // clear pipe bits, this will use MIPI0 by default
     mContext->pipe &= ~(0x3 << 6);
 
-    // enable color key by default
-    mOverlayBackBuffer->DCLRKM = (0x1 << 31);
+    // disable color key by default
+    mOverlayBackBuffer->DCLRKM = ~((0x1 << 31) | 0xffffff);
 
     switch (pipe) {
     case PIPE_MIPI0:
@@ -1059,7 +1059,8 @@ void IntelOverlayContext::setPipe(intel_display_pipe_t pipe)
         break;
     case PIPE_HDMI:
         mContext->pipe = (0x2 << 6);
-        // disable color key while playing on HDMI
+        // make sure overlay is on the top of sprite plane
+        mOverlayBackBuffer->DCLRKM |= (0x1 << 31);
         mOverlayBackBuffer->DCLRKM |= 0xffffff;
         break;
     default:

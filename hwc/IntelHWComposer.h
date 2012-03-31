@@ -34,7 +34,7 @@ private:
     IntelHWComposerLayerList *mLayerList;
     hwc_procs_t const *mProcs;
     int mMonitoringMethod;
-    bool mNeedSwapBuffer;
+    bool mForceSwapBuffer;
     bool mHotplugEvent;
     android::Mutex mLock;
     IMG_framebuffer_device_public_t *mFBDev;
@@ -79,7 +79,7 @@ public:
         : IntelHWCUEventObserver(), IntelHWComposerDump(),
           mDrm(0), mBufferManager(0), mGrallocBufferManager(0),
           mPlaneManager(0), mLayerList(0), mProcs(0), mMonitoringMethod(0),
-          mNeedSwapBuffer(true), mHotplugEvent(false), mInitialized(false) {}
+          mForceSwapBuffer(false), mHotplugEvent(false), mInitialized(false) {}
     ~IntelHWComposer();
 };
 

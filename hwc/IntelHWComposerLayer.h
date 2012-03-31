@@ -27,6 +27,7 @@ private:
     IntelDisplayPlane *mPlane;
     int mFlags;
     bool mForceOverlay;
+    bool mNeedClearup;
 public:
     IntelHWComposerLayer();
     IntelHWComposerLayer(hwc_layer_t *layer,
@@ -42,6 +43,8 @@ private:
     IntelHWComposerLayer *mLayerList;
     IntelDisplayPlaneManager *mPlaneManager;
     int mNumLayers;
+    int mAttachedSpritePlanes;
+    int mAttachedOverlayPlanes;
     int mNumAttachedPlanes;
     bool mInitialized;
 public:
@@ -57,8 +60,12 @@ public:
     int getFlags(int index);
     void setForceOverlay(int index, bool isForceOverlay);
     bool getForceOverlay(int index);
+    void setNeedClearup(int index, bool needClearup);
+    bool getNeedClearup(int index);
     int getLayersCount() const { return mNumLayers; }
     int getAttachedPlanesCount() const { return mNumAttachedPlanes; }
+    int getAttachedSpriteCount() const { return mAttachedSpritePlanes; }
+    int getAttachedOverlayCount() const { return mAttachedOverlayPlanes; }
 };
 
 #endif /*__INTEL_HWCOMPOSER_LAYER_H__*/

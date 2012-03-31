@@ -37,6 +37,8 @@ IntelHWComposerLayer::~IntelHWComposerLayer()
 
 IntelHWComposerLayerList::IntelHWComposerLayerList(IntelDisplayPlaneManager *pm)
     : mLayerList(0), mPlaneManager(pm), mNumLayers(0),
+      mAttachedSpritePlanes(0),
+      mAttachedOverlayPlanes(0),
       mNumAttachedPlanes(0)
 {
     if (!mPlaneManager)
@@ -78,6 +80,7 @@ void IntelHWComposerLayerList::updateLayerList(hwc_layer_list_t *layerList)
         mLayerList[i].mPlane = 0;
         mLayerList[i].mFlags = 0;
         mLayerList[i].mForceOverlay = false;
+        mLayerList[i].mNeedClearup = false;
     }
 
     mNumLayers = numLayers;
@@ -96,6 +99,8 @@ bool IntelHWComposerLayerList::invalidatePlanes()
         }
     }
 
+    mAttachedSpritePlanes = 0;
+    mAttachedOverlayPlanes = 0;
     mNumAttachedPlanes = 0;
     return true;
 }
@@ -112,6 +117,10 @@ void IntelHWComposerLayerList::attachPlane(int index,
     if (initCheck()) {
         mLayerList[index].mPlane = plane;
         mLayerList[index].mFlags = flags;
+        if (plane->getPlaneType() == IntelDisplayPlane::DISPLAY_PLANE_SPRITE)
+            mAttachedSpritePlanes++;
+        else if (plane->getPlaneType() == IntelDisplayPlane::DISPLAY_PLANE_OVERLAY)
+            mAttachedOverlayPlanes++;
         mNumAttachedPlanes++;
     }
 }
@@ -127,6 +136,10 @@ void IntelHWComposerLayerList::detachPlane(int index, IntelDisplayPlane *plane)
         mPlaneManager->reclaimPlane(plane);
         mLayerList[index].mPlane = 0;
         mLayerList[index].mFlags = 0;
+        if (plane->getPlaneType() == IntelDisplayPlane::DISPLAY_PLANE_SPRITE)
+            mAttachedSpritePlanes--;
+        else if (plane->getPlaneType() == IntelDisplayPlane::DISPLAY_PLANE_OVERLAY)
+            mAttachedOverlayPlanes--;
         mNumAttachedPlanes--;
     }
 }
@@ -188,6 +201,30 @@ bool IntelHWComposerLayerList::getForceOverlay(int index)
 
     if (initCheck())
         return mLayerList[index].mForceOverlay;
+
+    return false;
+}
+
+void IntelHWComposerLayerList::setNeedClearup(int index, bool needClearup)
+{
+    if (index < 0 || index >= mNumLayers) {
+        LOGE("%s: Invalid parameters\n", __func__);
+        return;
+    }
+
+    if (initCheck())
+        mLayerList[index].mNeedClearup = needClearup;
+}
+
+bool IntelHWComposerLayerList::getNeedClearup(int index)
+{
+    if (index < 0 || index >= mNumLayers) {
+        LOGE("%s: Invalid parameters\n", __func__);
+        return false;
+    }
+
+    if (initCheck())
+        return mLayerList[index].mNeedClearup;
 
     return false;
 }

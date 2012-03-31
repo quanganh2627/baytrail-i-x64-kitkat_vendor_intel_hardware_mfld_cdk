@@ -95,9 +95,7 @@ bool MedfieldSpritePlane::setDataBuffer(IntelDisplayBuffer& buffer)
             bpp = 4;
             break;
         case HAL_PIXEL_FORMAT_BGRA_8888:
-            //workaround for glbenchmarkes1.0 case 1 test. need to confirm with HW engineer
-            //why BGRA8888 pre multiplied setting takes no effect on alpha channel.
-            spriteFormat = INTEL_SPRITE_PIXEL_FORMAT_BGRX8888;
+            spriteFormat = INTEL_SPRITE_PIXEL_FORMAT_BGRA8888;
             bpp = 4;
             break;
         case HAL_PIXEL_FORMAT_RGB_565:
@@ -226,7 +224,7 @@ bool MedfieldSpritePlane::flip(void *contexts, uint32_t flags)
 
         context->index = output;
         context->pipe = output;
-        context->update_mask &= ~SPRITE_UPDATE_POSITION;
+        // context->update_mask &= ~SPRITE_UPDATE_POSITION;
 
         // update plane contexts
         memcpy(&planeContexts->sprite_contexts[output],

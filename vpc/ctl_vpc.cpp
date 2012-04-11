@@ -73,21 +73,21 @@ const uint32_t DEFAULT_IS22_CLOCK_SELECTION = IFX_CLK0;
 using android::Mutex;
 Mutex vpc_lock;
 
-static int       prev_mode            = AudioSystem::MODE_NORMAL;
-static int       current_mode         = AudioSystem::MODE_NORMAL;
-static uint32_t  prev_device          = 0x0000;
-static uint32_t  current_device       = 0x0000;
-static uint32_t  device_out_defaut    = 0x8000;
-static bool      at_thread_init       = false;
-static bool      audience_awake       = false;
-static AMC_TTY_STATE tty_call         = AMC_TTY_OFF;
-static bool      mixing_enable        = false;
-static bool      voice_call_recording = false;
-static bool      bt_acoustic          = true;
-static int       modem_gain_dl        = 0;
-static int       modem_gain_ul        = 100; // +6 dB
-static int       modem_status         = MODEM_DOWN;
-static bool      call_connected       = false;
+static int       prev_mode             = AudioSystem::MODE_NORMAL;
+static int       current_mode          = AudioSystem::MODE_NORMAL;
+static uint32_t  prev_device           = 0x0000;
+static uint32_t  current_device        = 0x0000;
+static uint32_t  device_out_defaut     = 0x8000;
+static bool      at_thread_init        = false;
+static bool      audience_awake        = false;
+static AMC_TTY_STATE tty_call          = AMC_TTY_OFF;
+static bool      mixing_enable         = false;
+static bool      voice_call_recording  = false;
+static bool      acoustic_in_bt_device = false;
+static int       modem_gain_dl         = 0;
+static int       modem_gain_ul         = 100; // +6 dB
+static int       modem_status          = MODEM_DOWN;
+static bool      call_connected        = false;
 
 
 static bool      vpc_audio_routed     = false;
@@ -102,14 +102,14 @@ static int vpc_init(uint32_t uiIfxI2s1ClkSelect, uint32_t uiIfxI2s2ClkSelect)
 {
     vpc_lock.lock();
     LOGD("Initialize VPC\n");
-    
+
     if (uiIfxI2s1ClkSelect == -1) {
-		// Not provided: use default
-		uiIfxI2s1ClkSelect = DEFAULT_IS21_CLOCK_SELECTION;
+                // Not provided: use default
+                uiIfxI2s1ClkSelect = DEFAULT_IS21_CLOCK_SELECTION;
     }
     if (uiIfxI2s2ClkSelect == -1) {
-		// Not provided: use default
-		uiIfxI2s2ClkSelect = DEFAULT_IS22_CLOCK_SELECTION;
+                // Not provided: use default
+                uiIfxI2s2ClkSelect = DEFAULT_IS22_CLOCK_SELECTION;
     }
 
     if (at_thread_init == false)
@@ -410,7 +410,9 @@ static int vpc_route(vpc_route_t route)
 
                             msic::pcm_disable();
 
-                            device_profile = (bt_acoustic == false) ? device_out_defaut : current_device;
+                            // If acoustic_in_bt_device is true, bypass phone embedded algorithms
+                            // and use acoustic alogrithms from Bluetooth headset.
+                            device_profile = (acoustic_in_bt_device == true) ? device_out_defaut : current_device;
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
                             /*
@@ -515,7 +517,10 @@ static int vpc_route(vpc_route_t route)
                          * MSIC clock is already disabled, we have to enable it back.
                          */
                         msic::pcm_enable(AudioSystem::MODE_IN_COMMUNICATION, AudioSystem::DEVICE_OUT_EARPIECE);
-                        device_profile = (bt_acoustic == false) ? device_out_defaut : current_device;
+
+                        // If acoustic_in_bt_device is true, bypass phone embedded algorithms
+                        // and use acoustic alogrithms from Bluetooth headset.
+                        device_profile = (acoustic_in_bt_device == true) ? device_out_defaut : current_device;
                         ret = acoustic::process_profile(device_profile, current_mode);
                         if (ret) goto return_error;
                         usleep(50000);
@@ -643,7 +648,7 @@ static int vpc_volume(float volume)
     if ((at_thread_init == true) && (current_mode == AudioSystem::MODE_IN_CALL))
     {
         amc_setGaindest(AMC_I2S1_TX, gain);
-	LOGD("%s: change modem volume", __FUNCTION__);
+        LOGD("%s: change modem volume", __FUNCTION__);
     }
 
     // Backup modem gain
@@ -818,7 +823,7 @@ static void translate_to_amc_device(const uint32_t current_device, IFX_TRANSDUCE
 }
 
 /*---------------------------------------------------------------------------*/
-/* Enable BT acoustic                                                        */
+/* Enable/Disable BT acoustic with AT+NREC command in handset                */
 /*---------------------------------------------------------------------------*/
 
 static int vpc_bt_nrec(vpc_bt_nrec_t bt_nrec)
@@ -826,12 +831,12 @@ static int vpc_bt_nrec(vpc_bt_nrec_t bt_nrec)
     vpc_lock.lock();
 
     if (bt_nrec == VPC_BT_NREC_ON) {
-        LOGD("BT acoustic On \n");
-        bt_acoustic = true;
+        LOGD("Enable in handset echo cancellation/noise reduction for BT\n");
+        acoustic_in_bt_device = false;
     }
     else {
-        LOGD("BT acoustic Off \n");
-        bt_acoustic = false;
+        LOGD("Disable in handset echo cancellation/noise reduction for BT. Use BT device embedded acoustics\n");
+        acoustic_in_bt_device = true;
     }
 
     vpc_lock.unlock();

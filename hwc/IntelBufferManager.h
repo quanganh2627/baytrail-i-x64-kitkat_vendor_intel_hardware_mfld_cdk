@@ -207,6 +207,7 @@ typedef struct {
     int force_output_method;
     uint32_t rotated_buffer_handle;
     uint32_t renderStatus;
+    unsigned int used_by_widi;
     int bob_deinterlace;
     uint32_t width;
     uint32_t height;

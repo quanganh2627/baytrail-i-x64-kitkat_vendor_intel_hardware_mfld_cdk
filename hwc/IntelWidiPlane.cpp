@@ -251,6 +251,10 @@ IntelWidiPlane::setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t 
 
     if (index == NAME_NOT_FOUND) {
         if (mapPayloadBuffer(nHandle, &payload)) {
+            if(payload.p->used_by_widi != 0) {
+                unmapPayloadBuffer(&payload);
+                return;
+            }
 
             if ((mState == WIDI_PLANE_STATE_ACTIVE) && (mPlayerStatus == true)) {
 
@@ -274,7 +278,12 @@ IntelWidiPlane::setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t 
                 }
             }
 
-            mExtVideoBuffersMapping.add(nHandle, payload);
+            payload.p->used_by_widi = 1;
+
+            if(mState == WIDI_PLANE_STATE_STREAMING) {
+
+                mExtVideoBuffersMapping.add(nHandle, payload);
+            }
         }
     } else {
 

@@ -351,19 +351,28 @@ bool IntelOverlayContext::bufferOffsetSetup(IntelDisplayDataBuffer &buf)
     // clear original format setting
     mOverlayBackBuffer->OCMD &= ~(0xf << 10);
 
+    // Y/U/V plane must be 4k bytes aligned.
+    mOverlayBackBuffer->OSTART_0Y = gttOffsetInBytes;
+    mOverlayBackBuffer->OSTART_0U = gttOffsetInBytes;
+    mOverlayBackBuffer->OSTART_0V = gttOffsetInBytes;
+
+    mOverlayBackBuffer->OSTART_1Y = mOverlayBackBuffer->OSTART_0Y;
+    mOverlayBackBuffer->OSTART_1U = mOverlayBackBuffer->OSTART_0U;
+    mOverlayBackBuffer->OSTART_1V = mOverlayBackBuffer->OSTART_0V;
+
     switch(format) {
     case HAL_PIXEL_FORMAT_YV12:    /*YV12*/
-        mOverlayBackBuffer->OSTART_0Y = gttOffsetInBytes;
-        mOverlayBackBuffer->OSTART_0V = gttOffsetInBytes + (yStride * h);
-        mOverlayBackBuffer->OSTART_0U = mOverlayBackBuffer->OSTART_0V +
+        mOverlayBackBuffer->OBUF_0Y = 0;
+        mOverlayBackBuffer->OBUF_0V = yStride * h;
+        mOverlayBackBuffer->OBUF_0U = mOverlayBackBuffer->OBUF_0V +
                                         (uvStride * (h / 2));
 
         mOverlayBackBuffer->OCMD |= OVERLAY_FORMAT_PLANAR_YUV420;
         break;
     case HAL_PIXEL_FORMAT_INTEL_HWC_I420:    /*I420*/
-        mOverlayBackBuffer->OSTART_0Y = gttOffsetInBytes;
-        mOverlayBackBuffer->OSTART_0U = gttOffsetInBytes + (yStride * h);
-        mOverlayBackBuffer->OSTART_0V = mOverlayBackBuffer->OSTART_0U +
+        mOverlayBackBuffer->OBUF_0Y = 0;
+        mOverlayBackBuffer->OBUF_0U = yStride * h;
+        mOverlayBackBuffer->OBUF_0V = mOverlayBackBuffer->OBUF_0U +
                                         (uvStride * (h / 2));
 
         mOverlayBackBuffer->OCMD |= OVERLAY_FORMAT_PLANAR_YUV420;
@@ -373,23 +382,22 @@ bool IntelOverlayContext::bufferOffsetSetup(IntelDisplayDataBuffer &buf)
      * as it's defined by video driver
      */
     case HAL_PIXEL_FORMAT_INTEL_HWC_NV12:    /*NV12*/
-        mOverlayBackBuffer->OSTART_0Y = gttOffsetInBytes;
-        mOverlayBackBuffer->OSTART_0U =
-            gttOffsetInBytes + yStride * align_to(h, 32);
-        mOverlayBackBuffer->OSTART_0V = 0;
+        mOverlayBackBuffer->OBUF_0Y = 0;
+        mOverlayBackBuffer->OBUF_0U = yStride * align_to(h, 32);
+        mOverlayBackBuffer->OBUF_0V = 0;
         mOverlayBackBuffer->OCMD |= OVERLAY_FORMAT_PLANAR_NV12_2;
         break;
     case HAL_PIXEL_FORMAT_INTEL_HWC_YUY2:    /*YUY2*/
-        mOverlayBackBuffer->OSTART_0Y = gttOffsetInBytes;
-        mOverlayBackBuffer->OSTART_0U = 0;
-        mOverlayBackBuffer->OSTART_0V = 0;
-	mOverlayBackBuffer->OCMD |= OVERLAY_FORMAT_PACKED_YUV422;
+        mOverlayBackBuffer->OBUF_0Y = 0;
+        mOverlayBackBuffer->OBUF_0U = 0;
+        mOverlayBackBuffer->OBUF_0V = 0;
+	    mOverlayBackBuffer->OCMD |= OVERLAY_FORMAT_PACKED_YUV422;
         mOverlayBackBuffer->OCMD |= OVERLAY_PACKED_ORDER_YUY2;
         break;
     case HAL_PIXEL_FORMAT_INTEL_HWC_UYVY:    /*UYVY*/
-        mOverlayBackBuffer->OSTART_0Y = gttOffsetInBytes;
-        mOverlayBackBuffer->OSTART_0U = 0;
-        mOverlayBackBuffer->OSTART_0V = 0;
+        mOverlayBackBuffer->OBUF_0Y = 0;
+        mOverlayBackBuffer->OBUF_0U = 0;
+        mOverlayBackBuffer->OBUF_0V = 0;
         mOverlayBackBuffer->OCMD |= OVERLAY_FORMAT_PACKED_YUV422;
         mOverlayBackBuffer->OCMD |= OVERLAY_PACKED_ORDER_UYVY;
         break;
@@ -398,12 +406,9 @@ bool IntelOverlayContext::bufferOffsetSetup(IntelDisplayDataBuffer &buf)
         return false;
     }
 
-    mOverlayBackBuffer->OSTART_1Y = mOverlayBackBuffer->OSTART_0Y;
-    mOverlayBackBuffer->OSTART_1U = mOverlayBackBuffer->OSTART_0U;
-    mOverlayBackBuffer->OSTART_1V = mOverlayBackBuffer->OSTART_0V;
-    mOverlayBackBuffer->OBUF_0Y = srcY * yStride + srcX;
-    mOverlayBackBuffer->OBUF_0V = (srcY / 2) * uvStride + srcX;
-    mOverlayBackBuffer->OBUF_0U = (srcY / 2) * uvStride + srcX;
+    mOverlayBackBuffer->OBUF_0Y += srcY * yStride + srcX;
+    mOverlayBackBuffer->OBUF_0V += (srcY / 2) * uvStride + srcX;
+    mOverlayBackBuffer->OBUF_0U += (srcY / 2) * uvStride + srcX;
     mOverlayBackBuffer->OBUF_1Y = mOverlayBackBuffer->OBUF_0Y;
     mOverlayBackBuffer->OBUF_1U = mOverlayBackBuffer->OBUF_0U;
     mOverlayBackBuffer->OBUF_1V = mOverlayBackBuffer->OBUF_0V;

@@ -102,3 +102,14 @@ uint32_t IntelWsbm::getKBufHandle(void *buf)
 {
     return pvrWsbmGetKBufHandle(buf);
 }
+
+bool IntelWsbm::waitIdleTTMBuffer(void *buf)
+{
+    int ret = pvrWsbmWaitIdle(buf);
+    if (ret) {
+        LOGE("%s: wait ttm buffer idle failed\n", __func__);
+        return false;
+    }
+
+    return true;
+}

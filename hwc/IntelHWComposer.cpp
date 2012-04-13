@@ -510,6 +510,8 @@ bool IntelHWComposer::useOverlayRotation(hwc_layer_t *layer,
         handle = payload->rotated_buffer_handle;
         w = payload->rotated_width;
         h = payload->rotated_height;
+        //wait video rotated buffer idle
+        mGrallocBufferManager->waitIdle(handle);
         // NOTE: exchange the srcWidth & srcHeight since
         // video driver currently doesn't call native_window_*
         // helper functions to update info for rotation buffer.
@@ -616,6 +618,32 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
     }
 
     for (size_t i=0 ; i<list->numHwLayers ; i++) {
+        hwc_layer_t *layer = &list->hwLayers[i];
+        intel_gralloc_buffer_handle_t *grallocHandle =
+            (intel_gralloc_buffer_handle_t*)layer->handle;
+
+        if (grallocHandle &&
+            grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12) {
+            // map payload buffer
+            IntelDisplayBuffer *buffer =
+                mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
+            if (!buffer) {
+                LOGE("%s: failed to map payload buffer.\n", __func__);
+                return false;
+            }
+
+            intel_gralloc_payload_t *payload =
+                (intel_gralloc_payload_t*)buffer->getCpuAddr();
+
+            // unmap payload buffer
+            mGrallocBufferManager->unmap(buffer);
+            if (!payload) {
+                LOGE("%s: invalid address\n", __func__);
+                return false;
+            }
+            //wait video buffer idle
+            mGrallocBufferManager->waitIdle(payload->khandle);
+        }
         plane = mLayerList->getPlane(i);
         if (!plane)
             continue;
@@ -628,7 +656,6 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
             list->hwLayers[i].hints |= HWC_HINT_CLEAR_FB;
         }
 
-        hwc_layer_t *layer = &list->hwLayers[i];
         int bobDeinterlace;
         int srcX = layer->sourceCrop.left;
         int srcY = layer->sourceCrop.top;
@@ -650,8 +677,6 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
             LOGE("%s: invalid overlay data buffer\n", __func__);
             continue;
         }
-        intel_gralloc_buffer_handle_t *grallocHandle =
-            (intel_gralloc_buffer_handle_t*)layer->handle;
 
         // if invalid gralloc buffer handle, throw back this layer to SF
         if (!grallocHandle) {

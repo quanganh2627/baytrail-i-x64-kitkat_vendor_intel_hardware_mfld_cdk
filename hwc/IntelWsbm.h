@@ -36,6 +36,7 @@ public:
     uint32_t getGttOffset(void * buf);
     bool wrapTTMBuffer(uint32_t handle, void **buf);
     bool unreferenceTTMBuffer(void *buf);
+    bool waitIdleTTMBuffer(void *buf);
     uint32_t getKBufHandle(void *buf);
 };
 #endif /*__INTEL_WSBM_H__*/

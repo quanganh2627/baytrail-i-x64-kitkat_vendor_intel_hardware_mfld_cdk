@@ -144,6 +144,7 @@ public:
         return 0;
     }
     virtual void unwrap(IntelDisplayBuffer *buffer) {}
+    virtual void waitIdle(uint32_t khandle){}
     bool initCheck() const { return mInitialized; }
     IntelBufferManager(int fd)
         : mDrmFd(fd), mInitialized(false) {
@@ -297,5 +298,6 @@ public:
     void put(IntelDisplayBuffer *buf);
     IntelDisplayBuffer* wrap(void *virt, int size);
     void unwrap(IntelDisplayBuffer *buffer);
+    void waitIdle(uint32_t khandle);
 };
 #endif /*__INTEL_PVR_BUFFER_MANAGER_H__*/

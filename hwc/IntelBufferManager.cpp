@@ -1176,6 +1176,12 @@ IntelDisplayBuffer* IntelGraphicBufferManager::wrap(void *addr, int size)
         return 0;
     }
 
+    ret = mWsbm->waitIdleTTMBuffer(wsbmBufferObject);
+    if (ret == false) {
+        LOGE("%s: wait ttm buffer idle failed\n", __func__);
+        return 0;
+    }
+
     void *virtAddr = mWsbm->getCPUAddress(wsbmBufferObject);
     uint32_t gttOffsetInPage = mWsbm->getGttOffset(wsbmBufferObject);
 
@@ -1199,4 +1205,31 @@ void IntelGraphicBufferManager::unwrap(IntelDisplayBuffer *buffer)
     mWsbm->unreferenceTTMBuffer(buffer->getBufferObject());
     // destroy it
     delete buffer;
+}
+
+void IntelGraphicBufferManager::waitIdle(uint32_t khandle)
+{
+    if (!mWsbm) {
+        LOGE("%s: no wsbm found\n", __func__);
+        return;
+    }
+
+    if (!khandle)
+        return;
+
+    void *wsbmBufferObject;;
+    bool ret = mWsbm->wrapTTMBuffer(khandle, &wsbmBufferObject);
+    if (ret == false) {
+        LOGE("%s: wrap ttm buffer failed\n", __func__);
+        return;
+    }
+
+    ret = mWsbm->waitIdleTTMBuffer(wsbmBufferObject);
+    if (ret == false) {
+        LOGE("%s: wait ttm buffer idle failed\n", __func__);
+        return;
+    }
+
+    mWsbm->unreferenceTTMBuffer(wsbmBufferObject);
+    return;
 }

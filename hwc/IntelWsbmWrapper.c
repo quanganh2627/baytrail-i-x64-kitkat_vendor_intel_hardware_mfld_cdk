@@ -304,3 +304,14 @@ uint32_t pvrWsbmGetKBufHandle(void *buf)
 
     return (wsbmKBufHandle(wsbmKBuf((struct _WsbmBufferObject *)buf)));
 }
+
+uint32_t pvrWsbmWaitIdle(void *buf)
+{
+    if (!buf) {
+        LOGE("%s: Invalid ttm buffer\n", __func__);
+        return -EINVAL;
+    }
+
+    wsbmBOWaitIdle(buf, 0);
+    return 0;
+}

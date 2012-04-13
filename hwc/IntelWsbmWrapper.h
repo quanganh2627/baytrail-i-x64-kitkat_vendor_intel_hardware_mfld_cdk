@@ -30,6 +30,7 @@ extern void * pvrWsbmGetCPUAddress(void * buf);
 extern uint32_t pvrWsbmGetGttOffset(void * buf);
 extern int pvrWsbmWrapTTMBuffer(uint32_t handle, void **buf);
 extern int pvrWsbmUnReference(void *buf);
+extern int pvrWsbmWaitIdle(void *buf);
 uint32_t pvrWsbmGetKBufHandle(void *buf);
 
 #if defined(__cplusplus)

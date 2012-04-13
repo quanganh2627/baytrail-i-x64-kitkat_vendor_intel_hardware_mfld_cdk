@@ -521,9 +521,7 @@ bool IntelHWComposer::useOverlayRotation(hwc_layer_t *layer,
 // If ture, use bob deinterlace, otherwise, use weave deinterlace
 bool IntelHWComposer::isBobDeinterlace(hwc_layer_t *layer)
 {
-    int bobDeinterlace = 0;
-
-    LOGV("useOverlayRotation enter.\n");
+    bool bobDeinterlace = false;
 
     if (!layer)
         return bobDeinterlace;
@@ -532,9 +530,11 @@ bool IntelHWComposer::isBobDeinterlace(hwc_layer_t *layer)
         (intel_gralloc_buffer_handle_t*)layer->handle;
 
     if (!grallocHandle) {
-        LOGE("1.\n");
         return bobDeinterlace;
     }
+
+    if (grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12)
+        return bobDeinterlace;
 
     // map payload buffer
     IntelDisplayBuffer *buffer =
@@ -546,14 +546,13 @@ bool IntelHWComposer::isBobDeinterlace(hwc_layer_t *layer)
 
     intel_gralloc_payload_t *payload =
         (intel_gralloc_payload_t*)buffer->getCpuAddr();
+    mGrallocBufferManager->unmap(buffer);
     if (!payload) {
         LOGE("%s: invalid address\n", __func__);
         return bobDeinterlace;
     }
 
-    bobDeinterlace = payload->bob_deinterlace;
-
-    mGrallocBufferManager->unmap(buffer);
+    bobDeinterlace = (payload->bob_deinterlace == 1) ? true : false;
     return bobDeinterlace;
 }
 
@@ -688,6 +687,7 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
             dataBuffer->setWidth(bufferWidth);
             dataBuffer->setHeight(bufferHeight);
             dataBuffer->setCrop(srcX, srcY, srcWidth, srcHeight);
+            dataBuffer->setDeinterlaceType(bobDeinterlace);
             // set the data buffer back to plane
             ret = ((IntelOverlayPlane*)plane)->setDataBuffer(bufferHandle,
                                                              transform,
@@ -719,7 +719,6 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
             if (srcHeight > active_height)
                 srcHeight = active_height;
             dataBuffer->setCrop(srcX, srcY, srcWidth, srcHeight);
-            dataBuffer->setDeinterlaceType(bobDeinterlace);
             // set the data buffer back to plane
             ret = plane->setDataBuffer(bufferHandle, transform, grallocHandle);
             if (!ret) {

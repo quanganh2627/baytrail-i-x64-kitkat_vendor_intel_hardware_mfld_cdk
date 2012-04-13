@@ -29,7 +29,7 @@
 IntelDisplayDataBuffer::IntelDisplayDataBuffer(uint32_t format,
                                                uint32_t w,
                                                uint32_t h)
-        : mFormat(format), mWidth(w), mHeight(h), mBuffer(0)
+        : mFormat(format), mWidth(w), mHeight(h), mBuffer(0), mBobDeinterlace(0)
 {
     LOGV("%s: width %d, format 0x%x\n", __func__, w, format);
 

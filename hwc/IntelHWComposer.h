@@ -63,6 +63,7 @@ private:
     bool isHWCBlending(uint32_t blending);
     bool isHWCLayer(hwc_layer_t *layer);
     bool isBobDeinterlace(hwc_layer_t *layer);
+    bool isForceOverlay(hwc_layer_t *layer);
     bool areLayersIntersecting(hwc_layer_t *top, hwc_layer_t* bottom);
     void handleHotplugEvent();
 public:

@@ -190,6 +190,12 @@ typedef struct {
     int bpp;
 }__attribute__((aligned(sizeof(int)),packed)) intel_gralloc_buffer_handle_t;
 
+enum {
+    OUTPUT_FORCE_NULL = 0,
+    OUTPUT_FORCE_GPU,
+    OUTPUT_FORCE_OVERLAY,
+};
+
 typedef struct {
     // transform made by clients (clients to hwc)
     int client_transform;

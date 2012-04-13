@@ -110,6 +110,42 @@ bool IntelHWComposer::isSpriteHandle(uint32_t handle)
     return true;
 }
 
+bool IntelHWComposer::isForceOverlay(hwc_layer_t *layer)
+{
+    if (!layer)
+        return false;
+
+    intel_gralloc_buffer_handle_t *grallocHandle =
+        (intel_gralloc_buffer_handle_t*)layer->handle;
+
+    if (!grallocHandle)
+        return false;
+
+    if (grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12) {
+        // map payload buffer
+        IntelDisplayBuffer *buffer =
+            mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
+        if (!buffer) {
+            LOGE("%s: failed to map payload buffer.\n", __func__);
+            return false;
+        }
+
+        intel_gralloc_payload_t *payload =
+            (intel_gralloc_payload_t*)buffer->getCpuAddr();
+        if (!payload) {
+            LOGE("%s: invalid address\n", __func__);
+            mGrallocBufferManager->unmap(buffer);
+            return false;
+        }
+        mGrallocBufferManager->unmap(buffer);
+
+        if (payload->force_output_method == OUTPUT_FORCE_OVERLAY)
+            return true;
+    }
+
+    return false;
+}
+
 // TODO: re-implement this function after video interface
 // is ready.
 // Currently, LayerTS::setGeometry will set compositionType
@@ -159,15 +195,12 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
         && widiPlane->isExtVideoAllowed())
         forceOverlay = true;
 
-    if (mDrm->getDisplayMode() == OVERLAY_EXTEND)
-        forceOverlay = true;
-
     // force to use overlay in video extend mode
     if (mDrm->getDisplayMode() == OVERLAY_EXTEND)
         forceOverlay = true;
 
     // check buffer usage
-    if (grallocHandle->usage & GRALLOC_USAGE_PROTECTED)
+    if ((grallocHandle->usage & GRALLOC_USAGE_PROTECTED) || isForceOverlay(layer))
         forceOverlay = true;
 
     // check blending, overlay cannot support blending
@@ -654,9 +687,11 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                                                  transform);
 
             if (!useOverlay) {
-                layer->compositionType = HWC_FRAMEBUFFER;
-                layer->hints &= ~HWC_HINT_CLEAR_FB;
-                mForceSwapBuffer = true;
+                if (!mLayerList->getForceOverlay(i)) {
+                    layer->compositionType = HWC_FRAMEBUFFER;
+                    layer->hints &= ~HWC_HINT_CLEAR_FB;
+                    mForceSwapBuffer = true;
+                }
                 continue;
             }
 

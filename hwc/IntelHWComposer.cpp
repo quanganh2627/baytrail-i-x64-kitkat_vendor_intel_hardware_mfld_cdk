@@ -92,21 +92,32 @@ bool IntelHWComposer::spritePrepare(int index, hwc_layer_t *layer, int flags)
     return true;
 }
 
-bool IntelHWComposer::isOverlayHandle(uint32_t handle)
+bool IntelHWComposer::primaryPrepare(int index, hwc_layer_t *layer, int flags)
 {
-    uint32_t devId = (handle & 0x0000ffff);
-    uint32_t bufId = ((handle & 0xffff0000) >> 16);
-
-    if (devId >= INTEL_BCD_DEVICE_NUM_MAX || bufId >= INTEL_BCD_BUFFER_NUM_MAX)
+    if (!layer) {
+        LOGE("%s: Invalid layer\n", __func__);
         return false;
-    return true;
-}
+    }
+    int dstLeft = layer->displayFrame.left;
+    int dstTop = layer->displayFrame.top;
+    int dstRight = layer->displayFrame.right;
+    int dstBottom = layer->displayFrame.bottom;
 
-bool IntelHWComposer::isSpriteHandle(uint32_t handle)
-{
-    // handle exists and not a TS handle
-    if (!handle || ((handle & 0xff000f) == handle))
+    // allocate sprite plane
+    IntelDisplayPlane *plane = mPlaneManager->getPrimaryPlane(0);
+    if (!plane) {
+        LOGE("%s: failed to create sprite plane\n", __func__);
         return false;
+    }
+
+    // TODO: check external display status, and attach plane
+
+    // setup plane parameters
+    plane->setPosition(dstLeft, dstTop, dstRight, dstBottom);
+
+    // attach plane to hwc layer
+    mLayerList->attachPlane(index, plane, flags);
+
     return true;
 }
 
@@ -173,11 +184,7 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
     IntelWidiPlane* widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
 
     // check format
-    if (grallocHandle->format != HAL_PIXEL_FORMAT_YV12 &&
-        grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12 &&
-        grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_YUY2 &&
-        grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_UYVY &&
-        grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_I420) {
+    if (mLayerList->getLayerType(index) != IntelHWComposerLayer::LAYER_TYPE_YUV) {
         useOverlay = false;
         goto out_check;
     }
@@ -259,6 +266,14 @@ out_check:
     return useOverlay;
 }
 
+// isSpriteLayer: check whether a given @layer can be handled
+// by a hardware sprite plane.
+// A layer is a sprite layer when
+// 1) layer is RGB layer &&
+// 2) No active external display (TODO: support external display)
+// 3) HWC_SKIP_LAYER flag wasn't set by surface flinger
+// 4) layer requires no blending or premultipled blending
+// 5) layer has no transform (rotation, scaling)
 bool IntelHWComposer::isSpriteLayer(hwc_layer_list_t *list,
                                     int index,
                                     hwc_layer_t *layer,
@@ -283,11 +298,7 @@ bool IntelHWComposer::isSpriteLayer(hwc_layer_list_t *list,
     }
 
     // check whether pixel format is supported RGB formats
-    if (grallocHandle->format != HAL_PIXEL_FORMAT_RGB_565 &&
-        grallocHandle->format != HAL_PIXEL_FORMAT_BGRA_8888 &&
-        grallocHandle->format != HAL_PIXEL_FORMAT_BGRX_8888 &&
-        grallocHandle->format != HAL_PIXEL_FORMAT_RGBX_8888 &&
-        grallocHandle->format != HAL_PIXEL_FORMAT_RGBA_8888) {
+    if (mLayerList->getLayerType(index) != IntelHWComposerLayer::LAYER_TYPE_RGB) {
         LOGV("%s: invalid format 0x%x\n", __func__, grallocHandle->format);
         useSprite = false;
         goto out_check;
@@ -324,39 +335,21 @@ bool IntelHWComposer::isSpriteLayer(hwc_layer_list_t *list,
         goto out_check;
     }
 
-    // check transform
+    // check rotation
     if (layer->transform) {
         useSprite = false;
         goto out_check;
     }
 
-    // check visible regions
-    //if (layer->visibleRegionScreen.numRects > 1) {
-    //    LOGD("isSpriteLayer: visibleRegiion, %d > 1",
-    //         layer->visibleRegionScreen.numRects);
-    //    useSprite = false;
-    //    goto out_check;
-    //}
-
-     // use the sprite plane only when it's the top layer
+     // check scaling
     srcWidth = grallocHandle->width;
     srcHeight = grallocHandle->height;
     dstWidth = layer->displayFrame.right - layer->displayFrame.left;
     dstHeight = layer->displayFrame.bottom - layer->displayFrame.top;
 
-    if (((size_t)index == (list->numHwLayers - 1)) &&
-        (srcWidth == dstWidth) &&
-        (srcHeight == dstHeight)) {
-        // all layers below were handled by HWC already, so that
-        // we don't need to update frame buffer
-        for (size_t i = 0; i < index; i++) {
-            if (list->hwLayers[i].compositionType != HWC_OVERLAY) {
-                useSprite = false;
-                goto out_check;
-            }
-        }
+    if ((srcWidth == dstWidth) && (srcHeight == dstHeight))
         useSprite = true;
-    }
+
 out_check:
     if (forceSprite) {
         // clear HWC_SKIP_LAYER flag so that force to use overlay
@@ -368,7 +361,7 @@ out_check:
 
     // check if frame buffer clear is needed
     if (useSprite) {
-        LOGD("isSpriteLayer: got an sprite layer");
+        LOGD("isSpriteLayer: got a sprite layer");
         if (needClearFb) {
             layer->hints |= HWC_HINT_CLEAR_FB;
 	    mForceSwapBuffer = true;
@@ -378,6 +371,78 @@ out_check:
 
     flags = 0;
     return useSprite;
+}
+
+// isPrimaryLayer: check whether we can use primary plane to handle
+// the given @layer.
+// primary plane can be used only when
+// 1) @layer is on the top of other layers (FIXME: not necessary, remove it
+//    after introducing z order configuration)
+// 2) all other layers were handled by HWC.
+// 3) @layer is a sprite layer
+// 4) @layer wasn't handled by sprite
+bool IntelHWComposer::isPrimaryLayer(hwc_layer_list_t *list,
+                                     int index,
+                                     hwc_layer_t *layer,
+                                     int& flags)
+{
+    // only use primary when layer is the top layer
+    if ((size_t)index != (list->numHwLayers - 1))
+        return false;
+
+    // if a layer has already been handled, further check if it's a
+    // sprite layer/overlay layer, if so, we simply bypass this layer.
+    if (layer->compositionType == HWC_OVERLAY) {
+        IntelDisplayPlane *plane = mLayerList->getPlane(index);
+        if (plane) {
+            switch (plane->getPlaneType()) {
+            case IntelDisplayPlane::DISPLAY_PLANE_PRIMARY:
+                // detach plane & re-check it
+                mLayerList->detachPlane(index, plane);
+                layer->compositionType = HWC_FRAMEBUFFER;
+                layer->hints = 0;
+                break;
+            case IntelDisplayPlane::DISPLAY_PLANE_OVERLAY:
+            case IntelDisplayPlane::DISPLAY_PLANE_SPRITE:
+            default:
+                return false;
+            }
+        }
+    }
+
+    // check whether all other layers were handled by HWC
+    for (size_t i = 0; i < list->numHwLayers; i++) {
+        if ((list->hwLayers[i].compositionType != HWC_OVERLAY) && (i != index))
+            return false;
+    }
+
+    return isSpriteLayer(list, index, layer, flags);
+}
+
+void IntelHWComposer::revisitLayerList(hwc_layer_list_t *list)
+{
+    if (!list)
+        return;
+
+    for (size_t i = 0; i < list->numHwLayers; i++) {
+        int flags = 0;
+
+        // make sure all protected layers were marked as overlay
+        if (mLayerList->isProtectedLayer(i))
+            list->hwLayers[i].compositionType = HWC_OVERLAY;
+        // check if we can apply primary plane to an RGB layer
+        if (mLayerList->getLayerType(i) != IntelHWComposerLayer::LAYER_TYPE_RGB)
+            continue;
+
+        if (isPrimaryLayer(list, i, &list->hwLayers[i], flags)) {
+            bool ret = primaryPrepare(i, &list->hwLayers[i], flags);
+            if (!ret) {
+                LOGE("%s: failed to prepare primary\n", __func__);
+                list->hwLayers[i].compositionType = HWC_FRAMEBUFFER;
+                list->hwLayers[i].hints = 0;
+            }
+        }
+    }
 }
 
 // When the geometry changed, we need
@@ -390,6 +455,7 @@ out_check:
 void IntelHWComposer::onGeometryChanged(hwc_layer_list_t *list)
 {
      bool firstTime = true;
+
      // reclaim all planes
      bool ret = mLayerList->invalidatePlanes();
      if (!ret) {
@@ -400,24 +466,29 @@ void IntelHWComposer::onGeometryChanged(hwc_layer_list_t *list)
      // update layer list with new list
      mLayerList->updateLayerList(list);
 
-     for (size_t i = 0 ; i < list->numHwLayers ; i++) {
+     for (size_t i = 0; i < list->numHwLayers; i++) {
 	 // check whether a layer can be handled in general
          if (!isHWCLayer(&list->hwLayers[i]))
              continue;
 
          // further check whether a layer can be handle by overlay/sprite
 	 int flags = 0;
-         if (isOverlayLayer(list, i, &list->hwLayers[i], flags)) {
+	 bool hasOverlay = mPlaneManager->hasFreeOverlays();
+	 bool hasSprite = mPlaneManager->hasFreeSprites();
+
+         if (hasOverlay && isOverlayLayer(list, i, &list->hwLayers[i], flags)) {
              ret = overlayPrepare(i, &list->hwLayers[i], flags);
              if (!ret) {
                  LOGE("%s: failed to prepare overlay\n", __func__);
                  list->hwLayers[i].compositionType = HWC_FRAMEBUFFER;
+                 list->hwLayers[i].hints = 0;
              }
-         } else if (isSpriteLayer(list, i, &list->hwLayers[i], flags)) {
+         } else if (hasSprite && isSpriteLayer(list, i, &list->hwLayers[i], flags)) {
              ret = spritePrepare(i, &list->hwLayers[i], flags);
              if (!ret) {
                  LOGE("%s: failed to prepare sprite\n", __func__);
                  list->hwLayers[i].compositionType = HWC_FRAMEBUFFER;
+                 list->hwLayers[i].hints = 0;
              }
          } else {
              list->hwLayers[i].compositionType = HWC_FRAMEBUFFER;
@@ -429,8 +500,13 @@ void IntelHWComposer::onGeometryChanged(hwc_layer_list_t *list)
          }
      }
 
+     // revisit each layer, make sure protected layers were handled by hwc,
+     // and check if we can make use of primary plane
+     revisitLayerList(list);
+
      // disable reclaimed planes
      mPlaneManager->disableReclaimedPlanes(IntelDisplayPlane::DISPLAY_PLANE_SPRITE);
+     mPlaneManager->disableReclaimedPlanes(IntelDisplayPlane::DISPLAY_PLANE_PRIMARY);
 }
 
 // This function performs:
@@ -599,7 +675,8 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
 {
     IntelDisplayPlane *plane = 0;
     IntelWidiPlane* widiplane = NULL;
-    bool ret;
+    bool ret = true;
+    bool handled = true;
 
     drmModeConnection mipi0 = IntelHWComposerDrm::getInstance().getOutputConnection(OUTPUT_MIPI0);
     drmModeConnection hdmi = IntelHWComposerDrm::getInstance().getOutputConnection(OUTPUT_HDMI);
@@ -651,7 +728,7 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
         // clear layer's visible region if need clear up flag was set
         // and sprite plane was used as primary plane (point to FB)
         if (mLayerList->getNeedClearup(i) &&
-            !mLayerList->getAttachedSpriteCount()) {
+            mPlaneManager->primaryAvailable(0)) {
             LOGV("updateLayersData: clear visible region of layer %d", i);
             list->hwLayers[i].hints |= HWC_HINT_CLEAR_FB;
         }
@@ -666,6 +743,7 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
         if(srcHeight == 1 || srcWidth == 1) {
             mLayerList->detachPlane(i, plane);
             layer->compositionType = HWC_FRAMEBUFFER;
+            handled = false;
             continue;
         }
 
@@ -683,6 +761,7 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                 LOGE("%s: invalid buffer handle\n", __func__);
                 mLayerList->detachPlane(i, plane);
                 layer->compositionType = HWC_FRAMEBUFFER;
+                handled = false;
                 continue;
         }
 
@@ -716,6 +795,7 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                     layer->compositionType = HWC_FRAMEBUFFER;
                     layer->hints &= ~HWC_HINT_CLEAR_FB;
                     mForceSwapBuffer = true;
+                    handled = false;
                 }
                 continue;
             }
@@ -756,8 +836,10 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                 LOGE("%s: failed to update overlay data buffer\n", __func__);
                 mLayerList->detachPlane(i, plane);
                 layer->compositionType = HWC_FRAMEBUFFER;
+                handled = false;
             }
-        } else if (planeType == IntelDisplayPlane::DISPLAY_PLANE_SPRITE) {
+        } else if (planeType == IntelDisplayPlane::DISPLAY_PLANE_SPRITE ||
+                   planeType == IntelDisplayPlane::DISPLAY_PLANE_PRIMARY) {
             // adjust the buffer format if no blending is needed
             if (layer->blending == HWC_BLENDING_NONE) {
                 switch (format) {
@@ -785,6 +867,7 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                 LOGE("%s: failed to update sprite data buffer\n", __func__);
                 mLayerList->detachPlane(i, plane);
                 layer->compositionType = HWC_FRAMEBUFFER;
+                handled = false;
             }
         } else {
             LOGW("%s: invalid plane type %d\n", __func__, planeType);
@@ -792,7 +875,7 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
         }
     }
 
-    return true;
+    return handled;
 }
 
 // Check the usage of a buffer
@@ -961,8 +1044,8 @@ bool IntelHWComposer::prepare(hwc_layer_list_t *list)
 
     // handle buffer changing. setup data buffer.
     if (!updateLayersData(list)) {
-        LOGE("%s: failed to update layer data\n", __func__);
-        return false;
+        LOGD("prepare: revisiting layer list\n", __func__);
+        revisitLayerList(list);
     }
 
     return true;
@@ -1022,9 +1105,8 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
             needSwapBuffer = true;
     }
 
-    // if primary plane (plane points to frame buffer) was used as a sprite
-    // plane, skip eglSwapBuffers
-    if (mLayerList->getAttachedSpriteCount())
+    // if primary plane is in use, skip eglSwapBuffers
+    if (!mPlaneManager->primaryAvailable(0))
         needSwapBuffer = false;
 
     // check whether eglSwapBuffers is still needed for the given layer list
@@ -1054,7 +1136,8 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
             // NOTE: since overlay flip was not using Post2 yet
             // so only append the sprite plane buffers right now
             // TODO: support both overlay & sprite flip via Post2
-            if (plane->getPlaneType() == IntelDisplayPlane::DISPLAY_PLANE_SPRITE)
+            if (plane->getPlaneType() == IntelDisplayPlane::DISPLAY_PLANE_SPRITE ||
+                plane->getPlaneType() == IntelDisplayPlane::DISPLAY_PLANE_PRIMARY)
                 bufferHandles[numBuffers++] =
                     (buffer_handle_t)plane->getDataBufferHandle();
         }

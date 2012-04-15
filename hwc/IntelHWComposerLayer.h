@@ -22,12 +22,24 @@
 #include <IntelDisplayPlaneManager.h>
 
 class IntelHWComposerLayer {
+public:
+    enum {
+        LAYER_TYPE_INVALID,
+        LAYER_TYPE_RGB,
+        LAYER_TYPE_YUV,
+    };
+
 private:
     hwc_layer_t *mHWCLayer;
     IntelDisplayPlane *mPlane;
     int mFlags;
     bool mForceOverlay;
     bool mNeedClearup;
+
+    // layer info
+    int mLayerType;
+    int mFormat;
+    bool mIsProtected;
 public:
     IntelHWComposerLayer();
     IntelHWComposerLayer(hwc_layer_t *layer,
@@ -43,6 +55,8 @@ private:
     IntelHWComposerLayer *mLayerList;
     IntelDisplayPlaneManager *mPlaneManager;
     int mNumLayers;
+    int mNumRGBLayers;
+    int mNumYUVLayers;
     int mAttachedSpritePlanes;
     int mAttachedOverlayPlanes;
     int mNumAttachedPlanes;
@@ -50,7 +64,7 @@ private:
 public:
     IntelHWComposerLayerList(IntelDisplayPlaneManager *pm);
     ~IntelHWComposerLayerList();
-    bool initCheck() { return mInitialized; }
+    bool initCheck() const { return mInitialized; }
     void updateLayerList(hwc_layer_list_t *layerList);
     bool invalidatePlanes();
     void attachPlane(int index, IntelDisplayPlane *plane, int flags);
@@ -62,7 +76,12 @@ public:
     bool getForceOverlay(int index);
     void setNeedClearup(int index, bool needClearup);
     bool getNeedClearup(int index);
+    int getLayerType(int index) const;
+    int getLayerFormat(int index) const;
+    bool isProtectedLayer(int index) const;
     int getLayersCount() const { return mNumLayers; }
+    int getRGBLayerCount() const;
+    int getYUVLayerCount() const;
     int getAttachedPlanesCount() const { return mNumAttachedPlanes; }
     int getAttachedSpriteCount() const { return mAttachedSpritePlanes; }
     int getAttachedOverlayCount() const { return mAttachedOverlayPlanes; }

@@ -25,7 +25,8 @@ IntelHWComposerLayer::IntelHWComposerLayer()
 IntelHWComposerLayer::IntelHWComposerLayer(hwc_layer_t *layer,
                                            IntelDisplayPlane *plane,
                                            int flags)
-    : mHWCLayer(layer), mPlane(plane), mFlags(flags), mForceOverlay(false)
+    : mHWCLayer(layer), mPlane(plane), mFlags(flags), mForceOverlay(false),
+      mLayerType(0), mFormat(0), mIsProtected(false)
 {
 
 }
@@ -36,7 +37,11 @@ IntelHWComposerLayer::~IntelHWComposerLayer()
 }
 
 IntelHWComposerLayerList::IntelHWComposerLayerList(IntelDisplayPlaneManager *pm)
-    : mLayerList(0), mPlaneManager(pm), mNumLayers(0),
+    : mLayerList(0),
+      mPlaneManager(pm),
+      mNumLayers(0),
+      mNumRGBLayers(0),
+      mNumYUVLayers(0),
       mAttachedSpritePlanes(0),
       mAttachedOverlayPlanes(0),
       mNumAttachedPlanes(0)
@@ -56,12 +61,18 @@ IntelHWComposerLayerList::~IntelHWComposerLayerList()
     mPlaneManager = 0;
     delete[] mLayerList;
     mNumLayers = 0;
+    mNumRGBLayers = 0;
+    mNumYUVLayers= 0;
+    mAttachedSpritePlanes = 0;
+    mAttachedOverlayPlanes = 0;
     mInitialized = false;
 }
 
 void IntelHWComposerLayerList::updateLayerList(hwc_layer_list_t *layerList)
 {
     int numLayers = layerList->numHwLayers;
+    int numRGBLayers = 0;
+    int numYUVLayers = 0;
 
     if (numLayers <= 0 || !initCheck())
         return;
@@ -81,9 +92,44 @@ void IntelHWComposerLayerList::updateLayerList(hwc_layer_list_t *layerList)
         mLayerList[i].mFlags = 0;
         mLayerList[i].mForceOverlay = false;
         mLayerList[i].mNeedClearup = false;
+        mLayerList[i].mLayerType = IntelHWComposerLayer::LAYER_TYPE_INVALID;
+        mLayerList[i].mFormat = 0;
+        mLayerList[i].mIsProtected = false;
+
+        // update layer format
+        intel_gralloc_buffer_handle_t *grallocHandle =
+            (intel_gralloc_buffer_handle_t*)layerList->hwLayers[i].handle;
+
+        if (!grallocHandle)
+            continue;
+
+        mLayerList[i].mFormat = grallocHandle->format;
+
+        if (grallocHandle->format == HAL_PIXEL_FORMAT_YV12 ||
+            grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12 ||
+            grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_YUY2 ||
+            grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_UYVY ||
+            grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_I420) {
+            mLayerList[i].mLayerType = IntelHWComposerLayer::LAYER_TYPE_YUV;
+            numYUVLayers++;
+        } else if (grallocHandle->format == HAL_PIXEL_FORMAT_RGB_565 ||
+            grallocHandle->format == HAL_PIXEL_FORMAT_BGRA_8888 ||
+            grallocHandle->format == HAL_PIXEL_FORMAT_BGRX_8888 ||
+            grallocHandle->format == HAL_PIXEL_FORMAT_RGBX_8888 ||
+            grallocHandle->format == HAL_PIXEL_FORMAT_RGBA_8888) {
+            mLayerList[i].mLayerType = IntelHWComposerLayer::LAYER_TYPE_RGB;
+            numRGBLayers++;
+        } else
+            LOGW("updateLayerList: unknown format 0x%x", grallocHandle->format);
+
+        // check if a protected layer
+        if (grallocHandle->usage & GRALLOC_USAGE_PROTECTED)
+            mLayerList[i].mIsProtected = true;
     }
 
     mNumLayers = numLayers;
+    mNumRGBLayers = numRGBLayers;
+    mNumYUVLayers = numYUVLayers;
     mNumAttachedPlanes = 0;
 }
 
@@ -227,4 +273,54 @@ bool IntelHWComposerLayerList::getNeedClearup(int index)
         return mLayerList[index].mNeedClearup;
 
     return false;
+}
+
+int IntelHWComposerLayerList::getLayerType(int index) const
+{
+    if (!initCheck() || index < 0 || index >= mNumLayers) {
+        LOGE("%s: Invalid parameters\n", __func__);
+        return IntelHWComposerLayer::LAYER_TYPE_INVALID;
+    }
+
+    return mLayerList[index].mLayerType;
+}
+
+int IntelHWComposerLayerList::getLayerFormat(int index) const
+{
+    if (!initCheck() || index < 0 || index >= mNumLayers) {
+        LOGE("%s: Invalid parameters\n", __func__);
+        return 0;
+    }
+
+    return mLayerList[index].mFormat;
+}
+
+bool IntelHWComposerLayerList::isProtectedLayer(int index) const
+{
+    if (!initCheck() || index < 0 || index >= mNumLayers) {
+        LOGE("%s: Invalid parameters\n", __func__);
+        return false;
+    }
+
+    return mLayerList[index].mIsProtected;
+}
+
+int IntelHWComposerLayerList::getRGBLayerCount() const
+{
+    if (!initCheck()) {
+        LOGE("%s: Invalid parameters\n", __func__);
+        return 0;
+    }
+
+    return mNumRGBLayers;
+}
+
+int IntelHWComposerLayerList::getYUVLayerCount() const
+{
+    if (!initCheck()) {
+        LOGE("%s: Invalid parameters\n", __func__);
+        return 0;
+    }
+
+    return mNumYUVLayers;
 }

@@ -20,13 +20,15 @@
 IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
                                                    IntelBufferManager *bm,
                                                    IntelBufferManager *gm)
-    : mSpritePlaneCount(0), mOverlayPlaneCount(0),
-      mFreeSpritePlanes(0), mFreeOverlayPlanes(0),
-      mReclaimedSpritePlanes(0), mReclaimedOverlayPlanes(0),
+    : mSpritePlaneCount(0), mPrimaryPlaneCount(0), mOverlayPlaneCount(0),
+      mTotalPlaneCount(0), mMaxPlaneCount(0),
+      mFreeSpritePlanes(0), mFreePrimaryPlanes(0), mFreeOverlayPlanes(0),
+      mReclaimedSpritePlanes(0), mReclaimedPrimaryPlanes(0),
+      mReclaimedOverlayPlanes(0),
       mDrmFd(fd), mBufferManager(bm), mGrallocBufferManager(gm),
       mInitialized(false)
 {
-    int i;
+    int i = 0;
 
     LOGV("%s\n", __func__);
 
@@ -35,6 +37,7 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
 
     // allocate plane context
     mContextLength = 2 * sizeof(uint32_t);
+    mContextLength += mPrimaryPlaneCount * sizeof(sprite_plane_context_t);
     mContextLength += mSpritePlaneCount * sizeof(sprite_plane_context_t);
     mContextLength += mOverlayPlaneCount * sizeof(overlay_plane_context_t);
 
@@ -43,44 +46,72 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
         LOGE("%s: failed to allocate plane contexts\n", __func__);
         return;
     }
+
     memset(mPlaneContexts, 0, mContextLength);
 
-    // allocate sprite plane pool
-    mSpritePlanes =
-        (IntelDisplayPlane**)malloc(mSpritePlaneCount *sizeof(IntelDisplayPlane*));
-    if (!mSpritePlanes) {
-        LOGE("%s: failed to allocate sprite plane pool\n", __func__);
-        goto sprite_alloc_err;
+    // allocate primary plane pool
+    if (mPrimaryPlaneCount) {
+        mPrimaryPlanes =
+            (IntelDisplayPlane**)malloc(mPrimaryPlaneCount *sizeof(IntelDisplayPlane*));
+        if (!mPrimaryPlanes) {
+            LOGE("%s: failed to allocate primary plane pool\n", __func__);
+            goto primary_alloc_err;
+        }
+
+        for (i = 0; i < mPrimaryPlaneCount; i++) {
+            mPrimaryPlanes[i] =
+                new MedfieldSpritePlane(mDrmFd, i, mGrallocBufferManager);
+            if (!mPrimaryPlanes[i]) {
+                LOGE("%s: failed to allocate sprite plane %d\n", __func__, i);
+                goto primary_init_err;
+            }
+            // set as primary plane
+            mPrimaryPlanes[i]->mType = IntelDisplayPlane::DISPLAY_PLANE_PRIMARY;
+            // reset overlay plane
+            mPrimaryPlanes[i]->reset();
+        }
     }
 
-    for (i = 0; i < mSpritePlaneCount; i++) {
-        mSpritePlanes[i] =
-            new MedfieldSpritePlane(mDrmFd, i, mGrallocBufferManager);
-        if (!mSpritePlanes[i]) {
-            LOGE("%s: failed to allocate sprite plane %d\n", __func__, i);
+    // allocate sprite plane pool
+    if (mSpritePlaneCount) {
+        mSpritePlanes =
+            (IntelDisplayPlane**)malloc(mSpritePlaneCount * sizeof(IntelDisplayPlane*));
+        if (!mSpritePlanes) {
+            LOGE("%s: failed to allocate sprite plane pool\n", __func__);
+            goto primary_init_err;
+        }
+
+        for (; i < mSpritePlaneCount; i++) {
+            mSpritePlanes[i] =
+                new MedfieldSpritePlane(mDrmFd, i, mGrallocBufferManager);
+            if (!mSpritePlanes[i]) {
+                LOGE("%s: failed to allocate sprite plane %d\n", __func__, i);
+                goto sprite_init_err;
+            }
+            // reset overlay plane
+            mSpritePlanes[i]->reset();
+        }
+    }
+
+    if (mOverlayPlaneCount) {
+        // allocate overlay plane pool
+        mOverlayPlanes =
+            (IntelDisplayPlane**)malloc(mOverlayPlaneCount *sizeof(IntelDisplayPlane*));
+        if (!mOverlayPlanes) {
+            LOGE("%s: failed to allocate overlay plane pool\n", __func__);
             goto sprite_init_err;
         }
-        // reset overlay plane
-        mSpritePlanes[i]->reset();
-    }
 
-    // allocate overlay plane pool
-    mOverlayPlanes =
-        (IntelDisplayPlane**)malloc(mOverlayPlaneCount *sizeof(IntelDisplayPlane*));
-    if (!mOverlayPlanes) {
-        LOGE("%s: failed to allocate overlay plane pool\n", __func__);
-        goto sprite_init_err;
-    }
-
-    for (i = 0; i < mOverlayPlaneCount; i++) {
-        mOverlayPlanes[i] =
-            new IntelOverlayPlane(mDrmFd, i, mGrallocBufferManager);
-        if (!mOverlayPlanes[i]) {
-            LOGE("%s: failed to allocate overlay plane %d\n", __func__, i);
-            goto overlay_alloc_err;
+        for (i = 0; i < mOverlayPlaneCount; i++) {
+            mOverlayPlanes[i] =
+                new IntelOverlayPlane(mDrmFd, i, mGrallocBufferManager);
+            if (!mOverlayPlanes[i]) {
+                LOGE("%s: failed to allocate overlay plane %d\n", __func__, i);
+                goto overlay_alloc_err;
+            }
+            // reset overlay plane
+            mOverlayPlanes[i]->reset();
         }
-        // reset overlay plane
-        mOverlayPlanes[i]->reset();
     }
 
     // allocate Widi plane
@@ -100,10 +131,15 @@ overlay_alloc_err:
     mOverlayPlanes = 0;
 sprite_init_err:
     for (; i >= 0; i--)
+        delete mPrimaryPlanes[i];
+    free(mPrimaryPlanes);
+    mPrimaryPlanes = 0;
+primary_init_err:
+    for (; i >= 0; i--)
 	delete mSpritePlanes[i];
     free(mSpritePlanes);
     mSpritePlanes = 0;
-sprite_alloc_err:
+primary_alloc_err:
     free(mPlaneContexts);
     mInitialized = false;
 }
@@ -123,6 +159,18 @@ IntelDisplayPlaneManager::~IntelDisplayPlaneManager()
         }
         free(mSpritePlanes);
         mSpritePlanes = 0;
+    }
+
+    // delete primary planes
+    if (mPrimaryPlanes) {
+        for (int i = 0; i < mPrimaryPlaneCount; i++) {
+            if (mPrimaryPlanes[i]) {
+                mPrimaryPlanes[i]->reset();
+                delete mPrimaryPlanes[i];
+            }
+        }
+        free(mPrimaryPlanes);
+        mPrimaryPlanes = 0;
     }
 
     // delete overlay planes
@@ -145,10 +193,15 @@ IntelDisplayPlaneManager::~IntelDisplayPlaneManager()
 
 void IntelDisplayPlaneManager::detect()
 {
-    mSpritePlaneCount = INTEL_SPRITE_PLANE_NUM;
+    mSpritePlaneCount = 0;
+    mPrimaryPlaneCount = INTEL_SPRITE_PLANE_NUM;
     mOverlayPlaneCount = INTEL_OVERLAY_PLANE_NUM;
-    // plane C
-    mFreeSpritePlanes = 0x4;
+    mTotalPlaneCount = mSpritePlaneCount + mPrimaryPlaneCount + mOverlayPlaneCount;
+    mMaxPlaneCount = mSpritePlaneCount + mOverlayPlaneCount + 1;
+    // Platform dependent, no sprite plane on Medfield
+    mFreeSpritePlanes = 0x0;
+    // plane A, B & C
+    mFreePrimaryPlanes = 0x7;
     // both overlay A & C
     mFreeOverlayPlanes = 0x3;
 }
@@ -184,6 +237,20 @@ void IntelDisplayPlaneManager::putPlane(int index, uint32_t& mask)
     mask |= bit;
 }
 
+int IntelDisplayPlaneManager::getPlane(uint32_t& mask, int index)
+{
+    if (!mask || index < 0 || index > mTotalPlaneCount)
+        return -1;
+
+    int bit = (1 << index);
+    if (bit & mask) {
+        mask &= ~bit;
+        return index;
+    }
+
+    return -1;
+}
+
 IntelDisplayPlane* IntelDisplayPlaneManager::getSpritePlane()
 {
     if (!initCheck()) {
@@ -203,6 +270,28 @@ IntelDisplayPlane* IntelDisplayPlaneManager::getSpritePlane()
     if (freePlaneIndex >= 0)
         return mSpritePlanes[freePlaneIndex];
     LOGE("%s: failed to get a sprite plane\n", __func__);
+    return 0;
+}
+
+IntelDisplayPlane* IntelDisplayPlaneManager::getPrimaryPlane(int pipe)
+{
+    if (!initCheck()) {
+        LOGE("%s: plane manager was not initialized\n", __func__);
+        return 0;
+    }
+
+    int freePlaneIndex;
+
+    // check reclaimed primary planes
+    freePlaneIndex = getPlane(mReclaimedPrimaryPlanes, pipe);
+    if (freePlaneIndex >= 0)
+        return mPrimaryPlanes[freePlaneIndex];
+
+    // check free overlay planes
+    freePlaneIndex = getPlane(mFreePrimaryPlanes, pipe);
+    if (freePlaneIndex >= 0)
+        return mPrimaryPlanes[freePlaneIndex];
+    LOGE("%s: failed to get a primary plane\n", __func__);
     return 0;
 }
 
@@ -234,6 +323,31 @@ IntelDisplayPlane* IntelDisplayPlaneManager::getOverlayPlane()
     return mOverlayPlanes[freePlaneIndex];
 }
 
+bool IntelDisplayPlaneManager::hasFreeSprites()
+{
+    if (!initCheck())
+        return false;
+
+    return (mFreeSpritePlanes || mReclaimedSpritePlanes) ? true : false;
+}
+
+bool IntelDisplayPlaneManager::hasFreeOverlays()
+{
+    if (!initCheck())
+        return false;
+
+    return (mFreeOverlayPlanes || mReclaimedOverlayPlanes) ? true : false;
+}
+
+bool IntelDisplayPlaneManager::primaryAvailable(int pipe)
+{
+    if (!initCheck())
+        return false;
+
+    return ((mFreePrimaryPlanes & (1 << pipe)) ||
+            (mReclaimedPrimaryPlanes & (1 << pipe))) ? true : false;
+}
+
 void IntelDisplayPlaneManager::reclaimPlane(IntelDisplayPlane *plane)
 {
     if (!plane)
@@ -252,6 +366,8 @@ void IntelDisplayPlaneManager::reclaimPlane(IntelDisplayPlane *plane)
         putPlane(index, mReclaimedOverlayPlanes);
     else if (plane->mType == IntelDisplayPlane::DISPLAY_PLANE_SPRITE)
         putPlane(index, mReclaimedSpritePlanes);
+    else if (plane->mType == IntelDisplayPlane::DISPLAY_PLANE_PRIMARY)
+	putPlane(index, mReclaimedPrimaryPlanes);
     else
         LOGE("%s: invalid plane type %d\n", __func__, plane->mType);
 }
@@ -280,6 +396,25 @@ void IntelDisplayPlaneManager::disableReclaimedPlanes(int type)
         // merge into free sprite bitmap
         mFreeSpritePlanes |= mReclaimedSpritePlanes;
         mReclaimedSpritePlanes = 0;
+    }
+
+    // disable reclaimed primary planes
+    if (type == IntelDisplayPlane::DISPLAY_PLANE_PRIMARY &&
+        mPrimaryPlanes && mReclaimedPrimaryPlanes) {
+        for (int i = 0; i < mPrimaryPlaneCount; i++) {
+            int bit = (1 << i);
+            if (mReclaimedPrimaryPlanes & bit) {
+                if (mPrimaryPlanes[i]) {
+                    // disable plane
+                    mPrimaryPlanes[i]->disable();
+                    // invalidate plane's data buffer
+                    // mSpritePlanes[i]->invalidateDataBuffer();
+                }
+            }
+        }
+        // merge into free sprite bitmap
+        mFreePrimaryPlanes |= mReclaimedPrimaryPlanes;
+        mReclaimedPrimaryPlanes = 0;
     }
 
     // disable reclaimed overlay planes

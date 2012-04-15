@@ -57,6 +57,7 @@ class IntelDisplayPlane : public IntelHWComposerDump {
 public:
 	enum {
             DISPLAY_PLANE_SPRITE = 1,
+            DISPLAY_PLANE_PRIMARY,
             DISPLAY_PLANE_OVERLAY,
 	};
 
@@ -367,15 +368,22 @@ public:
 class IntelDisplayPlaneManager : public IntelHWComposerDump {
 private:
     int mSpritePlaneCount;
+    int mPrimaryPlaneCount;
     int mOverlayPlaneCount;
+    int mTotalPlaneCount;
+    // maximum plane count for each pipe
+    int mMaxPlaneCount;
     IntelDisplayPlane **mSpritePlanes;
+    IntelDisplayPlane **mPrimaryPlanes;
     IntelDisplayPlane **mOverlayPlanes;
     IntelDisplayPlane *mWidiPlane;
 
     // Bitmap of free planes. Bit0 - plane A, bit 1 - plane B, etc.
     uint32_t mFreeSpritePlanes;
+    uint32_t mFreePrimaryPlanes;
     uint32_t mFreeOverlayPlanes;
     uint32_t mReclaimedSpritePlanes;
+    uint32_t mReclaimedPrimaryPlanes;
     uint32_t mReclaimedOverlayPlanes;
 
     int mDrmFd;
@@ -385,8 +393,9 @@ private:
     // raw data structure of display planes context
     // the length of the plane context should be different for different
     // platforms, but they follow the same structure as below
-    // uint32_t active_sprites
+    // uint32_t active_sprites | active_primaries
     // uint32_t active_overlays
+    // An array of primary context (same as sprite context)
     // An array of sprite context
     // An array of overlay_context
     void *mPlaneContexts;
@@ -395,6 +404,7 @@ private:
     bool mInitialized;
 private:
     int getPlane(uint32_t& mask);
+    int getPlane(uint32_t& mask, int index);
     void putPlane(int index, uint32_t& mask);
 public:
     IntelDisplayPlaneManager(int fd,
@@ -406,8 +416,14 @@ public:
 
     // plane allocation & free
     IntelDisplayPlane* getSpritePlane();
+    IntelDisplayPlane* getPrimaryPlane(int pipe);
     IntelDisplayPlane* getOverlayPlane();
     IntelDisplayPlane* getWidiPlane();
+
+    bool hasFreeSprites();
+    bool hasFreeOverlays();
+    bool primaryAvailable(int index);
+
     bool isWidiActive();
     bool isWidiStatusChanged();
     void reclaimPlane(IntelDisplayPlane *plane);

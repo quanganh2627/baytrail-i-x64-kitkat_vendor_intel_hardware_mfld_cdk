@@ -43,8 +43,7 @@ private:
     void onGeometryChanged(hwc_layer_list_t *list);
     bool overlayPrepare(int index, hwc_layer_t *layer, int flags);
     bool spritePrepare(int index, hwc_layer_t *layer, int flags);
-    bool isOverlayHandle(uint32_t handle);
-    bool isSpriteHandle(uint32_t);
+    bool primaryPrepare(int index, hwc_layer_t *layer, int flags);
     bool isOverlayLayer(hwc_layer_list_t *list,
                         int index,
                         hwc_layer_t *layer,
@@ -53,6 +52,11 @@ private:
                        int index,
                        hwc_layer_t *layer,
                        int& flags);
+    bool isPrimaryLayer(hwc_layer_list_t *list,
+                       int index,
+                       hwc_layer_t *layer,
+                       int& flags);
+    void revisitLayerList(hwc_layer_list_t *list);
     bool useOverlayRotation(hwc_layer_t *layer, int index, uint32_t& handle,
                            int& w, int& h,
                            int& srcX, int& srcY, int& srcW, int& srcH, uint32_t& transform);

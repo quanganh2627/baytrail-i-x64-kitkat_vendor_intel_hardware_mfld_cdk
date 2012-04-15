@@ -565,6 +565,12 @@ bool IntelHWComposer::useOverlayRotation(hwc_layer_t *layer,
             LOGE("%s: invalid address\n", __func__);
             return false;
         }
+
+        if (payload->force_output_method == OUTPUT_FORCE_GPU) {
+            LOGV("%s: force to use surface texture.", __func__);
+            return false;
+        }
+
         metadata_transform = payload->metadata_transform;
 
         //For extend mode, we ignore WM rotate info

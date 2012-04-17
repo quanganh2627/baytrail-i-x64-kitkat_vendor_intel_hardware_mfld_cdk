@@ -278,7 +278,7 @@ IntelWidiPlane::setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t 
                     mExtVideoBuffers[i].chroma_u_stride = payload.p->chroma_u_stride;
                     mExtVideoBuffers[i].chroma_v_stride = payload.p->chroma_v_stride;
                     mExtVideoBuffers[i].format = payload.p->format;
-                    LOGI("khandle = 0x%x width = %d height = %d luma_stride = %d chroma_u_stride = %d chroma_v_stride = %d format = 0x%x", 
+                    LOGI("khandle = 0x%x width = %d height = %d luma_stride = %d chroma_u_stride = %d chroma_v_stride = %d format = 0x%x",
                          mExtVideoBuffers[i].khandle, mExtVideoBuffers[i].width,  mExtVideoBuffers[i].height, mExtVideoBuffers[i].luma_stride,
                          mExtVideoBuffers[i].chroma_u_stride, mExtVideoBuffers[i].chroma_v_stride, mExtVideoBuffers[i].format);
                 }
@@ -368,12 +368,6 @@ IntelWidiPlane::sendInitMode(int mode, uint32_t width, uint32_t height) {
 
     } else if(mode == IWirelessDisplay::WIDI_MODE_EXTENDED_VIDEO) {
 
-        /* Adjust for orientations different than 0 (i.e. 90 and 270) */
-       if(mCurrentOrientation) {
-           uint32_t tmp = width;
-           width = height;
-           height = tmp;
-       }
        ret = wd->initMode(mExtVideoBuffers, mExtVideoBuffersCount,
                           IWirelessDisplay::WIDI_MODE_EXTENDED_VIDEO,
                           width, height);

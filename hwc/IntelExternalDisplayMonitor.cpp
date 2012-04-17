@@ -29,8 +29,10 @@
 using namespace android;
 
 IntelExternalDisplayMonitor::IntelExternalDisplayMonitor(IntelHWComposer *hwc) :
-    mMultiDisplayManagerService(0),
+    mMDClient(NULL),
     mActiveDisplayMode(INVALID_MDS_MODE),
+    mWidiOn(false),
+    mMipiOn(true),
     mInitialized(false),
     mComposer(hwc)
 {
@@ -53,22 +55,19 @@ void IntelExternalDisplayMonitor::initialize()
 
 void IntelExternalDisplayMonitor::onModeChange(int mode)
 {
-    LOGV("onModeChange: External display monitor onModeChange");
-    if (mode == MDS_HWC_HDMI_PLUGOUT ||
-        mode == MDS_HWC_OVERLAY_EXTEND ||
-        mode == MDS_HWC_OVERLAY_CLONE_MIPI0) {
-
-        // update active display mode
-        mActiveDisplayMode = mode;
-        mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2, MSG_TYPE_MDS);
-    }
+    LOGI("onModeChange: External display monitor onModeChange, 0x%x", mode);
+    mActiveDisplayMode = mode;
+    mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2, MSG_TYPE_MDS);
 }
 
 int IntelExternalDisplayMonitor::getDisplayMode()
 {
     LOGV("Get display mode %d", mActiveDisplayMode);
-
-    return mActiveDisplayMode;
+    if ((mActiveDisplayMode != INVALID_MDS_MODE) &&
+            (mActiveDisplayMode & MDS_HDMI_VIDEO_EXT))
+        return OVERLAY_EXTEND;
+    else
+        return OVERLAY_CLONE_MIPI0;
 }
 
 void IntelExternalDisplayMonitor::binderDied(const wp<IBinder>& who)
@@ -76,11 +75,33 @@ void IntelExternalDisplayMonitor::binderDied(const wp<IBinder>& who)
     LOGV("External display monitor binderDied");
 }
 
+bool IntelExternalDisplayMonitor::notifyWidi(bool on)
+{
+    LOGV("Exteranal display notify the MDS widi's state");
+    if ((mMDClient != NULL) && (mWidiOn != on)) {
+        mWidiOn = on;
+        return mMDClient->notifyWidi(on);
+    }
+    return false;
+}
+
+bool IntelExternalDisplayMonitor::notifyMipi(bool on)
+{
+    LOGV("Exteranal display notify the MDS that Mipi should be turned on/off");
+    if ((mMDClient != NULL) && (mMipiOn != on)
+                && (mActiveDisplayMode != INVALID_MDS_MODE)
+                && (mActiveDisplayMode & MDS_HDMI_VIDEO_EXT)) {
+        mMipiOn = on;
+        return mMDClient->notifyMipi(on);
+    }
+    return false;
+}
+
 bool IntelExternalDisplayMonitor::threadLoop()
 {
     //LOGV("External display monitor thread loop");
 
-    if (mMultiDisplayManagerService !=  0) {
+    if (mMDClient !=  0) {
         LOGV("threadLoop: found MDS, threadLoop will exit.");
         requestExit();
         return true;
@@ -118,15 +139,18 @@ status_t IntelExternalDisplayMonitor::readyToRun()
         sp<IServiceManager> serviceManager = defaultServiceManager();
         service = serviceManager->getService(name);
         if (service != 0) {
-            mMultiDisplayManagerService =
-                interface_cast<IMultiDisplayComposer>(service);
+            mMDClient = new MultiDisplayClient();
+            if (mMDClient == NULL) {
+                LOGE("Fail to create a multidisplay client");
+            } else
+                LOGI("Create a MultiDisplay client at HWC");
             service->linkToDeath(this);
             break;
         }
         LOGW("Failed to get MDS service.try again...\n");
     } while(--retry);
 
-    if (!retry && mMultiDisplayManagerService == 0) {
+    if (!retry && mMDClient == NULL) {
         LOGW("Failed to get mds service, fall back uevent\n");
         struct sockaddr_nl addr;
         int sz = 64*1024;
@@ -152,7 +176,8 @@ status_t IntelExternalDisplayMonitor::readyToRun()
         memset(mUeventMessage, 0, UEVENT_MSG_LEN);
     } else {
         LOGI("Got MultiDisplay Service\n");
-        mMultiDisplayManagerService->registerModeChangeListener(this);
+        if (mMDClient != NULL)
+            mMDClient->registerModeChangeListener(this);
     }
 
     return NO_ERROR;

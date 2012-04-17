@@ -143,6 +143,20 @@ intel_overlay_mode_t IntelHWComposerDrm::getDisplayMode()
     return displayMode;
 }
 
+bool IntelHWComposerDrm::notifyWidi(bool on)
+{
+    if (mMonitor != NULL)
+        return mMonitor->notifyWidi(on);
+    return false;
+}
+
+bool IntelHWComposerDrm::notifyMipi(bool on)
+{
+    if (mMonitor != NULL)
+        return mMonitor->notifyMipi(on);
+    return false;
+}
+
 intel_overlay_mode_t IntelHWComposerDrm::getOldDisplayMode()
 {
     intel_overlay_mode_t displayMode = OVERLAY_UNKNOWN;
@@ -287,15 +301,7 @@ bool IntelHWComposerDrm::detectDrmModeInfo()
         mdsMode = mMonitor->getDisplayMode();
 
     if (mdsMode != IntelExternalDisplayMonitor::INVALID_MDS_MODE) {
-        switch (mdsMode) {
-        case MDS_HWC_OVERLAY_EXTEND:
-            setDisplayMode(OVERLAY_EXTEND);
-            break;
-        case MDS_HWC_HDMI_PLUGOUT:
-        case MDS_HWC_OVERLAY_CLONE_MIPI0:
-        default:
-            setDisplayMode(OVERLAY_CLONE_MIPI0);
-        }
+        setDisplayMode((intel_overlay_mode_t)mdsMode);
     } else {
         if (hdmi == DRM_MODE_CONNECTED)
             setDisplayMode(OVERLAY_EXTEND);

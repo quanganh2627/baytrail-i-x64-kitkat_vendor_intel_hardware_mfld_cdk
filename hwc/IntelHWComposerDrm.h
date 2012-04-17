@@ -112,6 +112,8 @@ public:
     void setDisplayMode(intel_overlay_mode_t displayMode);
     intel_overlay_mode_t getDisplayMode();
     intel_overlay_mode_t getOldDisplayMode();
+    bool notifyMipi(bool);
+    bool notifyWidi(bool);
 };
 
 #endif /*__INTEL_HWCOMPOSER_DRM_H__*/

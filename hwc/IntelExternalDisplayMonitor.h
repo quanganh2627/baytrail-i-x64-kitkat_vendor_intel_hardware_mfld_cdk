@@ -21,6 +21,7 @@
 
 #include "display/IExtendDisplayModeChangeListener.h"
 #include "display/IMultiDisplayComposer.h"
+#include "display/MultiDisplayClient.h"
 #include "display/MultiDisplayType.h"
 
 class IntelHWComposer;
@@ -52,6 +53,8 @@ public:
     void onModeChange(int mode);
 public:
     int getDisplayMode();
+    bool notifyWidi(bool);
+    bool notifyMipi(bool);
 private:
     //DeathReipient interface
     virtual void binderDied(const android::wp<android::IBinder>& who);
@@ -60,10 +63,12 @@ private:
     virtual android::status_t readyToRun();
     virtual void onFirstRef();
 private:
-    android::sp<android::IMultiDisplayComposer> mMultiDisplayManagerService;
+    MultiDisplayClient* mMDClient;
     android::Mutex mLock;
     android::Condition mModeChanged;
     int mActiveDisplayMode;
+    bool mWidiOn;
+    bool mMipiOn;
     bool mInitialized;
     IntelHWComposer *mComposer;
     char mUeventMessage[UEVENT_MSG_LEN];

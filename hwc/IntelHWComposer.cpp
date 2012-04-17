@@ -1046,6 +1046,13 @@ bool IntelHWComposer::prepare(hwc_layer_list_t *list)
         onGeometryChanged(list);
         if (mHotplugEvent)
             mHotplugEvent = false;
+        intel_overlay_mode_t mode = mDrm->getDisplayMode();
+        if (mode == OVERLAY_EXTEND && (list->flags & HWC_GEOMETRY_CHANGED)) {
+            if (list->numHwLayers == 1)
+                mDrm->notifyMipi(false);
+            else
+                mDrm->notifyMipi(true);
+        }
     }
 
     // handle buffer changing. setup data buffer.

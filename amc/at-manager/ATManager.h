@@ -115,8 +115,8 @@ private:
     AT_CMD_STATUS waitEndOfTransaction(CATCommand* pATCommand);
     // terminate the transaction
     void terminateTransaction(bool bSuccess);
-    // Resend the current command
-    void resendCurrentCommand();
+    // Send the current command
+    bool sendCurrentCommand();
     // Process the send command list
     void processSendList();
     // Get Next Periodic Timeout
@@ -212,6 +212,6 @@ private:
     // Modem Status
     uint32_t _mModemStatus;
     // Timeout retry counter
-    int _iTimeoutRetry;
+    int _iRetryCount;
 };
 

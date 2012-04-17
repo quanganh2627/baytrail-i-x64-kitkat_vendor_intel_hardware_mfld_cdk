@@ -39,15 +39,16 @@
 #define MAX_WAIT_FOR_STMD_CONNECTION_SECONDS 5
 #define STMD_CONNECTION_RETRY_TIME_MS 200
 #define AT_ANSWER_TIMEOUT_MS 1000
+#define AT_WRITE_FAILED_RETRY_MS 1000
 #define INFINITE_TIMEOUT (-1)
 #define TTY_OPEN_DELAY_US 200000
 #define RECOVER_TIMEOUT_MS 2000
-#define MAX_RETRY_AFTER_TIMEOUT 5
+#define MAX_RETRY 5
 
 CATManager::CATManager(IATNotifier *observer) :
     _pAwaitedTransactionEndATCommand(NULL), _bStarted(false), _bModemAlive(false), _bClientWaiting(false), _pCurrentATCommand(NULL), _pPendingClientATCommand(NULL), _uiTimeoutSec(-1),
     _pEventThread(new CEventThread(this)), _bFirstModemStatusReceivedSemaphoreCreated(false),
-    _pATParser(new CATParser), _bTtyListenersStarted(false), _pIATNotifier(observer), _iTimeoutRetry(0)
+    _pATParser(new CATParser), _bTtyListenersStarted(false), _pIATNotifier(observer), _iRetryCount(0)
 {
     // Client Mutex
     bzero(&_clientMutex, sizeof(_clientMutex));
@@ -407,7 +408,7 @@ void CATManager::terminateTransaction(bool bSuccess)
     if (_pCurrentATCommand) {
 
         // Clear timeout retry counter
-        _iTimeoutRetry = 0;
+        _iRetryCount = 0;
 
         // Record failure status
         _pCurrentATCommand->setAnswerOK(bSuccess);
@@ -535,12 +536,11 @@ void CATManager::onTimeout()
     // Block {
     pthread_mutex_lock(&_clientMutex);
 
+    assert(_bModemAlive);
+
     // Timeout case 1:
     // Modem alive, TTy closed -> cleanup request
-    if (_bModemAlive && !_bTtyListenersStarted) {
-
-        // Clear timeout
-        _pEventThread->setTimeoutMs(INFINITE_TIMEOUT);
+    if (!_bTtyListenersStarted) {
 
         // Recovery needed: ask for a reset of the modem
         LOGE("%s: Modem is alive, %s closed -> TRYING RECOVER", __FUNCTION__, _strModemTty.c_str());
@@ -551,16 +551,21 @@ void CATManager::onTimeout()
 
     // Timeout case 2:
     // AT command sent to the modem without answer
+    // or
+    // AT command write reported an error
     if (_pCurrentATCommand) {
 
         // Increment timeout counter
-        _iTimeoutRetry += 1;
+        _iRetryCount += 1;
 
-        if (_iTimeoutRetry < MAX_RETRY_AFTER_TIMEOUT) {
+        if (_iRetryCount < MAX_RETRY) {
 
-            LOGE("%s: retry #%d -> try again", __FUNCTION__, _iTimeoutRetry);
+            LOGE("%s: retry #%d -> try again", __FUNCTION__, _iRetryCount);
             // Retry to send the command
-            resendCurrentCommand();
+            if (!sendCurrentCommand()) {
+
+                LOGE("%s: send failed", __FUNCTION__);
+            }
 
             goto finish;
         }
@@ -571,14 +576,9 @@ void CATManager::onTimeout()
         // Stop the listeners on modem TTYs
         stopModemTtyListeners();
 
-        if (_bModemAlive) {
-
-            // Modem is alive but cannot get answer for AT command after 5 retries.
-            LOGE("%s: %d retries failed, trying to RECOVER ", __FUNCTION__, MAX_RETRY_AFTER_TIMEOUT);
-            _pEventThread->setTimeoutMs(INFINITE_TIMEOUT);
-
-            sendRequestCleanup();
-        }
+        // Modem is alive but cannot get answer for AT command after 5 retries.
+        LOGE("%s: %d retries failed, trying to RECOVER ", __FUNCTION__, MAX_RETRY);
+        sendRequestCleanup();
 
         goto finish;
     }
@@ -654,7 +654,11 @@ CATCommand* CATManager::popCommandFromSendList(void)
     return atCmd;
 }
 
-void CATManager::resendCurrentCommand()
+//
+// Send the current AT command
+// On success, returns true, otherwise, returns false
+//
+bool CATManager::sendCurrentCommand()
 {
     LOGD("%s on %s", __FUNCTION__, _strModemTty.c_str());
 
@@ -663,17 +667,24 @@ void CATManager::resendCurrentCommand()
     // Send the command
     if (!sendString(_pCurrentATCommand->getCommand().c_str(), _pEventThread->getFd(FdToModem))) {
 
-        LOGE("%s: Could not write AT command", __FUNCTION__);
-        terminateTransaction(false);
-        return ;
+        goto error;
     }
     // End of line
     if (!sendString("\r\n", _pEventThread->getFd(FdToModem))) {
 
-        LOGE("%s: Could not write AT command", __FUNCTION__);
-        terminateTransaction(false);
-        return ;
+        goto error;
     }
+
+    _pEventThread->setTimeoutMs(AT_ANSWER_TIMEOUT_MS);
+    LOGD("%s on %s: Sent: %s",  __FUNCTION__, _strModemTty.c_str(), _pCurrentATCommand->getCommand().c_str());
+
+    return true;
+
+error:
+    // Arms a write retry timer
+    _pEventThread->setTimeoutMs(AT_WRITE_FAILED_RETRY_MS);
+    LOGE("%s: Could not write AT command, retry after %dms", __FUNCTION__, AT_WRITE_FAILED_RETRY_MS);
+    return false;
 }
 
 
@@ -720,25 +731,10 @@ void CATManager::processSendList()
     // Keep command
     _pCurrentATCommand = pATCommand;
 
-    // Set the timeout
-    _pEventThread->setTimeoutMs(AT_ANSWER_TIMEOUT_MS);
+    if (!sendCurrentCommand()) {
 
-    // Send the command
-    if (!sendString(pATCommand->getCommand().c_str(), _pEventThread->getFd(FdToModem))) {
-
-        LOGE("%s: Could not write AT command", __FUNCTION__);
-        terminateTransaction(false);
-        return ;
+        LOGE("%s: send failed", __FUNCTION__);
     }
-    // End of line
-    if (!sendString("\r\n", _pEventThread->getFd(FdToModem))) {
-
-        LOGE("%s: Could not write AT command", __FUNCTION__);
-        terminateTransaction(false);
-        return ;
-    }
-
-    LOGD("Sent: %s", pATCommand->getCommand().c_str());
 }
 
 //
@@ -848,14 +844,22 @@ bool CATManager::sendString(const char* pcString, int iFd)
     // Send
     int iNbWrittenChars = write(iFd, pcString, iStringLength);
 
+    if (iNbWrittenChars < 0) {
+
+        LOGE("%s: write failed with error code= %s", __FUNCTION__, strerror(errno));
+
+        return false;
+    }
+
     // Check for success
     if (iNbWrittenChars != iStringLength) {
 
         // log
-        LOGE("Unable to send full amount of bytes: %d instead of %d", iNbWrittenChars, iStringLength);
+        LOGE("%s: Unable to send full amount of bytes: %d instead of %d", __FUNCTION__, iNbWrittenChars, iStringLength);
 
         return false;
     }
+
     // Flush
     fsync(iFd);
 
@@ -1091,6 +1095,9 @@ bool CATManager::sendRequestCleanup()
     bool ret = false;
 
     uint32_t iMaxConnectionAttempts = MAX_WAIT_FOR_STMD_CONNECTION_SECONDS * 1000 / STMD_CONNECTION_RETRY_TIME_MS;
+
+    // Disable the timeout
+    _pEventThread->setTimeoutMs(INFINITE_TIMEOUT);
 
     while (iMaxConnectionAttempts-- != 0) {
 

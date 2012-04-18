@@ -1022,6 +1022,16 @@ bool IntelHWComposer::prepare(hwc_layer_list_t *list)
     // clear force swap buffer flag
     mForceSwapBuffer = false;
 
+    if(mPlaneManager->isWidiStatusChanged()) {
+        if(mDrm) {
+            if(mPlaneManager->isWidiActive()) {
+                mDrm->notifyWidi(true);
+            } else {
+                mDrm->notifyWidi(false);
+            }
+        }
+    }
+
     // handle geometry changing. attach display planes to layers
     // which can be handled by HWC.
     // plane control information (e.g. position) will be set here

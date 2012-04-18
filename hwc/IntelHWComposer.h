@@ -77,6 +77,7 @@ public:
     bool initialize();
     bool prepare(hwc_layer_list_t *list);
     bool commit(hwc_display_t dpy, hwc_surface_t sur, hwc_layer_list_t *list);
+    bool release();
     bool dump(char *buff, int buff_len, int *cur_len);
     void registerProcs(hwc_procs_t const *procs) { mProcs = procs; }
 

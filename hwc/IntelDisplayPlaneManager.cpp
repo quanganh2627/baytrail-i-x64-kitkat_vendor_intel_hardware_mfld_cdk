@@ -389,7 +389,7 @@ void IntelDisplayPlaneManager::disableReclaimedPlanes(int type)
                     // disable plane
                     mSpritePlanes[i]->disable();
                     // invalidate plane's data buffer
-                    // mSpritePlanes[i]->invalidateDataBuffer();
+                    mSpritePlanes[i]->invalidateDataBuffer();
                 }
             }
         }
@@ -408,7 +408,7 @@ void IntelDisplayPlaneManager::disableReclaimedPlanes(int type)
                     // disable plane
                     mPrimaryPlanes[i]->disable();
                     // invalidate plane's data buffer
-                    // mSpritePlanes[i]->invalidateDataBuffer();
+                    mPrimaryPlanes[i]->invalidateDataBuffer();
                 }
             }
         }

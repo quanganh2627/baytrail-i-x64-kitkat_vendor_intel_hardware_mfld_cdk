@@ -68,6 +68,14 @@ static int hwc_set(hwc_composer_device_t *dev,
         goto set_out;
     }
 
+    if (!dpy && !sur && !list) {
+        if (hwc->release() == false) {
+            LOGD("%s: failed to release\n", __func__);
+            status = HWC_EGL_ERROR;
+            goto set_out;
+        }
+    }
+
     if (hwc->commit(dpy, sur, list) ==  false) {
         LOGE("%s: failed to commit\n", __func__);
         status = HWC_EGL_ERROR;

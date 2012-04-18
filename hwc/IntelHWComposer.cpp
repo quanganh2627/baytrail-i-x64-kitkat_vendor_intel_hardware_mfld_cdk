@@ -1050,7 +1050,7 @@ bool IntelHWComposer::prepare(hwc_layer_list_t *list)
 
     // handle buffer changing. setup data buffer.
     if (!updateLayersData(list)) {
-        LOGD("prepare: revisiting layer list\n", __func__);
+        LOGV("prepare: revisiting layer list\n");
         revisitLayerList(list);
     }
 
@@ -1062,24 +1062,16 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
                              hwc_layer_list_t *list)
 {
     LOGV("%s\n", __func__);
+
+    if (!list)
+        return true;
+
     if (!initCheck()) {
         LOGE("%s: failed to initialize HWComposer\n", __func__);
         return false;
     }
 
     android::Mutex::Autolock _l(mLock);
-
-    //HWComposer::release(). Need to reclaim and disable all the planes.
-    if (!dpy || !sur || !list) {
-        bool ret = mLayerList->invalidatePlanes();
-        if (!ret) {
-            LOGE("%s: failed to reclaim allocated planes\n", __func__);
-            return false;
-        }
-        mPlaneManager->disableReclaimedPlanes(IntelDisplayPlane::DISPLAY_PLANE_OVERLAY);
-        mPlaneManager->disableReclaimedPlanes(IntelDisplayPlane::DISPLAY_PLANE_SPRITE);
-        return true;
-    }
 
     void *context = mPlaneManager->getPlaneContexts();
     if (!context) {
@@ -1165,6 +1157,29 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
                                 mPlaneManager->getContextLength());
         if (err) {
             LOGE("%s: Post2 failed with errno %d\n", __func__, err);
+        }
+    }
+
+    return true;
+}
+
+bool IntelHWComposer::release()
+{
+    LOGD("release");
+
+    if (!initCheck() || !mLayerList)
+        return false;
+
+    // disable all attached planes
+    for (size_t i=0 ; i<mLayerList->getLayersCount() ; i++) {
+        IntelDisplayPlane *plane = mLayerList->getPlane(i);
+
+        if (plane) {
+            // disable all attached planes
+            plane->disable();
+
+            // release all data buffers
+            plane->invalidateDataBuffer();
         }
     }
 

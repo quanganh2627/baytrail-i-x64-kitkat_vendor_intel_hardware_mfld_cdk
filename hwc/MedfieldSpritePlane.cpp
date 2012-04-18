@@ -250,17 +250,11 @@ bool MedfieldSpritePlane::disable()
 bool MedfieldSpritePlane::invalidateDataBuffer()
 {
     LOGV("%s\n", __func__);
-    if (initCheck()) {
-         for (int i = 0; i < SPRITE_DATA_BUFFER_NUM_MAX; i++) {
-             mBufferManager->unmap(mDataBuffers[i].buffer);
-         }
 
-         // clear data buffers
-         memset(mDataBuffers, 0, sizeof(mDataBuffers));
-         mNextBuffer = 0;
-	 return true;
-    }
-
-    return false;
+    // keep the mapping of sprite data buffers till HWC was unload
+    // if we unmap them dynamically, post2 may be failed.
+    // TODO: improve gralloc buffer manager, to get buffer info from
+    // gralloc HAL directly.
+    return true;
 }
 

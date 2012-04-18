@@ -620,7 +620,7 @@ bool IntelHWComposer::useOverlayRotation(hwc_layer_t *layer,
                 break;
         }
     } else {
-        //For software codec, overlay can't handle rotate 
+        //For software codec, overlay can't handle rotate
         //and fallback to surface texture.
         if ((displayMode != OVERLAY_EXTEND) && transform)
             return false;
@@ -1080,15 +1080,6 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
         return false;
     }
 
-    if(mPlaneManager->isWidiActive()) {
-        IntelDisplayPlane *p = mPlaneManager->getWidiPlane();
-        LOGV("Widi Plane is %p",p);
-         if (p)
-             p->flip(context, 0);
-         else
-             LOGE("Widi Plane is NULL");
-    }
-
     // need check whether eglSwapBuffers is necessary
     bool needSwapBuffer = false;
 
@@ -1115,6 +1106,14 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
         if (!sucess) {
             return false;
         }
+    }
+    if(mPlaneManager->isWidiActive()) {
+        IntelDisplayPlane *p = mPlaneManager->getWidiPlane();
+        LOGV("Widi Plane is %p",p);
+         if (p)
+             p->flip(context, 0);
+         else
+             LOGE("Widi Plane is NULL");
     }
 
     // Call plane's flip for each layer in hwc_layer_list, if a plane has

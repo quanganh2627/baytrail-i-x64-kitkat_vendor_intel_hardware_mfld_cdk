@@ -19,7 +19,9 @@ ifeq ($(CUSTOM_BOARD),mfld_pr2)
 endif
 
 ifeq ($(CUSTOM_BOARD),mfld_dv10)
-    LOCAL_CFLAGS += -DCUSTOM_BOARD_WITH_AUDIENCE
+    LOCAL_CFLAGS += \
+          -DCUSTOM_BOARD_WITH_AUDIENCE \
+          -DHAL_VPC_NO_MODEM
 endif
 
 ifeq ($(CUSTOM_BOARD),ctp_pr0)

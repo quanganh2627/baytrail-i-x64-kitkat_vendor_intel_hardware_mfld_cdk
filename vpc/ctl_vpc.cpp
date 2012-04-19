@@ -103,6 +103,7 @@ static int vpc_init(uint32_t uiIfxI2s1ClkSelect, uint32_t uiIfxI2s2ClkSelect)
     vpc_lock.lock();
     LOGD("Initialize VPC\n");
 
+#ifndef HAL_VPC_NO_MODEM
     if (uiIfxI2s1ClkSelect == -1) {
                 // Not provided: use default
                 uiIfxI2s1ClkSelect = DEFAULT_IS21_CLOCK_SELECTION;
@@ -119,10 +120,14 @@ static int vpc_init(uint32_t uiIfxI2s1ClkSelect, uint32_t uiIfxI2s2ClkSelect)
         LOGD("AT thread started\n");
         at_thread_init = true;
     }
+#else
+    LOGD("VPC with no Modem\n");
+#endif
 
     msic::pcm_init();
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
+    LOGD("Initialize Audience\n");
     int rc;
     rc = acoustic::process_init();
     if (rc) goto return_error;

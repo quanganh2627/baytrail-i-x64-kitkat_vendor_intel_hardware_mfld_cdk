@@ -67,13 +67,12 @@ IntelWidiPlane::IntelWidiPlane(int fd, int index, IntelBufferManager *bm)
       mAllowExtVideoMode(true),
       mState(WIDI_PLANE_STATE_UNINIT),
       mWidiStatusChanged(false),
-      mLock(NULL),
+      mPlayerStatus(false),
       mInitThread(NULL),
       mFlipListener(NULL),
       mWirelessDisplay(NULL),
       mCurrentOrientation(0),
       mPrevExtFrame((uint32_t)-1),
-      mPlayerStatus(false),
       mExtVideoBuffersCount(0)
 
 {
@@ -142,11 +141,9 @@ IntelWidiPlane::disablePlane() {
         LOGV("Plane Disabled !!");
         mWirelessDisplay = NULL;
         mState = WIDI_PLANE_STATE_INITIALIZED;
-        memset(mExtVideoBuffers, 0, sizeof(intel_widi_ext_video_buffer_t)*EXT_VIDEO_MODE_MAX_SURFACE);
-        mExtVideoBuffersCount = 0;
-        mExtVideoBuffersMapping.clear();
         mWidiStatusChanged = true;
 
+        clearExtVideoModeContext();
     }
     return;
 }
@@ -166,6 +163,9 @@ IntelWidiPlane::flip(void *context, uint32_t flags) {
         mFlipListener->pageFlipped(systemTime(),mCurrentOrientation);
 
     } else if (mState == WIDI_PLANE_STATE_STREAMING) {
+
+        Mutex::Autolock _l(mExtBufferMapLock);
+
         sp<IWirelessDisplay> wd = interface_cast<IWirelessDisplay> (mWirelessDisplay);
 
         if(mCurrExtFramePayload.p == NULL) {
@@ -176,15 +176,24 @@ IntelWidiPlane::flip(void *context, uint32_t flags) {
             return true;
         }
 
-        status_t ret = wd->sendBuffer(mCurrExtFramePayload.p->khandle);
+        // Decoder may be destroyed before player status is set to be 0.
+        // When decoder is destroyed, psb-video will zero payload.
+        // We switch to clone mode here if this happens.
+        if (mCurrExtFramePayload.p->khandle == 0) {
+            goto switch_to_clone;
+        }
 
+        status_t ret = wd->sendBuffer(mCurrExtFramePayload.p->khandle);
         if (ret == NO_ERROR) {
             mCurrExtFramePayload.p->renderStatus = 1;
         }
 
         mPrevExtFrame = mCurrExtFramePayload.p->khandle;
     }
+    return true;
 
+switch_to_clone:
+    sendInitMode(IWirelessDisplay::WIDI_MODE_CLONE, 0, 0);
     return true;
 }
 
@@ -247,11 +256,13 @@ IntelWidiPlane::setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t 
     status_t ret = NO_ERROR;
     widiPayloadBuffer_t payload;
 
+    Mutex::Autolock _l(mExtBufferMapLock);
+
     ssize_t index = mExtVideoBuffersMapping.indexOfKey(nHandle);
 
     if (index == NAME_NOT_FOUND) {
         if (mapPayloadBuffer(nHandle, &payload)) {
-            if(payload.p->used_by_widi != 0) {
+            if(payload.p->used_by_widi != 0 || payload.p->khandles_count == 0) {
                 unmapPayloadBuffer(&payload);
                 return;
             }
@@ -259,7 +270,7 @@ IntelWidiPlane::setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t 
             if ((mState == WIDI_PLANE_STATE_ACTIVE) && (mPlayerStatus == true)) {
 
                 mExtVideoBuffersCount = payload.p->khandles_count;
-                for (int i = 0; i < payload.p->khandles_count; i++) {
+                for (unsigned int i = 0; i < payload.p->khandles_count; i++) {
                     mExtVideoBuffers[i].khandle = payload.p->khandles[i];
                     mExtVideoBuffers[i].width = payload.p->width;
                     mExtVideoBuffers[i].height = payload.p->height;
@@ -370,6 +381,7 @@ IntelWidiPlane::sendInitMode(int mode, uint32_t width, uint32_t height) {
        if (ret == NO_ERROR ) {
            mState = WIDI_PLANE_STATE_STREAMING;
        } else {
+
            clearExtVideoModeContext();
            LOGE("Error setting Extended video mode ");
        }
@@ -383,8 +395,10 @@ IntelWidiPlane::sendInitMode(int mode, uint32_t width, uint32_t height) {
 void
 IntelWidiPlane::clearExtVideoModeContext() {
 
+    Mutex::Autolock _l(mExtBufferMapLock);
+
     if(mExtVideoBuffersMapping.size()) {
-        for(int i = 0; i < mExtVideoBuffersMapping.size(); i ++) {
+        for(unsigned int i = 0; i < mExtVideoBuffersMapping.size(); i ++) {
             widiPayloadBuffer_t payload = mExtVideoBuffersMapping.valueAt(i);
             payload.p->renderStatus = 0;
             unmapPayloadBuffer(&payload);
@@ -402,10 +416,12 @@ void
 IntelWidiPlane::returnBuffer(int khandle) {
     LOGV("Buffer returned, index = %d", index);
 
+    Mutex::Autolock _l(mExtBufferMapLock);
+
     if(mExtVideoBuffersMapping.size()) {
-        for(int i = 0; i < mExtVideoBuffersMapping.size(); i++) {
+        for(unsigned int i = 0; i < mExtVideoBuffersMapping.size(); i++) {
             widiPayloadBuffer_t payload = mExtVideoBuffersMapping.valueAt(i);
-            if(payload.p->khandle == khandle) {
+            if(payload.p->khandle == (unsigned int) khandle) {
                 payload.p->renderStatus = 0;
                 break;
             }

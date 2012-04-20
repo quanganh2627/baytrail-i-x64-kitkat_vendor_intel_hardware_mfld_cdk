@@ -103,6 +103,7 @@ protected:
     android::sp<IBinder>            mWirelessDisplay;
     uint32_t                        mCurrentOrientation;
 
+    android::Mutex                  mExtBufferMapLock;
     widiPayloadBuffer_t             mCurrExtFramePayload;
     uint32_t                        mPrevExtFrame;
     uint32_t                        mExtVideoBuffersCount;

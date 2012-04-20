@@ -110,7 +110,7 @@ public:
         Parcel data, reply;
         data.writeInterfaceToken(IHwWidiPlane::getInterfaceDescriptor());
         data.writeInt32(((int32_t) index));
-        remote()->transact(RETURN_BUFFER, data, &reply);
+        remote()->transact(RETURN_BUFFER, data, &reply, IBinder::FLAG_ONEWAY);
         return;
     }
 };

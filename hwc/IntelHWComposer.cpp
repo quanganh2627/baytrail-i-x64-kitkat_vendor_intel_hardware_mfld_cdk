@@ -349,7 +349,6 @@ bool IntelHWComposer::isSpriteLayer(hwc_layer_list_t *list,
 
     if ((srcWidth == dstWidth) && (srcHeight == dstHeight))
         useSprite = true;
-
 out_check:
     if (forceSprite) {
         // clear HWC_SKIP_LAYER flag so that force to use overlay
@@ -389,6 +388,7 @@ bool IntelHWComposer::isPrimaryLayer(hwc_layer_list_t *list,
     // only use primary when layer is the top layer
     if ((size_t)index != (list->numHwLayers - 1))
         return false;
+
 
     // if a layer has already been handled, further check if it's a
     // sprite layer/overlay layer, if so, we simply bypass this layer.
@@ -684,18 +684,6 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
     bool ret = true;
     bool handled = true;
 
-    drmModeConnection mipi0 = IntelHWComposerDrm::getInstance().getOutputConnection(OUTPUT_MIPI0);
-    drmModeConnection hdmi = IntelHWComposerDrm::getInstance().getOutputConnection(OUTPUT_HDMI);
-
-    drmModeFBPtr crtcMode;
-    if (hdmi == DRM_MODE_CONNECTED) {
-        crtcMode = IntelHWComposerDrm::getInstance().getOutputFBInfo(OUTPUT_HDMI);
-    } else {
-        crtcMode = IntelHWComposerDrm::getInstance().getOutputFBInfo(OUTPUT_MIPI0);
-    }
-    int active_width = crtcMode->width;
-    int active_height = crtcMode->height;
-
     if (mPlaneManager->isWidiActive()) {
          widiplane = (IntelWidiPlane*) mPlaneManager->getWidiPlane();
     }
@@ -862,10 +850,6 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
             dataBuffer->setFormat(format);
             dataBuffer->setWidth(bufferWidth);
             dataBuffer->setHeight(bufferHeight);
-            if (srcWidth > active_width)
-                srcWidth = active_width;
-            if (srcHeight > active_height)
-                srcHeight = active_height;
             dataBuffer->setCrop(srcX, srcY, srcWidth, srcHeight);
             // set the data buffer back to plane
             ret = plane->setDataBuffer(bufferHandle, transform, grallocHandle);

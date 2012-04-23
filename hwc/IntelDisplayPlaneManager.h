@@ -353,6 +353,8 @@ private:
         IntelDisplayBuffer *buffer;
     } mDataBuffers[SPRITE_DATA_BUFFER_NUM_MAX];
     int mNextBuffer;
+protected:
+    virtual bool checkPosition(int& left, int& top, int& right, int& bottom);
 public:
     MedfieldSpritePlane(int fd, int index, IntelBufferManager *bufferManager);
     ~MedfieldSpritePlane();

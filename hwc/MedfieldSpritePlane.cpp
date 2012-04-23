@@ -29,41 +29,49 @@ MedfieldSpritePlane::~MedfieldSpritePlane()
 
 }
 
+bool MedfieldSpritePlane::checkPosition(int& left, int& top,
+                                        int& right, int& bottom)
+{
+    int output;
+    drmModeFBPtr fbInfo;
+
+    switch (mIndex) {
+    case 1:
+        output = OUTPUT_HDMI;
+        break;
+    case 2:
+        output = OUTPUT_MIPI1;
+        break;
+    case 0:
+    default:
+        output = OUTPUT_MIPI0;
+    }
+
+    fbInfo = IntelHWComposerDrm::getInstance().getOutputFBInfo(output);
+
+    // if intersect with frame buffer, get the intersection rectangle
+    if (left < right && left < (int)fbInfo->width &&
+        top < bottom && top < (int)fbInfo->height) {
+        if (left < 0)
+            left = 0;
+        if (top < 0)
+            top = 0;
+        if (right > (int)fbInfo->width)
+            right = fbInfo->width;
+        if (bottom > (int)fbInfo->height)
+            bottom = fbInfo->height;
+    } else {
+        // ignore this layer by setting postion to (0, 0) - (0, 0)
+        left = top = right = bottom = 0;
+    }
+
+    return true;
+}
+
 void MedfieldSpritePlane::setPosition(int left, int top, int right, int bottom)
 {
-    drmModeConnection mipi0 = IntelHWComposerDrm::getInstance().getOutputConnection(OUTPUT_MIPI0);
-    drmModeConnection hdmi = IntelHWComposerDrm::getInstance().getOutputConnection(OUTPUT_HDMI);
-
-    drmModeFBPtr crtcMode;
-    if (hdmi == DRM_MODE_CONNECTED) {
-        crtcMode = IntelHWComposerDrm::getInstance().getOutputFBInfo(OUTPUT_HDMI);
-    } else {
-        crtcMode = IntelHWComposerDrm::getInstance().getOutputFBInfo(OUTPUT_MIPI0);
-    }
-    int active_width = crtcMode->width;
-    int active_height = crtcMode->height;
-
-    if (left < 0 && right - left > active_width) {
-        left = 0;
-        right = active_width;
-    } else if (left < 0 && right -left < active_width) {
-        left = 0;
-        right = right - left;
-    } else if (left > 0  && right -left > active_width) {
-        right = active_width;
-    }
-
-    if (top < 0 && bottom - top > active_height) {
-        top = 0;
-        bottom = active_height;
-    } else if (top < 0 && bottom - top < active_height) {
-        top = 0;
-        bottom = bottom - top;
-    } else if (top > 0  && bottom -top > active_height) {
-        bottom = active_height;
-    }
-
-    // Never do this on Medfield
+    // check position
+    checkPosition(left, top, right, bottom);
     IntelSpritePlane::setPosition(left, top, right, bottom);
 }
 
@@ -110,10 +118,16 @@ bool MedfieldSpritePlane::setDataBuffer(IntelDisplayBuffer& buffer)
         // set offset;
         int srcX = spriteDataBuffer->getSrcX();
         int srcY = spriteDataBuffer->getSrcY();
-        int srcWidth = spriteDataBuffer->getSrcWidth();
-        int srcHeight = spriteDataBuffer->getSrcHeight();
-        uint32_t stride = align_to(bpp * srcWidth, 64);
+        int bufferWidth = spriteDataBuffer->getWidth();
+        int bufferHeight = spriteDataBuffer->getHeight();
+        uint32_t stride = align_to(bpp * bufferWidth, 64);
         uint32_t linoff = srcY * stride + srcX * bpp;
+
+        // unlikely happen, but still we need make sure linoff is valid
+        if (linoff > (stride * bpp * bufferHeight)) {
+            LOGE("%s: invalid source crop\n", __func__);
+            return false;
+        }
 
         // gtt
         uint32_t gttOffsetInPage = spriteDataBuffer->getGttOffsetInPage();

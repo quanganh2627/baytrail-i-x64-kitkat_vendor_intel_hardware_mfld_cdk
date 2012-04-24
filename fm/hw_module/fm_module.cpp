@@ -23,11 +23,7 @@
 #include <alsa/asoundlib.h>
 #include <alsa/control_external.h>
 
-#include <bluetooth.h>
-#include <hci.h>
-#include <hci_lib.h>
-#include <hci_vs_lib.h>
-
+#include <fm_rx_sm.h>
 
 #include "fm_module.h"
 
@@ -37,11 +33,7 @@ namespace android_audio_legacy
 {
 
 static int fm_configure_codec(int mode);
-static int fm_configure_fm(int mode);
-static int fm_enable_audio_path_cmd(int hci_sk, int bt_path, int fm_path);
-static int fm_pcm_config_cmd(int hci_sk);
-static int fm_i2s_config_cmd(int hci_sk);
-static int fm_audio_enable_cmd(int hci_sk);
+static int fm_audio_control_cmd(bool enable);
 
 /*---------------------------------------------------------------------------*/
 /* Initialization                                                            */
@@ -61,11 +53,11 @@ int fm_set_state(int mode)
     int err = NO_ERROR;
 
     if ((err = fm_configure_codec(mode)) < 0) {
-        LOGE("Cannot enable/diasble Codec PCM1 (mode %s)",
+        LOGE("Cannot enable/disable Codec PCM1 (mode %s)",
             (mode == AudioSystem::MODE_FM_ON) ? "ON" : "OFF");
     }
 
-    if ((err = fm_configure_fm(mode)) < 0) {
+    if ((err = fm_audio_control_cmd((mode == AudioSystem::MODE_FM_ON) ? true : false)) < 0) {
         LOGE("Cannot set/unset FM audio path (mode %s)",
             (mode == AudioSystem::MODE_FM_ON) ? "ON" : "OFF");
         return err;
@@ -117,126 +109,27 @@ static int fm_configure_codec(int mode) {
 }
 
 /*---------------------------------------------------------------------------*/
-/* Configure BT/FM Chip                                                      */
+/* Audio Enable/Disable                                                      */
 /*---------------------------------------------------------------------------*/
-static int fm_configure_fm(int mode) {
+static int fm_audio_control_cmd(bool enable) {
     int err = NO_ERROR;
-    int dev_id;
-    int hci_sk = -1;
 
-    /* Get hci device id if up */
-    if ((dev_id = hci_get_route(NULL)) < 0) {
-        LOGD("  Can't get HCI device id: %s (%d)\n", strerror(errno), errno);
-        LOGD("  -> Normal case if the BT chipset is disabled.\n");
-        return dev_id;
+    /* Check if FM is enabled */
+    if (FM_RX_SM_IsContextEnabled()) {
+
+        /* Get fm context */
+        FmRxContext *fm_context = FM_RX_SM_GetContext();
+
+        /* Enable audio routing to I2S */
+        if (enable)
+            err = FM_RX_EnableAudioRouting (fm_context);
+        else
+            err = FM_RX_DisableAudioRouting (fm_context);
+        if (err != FM_RX_STATUS_SUCCESS)
+            err = UNKNOWN_ERROR;
     }
-    /* Create HCI socket to send HCI cmd */
-    else if ((hci_sk = hci_open_dev(dev_id)) < 0) {
-        LOGE("  Can't open HCI socket: %s (%d)\n", strerror(errno), errno);
-        return hci_sk;
-    }
-    /* Enable/disable FM PCM audio path */
-    else {
-        if (mode == AudioSystem::MODE_FM_ON) {
-            err = fm_enable_audio_path_cmd(hci_sk, AUDIO_PATH_NONE, AUDIO_PATH_NONE);
-            if(err  < 0) {
-                LOGE("  Cannnot disable BT/FM audio path on sock: 0x%x %s(%d)\n", hci_sk,
-                     strerror(errno), errno);
-                goto end;
-            }
-            err = fm_pcm_config_cmd(hci_sk);
-            if(err < 0) {
-                LOGE("  Cannot config PCM on sock: 0x%x %s(%d)\n", hci_sk,
-                     strerror(errno), errno);
-                goto end;
-            }
-            err = fm_i2s_config_cmd(hci_sk);
-            if(err  < 0) {
-                LOGE("  Cannot config I2S on sock: 0x%x %s(%d)\n", hci_sk,
-                     strerror(errno), errno);
-                goto end;
-            }
-            err = fm_audio_enable_cmd(hci_sk);
-            if(err  < 0) {
-                LOGE("  Cannot enable FM audio on sock: 0x%x %s(%d)\n", hci_sk,
-                     strerror(errno), errno);
-                goto end;
-            }
-        }
-        err = fm_enable_audio_path_cmd(hci_sk, AUDIO_PATH_NONE,
-                                                   (mode == AudioSystem::MODE_FM_ON) ? AUDIO_PATH_I2S : AUDIO_PATH_NONE);
-        if(err < 0) {
-            LOGE("  Can't send HCI cmd to enable/disable FM audio path on sock: 0x%x %s(%d)\n", hci_sk,
-                 strerror(errno), errno);
-        }
-    }
-    end:
-        /* Close HCI socket */
-        if (hci_sk >= 0)
-            hci_close_dev(hci_sk);
-
-        return err;
-}
-
-/*---------------------------------------------------------------------------*/
-/* Enable/disable BT Chip Audio Path                                         */
-/*---------------------------------------------------------------------------*/
-static int fm_enable_audio_path_cmd(int hci_sk, int bt_audio_path, int fm_audio_path) {
-    int err = NO_ERROR;
-
-    err = hci_vs_btip1_1_set_fm_audio_path(hci_sk, -1, -1,
-                                           bt_audio_path,
-                                           fm_audio_path, 1,
-                                           HCI_CMD_TIMEOUT_MS);
-    return err;
-}
-
-/*---------------------------------------------------------------------------*/
-/* PCM Configuration                                                         */
-/*---------------------------------------------------------------------------*/
-static int fm_pcm_config_cmd(int hci_sk) {
-    int err = NO_ERROR;
-
-    /* I2S protocol - Left Swap - Fine Offset 0 - Slot offset 0
-       16 bits per channels */
-    uint8_t data[] = { 0x00, 0x00 };
-
-    err = hci_vs_i2c_write_to_fm(hci_sk, FM_PCM_MODE_SET_CMD,
-                                 FM_PCM_MODE_SET_CMD_LEN, data,
-                                 HCI_CMD_TIMEOUT_MS);
-
-    return err;
-}
-
-/*---------------------------------------------------------------------------*/
-/* I2S Configuration                                                         */
-/*---------------------------------------------------------------------------*/
-static int fm_i2s_config_cmd(int hci_sk) {
-    int err = NO_ERROR;
-
-    /* Data width 32FS - I2S Standard format - master - SDO Trisate mode 0
-        SDO Phase select 0 - WS Phase 11 - SDO_3st_alwz 0 - 44.1kHz*/
-    uint8_t data[] = { 0x13, 0x00 };
-
-    err = hci_vs_i2c_write_to_fm(hci_sk, FM_I2S_MODE_CONFIG_SET_CMD,
-                                 FM_I2S_MODE_CONFIG_SET_CMD_LEN,
-                                 data, HCI_CMD_TIMEOUT_MS);
-
-    return err;
-}
-
-/*---------------------------------------------------------------------------*/
-/* Audio Enable                                                              */
-/*---------------------------------------------------------------------------*/
-static int fm_audio_enable_cmd(int hci_sk) {
-    int err = NO_ERROR;
-
-    /* I2S enabled only (no analog) */
-    uint8_t data[] = { 0x00, 0x01 };
-
-    err = hci_vs_i2c_write_to_fm(hci_sk, FM_AUDIO_ENABLE_CMD,
-                                 FM_AUDIO_ENABLE_CMD_LEN, data,
-                                 HCI_CMD_TIMEOUT_MS);
+    else
+        err = NO_INIT;
 
     return err;
 }

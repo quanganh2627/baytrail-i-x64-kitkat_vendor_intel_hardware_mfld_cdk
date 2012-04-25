@@ -120,7 +120,10 @@ bool MedfieldSpritePlane::setDataBuffer(IntelDisplayBuffer& buffer)
         int srcY = spriteDataBuffer->getSrcY();
         int bufferWidth = spriteDataBuffer->getWidth();
         int bufferHeight = spriteDataBuffer->getHeight();
-        uint32_t stride = align_to(bpp * bufferWidth, 64);
+
+        // IMG alloc buffer has 32 pixel alignment on Width
+        int bufferStride = bpp * align_to(bufferWidth, 32);
+        uint32_t stride = align_to(bufferStride, 64);
         uint32_t linoff = srcY * stride + srcX * bpp;
 
         // unlikely happen, but still we need make sure linoff is valid

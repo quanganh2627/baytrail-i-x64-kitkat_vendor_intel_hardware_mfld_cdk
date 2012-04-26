@@ -44,7 +44,7 @@ static int vpc_route(vpc_route_t);
 static int vpc_volume(float);
 static int vpc_mixing_disable(bool isOut);
 static int vpc_mixing_enable(bool isOut, uint32_t device);
-static int vpc_tty(vpc_tty_t);
+static int vpc_set_tty(vpc_tty_t);
 static void translate_to_amc_device(const uint32_t current_device, IFX_TRANSDUCER_MODE_SOURCE* mode_source, IFX_TRANSDUCER_MODE_DEST* mode_dest);
 static int vpc_bt_nrec(vpc_bt_nrec_t);
 
@@ -80,7 +80,8 @@ static uint32_t  current_device        = 0x0000;
 static uint32_t  device_out_defaut     = 0x8000;
 static bool      at_thread_init        = false;
 static bool      audience_awake        = false;
-static AMC_TTY_STATE tty_call          = AMC_TTY_OFF;
+static AMC_TTY_STATE current_tty_call  = AMC_TTY_OFF;
+static AMC_TTY_STATE previous_tty_call = AMC_TTY_OFF;
 static bool      mixing_enable         = false;
 static bool      voice_call_recording  = false;
 static bool      acoustic_in_bt_device = false;
@@ -238,6 +239,7 @@ static void vpc_set_audio_routed(bool isRouted)
     // Update internal state variables
     prev_mode = current_mode;
     prev_device = current_device;
+    previous_tty_call = current_tty_call;
 
     if (vpc_audio_routed != isRouted) {
         // Volume buttons & power management
@@ -319,6 +321,14 @@ static void vpc_suspend_audience()
         bt::pcm_enable();
 }
 
+static inline bool vpc_route_conditions_changed()
+{
+    return (prev_mode != current_mode ||
+            prev_device != current_device ||
+            !vpc_get_audio_routed() ||
+            current_tty_call != previous_tty_call);
+}
+
 /*---------------------------------------------------------------------------*/
 /* Platform voice paths control                                              */
 /*---------------------------------------------------------------------------*/
@@ -337,6 +347,7 @@ static int vpc_route(vpc_route_t route)
     {
         LOGD("mode = %d device = %d modem status = %d\n", current_mode, current_device, modem_status);
         LOGD("previous mode = %d previous device = %d\n", prev_mode, prev_device);
+        LOGD("current tty = %d previous tty = %d\n", current_tty_call, previous_tty_call);
 
         if (route == VPC_ROUTE_OPEN)
         {
@@ -359,7 +370,7 @@ static int vpc_route(vpc_route_t route)
                     goto return_error;
                 }
                 /* MODEM is UP, apply the changes only if devices, or mode, or audio is not route due to modem reset or call disconnected */
-                if ((prev_mode != current_mode) || (prev_device != current_device) || !vpc_get_audio_routed())
+                if (vpc_route_conditions_changed())
                 {
                     IFX_TRANSDUCER_MODE_SOURCE mode_source;
                     IFX_TRANSDUCER_MODE_DEST mode_dest;
@@ -380,7 +391,7 @@ static int vpc_route(vpc_route_t route)
                             amc_off();
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
-                            device_profile = (tty_call == AMC_TTY_OFF) ? current_device : device_out_defaut;
+                            device_profile = (current_tty_call == AMC_TTY_OFF) ? current_device : device_out_defaut;
                             ret = acoustic::process_profile(device_profile, current_mode);
                             if (ret) goto return_error;
                             mode_source = IFX_USER_DEFINED_15_S;
@@ -390,7 +401,7 @@ static int vpc_route(vpc_route_t route)
                             translate_to_amc_device(current_device, &mode_source, &mode_dest);
 #endif
                             // Configure modem I2S1
-                            amc_conf_i2s1(tty_call, mode_source, mode_dest);
+                            amc_conf_i2s1(current_tty_call, mode_source, mode_dest);
 
                             if ((prev_mode != AudioSystem::MODE_IN_CALL) || (prev_device & DEVICE_OUT_BLUETOOTH_SCO_ALL) || (!vpc_get_audio_routed()))
                             {
@@ -427,7 +438,7 @@ static int vpc_route(vpc_route_t route)
                             if(!vpc_get_audio_routed())
                             {
                                 // configure modem I2S1
-                                amc_conf_i2s1(tty_call, IFX_USER_DEFINED_15_S, IFX_USER_DEFINED_15_D);
+                                amc_conf_i2s1(current_tty_call, IFX_USER_DEFINED_15_S, IFX_USER_DEFINED_15_D);
                                 // Configure modem I2S2 and do the modem routing
                                 amc_conf_i2s2_route();
                                 amc_on();
@@ -480,7 +491,7 @@ static int vpc_route(vpc_route_t route)
                 }
 
                 /* MODEM is not in cold reset, apply the changes only if devices, or mode, or modem status was changed */
-                if ((prev_mode != current_mode) || (prev_device != current_device) || !vpc_get_audio_routed())
+                if (vpc_route_conditions_changed())
                 {
                     switch (current_device)
                     {
@@ -497,7 +508,7 @@ static int vpc_route(vpc_route_t route)
                         bt::pcm_disable();
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
-                        device_profile = (tty_call == true) ? device_out_defaut : current_device;
+                        device_profile = (current_tty_call == AMC_TTY_OFF) ? current_device : device_out_defaut;
                         ret = acoustic::process_profile(device_profile, current_mode);
                         if (ret) goto return_error;
 #endif
@@ -771,10 +782,10 @@ static int vpc_mixing_enable(bool isOut, uint32_t device)
 /*---------------------------------------------------------------------------*/
 /* Enable TTY                                                                */
 /*---------------------------------------------------------------------------*/
-static int vpc_tty(vpc_tty_t tty)
+static int vpc_set_tty(vpc_tty_t tty)
 {
     vpc_lock.lock();
-    tty_call = translate_vpc_to_amc_tty[tty];
+    current_tty_call = translate_vpc_to_amc_tty[tty];
     vpc_lock.unlock();
 
     return NO_ERROR;
@@ -896,7 +907,7 @@ static int s_device_open(const hw_module_t* module, const char* name,
     dev->volume         = vpc_volume;
     dev->mix_disable    = vpc_mixing_disable;
     dev->mix_enable     = vpc_mixing_enable;
-    dev->tty            = vpc_tty;
+    dev->set_tty        = vpc_set_tty;
     dev->bt_nrec        = vpc_bt_nrec;
     *device = &dev->common;
     return 0;

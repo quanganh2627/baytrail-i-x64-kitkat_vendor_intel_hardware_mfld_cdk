@@ -46,7 +46,7 @@ typedef struct vpc_device_t {
     int (*volume)(float);
     int (*mix_disable)(bool isOut);
     int (*mix_enable)(bool isOut, uint32_t device);
-    int (*tty)(vpc_tty_t);
+    int (*set_tty)(vpc_tty_t);
     int (*bt_nrec)(vpc_bt_nrec_t);
 
 } vpc_device_t;

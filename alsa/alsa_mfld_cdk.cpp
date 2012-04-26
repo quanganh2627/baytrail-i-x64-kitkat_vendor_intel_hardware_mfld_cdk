@@ -34,6 +34,7 @@
 #define ALSA_NAME_MAX (128)
 #define PERIOD_TIME   (23220)  //microseconds
 #define CAPTURE_PERIOD_TIME (20000) //microseconds
+#define MAX_RETRY (6)
 
 #define ALSA_STRCAT(x, y) \
     do { \
@@ -582,7 +583,7 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode, int fm
     LOGD("open called for devices %s", devName);
 
     int err;
-
+    int attempt = 0;
     for (;;) {
         // The PCM stream is opened in blocking mode, per ALSA defaults.  The
         // AudioFlinger seems to assume blocking mode too, so asynchronous mode
@@ -590,6 +591,19 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode, int fm
         err = snd_pcm_open(&handle->handle, devName, direction(handle),
                            SND_PCM_ASYNC);
         if (err == 0) break;
+
+        if ((err == -EBUSY) && (attempt < MAX_RETRY)) {
+            //The processing of the open request for HDMI is done at the interrupt
+            //boundary in driver code, which takes max of 23ms. So any open request
+            //would be responded by a -EAGAIN till this interrupt boundary.
+            //The ALSA layer returns -EBUSY when driver returns -EAGAIN.
+            //This -EBUSY is handled here by sending repeated requests for MAX 6 times,
+            //without truncating the "devName", after a delay of 10ms each time.
+
+            usleep(10 * 1000);
+            attempt++;
+            continue;
+        }
 
         // See if there is a less specific name we can try.
         // Note: We are changing the contents of a const char * here.

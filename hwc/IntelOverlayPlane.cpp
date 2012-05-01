@@ -1375,6 +1375,10 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
             mDataBuffers[i].handle == handle &&
             mDataBuffers[i].bufferType == bufferType) {
             buffer = mDataBuffers[i].buffer;
+            if (i == mNextBuffer) {
+                LOGV("%s: Ready to reuse the oldest buffer in the cache, so move mNextBuffer pointer.");
+                mNextBuffer = (mNextBuffer + 1) % OVERLAY_DATA_BUFFER_NUM_MAX;
+            }
             break;
         }
     }

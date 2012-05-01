@@ -278,7 +278,10 @@ class IntelWidiPlane; // forward declaration
 class IntelOverlayPlane : public IntelDisplayPlane {
 private:
     enum {
-        OVERLAY_DATA_BUFFER_NUM_MAX = 30,
+        //BZ 33017. Don't hold too many buffers in GTT for advoiding reach GTT max size(128M).
+        //The final fix should be that video drvier don't need manage GTT anymore and hwc
+        //responsible for map/unmap all display buffers in GTT.
+        OVERLAY_DATA_BUFFER_NUM_MAX = 4,
     };
     // overlay mapped data buffers
     struct {

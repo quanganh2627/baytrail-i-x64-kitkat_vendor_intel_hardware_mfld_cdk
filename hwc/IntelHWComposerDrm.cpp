@@ -143,6 +143,13 @@ intel_overlay_mode_t IntelHWComposerDrm::getDisplayMode()
     return displayMode;
 }
 
+bool IntelHWComposerDrm::isVideoPlaying()
+{
+    if (mMonitor != NULL)
+        return mMonitor->isVideoPlaying();
+    return false;
+}
+
 bool IntelHWComposerDrm::notifyWidi(bool on)
 {
     if (mMonitor != NULL)

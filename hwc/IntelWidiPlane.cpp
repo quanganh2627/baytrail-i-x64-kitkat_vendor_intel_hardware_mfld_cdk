@@ -210,6 +210,10 @@ IntelWidiPlane::setPlayerStatus(bool status) {
     LOGI("%s(), status = %d", __func__, status);
     Mutex::Autolock _l(mLock);
 
+    if(mPlayerStatus == status) {
+        return;
+    }
+
     mPlayerStatus = status;
     if ( (mState == WIDI_PLANE_STATE_STREAMING) && status == false) {
         sendInitMode(IWirelessDisplay::WIDI_MODE_CLONE,0,0);

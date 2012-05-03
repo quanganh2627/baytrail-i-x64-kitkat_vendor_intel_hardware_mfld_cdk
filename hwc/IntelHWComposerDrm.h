@@ -112,6 +112,7 @@ public:
     void setDisplayMode(intel_overlay_mode_t displayMode);
     intel_overlay_mode_t getDisplayMode();
     intel_overlay_mode_t getOldDisplayMode();
+    bool isVideoPlaying();
     bool notifyMipi(bool);
     bool notifyWidi(bool);
 };

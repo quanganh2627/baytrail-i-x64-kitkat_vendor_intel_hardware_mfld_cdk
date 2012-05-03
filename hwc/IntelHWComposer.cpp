@@ -1038,8 +1038,17 @@ bool IntelHWComposer::prepare(hwc_layer_list_t *list)
     if ((list->flags & HWC_GEOMETRY_CHANGED) || mHotplugEvent
         || mPlaneManager->isWidiStatusChanged()) {
         onGeometryChanged(list);
-        if (mHotplugEvent)
+
+        if(mHotplugEvent) {
+            if(mPlaneManager->isWidiActive()) {
+                IntelWidiPlane* widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
+                if(widiPlane->isExtVideoAllowed()) {
+                    widiPlane->setPlayerStatus(mDrm->isVideoPlaying());
+                }
+            }
             mHotplugEvent = false;
+        }
+
         intel_overlay_mode_t mode = mDrm->getDisplayMode();
         if (mode == OVERLAY_EXTEND && (list->flags & HWC_GEOMETRY_CHANGED)) {
             if (list->numHwLayers == 1)

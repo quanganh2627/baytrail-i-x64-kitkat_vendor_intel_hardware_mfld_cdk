@@ -53,6 +53,7 @@ public:
     void onModeChange(int mode);
 public:
     int getDisplayMode();
+    bool isVideoPlaying();
     bool notifyWidi(bool);
     bool notifyMipi(bool);
 private:

@@ -70,6 +70,14 @@ int IntelExternalDisplayMonitor::getDisplayMode()
         return OVERLAY_CLONE_MIPI0;
 }
 
+bool IntelExternalDisplayMonitor::isVideoPlaying()
+{
+    if ((mActiveDisplayMode != INVALID_MDS_MODE) &&
+            (mActiveDisplayMode & MDS_VIDEO_PLAYING))
+       return true;
+    return false;
+}
+
 void IntelExternalDisplayMonitor::binderDied(const wp<IBinder>& who)
 {
     LOGV("External display monitor binderDied");

@@ -1322,6 +1322,8 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
     bool isYUVPacked = false;
     int format = overlayDataBuffer->getFormat();
     uint32_t grallocStride = overlayDataBuffer->getStride();
+    uint32_t grallocHeight = overlayDataBuffer->getSrcHeight();
+    uint32_t grallocWidth = overlayDataBuffer->getSrcWidth();
 
     // calculate YUV stride, HW overlay requires 64 bytes alignment.
     switch (format) {
@@ -1359,6 +1361,10 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
     } else if (!isYUVPacked && (yStride > INTEL_OVERLAY_MAX_STRIDE_LINEAR)) {
         LOGW("%s: planar YUV stride %d is too big, switch to ST",
              __func__, yStride);
+        return false;
+    } else if ((grallocHeight > 2047) || (grallocWidth > 2047)) {
+        LOGW("%s: source width or height (%dx%d) is too big, switch to ST",
+             __func__, grallocWidth, grallocHeight);
         return false;
     }
 

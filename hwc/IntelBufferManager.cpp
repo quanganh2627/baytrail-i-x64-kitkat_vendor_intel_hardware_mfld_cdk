@@ -61,41 +61,52 @@ void IntelDisplayDataBuffer::setBuffer(IntelDisplayBuffer *buffer)
 
 void IntelDisplayDataBuffer::setStride(uint32_t stride)
 {
-   mRawStride = stride;
+    if (stride == mRawStride)
+        return;
+
+    mRawStride = stride;
+    mUpdateFlags |= SIZE_CHANGE;
 }
 
 void IntelDisplayDataBuffer::setStride(uint32_t yStride, uint32_t uvStride)
 {
+    if ((yStride == mYStride) && (uvStride == mUVStride))
+        return;
+
     mYStride = yStride;
     mUVStride = uvStride;
+    mUpdateFlags |= SIZE_CHANGE;
 }
 
 void IntelDisplayDataBuffer::setWidth(uint32_t w)
 {
-    if (w != mWidth)
-        mUpdateFlags |= SIZE_CHANGE;
+    if (w == mWidth)
+        return;
+
     mWidth = w;
+    mUpdateFlags |= SIZE_CHANGE;
 }
 
 void IntelDisplayDataBuffer::setHeight(uint32_t h)
 {
-    if (h != mHeight)
-        mUpdateFlags |= SIZE_CHANGE;
+    if (h == mHeight)
+        return;
+
     mHeight = h;
+    mUpdateFlags |= SIZE_CHANGE;
 }
 
 void IntelDisplayDataBuffer::setCrop(int x, int y, int w, int h)
 {
-    if (x != (int)mSrcX || y != (int)mSrcY
-     || w != (int)mSrcWidth || h != (int)mSrcHeight)
-        mUpdateFlags |= SIZE_CHANGE;
-    else
+    if ((x == (int)mSrcX) && (y == (int)mSrcY) &&
+        (w == (int)mSrcWidth) && (h == (int)mSrcHeight))
         return;
 
     mSrcX = x;
     mSrcY = y;
     mSrcWidth = w;
     mSrcHeight = h;
+    mUpdateFlags |= SIZE_CHANGE;
 }
 
 void IntelDisplayDataBuffer::setDeinterlaceType(uint32_t bob_deinterlace)

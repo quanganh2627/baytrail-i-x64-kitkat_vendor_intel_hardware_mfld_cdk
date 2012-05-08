@@ -250,6 +250,7 @@ out_check:
         layer->flags &= ~HWC_SKIP_LAYER;
         mLayerList->setForceOverlay(index, true);
         layer->compositionType = HWC_OVERLAY;
+        layer->hints |= HWC_HINT_DISABLE_ANIMATION;
     }
 
     // check if frame buffer clear is needed
@@ -1152,8 +1153,8 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
         // clear flip flags
         mLayerList->setFlags(i, 0);
 
-        // remove hints
-        list->hwLayers[i].hints = 0;
+        // remove clear fb hints
+        list->hwLayers[i].hints &= ~HWC_HINT_CLEAR_FB;
     }
 
     // commit plane contexts

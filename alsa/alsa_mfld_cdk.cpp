@@ -416,9 +416,13 @@ static status_t setSoftwareParams(alsa_handle_t *handle)
     snd_pcm_get_params(handle->handle, &bufferSize, &periodSize);
 
     if (handle->devices & AudioSystem::DEVICE_OUT_ALL) {
-        // For playback, configure ALSA to start the transfer when the
-        // buffer is full.
-        startThreshold = periodSize - 1;
+        if (handle->curMode == AudioSystem::MODE_NORMAL) {
+            // For playback, configure ALSA to start the transfer when the
+            // buffer is full.
+            startThreshold = bufferSize - 1;
+        } else {
+            startThreshold = periodSize - 1;
+        }
         stopThreshold = bufferSize;
     } else {
         // For recording, configure ALSA to start the transfer on the
@@ -682,13 +686,14 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode, int fm
         }
     }
 
+    handle->curDev = devices;
+    handle->curMode = mode;
+
 	err = setHardwareParams(handle);
 
     if (err == NO_ERROR) err = setSoftwareParams(handle);
 
     LOGI("Initialized ALSA %s device %s", stream, devName);
-    handle->curDev = devices;
-    handle->curMode = mode;
     handle->openFlag = 1;
     return err;
 }

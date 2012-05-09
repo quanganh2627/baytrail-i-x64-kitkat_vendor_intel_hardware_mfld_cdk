@@ -29,6 +29,7 @@ extern "C"
 typedef enum { VPC_ROUTE_OPEN, VPC_ROUTE_CLOSE } vpc_route_t;
 typedef enum { VPC_TTY_OFF, VPC_TTY_FULL, VPC_TTY_VCO, VPC_TTY_HCO } vpc_tty_t;
 typedef enum { VPC_BT_NREC_OFF, VPC_BT_NREC_ON } vpc_bt_nrec_t;
+typedef enum { VPC_HAC_OFF, VPC_HAC_ON } vpc_hac_set_t;
 
 /* VPC module struct */
 #define VPC_HARDWARE_MODULE_ID "vpc"
@@ -48,7 +49,7 @@ typedef struct vpc_device_t {
     int (*mix_enable)(bool isOut, uint32_t device);
     int (*set_tty)(vpc_tty_t);
     int (*bt_nrec)(vpc_bt_nrec_t);
-
+    int (*set_hac)(vpc_hac_set_t);
 } vpc_device_t;
 
 #ifdef __cplusplus

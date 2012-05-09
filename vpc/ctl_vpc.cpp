@@ -47,6 +47,7 @@ static int vpc_mixing_enable(bool isOut, uint32_t device);
 static int vpc_set_tty(vpc_tty_t);
 static void translate_to_amc_device(const uint32_t current_device, IFX_TRANSDUCER_MODE_SOURCE* mode_source, IFX_TRANSDUCER_MODE_DEST* mode_dest);
 static int vpc_bt_nrec(vpc_bt_nrec_t);
+static int vpc_set_hac(vpc_hac_set_t);
 
 
 /*===========================================================================*/
@@ -73,22 +74,24 @@ const uint32_t DEFAULT_IS22_CLOCK_SELECTION = IFX_CLK0;
 using android::Mutex;
 Mutex vpc_lock;
 
-static int       prev_mode             = AudioSystem::MODE_NORMAL;
-static int       current_mode          = AudioSystem::MODE_NORMAL;
-static uint32_t  prev_device           = 0x0000;
-static uint32_t  current_device        = 0x0000;
-static uint32_t  device_out_defaut     = 0x8000;
-static bool      at_thread_init        = false;
-static AMC_TTY_STATE current_tty_call  = AMC_TTY_OFF;
-static AMC_TTY_STATE previous_tty_call = AMC_TTY_OFF;
-static bool      mixing_enable         = false;
-static bool      voice_call_recording  = false;
-static bool      acoustic_in_bt_device = false;
-static int       modem_gain_dl         = 0;
-static int       modem_gain_ul         = 100; // +6 dB
-static int       modem_status          = MODEM_DOWN;
-static bool      call_connected        = false;
 
+static int       prev_mode                = AudioSystem::MODE_NORMAL;
+static int       current_mode             = AudioSystem::MODE_NORMAL;
+static uint32_t  prev_device              = 0x0000;
+static uint32_t  current_device           = 0x0000;
+static uint32_t  device_out_defaut        = 0x8000;
+static bool      at_thread_init           = false;
+static AMC_TTY_STATE current_tty_call     = AMC_TTY_OFF;
+static AMC_TTY_STATE previous_tty_call    = AMC_TTY_OFF;
+static bool      mixing_enable            = false;
+static bool      voice_call_recording     = false;
+static bool      acoustic_in_bt_device    = false;
+static vpc_hac_set_t current_hac_setting  = VPC_HAC_OFF;
+static vpc_hac_set_t previous_hac_setting = VPC_HAC_OFF;
+static int       modem_gain_dl            = 0;
+static int       modem_gain_ul            = 100; // +6 dB
+static int       modem_status             = MODEM_DOWN;
+static bool      call_connected           = false;
 
 static bool      vpc_audio_routed     = false;
 
@@ -262,6 +265,7 @@ static void vpc_set_audio_routed(bool isRouted)
     prev_mode = current_mode;
     prev_device = current_device;
     previous_tty_call = current_tty_call;
+    previous_hac_setting = current_hac_setting;
 
     if (vpc_audio_routed != isRouted) {
         // Volume buttons & power management
@@ -351,7 +355,8 @@ static inline bool vpc_route_conditions_changed()
     return (prev_mode != current_mode ||
             prev_device != current_device ||
             !vpc_get_audio_routed() ||
-            current_tty_call != previous_tty_call);
+            current_tty_call != previous_tty_call ||
+            current_hac_setting != previous_hac_setting);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -416,7 +421,7 @@ static int vpc_route(vpc_route_t route)
                             amc_off();
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
-                            device_profile = (current_tty_call == AMC_TTY_OFF) ? current_device : device_out_defaut;
+                            device_profile = (current_tty_call == AMC_TTY_OFF && current_hac_setting == VPC_HAC_OFF) ? current_device : device_out_defaut;
                             ret = acoustic::process_profile(device_profile, current_mode);
                             if (ret) goto return_error;
                             mode_source = IFX_USER_DEFINED_15_S;
@@ -436,7 +441,7 @@ static int vpc_route(vpc_route_t route)
 
                             amc_on();
 
-                            msic::pcm_enable(current_mode, current_device);
+                            msic::pcm_enable(current_mode, current_device, current_hac_setting);
                             mixing_enable = true;
 
                             amc_unmute(modem_gain_dl, modem_gain_ul);
@@ -533,12 +538,12 @@ static int vpc_route(vpc_route_t route)
                         bt::pcm_disable();
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
-                        device_profile = (current_tty_call == AMC_TTY_OFF) ? current_device : device_out_defaut;
+                        device_profile = (current_tty_call == AMC_TTY_OFF && current_hac_setting == VPC_HAC_OFF) ? current_device : device_out_defaut;
                         ret = acoustic::process_profile(device_profile, current_mode);
                         if (ret) goto return_error;
 #endif
 
-                        msic::pcm_enable(current_mode, current_device);
+                        msic::pcm_enable(current_mode, current_device, current_hac_setting);
                         break;
                     /* ------------------------------------ */
                     /* Voice paths control for BT devices   */
@@ -557,7 +562,7 @@ static int vpc_route(vpc_route_t route)
                          * while the BT preset is selected, during 50ms at least. Since
                          * MSIC clock is already disabled, we have to enable it back.
                          */
-                        msic::pcm_enable(AudioSystem::MODE_IN_COMMUNICATION, AudioSystem::DEVICE_OUT_SPEAKER);
+                        msic::pcm_enable(AudioSystem::MODE_IN_COMMUNICATION, AudioSystem::DEVICE_OUT_SPEAKER, current_hac_setting);
 
                         // If acoustic_in_bt_device is true, bypass phone embedded algorithms
                         // and use acoustic alogrithms from Bluetooth headset.
@@ -872,13 +877,29 @@ static int vpc_bt_nrec(vpc_bt_nrec_t bt_nrec)
     vpc_lock.lock();
 
     if (bt_nrec == VPC_BT_NREC_ON) {
-        LOGD("Enable in handset echo cancellation/noise reduction for BT\n");
+        LOGI("Enable in handset echo cancellation/noise reduction for BT\n");
         acoustic_in_bt_device = false;
     }
     else {
-        LOGD("Disable in handset echo cancellation/noise reduction for BT. Use BT device embedded acoustics\n");
+        LOGI("Disable in handset echo cancellation/noise reduction for BT. Use BT device embedded acoustics\n");
         acoustic_in_bt_device = true;
     }
+
+    vpc_lock.unlock();
+    return NO_ERROR;
+}
+
+/*---------------------------------------------------------------------------*/
+/* Enable/Disable HAC                                                        */
+/*---------------------------------------------------------------------------*/
+
+static int vpc_set_hac(vpc_hac_set_t set_hac)
+{
+    vpc_lock.lock();
+
+    current_hac_setting = set_hac;
+
+    LOGD("HAC set for audio route");
 
     vpc_lock.unlock();
     return NO_ERROR;
@@ -934,6 +955,7 @@ static int s_device_open(const hw_module_t* module, const char* name,
     dev->mix_enable     = vpc_mixing_enable;
     dev->set_tty        = vpc_set_tty;
     dev->bt_nrec        = vpc_bt_nrec;
+    dev->set_hac        = vpc_set_hac;
     *device = &dev->common;
     return 0;
 }

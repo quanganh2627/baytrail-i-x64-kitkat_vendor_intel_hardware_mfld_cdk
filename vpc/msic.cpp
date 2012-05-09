@@ -30,8 +30,7 @@ namespace android_audio_legacy
 snd_pcm_t *msic::handle_playback = NULL;
 snd_pcm_t *msic::handle_capture  = NULL;
 
-
-const char *msic::deviceNamePlayback(int mode, uint32_t device)
+const char *msic::deviceNamePlayback(int mode, uint32_t device, vpc_hac_set_t hac_setting)
 {
     const char *devName;
 
@@ -40,7 +39,13 @@ const char *msic::deviceNamePlayback(int mode, uint32_t device)
         switch (device)
         {
         case AudioSystem::DEVICE_OUT_EARPIECE :
-            devName = "VoicePlayback_Earpiece_incall";
+            if (hac_setting == VPC_HAC_ON) {
+                devName = "VoicePlayback_HAC_incall";
+                LOGV("HAC has been activated, change device to %s\n", devName);
+            }
+            else {
+                devName = "VoicePlayback_Earpiece_incall";
+            }
             break;
         case AudioSystem::DEVICE_OUT_SPEAKER :
             devName = "VoicePlayback_Speaker_incall";
@@ -62,7 +67,13 @@ const char *msic::deviceNamePlayback(int mode, uint32_t device)
         switch (device)
         {
         case AudioSystem::DEVICE_OUT_EARPIECE :
-            devName = "VoicePlayback_Earpiece_incommunication";
+            if (hac_setting == VPC_HAC_ON) {
+                devName = "VoicePlayback_HAC_incommunication";
+                LOGV("HAC has been activated, change device to %s\n", devName);
+            }
+            else {
+                devName = "VoicePlayback_Earpiece_incommunication";
+            }
             break;
         case AudioSystem::DEVICE_OUT_SPEAKER :
             devName = "VoicePlayback_Speaker_incommunication";
@@ -113,13 +124,13 @@ const char *msic::deviceNameCapture(int mode, uint32_t device)
 
 int msic::pcm_init()
 {
-    pcm_enable(AudioSystem::MODE_IN_CALL, AudioSystem::DEVICE_OUT_SPEAKER);
+    pcm_enable(AudioSystem::MODE_IN_CALL, AudioSystem::DEVICE_OUT_SPEAKER, VPC_HAC_OFF);
     pcm_disable();
 
     return 0;
 }
 
-int msic::pcm_enable(int mode, uint32_t device)
+int msic::pcm_enable(int mode, uint32_t device, vpc_hac_set_t hac_setting)
 {
     const char *device_playback;
     const char *device_capture;
@@ -131,7 +142,7 @@ int msic::pcm_enable(int mode, uint32_t device)
     if (handle_playback || handle_capture)
         pcm_disable();
 
-    device_playback = deviceNamePlayback(mode, device);
+    device_playback = deviceNamePlayback(mode, device, hac_setting);
     device_capture = deviceNameCapture(mode, device);
     LOGD("  %s \n", device_playback);
 

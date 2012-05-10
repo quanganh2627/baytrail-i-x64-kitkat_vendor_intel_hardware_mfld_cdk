@@ -104,7 +104,7 @@ static int vpc_init(uint32_t uiIfxI2s1ClkSelect, uint32_t uiIfxI2s2ClkSelect)
     vpc_lock.lock();
     LOGD("Initialize VPC\n");
 
-#ifndef HAL_VPC_NO_MODEM
+#ifndef CUSTOM_BOARD_WITHOUT_MODEM
     if (uiIfxI2s1ClkSelect == -1) {
                 // Not provided: use default
                 uiIfxI2s1ClkSelect = DEFAULT_IS21_CLOCK_SELECTION;

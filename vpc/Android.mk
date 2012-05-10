@@ -14,6 +14,11 @@ LOCAL_COPY_HEADERS := \
 
 LOCAL_CFLAGS := -D_POSIX_SOURCE -Wno-multichar
 
+ifeq ($(CUSTOM_BOARD),mfld_pr2)
+	LOCAL_CFLAGS += \
+		-DHAL_VPC_PLUS_6DB_MODEM_UL
+endif
+
 LOCAL_SRC_FILES:= \
      ctl_vpc.cpp \
      bt.cpp \

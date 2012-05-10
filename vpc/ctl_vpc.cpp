@@ -89,7 +89,13 @@ static bool      acoustic_in_bt_device    = false;
 static vpc_hac_set_t current_hac_setting  = VPC_HAC_OFF;
 static vpc_hac_set_t previous_hac_setting = VPC_HAC_OFF;
 static int       modem_gain_dl            = 0;
+#ifdef HAL_VPC_PLUS_6DB_MODEM_UL
+/* +6dB on Modem UL path was applied on MFLD and we must keep this setting
+ * because all tuning has been done with it */
 static int       modem_gain_ul            = 100; // +6 dB
+#else
+static int       modem_gain_ul            = 88; // 0 dB
+#endif
 static int       modem_status             = MODEM_DOWN;
 static bool      call_connected           = false;
 

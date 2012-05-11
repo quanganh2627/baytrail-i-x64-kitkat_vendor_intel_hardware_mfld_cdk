@@ -1126,6 +1126,10 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
              LOGE("Widi Plane is NULL");
     }
 
+    // if hotplug was happened & didn't be handled skip the flip
+    if (mHotplugEvent)
+        return true;
+
     // Call plane's flip for each layer in hwc_layer_list, if a plane has
     // been attached to a layer
     buffer_handle_t bufferHandles[INTEL_DISPLAY_PLANE_NUM];

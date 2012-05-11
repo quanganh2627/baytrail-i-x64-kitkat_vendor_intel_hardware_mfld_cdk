@@ -124,7 +124,7 @@ public:
 
     void allowExtVideoMode(bool allow){return;};
     bool isExtVideoAllowed() {return true;};
-    void setPlayerStatus(bool status);
+    void setPlayerStatus(bool status) {return;};
     void setOrientation(uint32_t orientation){return;};
 
     bool flip(void *contexts, uint32_t flags){return true;};

@@ -61,8 +61,8 @@ void amc_dest_for_source()
 
 void amc_set_default_clocks(uint32_t uiIfxI2s1ClkSelect, uint32_t uiIfxI2s2ClkSelect)
 {
-	guiIfxI2s1ClkSelect = uiIfxI2s1ClkSelect;
-	guiIfxI2s2ClkSelect = uiIfxI2s2ClkSelect;
+    guiIfxI2s1ClkSelect = uiIfxI2s1ClkSelect;
+    guiIfxI2s2ClkSelect = uiIfxI2s2ClkSelect;
 }
 
 void get_route_id(AMC_ROUTE_ID route, destForSourceRoute *pdestForSource)
@@ -96,10 +96,18 @@ void get_route_id(AMC_ROUTE_ID route, destForSourceRoute *pdestForSource)
         pdestForSource->dests[1] = AMC_I2S2_TX;
         break;
     case ROUTE_RECORD_I2S1:
+#ifdef CUSTOM_BOARD_WITH_AUDIENCE
+        // Record uplink before modem voice processing
         pdestForSource->nbrDest = 2;
         pdestForSource->source = AMC_I2S1_RX;
         pdestForSource->dests[0] = AMC_RADIO_TX;
         pdestForSource->dests[1] = AMC_I2S2_TX;
+#else
+        // Record uplink after modem voice processing
+        pdestForSource->nbrDest = 1;
+        pdestForSource->source = AMC_PROBE_IN;
+        pdestForSource->dests[0] = AMC_I2S2_TX;
+#endif
         break;
     case ROUTE_DISCONNECT_RADIO:
         pdestForSource->nbrDest = 1;
@@ -136,6 +144,10 @@ int amc_conf_i2s1(AMC_TTY_STATE tty, IFX_TRANSDUCER_MODE_SOURCE modeSource, IFX_
     LOGD("mode_Source: %d\nmode_Dest:%d\n tty_mode:%d",modeSource, modeDest, tty);
     amc_configure_source(AMC_I2S1_RX, guiIfxI2s1ClkSelect, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, modeSource);
     amc_configure_dest(AMC_I2S1_TX, guiIfxI2s1ClkSelect, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, modeDest);
+
+#ifndef CUSTOM_BOARD_WITH_AUDIENCE
+    amc_configure_source_probe(AMC_PROBE_IN_A, PROBING_POINT_SPEECH_ENCODER_IN);
+#endif
     return 0;
 }
 
@@ -209,6 +221,10 @@ int amc_unmute(int gainDL, int gainUL)
 
 int amc_voice_record_on()
 {
+#ifndef CUSTOM_BOARD_WITH_AUDIENCE
+    amc_enable(AMC_PROBE_IN);
+    amc_enable(AMC_PROBE_IN_A);
+#endif
     amc_route(&pdestForSource[ROUTE_RECORD_RADIO][0]);
     amc_route(&pdestForSource[ROUTE_RECORD_I2S1][0]);
     return 0;
@@ -216,6 +232,10 @@ int amc_voice_record_on()
 
 int amc_voice_record_off()
 {
+#ifndef CUSTOM_BOARD_WITH_AUDIENCE
+    amc_disable(AMC_PROBE_IN);
+    amc_disable(AMC_PROBE_IN_A);
+#endif
     amc_route(&pdestForSource[ROUTE_RADIO][0]);
     amc_route(&pdestForSource[ROUTE_I2S1][0]);
     return 0;

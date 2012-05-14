@@ -38,6 +38,7 @@ extern "C"
 #define DIS_SRC "AT+XDRV=40,3,%i"
 #define DIS_SRC_RESP "+XDRV: 40,3,"
 #define SET_SRC_CONF "AT+XDRV=40,4,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i"
+#define SET_SRC_CONF_PROBE "AT+XDRV=40,4,%i,%i"
 #define SET_SRC_CONF_RESP "+XDRV: 40,4,"
 #define SET_DEST_CONF "AT+XDRV=40,5,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i"
 #define SET_DEST_CONF_RESP "+XDRV: 40,5,"
@@ -84,7 +85,11 @@ typedef enum {
     AMC_SPEECH_UL_INJECT = 8,
     AMC_INTERNAL_FM_RADIO= 9,
     AMC_PROBE_IN = 10,
-    AMC_ENDS = 11
+    AMC_DECODER = 11,
+    AMC_PROBE_IN_A = 12,
+    AMC_PROBE_IN_B = 13,
+    AMC_PROBE_IN_C = 14,
+    AMC_ENDS = 15
 } AMC_SOURCE;
 
 typedef enum {
@@ -222,6 +227,11 @@ typedef enum {
     ROUTE_DISCONNECT_RADIO,
 } AMC_ROUTE_ID;
 
+typedef enum {
+    PROBING_POINT_DEFAULT = 0,
+    PROBING_POINT_SPEECH_ENCODER_IN = 13
+} AMC_PROBING_POINT;
+
 typedef struct destForSourceRoute {
     int nbrDest;
     AMC_SOURCE source;
@@ -237,6 +247,7 @@ AT_STATUS amc_configure_dest(AMC_DEST dest, IFX_CLK clk, IFX_MASTER_SLAVE mode,
 AT_STATUS amc_configure_source(AMC_SOURCE source, IFX_CLK clk, IFX_MASTER_SLAVE mode, IFX_I2S_SR sr,
         IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings, IFX_I2S_AUDIO_MODE audio,
         IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_SOURCE transducer_source);
+AT_STATUS amc_configure_source_probe(AMC_SOURCE source, AMC_PROBING_POINT probe);
 AT_STATUS amc_route(destForSourceRoute *destForSource);
 AT_STATUS amc_setGainsource(AMC_SOURCE source, int gainDDB);
 AT_STATUS amc_setGaindest(AMC_DEST dest, int gainDDB);

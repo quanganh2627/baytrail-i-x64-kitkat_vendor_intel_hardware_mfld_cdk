@@ -66,6 +66,15 @@ AT_STATUS amc_configure_source(AMC_SOURCE source, IFX_CLK clk, IFX_MASTER_SLAVE 
     return rts;
 }
 
+AT_STATUS amc_configure_source_probe(AMC_SOURCE source, AMC_PROBING_POINT probe)
+{
+    char cmdStr[AT_MAX_CMD_LENGTH];
+    AT_STATUS rts;
+    snprintf(cmdStr, sizeof(cmdStr), SET_SRC_CONF_PROBE, source, probe);
+    rts = at_send(cmdStr, SET_SRC_CONF_RESP);
+    return rts;
+}
+
 AT_STATUS amc_route(destForSourceRoute *destForSource)
 {
     char cmdStr[AT_MAX_CMD_LENGTH];

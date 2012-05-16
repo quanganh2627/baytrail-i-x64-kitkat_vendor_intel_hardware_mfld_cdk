@@ -190,17 +190,24 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
     }
 
     // Got a YUV layer, check external display status for extend video mode
-    if (widiPlane->isActive() &&  !(widiPlane->isExtVideoAllowed())) {
-        /* if extended video mode is not allowed we stop here and
-         * let the video to be rendered via GFx plane by surface flinger
-         */
-        useOverlay = false;
-        goto out_check;
-    }
+    if (widiPlane->isActive()) {
 
-    if(widiPlane->isPlayerOn() && widiPlane->isActive()
-        && widiPlane->isExtVideoAllowed())
-        forceOverlay = true;
+        int srcWidth = layer->sourceCrop.right - layer->sourceCrop.left;
+        int srcHeight = layer->sourceCrop.bottom - layer->sourceCrop.top;
+
+        if(!(widiPlane->isExtVideoAllowed()) || (srcWidth < 176 || srcHeight < 144)) {
+           /* if extended video mode is not allowed or the resolution of video less than
+            * QCIF (176 x 144) we stop here and let the video to be rendered via GFx
+            * plane by surface flinger. Video encoder has limitation that HW encoder
+            * can't encode video that is less than QCIF
+            */
+            useOverlay = false;
+            goto out_check;
+        }
+        if(widiPlane->isPlayerOn() && widiPlane->isExtVideoAllowed()) {
+            forceOverlay = true;
+        }
+    }
 
     // force to use overlay in video extend mode
     if (mDrm->getDisplayMode() == OVERLAY_EXTEND)

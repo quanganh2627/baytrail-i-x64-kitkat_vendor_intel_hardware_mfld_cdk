@@ -75,7 +75,7 @@ namespace android_audio_legacy
 //BridgeApp bapp;
 static int s_device_open(const hw_module_t*, const char*, hw_device_t**);
 static int s_device_close(hw_device_t*);
-static status_t s_init(alsa_device_t *, ALSAHandleList &);
+static status_t s_init(alsa_device_t *, uint32_t, uint32_t);
 static status_t s_open(alsa_handle_t *, uint32_t, int, int);
 static status_t s_init_stream(alsa_handle_t *handle, uint32_t devices, int mode);
 static status_t s_standby(alsa_handle_t *);
@@ -471,7 +471,7 @@ static status_t setSoftwareParams(alsa_handle_t *handle)
 
 // ----------------------------------------------------------------------------
 
-static status_t s_init(alsa_device_t *module, ALSAHandleList &list, uint32_t defaultInputSampleRate, uint32_t defaultOutputSampleRate)
+static status_t s_init(alsa_device_t *module, uint32_t defaultInputSampleRate, uint32_t defaultOutputSampleRate)
 {
     // Configuration
     _defaultsIn.sampleRate = defaultInputSampleRate;
@@ -479,8 +479,6 @@ static status_t s_init(alsa_device_t *module, ALSAHandleList &list, uint32_t def
     _defaultsOut.sampleRate = defaultOutputSampleRate;
     _defaultsOut.expectedSampleRate = defaultOutputSampleRate;
     _defaultsOut.bufferSize = defaultOutputSampleRate / 5;
-
-    list.clear();
 
     snd_pcm_uframes_t bufferSize = _defaultsOut.bufferSize;
 
@@ -490,8 +488,6 @@ static status_t s_init(alsa_device_t *module, ALSAHandleList &list, uint32_t def
     _defaultsOut.module = module;
     _defaultsOut.bufferSize = bufferSize;
 
-    list.push_back(_defaultsOut);
-
     bufferSize = _defaultsIn.bufferSize;
 
     for (size_t i = 1; (bufferSize & ~i) != 0; i <<= 1)
@@ -500,44 +496,22 @@ static status_t s_init(alsa_device_t *module, ALSAHandleList &list, uint32_t def
     _defaultsIn.module = module;
     _defaultsIn.bufferSize = bufferSize;
 
-    list.push_back(_defaultsIn);
-
     return NO_ERROR;
 }
 
 static status_t s_init_stream(alsa_handle_t *handle, uint32_t devices, int mode)
 {
-    // Close off previously opened device.
-    // It would be nice to determine if the underlying device actually
-    // changes, but we might be recovering from an error or manipulating
-    // mixer settings (see asound.conf).
-    //
-    if(handle->openFlag)
-        s_close(handle);
-
     LOGD("s_init_stream called for devices %08x in mode %d...", devices, mode);
 
-    const char *stream = streamName(handle);
-    const char *devName = deviceName(handle, devices, mode, AudioSystem::MODE_FM_OFF);
-
-    LOGD("s_init_stream called for devices %s", devName);
     if (devices & AudioSystem::DEVICE_IN_ALL) {
-        handle->bufferSize = _defaultsIn.bufferSize;
-        handle->latency = _defaultsIn.latency;
-        handle->sampleRate = _defaultsIn.sampleRate;
-        handle->expectedSampleRate = _defaultsIn.expectedSampleRate;
-        handle->channels = _defaultsIn.channels;
-        handle->format = _defaultsIn.format;
-    } else {
-        handle->bufferSize = _defaultsOut.bufferSize;
-        handle->latency = _defaultsOut.latency;
-        handle->sampleRate = _defaultsOut.sampleRate;
-        handle->expectedSampleRate = _defaultsOut.expectedSampleRate;
-        handle->channels = _defaultsOut.channels;
-        handle->format = _defaultsOut.format;
-    }
-    LOGI("Initialized ALSA %s device %s", stream, devName);
 
+        *handle = _defaultsIn;
+    } else {
+
+        *handle = _defaultsOut;
+    }
+
+    handle->handle = NULL;
     handle->curDev = devices;
     handle->curMode = mode;
     handle->openFlag = 0;

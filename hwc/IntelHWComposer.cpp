@@ -1153,7 +1153,7 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
         int flags = mLayerList->getFlags(i);
         if (plane &&
             (!(list->hwLayers[i].flags & HWC_SKIP_LAYER)) &&
-            (list->hwLayers[i].compositionType == HWC_OVERLAY)) {
+            (list->hwLayers[i].compositionType == HWC_OVERLAY) && !mDrm->isOverlayOff()) {
             bool ret = plane->flip(context, flags);
             if (!ret)
                 LOGW("%s: failed to flip plane %d\n", __func__, i);

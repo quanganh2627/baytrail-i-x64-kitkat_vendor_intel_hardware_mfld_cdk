@@ -42,7 +42,7 @@ public:
     };
 
     enum {
-        INVALID_MDS_MODE = 0xfefefefe,
+        INVALID_MDS_MODE = 0,
     };
 public:
     IntelExternalDisplayMonitor(IntelHWComposer *hwc);
@@ -54,6 +54,7 @@ public:
 public:
     int getDisplayMode();
     bool isVideoPlaying();
+    bool isOverlayOff();
     bool notifyWidi(bool);
     bool notifyMipi(bool);
 private:

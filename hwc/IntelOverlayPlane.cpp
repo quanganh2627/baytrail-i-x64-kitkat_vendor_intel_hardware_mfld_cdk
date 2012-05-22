@@ -831,8 +831,6 @@ bool IntelOverlayContext::setDataBuffer(IntelDisplayDataBuffer& buffer)
 
     lock();
 
-    mOverlayBackBuffer->OCMD &= ~OVERLAY_ENABLE;
-
     bool ret = bufferOffsetSetup(buffer);
     if (ret == false) {
         LOGE("%s: failed to set up buffer offsets\n", __func__);
@@ -1165,6 +1163,20 @@ void IntelOverlayContext::setPipeByMode(intel_overlay_mode_t displayMode)
     }
 
     setPipe(pipe);
+}
+
+uint32_t IntelOverlayContext::getPipe()
+{
+    uint32_t pipe = 0;
+
+    if (!mContext)
+        return 0;
+
+    lock();
+        pipe = mContext->pipe;
+    unlock();
+
+    return pipe;
 }
 
 void IntelOverlayContext::forceBottom(bool bottom)
@@ -1556,6 +1568,8 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
 
     overlayDataBuffer->setBuffer(buffer);
 
+    mDataBufferHandle = (uint32_t)nHandle;
+
     // set data buffer :-)
     return setDataBuffer(*overlayDataBuffer);
 }
@@ -1600,7 +1614,7 @@ bool IntelOverlayPlane::invalidateDataBuffer()
     return true;
 }
 
-bool IntelOverlayPlane::flip(void *context, uint32_t flags)
+bool IntelOverlayPlane::flip(void *contexts, uint32_t flags)
 {
     bool ret = true;
     if (initCheck()) {
@@ -1616,35 +1630,32 @@ bool IntelOverlayPlane::flip(void *context, uint32_t flags)
             if (ret == false)
                 LOGE("%s: failed to disable overlay\n", __func__);
         } else {
-            flags |= IntelDisplayPlane::FLASH_NEEDED |
-                    IntelDisplayPlane::UPDATE_COEF |
-                    IntelDisplayPlane::WAIT_VBLANK;
+            flags |= IntelDisplayPlane::UPDATE_COEF;
 
-            intel_gralloc_payload_t *payload = NULL;
-
-            if (mDataBuffers[mRenderBuffer].grallocBuffFd > 0) {
-                bool ret = getBuffPayload(
-                        mDataBuffers[mRenderBuffer].grallocBuffFd,
-                        payload);
-
-                if (ret) payload->renderStatus = 1;
+            mdfld_plane_contexts_t *planeContexts;
+            planeContexts = (mdfld_plane_contexts_t*)contexts;
+            if (!planeContexts) {
+                LOGE("%s: invalid plane contexts\n", __func__);
+                return false;
             }
 
-            ret = overlayContext->flush_frame_or_top_field(flags);
-            if (ret == false)
-                LOGE("%s: failed to do overlay flip\n", __func__);
+            planeContexts->overlay_contexts[mIndex].ovadd = 0x0;
+            planeContexts->overlay_contexts[mIndex].ovadd =
+                (overlayContext->getGttOffsetInPage() << 12);
+            planeContexts->overlay_contexts[mIndex].index = mIndex;
+            planeContexts->overlay_contexts[mIndex].pipe =
+                overlayContext->getPipe();
+            planeContexts->active_overlays |= (1 << mIndex);
 
-            if (mRenderingBuffer >= 0 &&
-                mRenderingBuffer != mRenderBuffer &&
-                mDataBuffers[mRenderingBuffer].grallocBuffFd > 0) {
-                bool ret = getBuffPayload(
-                        mDataBuffers[mRenderingBuffer].grallocBuffFd,
-                        payload);
+            if (flags & IntelDisplayPlane::UPDATE_COEF)
+                planeContexts->overlay_contexts[mIndex].ovadd |= 0x1;
 
-                if (ret) payload->renderStatus = 0;
-            }
-
-            mRenderingBuffer = mRenderBuffer;
+            LOGD_IF(ALLOW_OVERLAY_PRINT,
+                    "%s: overlay context ovadd: 0x%x, pipe:0x%x, index: 0x%x\n",
+                        __func__,
+                        planeContexts->overlay_contexts[mIndex].ovadd,
+                        planeContexts->overlay_contexts[mIndex].pipe,
+                        planeContexts->overlay_contexts[mIndex].index);
         }
     }
 

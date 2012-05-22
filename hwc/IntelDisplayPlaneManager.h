@@ -273,6 +273,7 @@ public:
     bool reset();
     void setPipe(intel_display_pipe_t pipe);
     void setPipeByMode(intel_overlay_mode_t displayMode);
+    uint32_t getPipe();
     void forceBottom(bool bottom);
     bool waitForFlip();
 

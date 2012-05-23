@@ -74,17 +74,20 @@ const uint32_t DEFAULT_IS22_CLOCK_SELECTION = IFX_CLK0;
 using android::Mutex;
 Mutex vpc_lock;
 
-static int       prev_mode                = AudioSystem::MODE_NORMAL;
-static int       current_mode             = AudioSystem::MODE_NORMAL;
-static uint32_t  prev_device              = 0x0000;
-static uint32_t  current_device           = 0x0000;
-static uint32_t  device_out_defaut        = 0x8000;
-static bool      at_thread_init           = false;
-static AMC_TTY_STATE current_tty_call     = AMC_TTY_OFF;
-static AMC_TTY_STATE previous_tty_call    = AMC_TTY_OFF;
-static bool      mixing_enable            = false;
-static bool      voice_call_recording     = false;
-static bool      is_acoustic_in_bt_device = false;
+
+static int       prev_mode             = AudioSystem::MODE_NORMAL;
+static int       current_mode          = AudioSystem::MODE_NORMAL;
+static uint32_t  prev_device           = 0x0000;
+static uint32_t  current_device        = 0x0000;
+static uint32_t  device_out_defaut     = 0x8000;
+static bool      at_thread_init        = false;
+static AMC_TTY_STATE current_tty_call  = AMC_TTY_OFF;
+static AMC_TTY_STATE previous_tty_call = AMC_TTY_OFF;
+static bool      mixing_enable         = false;
+static bool      voice_call_recording  = false;
+// If the audio gateway does not support HFP profile (HSP only),
+// this variable is not updated and must be set so that no acoustic is performed in Audience chip
+static bool      is_acoustic_in_bt_device = true;
 static bool      was_acoustic_in_bt_device = false;
 static vpc_hac_set_t current_hac_setting  = VPC_HAC_OFF;
 static vpc_hac_set_t previous_hac_setting = VPC_HAC_OFF;

@@ -23,6 +23,7 @@
 #include <fcntl.h>
 #include <linux/a1026.h>
 #include <hardware_legacy/AudioSystemLegacy.h>
+#include <Property.h>
 #include <BooleanProperty.h>
 
 #include "acoustic.h"
@@ -40,6 +41,8 @@ int            acoustic::profile_size[profile_number];
 unsigned char *acoustic::i2c_cmd_profile[profile_number] = { NULL, };
 char           acoustic::bid[80] = "";
 const char *   acoustic::vp_bypass_prop_name = "persist.audiocomms.vp.bypass";
+const char *   acoustic::vp_fw_name_prop_name = "audiocomms.vp.fw_name";
+const char *   acoustic::vp_profile_prefix_prop_name = "audiocomms.vp.profile_prefix";
 
 const char *acoustic::profile_name[profile_number] = {
     "close_talk.bin",                // EP
@@ -64,11 +67,15 @@ const char *acoustic::profile_name[profile_number] = {
 /*---------------------------------------------------------------------------*/
 int acoustic::private_cache_profiles()
 {
+    CProperty vp_profile_prefix(vp_profile_prefix_prop_name, "/system/etc/phonecall_es305b_");
+
     LOGD("Initialize Audience A1026 profiles cache\n");
 
     for (int i = 0; i < profile_number; i++)
     {
-        char profile_path[profile_path_len_max] = "/system/etc/phonecall_es305b_";
+        char profile_path[profile_path_len_max];
+        strncpy(profile_path, vp_profile_prefix.getValue().c_str(), profile_path_len_max);
+        profile_path[profile_path_len_max - 1] = '\0';
 
         strncat(profile_path, profile_name[i], profile_path_len_max - strlen(profile_path) - 1);
         FILE *fd = fopen(profile_path, "r");
@@ -290,6 +297,7 @@ int acoustic::process_init()
     int fd_a1026 = -1;
     int rc;
     CBooleanProperty vp_bypass_prop(vp_bypass_prop_name, false);
+    CProperty vp_fw_name(vp_fw_name_prop_name, "vpimg_es305b.bin");
 
     rc = private_cache_profiles();
     if (rc) goto return_error;
@@ -305,7 +313,7 @@ int acoustic::process_init()
     if (rc) goto return_error;
 
     LOGD("Load Audience A1026 FW\n");
-    rc = ioctl(fd_a1026, A1026_BOOTUP_INIT);
+    rc = ioctl(fd_a1026, A1026_BOOTUP_INIT, vp_fw_name.getValue().c_str());
     if (rc) goto return_error;
 
     rc = private_get_fw_label(fd_a1026);

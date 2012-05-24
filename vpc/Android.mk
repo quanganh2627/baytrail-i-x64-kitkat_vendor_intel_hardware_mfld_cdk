@@ -30,6 +30,14 @@ LOCAL_SHARED_LIBRARIES := \
 ifeq ($(BOARD_HAVE_AUDIENCE),true)
     LOCAL_CFLAGS += -DCUSTOM_BOARD_WITH_AUDIENCE
     LOCAL_SRC_FILES += acoustic.cpp
+    LOCAL_C_INCLUDES += \
+        hardware/intel/mfld_cdk/utility/property \
+        external/stlport/stlport/ \
+        bionic/libstdc++ \
+        bionic
+    LOCAL_SHARED_LIBRARIES += \
+        libstlport \
+        libproperty
 endif
 
 ifneq ($(BOARD_HAVE_MODEM),true)

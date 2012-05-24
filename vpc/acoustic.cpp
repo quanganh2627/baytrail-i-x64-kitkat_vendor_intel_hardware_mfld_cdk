@@ -23,6 +23,7 @@
 #include <fcntl.h>
 #include <linux/a1026.h>
 #include <hardware_legacy/AudioSystemLegacy.h>
+#include <BooleanProperty.h>
 
 #include "acoustic.h"
 
@@ -34,9 +35,11 @@ using android::Mutex;
 Mutex a1026_lock;
 
 bool           acoustic::is_a1026_init = false;
+bool           acoustic::vp_bypass_on = false;
 int            acoustic::profile_size[profile_number];
 unsigned char *acoustic::i2c_cmd_profile[profile_number] = { NULL, };
 char           acoustic::bid[80] = "";
+const char *   acoustic::vp_bypass_prop_name = "persist.audiocomms.vp.bypass";
 
 const char *acoustic::profile_name[profile_number] = {
     "close_talk.bin",                // EP
@@ -286,6 +289,7 @@ int acoustic::process_init()
 
     int fd_a1026 = -1;
     int rc;
+    CBooleanProperty vp_bypass_prop(vp_bypass_prop_name, false);
 
     rc = private_cache_profiles();
     if (rc) goto return_error;
@@ -315,6 +319,14 @@ int acoustic::process_init()
     is_a1026_init = true;
     close(fd_a1026);
     a1026_lock.unlock();
+
+    if (vp_bypass_prop.isSet()) {
+        vp_bypass_on = true;
+        LOGW("%s: %s is set: Audience digital hardware pass through will be forced\n", __FUNCTION__, vp_bypass_prop_name);
+    } else {
+        vp_bypass_on = false;
+    }
+
     return 0;
 
 return_error:
@@ -463,7 +475,12 @@ int acoustic::process_profile(uint32_t device, uint32_t mode)
         goto return_error;
     }
 
-    profile_id = private_get_profile_id(device, mode);
+    if (vp_bypass_on == false)
+        profile_id = private_get_profile_id(device, mode);
+    else {
+        profile_id = PROFILE_DEFAULT;
+        LOGW("%s: %s is set: force Audience in digital hardware pass through\n", __FUNCTION__, vp_bypass_prop_name);
+    }
 
     rc = write(fd_a1026, &i2c_cmd_profile[profile_id][0], profile_size[profile_id]);
     if (rc != profile_size[profile_id]) {

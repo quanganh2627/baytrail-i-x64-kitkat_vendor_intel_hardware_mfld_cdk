@@ -73,6 +73,8 @@ private :
 
     static char           bid[80];
     static bool           is_a1026_init;
+    static bool           vp_bypass_on;
+    static const char *   vp_bypass_prop_name;
     static int            profile_size[profile_number];
     static unsigned char *i2c_cmd_profile[profile_number];
 

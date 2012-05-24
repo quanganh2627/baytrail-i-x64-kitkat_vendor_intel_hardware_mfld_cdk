@@ -164,7 +164,7 @@ int pvrWsbmAllocateTTMBuffer(uint32_t size, uint32_t align, void ** buf)
 
     ret = wsbmGenBuffers(mainPool, 1, &wsbmBuf, align,
                         (WSBM_PL_FLAG_VRAM | WSBM_PL_FLAG_TT |
-                         WSBM_PL_FLAG_SHARED));
+                         WSBM_PL_FLAG_SHARED | WSBM_PL_FLAG_NO_EVICT));
     if(ret) {
         LOGE("%s: wsbmGenBuffers failed with error code %d\n",
              __func__, ret);

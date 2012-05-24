@@ -79,7 +79,6 @@ static uint32_t  prev_device           = 0x0000;
 static uint32_t  current_device        = 0x0000;
 static uint32_t  device_out_defaut     = 0x8000;
 static bool      at_thread_init        = false;
-static bool      audience_awake        = false;
 static AMC_TTY_STATE current_tty_call  = AMC_TTY_OFF;
 static AMC_TTY_STATE previous_tty_call = AMC_TTY_OFF;
 static bool      mixing_enable         = false;
@@ -93,6 +92,9 @@ static bool      call_connected        = false;
 
 static bool      vpc_audio_routed     = false;
 
+#ifdef CUSTOM_BOARD_WITH_AUDIENCE
+static bool      audience_awake        = false;
+#endif
 /* Forward declaration */
 static void voice_call_record_restore();
 
@@ -105,11 +107,11 @@ static int vpc_init(uint32_t uiIfxI2s1ClkSelect, uint32_t uiIfxI2s2ClkSelect)
     LOGD("Initialize VPC\n");
 
 #ifndef CUSTOM_BOARD_WITHOUT_MODEM
-    if (uiIfxI2s1ClkSelect == -1) {
+    if (uiIfxI2s1ClkSelect == (uint32_t) -1) {
                 // Not provided: use default
                 uiIfxI2s1ClkSelect = DEFAULT_IS21_CLOCK_SELECTION;
     }
-    if (uiIfxI2s2ClkSelect == -1) {
+    if (uiIfxI2s2ClkSelect == (uint32_t) -1) {
                 // Not provided: use default
                 uiIfxI2s2ClkSelect = DEFAULT_IS22_CLOCK_SELECTION;
     }
@@ -314,6 +316,7 @@ static int vpc_unroute_csvcall()
     return ret;
 }
 
+#ifdef CUSTOM_BOARD_WITH_AUDIENCE
 static int vpc_wakeup_audience()
 {
     if (audience_awake)
@@ -326,15 +329,17 @@ static int vpc_wakeup_audience()
 
     return NO_ERROR;
 }
+#endif
 
-static void vpc_suspend_audience()
+static void vpc_suspend()
 {
+#ifdef CUSTOM_BOARD_WITH_AUDIENCE
     if (!audience_awake)
         return ;
 
     acoustic::process_suspend();
-
     audience_awake = false;
+#endif
 
     /* enable BT SCO path by default except is MODEM is not UP*/
     if(modem_status == MODEM_UP)
@@ -593,7 +598,7 @@ static int vpc_route(vpc_route_t route)
                     LOGD("VPC IN_COMMUNICATION & MODEM COLD RESET\n");
                     vpc_unroute_voip();
 
-                    vpc_suspend_audience();
+                    vpc_suspend();
                 }
                 else if(prev_mode == AudioSystem::MODE_IN_CALL && call_connected)
                 {
@@ -626,7 +631,7 @@ static int vpc_route(vpc_route_t route)
                     if (vpc_unroute_csvcall())
                         goto return_error;
 
-                    vpc_suspend_audience();
+                    vpc_suspend();
                 }
                 /* Else: ignore this close request */
 
@@ -645,7 +650,7 @@ static int vpc_route(vpc_route_t route)
                     vpc_unroute_voip();
                 }
 
-                vpc_suspend_audience();
+                vpc_suspend();
             }
         }
         else

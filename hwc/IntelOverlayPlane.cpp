@@ -645,6 +645,7 @@ bool IntelOverlayContext::scalingSetup(IntelDisplayDataBuffer& buffer)
 
     // check position
     checkPosition(x, y, w, h, buffer);
+    LOGV("%s: Final position (%d, %d, %d, %d)", __func__, x, y, w, h);
 
     if ((w <= 0) || (h <= 0)) {
          LOGE("%s: Invalid dst width/height", __func__);
@@ -1006,7 +1007,7 @@ bool IntelOverlayContext::disable()
         return true;
     }
 
-    LOGV("%s: disable overlay...\n", __func__);
+    LOGD("%s: disable overlay...\n", __func__);
     mOverlayBackBuffer->OCMD &= ~(0x00000001);
     bool ret = flush((IntelDisplayPlane::FLASH_NEEDED |
                       IntelDisplayPlane::WAIT_VBLANK));
@@ -1507,13 +1508,11 @@ bool IntelOverlayPlane::flip(void *context, uint32_t flags)
             if (ret == false)
                 LOGE("%s: failed to reset overlay\n", __func__);
         } else {
-            flags |= IntelDisplayPlane::FLASH_NEEDED |
-                    IntelDisplayPlane::UPDATE_COEF |
+            flags |= IntelDisplayPlane::UPDATE_COEF |
                     IntelDisplayPlane::WAIT_VBLANK;
-
             ret = overlayContext->flush_frame_or_top_field(flags);
             if (ret == false)
-                LOGE("%s: failed to do overlay flip\n", __func__);
+                LOGV("%s: failed to do overlay flip\n", __func__);
         }
     }
 

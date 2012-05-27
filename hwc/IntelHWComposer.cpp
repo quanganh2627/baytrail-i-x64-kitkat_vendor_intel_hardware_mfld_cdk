@@ -592,7 +592,7 @@ bool IntelHWComposer::useOverlayRotation(hwc_layer_t *layer,
         }
 
         if (transform != payload->client_transform) {
-            LOGE("%s: rotation buffer was not prepared by client!\n", __func__);
+            LOGV("%s: rotation buffer was not prepared by client!\n", __func__);
             return false;
         }
 
@@ -781,6 +781,7 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
 
             IntelOverlayContext *overlayContext =
                 reinterpret_cast<IntelOverlayContext*>(plane->getContext());
+            int flags = mLayerList->getFlags(i);
             // check if can switch to overlay
             bool useOverlay = useOverlayRotation(layer, i,
                                                  bufferHandle,
@@ -794,21 +795,27 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
 
             if (!useOverlay) {
                 if (!mLayerList->getForceOverlay(i)) {
+                    // fallback to ST to render this frame
                     layer->compositionType = HWC_FRAMEBUFFER;
                     layer->hints &= ~HWC_HINT_CLEAR_FB;
                     mForceSwapBuffer = true;
                     handled = false;
+                } else {
+                    // skip this frame when rotated buffer is not ready
+                    flags &= ~IntelDisplayPlane::FLASH_NEEDED;
+                    mLayerList->setFlags(i, flags);
+                    plane->disable();
                 }
                 continue;
             }
 
             bobDeinterlace = isBobDeinterlace(layer);
-            int flags = mLayerList->getFlags(i);
             if (bobDeinterlace) {
                 flags |= IntelDisplayPlane::BOB_DEINTERLACE;
             } else {
                 flags &= ~IntelDisplayPlane::BOB_DEINTERLACE;
             }
+            flags |= IntelDisplayPlane::FLASH_NEEDED;
             mLayerList->setFlags(i, flags);
 
             // clear FB first on first overlay frame

@@ -78,11 +78,6 @@ bool IntelExternalDisplayMonitor::isVideoPlaying()
     return false;
 }
 
-bool IntelExternalDisplayMonitor::isOverlayOff()
-{
-    return (mActiveDisplayMode & MDS_OVERLAY_OFF) != 0;
-}
-
 void IntelExternalDisplayMonitor::binderDied(const wp<IBinder>& who)
 {
     LOGV("External display monitor binderDied");

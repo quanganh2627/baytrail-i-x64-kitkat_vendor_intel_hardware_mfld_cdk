@@ -54,7 +54,6 @@ public:
 public:
     int getDisplayMode();
     bool isVideoPlaying();
-    bool isOverlayOff();
     bool notifyWidi(bool);
     bool notifyMipi(bool);
 private:

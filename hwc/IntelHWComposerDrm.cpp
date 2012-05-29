@@ -150,13 +150,6 @@ bool IntelHWComposerDrm::isVideoPlaying()
     return false;
 }
 
-bool IntelHWComposerDrm::isOverlayOff()
-{
-    if (mMonitor != NULL)
-        return mMonitor->isOverlayOff();
-    return false;
-}
-
 bool IntelHWComposerDrm::notifyWidi(bool on)
 {
     if (mMonitor != NULL)

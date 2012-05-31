@@ -557,7 +557,7 @@ static int vpc_route(vpc_route_t route)
                          * while the BT preset is selected, during 50ms at least. Since
                          * MSIC clock is already disabled, we have to enable it back.
                          */
-                        msic::pcm_enable(AudioSystem::MODE_IN_COMMUNICATION, AudioSystem::DEVICE_OUT_EARPIECE);
+                        msic::pcm_enable(AudioSystem::MODE_IN_COMMUNICATION, AudioSystem::DEVICE_OUT_SPEAKER);
 
                         // If acoustic_in_bt_device is true, bypass phone embedded algorithms
                         // and use acoustic alogrithms from Bluetooth headset.

@@ -166,17 +166,7 @@ static int vpc_params(int mode, uint32_t device)
 {
     vpc_lock.lock();
 
-#ifndef CUSTOM_BOARD_WITH_AUDIENCE
-    //
-    // Hack the mode here. Do not want to handle any configuration on VPC in
-    // communication mode.
-    // Default configuration allows BT SCO, which will be used for incommunication
-    // on BT SCO.
-    //
-    current_mode =  mode == AudioSystem::MODE_IN_COMMUNICATION ? AudioSystem::MODE_NORMAL : mode;
-#else
     current_mode = mode;
-#endif
     current_device = device;
 
     LOGD("vpc_params mode = %d device = %d\n", current_mode, current_device);
@@ -193,17 +183,7 @@ static void vpc_set_mode(int mode)
 {
     vpc_lock.lock();
 
-#ifndef CUSTOM_BOARD_WITH_AUDIENCE
-    //
-    // Hack the mode here. Do not want to handle any configuration on VPC in
-    // communication mode.
-    // Default configuration allows BT SCO, which will be used for incommunication
-    // on BT SCO.
-    //
-    current_mode =  mode == AudioSystem::MODE_IN_COMMUNICATION ? AudioSystem::MODE_NORMAL : mode;
-#else
     current_mode = mode;
-#endif
 
     LOGD("%s: mode = %d\n", __FUNCTION__, current_mode);
     LOGD("%s: previous mode = %d\n", __FUNCTION__, prev_mode);

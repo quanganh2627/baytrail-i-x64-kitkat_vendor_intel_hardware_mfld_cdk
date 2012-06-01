@@ -558,18 +558,53 @@ static int vpc_route(vpc_route_t route)
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
                         /*
-                         * Audience requirement: the previous mode clock must be running
-                         * while the BT preset is selected, during 50ms at least. Since
-                         * MSIC clock is already disabled, we have to enable it back.
+                         * Audience requirement / workaround:
+                         * The previous mode clock must be running
+                         * if a profile @8k has to be set (ie BT without acoustic),
+                         * during 50ms at least.
+                         * Note: BT with acoustic only require a pass-through, that can be
+                         * set without clock constraints.
                          */
-                        msic::pcm_enable(AudioSystem::MODE_IN_COMMUNICATION, AudioSystem::DEVICE_OUT_SPEAKER, current_hac_setting);
-
-                        // If acoustic_in_bt_device is true, bypass phone embedded algorithms
-                        // and use acoustic alogrithms from Bluetooth headset.
+                        if(acoustic_in_bt_device == false)
+                        {
+#ifdef CUSTOM_BOARD_WITH_VOICE_CODEC_SLAVE
+                            /*
+                             * If the voice port of the audio codec is slave:
+                             * Need to use the modem clock
+                             *
+                             * configure modem I2S1
+                             */
+                            amc_conf_i2s1(current_tty_call, IFX_USER_DEFINED_15_S, IFX_USER_DEFINED_15_D);
+                            /* Configure modem I2S2 and do the modem routing */
+                            amc_conf_i2s2_route();
+                            amc_on();
+#else
+                            /*
+                             * If the voice port of the audio codec is master: use audio codec clock.
+                             * Since MSIC clock is already disabled, we have to enable it back.
+                             */
+                            msic::pcm_enable(AudioSystem::MODE_IN_COMMUNICATION, AudioSystem::DEVICE_OUT_SPEAKER, current_hac_setting);
+#endif
+                        }
+                        /*
+                         * If acoustic_in_bt_device is true, bypass phone embedded algorithms
+                         * and use acoustic alogrithms from Bluetooth headset.
+                         */
                         device_profile = (acoustic_in_bt_device == true) ? device_out_defaut : current_device;
                         ret = acoustic::process_profile(device_profile, current_mode);
                         if (ret) goto return_error;
                         usleep(50000);
+
+#ifdef CUSTOM_BOARD_WITH_VOICE_CODEC_SLAVE
+                        /*
+                         * Audience Ugly WA: stop the modem clock once audience profile is set.
+                         * only in case of BT without acoustic.
+                         */
+                        if (acoustic_in_bt_device == false) {
+
+                            amc_off();
+                        }
+#endif
 #endif
                         msic::pcm_disable();
 

@@ -195,11 +195,12 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
         int srcWidth = layer->sourceCrop.right - layer->sourceCrop.left;
         int srcHeight = layer->sourceCrop.bottom - layer->sourceCrop.top;
 
-        if(!(widiPlane->isExtVideoAllowed()) || (srcWidth < 176 || srcHeight < 144)) {
+        if(!(widiPlane->isExtVideoAllowed()) || (srcWidth < 176 || srcHeight < 144)
+            || (grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12)) {
            /* if extended video mode is not allowed or the resolution of video less than
-            * QCIF (176 x 144) we stop here and let the video to be rendered via GFx
-            * plane by surface flinger. Video encoder has limitation that HW encoder
-            * can't encode video that is less than QCIF
+            * QCIF (176 x 144) or Software decoder (e.g. VP8) is used, we stop here and let
+            * the video to be rendered via GFx plane by surface flinger. Video encoder has
+            * limitation that HW encoder can't encode video that is less than QCIF
             */
             useOverlay = false;
             goto out_check;

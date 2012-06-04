@@ -68,6 +68,7 @@ IntelWidiPlane::IntelWidiPlane(int fd, int index, IntelBufferManager *bm)
       mState(WIDI_PLANE_STATE_UNINIT),
       mWidiStatusChanged(false),
       mPlayerStatus(false),
+      mExtFrameRate(30),
       mInitThread(NULL),
       mFlipListener(NULL),
       mWirelessDisplay(NULL),
@@ -183,7 +184,8 @@ IntelWidiPlane::flip(void *context, uint32_t flags) {
             goto switch_to_clone;
         }
 
-        status_t ret = wd->sendBuffer(mCurrExtFramePayload.p->khandle);
+        status_t ret = wd->sendBuffer(mCurrExtFramePayload.p->khandle,
+                                      mCurrExtFramePayload.p->timestamp);
         if (ret == NO_ERROR) {
             mCurrExtFramePayload.p->renderStatus = 1;
         }
@@ -205,11 +207,12 @@ IntelWidiPlane::allowExtVideoMode(bool allow) {
 }
 
 void
-IntelWidiPlane::setPlayerStatus(bool status) {
+IntelWidiPlane::setPlayerStatus(bool status, int fps) {
 
-    LOGI("%s(), status = %d", __func__, status);
+    LOGI("%s(), status = %d fps = %d", __func__, status, fps);
     Mutex::Autolock _l(mLock);
 
+    mExtFrameRate = fps;
     if(mPlayerStatus == status) {
         return;
     }
@@ -217,7 +220,6 @@ IntelWidiPlane::setPlayerStatus(bool status) {
     mPlayerStatus = status;
     if ( (mState == WIDI_PLANE_STATE_STREAMING) && status == false) {
         sendInitMode(IWirelessDisplay::WIDI_MODE_CLONE,0,0);
-
     }
 }
 
@@ -366,7 +368,7 @@ IntelWidiPlane::sendInitMode(int mode, uint32_t width, uint32_t height) {
 
         ret = wd->initMode(NULL, 0,
                            IWirelessDisplay::WIDI_MODE_CLONE,
-                           0, 0);
+                           0, 0, 0, 0);
         mState = WIDI_PLANE_STATE_ACTIVE;
         clearExtVideoModeContext();
 
@@ -374,7 +376,7 @@ IntelWidiPlane::sendInitMode(int mode, uint32_t width, uint32_t height) {
 
        ret = wd->initMode(mExtVideoBuffers, mExtVideoBuffersCount,
                           IWirelessDisplay::WIDI_MODE_EXTENDED_VIDEO,
-                          width, height);
+                          width, height, mExtFrameRate, 1);
 
        if (ret == NO_ERROR ) {
            mState = WIDI_PLANE_STATE_STREAMING;

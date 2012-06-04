@@ -1058,7 +1058,14 @@ bool IntelHWComposer::prepare(hwc_layer_list_t *list)
             if(mPlaneManager->isWidiActive()) {
                 IntelWidiPlane* widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
                 if(widiPlane->isExtVideoAllowed()) {
-                    widiPlane->setPlayerStatus(mDrm->isVideoPlaying());
+                    // default fps to 0. widi stack will decide what correct fps should be
+                    int displayW = 0, displayH = 0, fps = 0, isInterlace = 0;
+                    if(mDrm->isVideoPlaying()) {
+                        if(mDrm->getVideoInfo(&displayW, &displayH, &fps, &isInterlace)) {
+                            if(fps < 0) fps = 0;
+                        }
+                    }
+                    widiPlane->setPlayerStatus(mDrm->isVideoPlaying(), fps);
                 }
             }
             mHotplugEvent = false;

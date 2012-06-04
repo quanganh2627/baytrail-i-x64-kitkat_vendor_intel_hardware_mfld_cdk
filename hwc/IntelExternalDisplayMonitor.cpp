@@ -114,6 +114,15 @@ bool IntelExternalDisplayMonitor::notifyMipi(bool on)
     return false;
 }
 
+bool IntelExternalDisplayMonitor::getVideoInfo(int *displayW, int *displayH, int *fps, int *isinterlace)
+{
+    if (mMDClient != NULL) {
+        int ret = mMDClient->getVideoInfo(displayW, displayH, fps, isinterlace);
+        return (ret == MDS_NO_ERROR);
+    }
+    return false;
+}
+
 bool IntelExternalDisplayMonitor::threadLoop()
 {
     //LOGV("External display monitor thread loop");

@@ -171,6 +171,13 @@ bool IntelHWComposerDrm::notifyMipi(bool on)
     return false;
 }
 
+bool IntelHWComposerDrm::getVideoInfo(int *displayW, int *displayH, int *fps, int *isinterlace)
+{
+    if (mMonitor != NULL)
+        return mMonitor->getVideoInfo(displayW, displayH, fps, isinterlace);
+    return false;
+}
+
 intel_overlay_mode_t IntelHWComposerDrm::getOldDisplayMode()
 {
     intel_overlay_mode_t displayMode = OVERLAY_UNKNOWN;

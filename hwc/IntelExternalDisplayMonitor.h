@@ -57,6 +57,7 @@ public:
     bool isOverlayOff();
     bool notifyWidi(bool);
     bool notifyMipi(bool);
+    bool getVideoInfo(int *displayW, int *displayH, int *fps, int *isinterlace);
 private:
     //DeathReipient interface
     virtual void binderDied(const android::wp<android::IBinder>& who);

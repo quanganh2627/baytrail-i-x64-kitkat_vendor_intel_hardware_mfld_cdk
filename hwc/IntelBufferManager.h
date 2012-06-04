@@ -218,6 +218,7 @@ typedef struct {
     uint32_t khandle;
     uint32_t khandles_count;
     uint32_t khandles[32];
+    int64_t  timestamp;
 } intel_gralloc_payload_t;
 
 typedef struct {

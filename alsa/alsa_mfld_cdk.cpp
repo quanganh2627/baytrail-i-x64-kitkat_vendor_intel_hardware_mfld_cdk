@@ -32,7 +32,7 @@
 #undef DISABLE_HARWARE_RESAMPLING
 
 #define ALSA_NAME_MAX (128)
-#define PERIOD_TIME   (23220)  //microseconds
+#define PERIOD_TIME   (23220*2)  //microseconds, aligned to LPE fw
 #define CAPTURE_PERIOD_TIME (20000) //microseconds
 #define MAX_RETRY (6)
 #define NB_RING_BUFFER_NORMAL	2
@@ -54,7 +54,7 @@
 #endif
 
 #ifndef WIDI_DEFAULT_LATENCY
-#define WIDI_DEFAULT_LATENCY     40000 // in usec
+#define WIDI_DEFAULT_LATENCY     80000 // in usec
 #endif
 
 #ifndef VOICE_CODEC_DEFAULT_SAMPLE_RATE

@@ -136,11 +136,7 @@ void IntelHWComposerDrm::setDisplayMode(intel_overlay_mode_t displayMode)
 
 intel_overlay_mode_t IntelHWComposerDrm::getDisplayMode()
 {
-    intel_overlay_mode_t displayMode = OVERLAY_UNKNOWN;
-
-    displayMode = mDrmOutputsState.display_mode;
-
-    return displayMode;
+    return mDrmOutputsState.display_mode;
 }
 
 bool IntelHWComposerDrm::isVideoPlaying()
@@ -180,11 +176,7 @@ bool IntelHWComposerDrm::getVideoInfo(int *displayW, int *displayH, int *fps, in
 
 intel_overlay_mode_t IntelHWComposerDrm::getOldDisplayMode()
 {
-    intel_overlay_mode_t displayMode = OVERLAY_UNKNOWN;
-
-    displayMode = mDrmOutputsState.old_display_mode;
-
-    return displayMode;
+    return mDrmOutputsState.old_display_mode;
 }
 
 bool IntelHWComposerDrm::initialize(IntelHWComposer *hwc)
@@ -317,12 +309,8 @@ bool IntelHWComposerDrm::detectDrmModeInfo()
     drmModeConnection mipi1 = getOutputConnection(OUTPUT_MIPI1);
     drmModeConnection hdmi = getOutputConnection(OUTPUT_HDMI);
 
-    int mdsMode = IntelExternalDisplayMonitor::INVALID_MDS_MODE;
-    if (mMonitor != 0)
-        mdsMode = mMonitor->getDisplayMode();
-
-    if (mdsMode != IntelExternalDisplayMonitor::INVALID_MDS_MODE) {
-        setDisplayMode((intel_overlay_mode_t)mdsMode);
+    if (mMonitor != 0) {
+        setDisplayMode((intel_overlay_mode_t)mMonitor->getDisplayMode());
     } else {
         if (hdmi == DRM_MODE_CONNECTED)
             setDisplayMode(OVERLAY_EXTEND);

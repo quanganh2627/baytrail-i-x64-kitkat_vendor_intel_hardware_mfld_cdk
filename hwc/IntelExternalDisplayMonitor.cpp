@@ -28,9 +28,11 @@
 
 using namespace android;
 
+#define UNKNOWN_MDS_MODE 0 // status of video/widi/HDMI/HDCP/MIPI is unknown initially, it can be set indirectly through onModeChange event or directly set by invoking mMDClient->getMode
+
 IntelExternalDisplayMonitor::IntelExternalDisplayMonitor(IntelHWComposer *hwc) :
     mMDClient(NULL),
-    mActiveDisplayMode(INVALID_MDS_MODE),
+    mActiveDisplayMode(UNKNOWN_MDS_MODE),
     mWidiOn(false),
     mMipiOn(true),
     mInitialized(false),
@@ -63,8 +65,7 @@ void IntelExternalDisplayMonitor::onModeChange(int mode)
 int IntelExternalDisplayMonitor::getDisplayMode()
 {
     LOGV("Get display mode %d", mActiveDisplayMode);
-    if ((mActiveDisplayMode != INVALID_MDS_MODE) &&
-            (mActiveDisplayMode & MDS_HDMI_VIDEO_EXT))
+    if (mActiveDisplayMode & MDS_HDMI_VIDEO_EXT)
         return OVERLAY_EXTEND;
     else
         return OVERLAY_CLONE_MIPI0;
@@ -72,8 +73,7 @@ int IntelExternalDisplayMonitor::getDisplayMode()
 
 bool IntelExternalDisplayMonitor::isVideoPlaying()
 {
-    if ((mActiveDisplayMode != INVALID_MDS_MODE) &&
-            (mActiveDisplayMode & MDS_VIDEO_PLAYING))
+    if (mActiveDisplayMode & MDS_VIDEO_PLAYING)
        return true;
     return false;
 }
@@ -95,6 +95,7 @@ void IntelExternalDisplayMonitor::binderDied(const wp<IBinder>& who)
 bool IntelExternalDisplayMonitor::notifyWidi(bool on)
 {
     LOGV("Exteranal display notify the MDS widi's state");
+    // TODO: remove mWideOn. MultiDisplay Service maintains the state machine.
     if ((mMDClient != NULL) && (mWidiOn != on)) {
         mWidiOn = on;
         return mMDClient->notifyWidi(on);
@@ -105,8 +106,8 @@ bool IntelExternalDisplayMonitor::notifyWidi(bool on)
 bool IntelExternalDisplayMonitor::notifyMipi(bool on)
 {
     LOGV("Exteranal display notify the MDS that Mipi should be turned on/off");
+    // TODO: remove mMipiOn. MultiDisplay Service maintains the state machine.
     if ((mMDClient != NULL) && (mMipiOn != on)
-                && (mActiveDisplayMode != INVALID_MDS_MODE)
                 && (mActiveDisplayMode & MDS_HDMI_VIDEO_EXT)) {
         mMipiOn = on;
         return mMDClient->notifyMipi(on);
@@ -168,8 +169,11 @@ status_t IntelExternalDisplayMonitor::readyToRun()
             mMDClient = new MultiDisplayClient();
             if (mMDClient == NULL) {
                 LOGE("Fail to create a multidisplay client");
-            } else
+            } else {
+                // TODO: get display mode
+                // mActiveDisplayMode = mMDClient->getMode();
                 LOGI("Create a MultiDisplay client at HWC");
+            }
             service->linkToDeath(this);
             break;
         }

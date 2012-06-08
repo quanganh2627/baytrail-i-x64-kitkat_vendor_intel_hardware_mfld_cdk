@@ -41,9 +41,6 @@ public:
         UEVENT_MSG_LEN = 4096,
     };
 
-    enum {
-        INVALID_MDS_MODE = 0,
-    };
 public:
     IntelExternalDisplayMonitor(IntelHWComposer *hwc);
     virtual ~IntelExternalDisplayMonitor();

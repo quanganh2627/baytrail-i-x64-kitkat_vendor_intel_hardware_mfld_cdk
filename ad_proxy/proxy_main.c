@@ -253,7 +253,7 @@ int main(int argc, char *argv[])
     do {
         // Parse the i2c operation wait parameter.
         if (argc > 0) {
-            strncpy(p, argv[i], ARG_SIZE);
+            strncpy(p, argv[i], ARG_SIZE - 1);
             p[ARG_SIZE - 1] = '\0';
             if (p[0] ==  '-' && p[1] == 'i' && p[2] == 'w') {
                 tmp = atoi(p+3);

@@ -134,7 +134,6 @@ int msic::pcm_enable(int mode, uint32_t device, vpc_hac_set_t hac_setting)
 {
     const char *device_playback;
     const char *device_capture;
-    int card = snd_card_get_index(MEDFIELDAUDIO);
     int err;
 
     LOGD("Enable MSIC voice path ~~~ Entry\n");

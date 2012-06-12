@@ -74,10 +74,9 @@ int acoustic::private_cache_profiles()
     for (int i = 0; i < profile_number; i++)
     {
         char profile_path[profile_path_len_max];
-        strncpy(profile_path, vp_profile_prefix.getValue().c_str(), profile_path_len_max);
-        profile_path[profile_path_len_max - 1] = '\0';
 
-        strncat(profile_path, profile_name[i], profile_path_len_max - strlen(profile_path) - 1);
+        snprintf(profile_path, sizeof(profile_path), "%s%s", (char *) vp_profile_prefix.getValue().c_str(), profile_name[i]);
+
         FILE *fd = fopen(profile_path, "r");
         if (fd == NULL) {
             LOGE("Cannot open %s\n", profile_path);

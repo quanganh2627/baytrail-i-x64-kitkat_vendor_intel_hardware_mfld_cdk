@@ -242,6 +242,12 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
         goto out_check;
     }
 
+    // TODO: not support OVERLAY_CLONE_MIPI0
+    if (mDrm->getDisplayMode() == OVERLAY_CLONE_MIPI0) {
+        useOverlay = false;
+        goto out_check;
+    }
+
     // check whether layer are covered by layers above it
     // if layer is covered by a layer which needs blending,
     // clear corresponding region in frame buffer
@@ -1381,20 +1387,20 @@ bool IntelHWComposer::initialize()
 
     //create new DRM object if not exists
     if (!mDrm) {
-        ret = IntelHWComposerDrm::getInstance().initialize(this);
+        mDrm = &IntelHWComposerDrm::getInstance();
+        if (!mDrm) {
+            LOGE("%s: Invalid DRM object\n", __func__);
+            ret = false;
+            goto drm_err;
+        }
+
+        ret = mDrm->initialize(this);
         if (ret == false) {
             LOGE("%s: failed to initialize DRM instance\n", __func__);
             goto drm_err;
         }
-
-        mDrm = &IntelHWComposerDrm::getInstance();
     }
 
-    if (!mDrm) {
-        LOGE("%s: Invalid DRM object\n", __func__);
-        ret = false;
-        goto drm_err;
-    }
 
     //create new buffer manager and initialize it
     if (!mBufferManager) {

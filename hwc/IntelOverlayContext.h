@@ -39,7 +39,8 @@ typedef enum {
 } intel_drm_output_t;
 
 typedef enum {
-	OVERLAY_CLONE_MIPI0 = 0,
+	OVERLAY_MIPI0 = 0,
+	OVERLAY_CLONE_MIPI0,
 	OVERLAY_CLONE_MIPI1,
 	OVERLAY_CLONE_DUAL,
 	OVERLAY_EXTEND,

@@ -314,12 +314,14 @@ bool IntelHWComposerDrm::detectDrmModeInfo()
     int mdsMode = 0;
     if (mMonitor != 0) {
         mdsMode = mMonitor->getDisplayMode();
-
-        //TODO: Only support OVERLAY_EXTEND and OVERLAY_CLONE_MIPI0
+        LOGD("%s: getDisplayMode %d", __func__, mdsMode);
+        //TODO: overlay only support OVERLAY_EXTEND and OVERLAY_MIPI0
         if (mdsMode == OVERLAY_EXTEND && hdmi == DRM_MODE_CONNECTED)
             setDisplayMode(OVERLAY_EXTEND);
-        else
+        else if (mdsMode == OVERLAY_CLONE_MIPI0)
             setDisplayMode(OVERLAY_CLONE_MIPI0);
+        else
+            setDisplayMode(OVERLAY_MIPI0);
     } else {
         if (hdmi == DRM_MODE_CONNECTED)
             setDisplayMode(OVERLAY_EXTEND);

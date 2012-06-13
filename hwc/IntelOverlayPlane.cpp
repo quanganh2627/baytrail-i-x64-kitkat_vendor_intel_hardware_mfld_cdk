@@ -1098,6 +1098,7 @@ void IntelOverlayContext::setPipeByMode(intel_overlay_mode_t displayMode)
 
     switch (displayMode) {
     case OVERLAY_UNKNOWN:
+    case OVERLAY_MIPI0:
     case OVERLAY_CLONE_MIPI0:
         pipe = PIPE_MIPI0;
         break;

@@ -67,8 +67,10 @@ int IntelExternalDisplayMonitor::getDisplayMode()
     LOGV("Get display mode %d", mActiveDisplayMode);
     if (mActiveDisplayMode & MDS_HDMI_VIDEO_EXT)
         return OVERLAY_EXTEND;
-    else
+    else if (mActiveDisplayMode & MDS_HDMI_CLONE)
         return OVERLAY_CLONE_MIPI0;
+    else
+        return OVERLAY_MIPI0;
 }
 
 bool IntelExternalDisplayMonitor::isVideoPlaying()
@@ -170,9 +172,17 @@ status_t IntelExternalDisplayMonitor::readyToRun()
             if (mMDClient == NULL) {
                 LOGE("Fail to create a multidisplay client");
             } else {
-                // TODO: get display mode
-                // mActiveDisplayMode = mMDClient->getMode();
                 LOGI("Create a MultiDisplay client at HWC");
+                bool bWait = true;
+                mActiveDisplayMode = mMDClient->getMode(bWait);
+                if (getDisplayMode() == OVERLAY_CLONE_MIPI0)
+                    IntelHWComposerDrm::getInstance().setDisplayMode(OVERLAY_CLONE_MIPI0);
+                else if (getDisplayMode() == OVERLAY_EXTEND) {
+                    IntelHWComposerDrm::getInstance().setDisplayMode(OVERLAY_EXTEND);
+                    LOGE("Impossible be here. Only clone mode or single mode is valid initialized state.");
+                }
+                else
+                    IntelHWComposerDrm::getInstance().setDisplayMode(OVERLAY_MIPI0);
             }
             service->linkToDeath(this);
             break;

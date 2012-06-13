@@ -244,14 +244,13 @@ bool IntelHWComposerDrm::detectDrmModeInfo()
         }
 
         int outputIndex = -1;
-
         if (connector->connector_type == DRM_MODE_CONNECTOR_MIPI ||
             connector->connector_type == DRM_MODE_CONNECTOR_LVDS) {
             LOGV("%s: got MIPI/LVDS connector\n", __func__);
             if (connector->connector_type_id == 1)
                 outputIndex = OUTPUT_MIPI0;
             else if (connector->connector_type_id == 2)
-        	outputIndex = OUTPUT_MIPI1;
+                outputIndex = OUTPUT_MIPI1;
             else {
                 LOGW("%s: unknown connector type\n", __func__);
                 outputIndex = OUTPUT_MIPI0;
@@ -269,6 +268,7 @@ bool IntelHWComposerDrm::detectDrmModeInfo()
         if (!encoder) {
             LOGV("%s: fail to get drm encoder\n", __func__);
             drmModeFreeConnector(connector);
+            setOutputConnection(outputIndex, DRM_MODE_DISCONNECTED);
             continue;
         }
 
@@ -278,6 +278,7 @@ bool IntelHWComposerDrm::detectDrmModeInfo()
             LOGV("%s: fail to get drm crtc\n", __func__);
             drmModeFreeEncoder(encoder);
             drmModeFreeConnector(connector);
+            setOutputConnection(outputIndex, DRM_MODE_DISCONNECTED);
             continue;
         }
 
@@ -291,6 +292,7 @@ bool IntelHWComposerDrm::detectDrmModeInfo()
             drmModeFreeCrtc(crtc);
             drmModeFreeEncoder(encoder);
             drmModeFreeConnector(connector);
+            setOutputConnection(outputIndex, DRM_MODE_DISCONNECTED);
             continue;
         }
 
@@ -309,8 +311,15 @@ bool IntelHWComposerDrm::detectDrmModeInfo()
     drmModeConnection mipi1 = getOutputConnection(OUTPUT_MIPI1);
     drmModeConnection hdmi = getOutputConnection(OUTPUT_HDMI);
 
+    int mdsMode = 0;
     if (mMonitor != 0) {
-        setDisplayMode((intel_overlay_mode_t)mMonitor->getDisplayMode());
+        mdsMode = mMonitor->getDisplayMode();
+
+        //TODO: Only support OVERLAY_EXTEND and OVERLAY_CLONE_MIPI0
+        if (mdsMode == OVERLAY_EXTEND && hdmi == DRM_MODE_CONNECTED)
+            setDisplayMode(OVERLAY_EXTEND);
+        else
+            setDisplayMode(OVERLAY_CLONE_MIPI0);
     } else {
         if (hdmi == DRM_MODE_CONNECTED)
             setDisplayMode(OVERLAY_EXTEND);

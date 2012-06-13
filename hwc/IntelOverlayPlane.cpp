@@ -903,6 +903,7 @@ void IntelOverlayContext::checkPosition(int& x, int& y, int& w, int& h,
     int output;
     drmModeModeInfoPtr mode;
     intel_overlay_mode_t displayMode;
+    drmModeConnection connection = DRM_MODE_DISCONNECTED;
 
     displayMode = IntelHWComposerDrm::getInstance().getDisplayMode();
 
@@ -911,6 +912,13 @@ void IntelOverlayContext::checkPosition(int& x, int& y, int& w, int& h,
         output = OUTPUT_HDMI;
     else
         output = OUTPUT_MIPI0;
+
+    connection = IntelHWComposerDrm::getInstance().getOutputConnection(output);
+
+    if (connection != DRM_MODE_CONNECTED) {
+        LOGE("%s: failed to detect connected state of output %d\n", __func__, output);
+        return;
+    }
 
     mode = IntelHWComposerDrm::getInstance().getOutputMode(output);
 

@@ -28,6 +28,11 @@
 
 #include "acoustic.h"
 
+/* The time is us before the ACK of es305b can be read: Audience
+ * specifies 20ms.
+ */
+#define ES305B_TIME_FOR_ACK_IN_US    20000
+
 namespace android_audio_legacy
 {
 
@@ -37,10 +42,12 @@ Mutex a1026_lock;
 
 bool           acoustic::is_a1026_init = false;
 bool           acoustic::vp_bypass_on = false;
+bool           acoustic::vp_tuning_on = false;
 int            acoustic::profile_size[profile_number];
 unsigned char *acoustic::i2c_cmd_profile[profile_number] = { NULL, };
 char           acoustic::bid[80] = "";
 const char *   acoustic::vp_bypass_prop_name = "persist.audiocomms.vp.bypass";
+const char *   acoustic::vp_tuning_prop_name = "persist.audiocomms.vp.tuning.on";
 const char *   acoustic::vp_fw_name_prop_name = "audiocomms.vp.fw_name";
 const char *   acoustic::vp_profile_prefix_prop_name = "audiocomms.vp.profile_prefix";
 
@@ -207,14 +214,57 @@ int acoustic::private_suspend(int fd)
     int rc;
 
     rc = write(fd, &i2c_cmd_profile[PROFILE_DEFAULT][0], profile_size[PROFILE_DEFAULT]);
-    if (rc != profile_size[PROFILE_DEFAULT])
+    if (rc != profile_size[PROFILE_DEFAULT]) {
         LOGE("Audience A1026 write error, pass-through mode failed\n");
+    } else {
+        /* All commands are acknowledged by es305b with responses which are the
+         * commands themselves: discard them. Audience recommends to wait 20ms
+         * per command before to read the ACK */
+        usleep((profile_size[PROFILE_DEFAULT] / 4) * ES305B_TIME_FOR_ACK_IN_US);
+        private_discard_ack(fd, profile_size[PROFILE_DEFAULT]);
 
-    rc = ioctl(fd, A1026_SUSPEND);
-    if (rc)
-        LOGE("Audience A1026 suspend error\n");
+        if (vp_tuning_on != true) {
+            rc = ioctl(fd, A1026_SUSPEND);
+            if (rc)
+                LOGE("Audience A1026 suspend error\n");
+        } else {
+            rc = 0;
+            LOGW("%s: %s is set: Audience suspend aborted\n", __FUNCTION__, vp_tuning_prop_name);
+        }
+    }
 
     return rc;
+}
+
+/*---------------------------------------------------------------------------*/
+/* Private ACK discard method                                                */
+/*---------------------------------------------------------------------------*/
+void acoustic::private_discard_ack(int fd_a1026, int discard_size)
+{
+#define TRASH_BUFFER_SIZE    32
+#define min(a,b)             ((a) < (b) ? (a):(b))
+    int rc;
+    int max_retry = 3;
+    char trash[TRASH_BUFFER_SIZE];
+
+    LOGD("Discard %d byte(s) in es305b tx fifo\n", discard_size);
+
+    while (discard_size && max_retry) {
+        rc = read(fd_a1026, trash, min(discard_size, TRASH_BUFFER_SIZE));
+        if (rc < 0) {
+            LOGE("Discard fails due to A1026_READ_DATA error, ret = %d\n", rc);
+            break;
+        }
+        if (rc == 0) {
+            max_retry--;
+            LOGW("0 bytes discarded in es305b fifo, %d remaining. Retry.\n", discard_size);
+            usleep(ES305B_TIME_FOR_ACK_IN_US);
+        } else {
+            discard_size -= rc;
+        }
+    }
+    if (discard_size)
+        LOGE("Discard aborted with %d bytes not discarded\n", discard_size);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -296,6 +346,7 @@ int acoustic::process_init()
     int fd_a1026 = -1;
     int rc;
     CBooleanProperty vp_bypass_prop(vp_bypass_prop_name, false);
+    CBooleanProperty vp_tuning_prop(vp_tuning_prop_name, false);
     CProperty vp_fw_name(vp_fw_name_prop_name, "vpimg_es305b.bin");
 
     rc = private_cache_profiles();
@@ -327,12 +378,13 @@ int acoustic::process_init()
     close(fd_a1026);
     a1026_lock.unlock();
 
-    if (vp_bypass_prop.isSet()) {
-        vp_bypass_on = true;
+    vp_bypass_on = vp_bypass_prop.isSet();
+    if (vp_bypass_on == true)
         LOGW("%s: %s is set: Audience digital hardware pass through will be forced\n", __FUNCTION__, vp_bypass_prop_name);
-    } else {
-        vp_bypass_on = false;
-    }
+
+    vp_tuning_on = vp_tuning_prop.isSet();
+    if (vp_tuning_on == true)
+        LOGW("%s: %s is set: Audience tuning mode is on and will never be suspended\n", __FUNCTION__, vp_tuning_prop_name);
 
     return 0;
 
@@ -494,6 +546,11 @@ int acoustic::process_profile(uint32_t device, uint32_t mode)
         LOGE("Audience write error \n");
         goto return_error;
     }
+    /* All commands are acknowledged by es305b with responses which are the
+     * commands themselves: discard them. Audience recommends to wait 20ms
+     * per command before to read the ACK */
+    usleep((profile_size[profile_id] / 4) * ES305B_TIME_FOR_ACK_IN_US);
+    private_discard_ack(fd_a1026, profile_size[profile_id]);
 
     LOGD("Audience A1026 set profile OK\n");
     close(fd_a1026);

@@ -37,6 +37,7 @@ private :
     static int private_wake(int fd);
     static int private_suspend(int fd);
     static int private_get_fw_label(int fd);
+    static void private_discard_ack(int fd_a1026, int discard_size);
 
     typedef enum {
         DEVICE_EARPIECE              = 0,
@@ -74,7 +75,9 @@ private :
     static char           bid[80];
     static bool           is_a1026_init;
     static bool           vp_bypass_on;
+    static bool           vp_tuning_on;
     static const char *   vp_bypass_prop_name;
+    static const char *   vp_tuning_prop_name;
     static const char *   vp_fw_name_prop_name;
     static const char *   vp_profile_prefix_prop_name;
     static int            profile_size[profile_number];

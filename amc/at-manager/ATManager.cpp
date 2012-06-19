@@ -34,21 +34,24 @@
 #include "ATParser.h"
 #include "TtyHandler.h"
 #include "ATNotifier.h"
+#include "BooleanProperty.h"
 
 #define MAX_TIME_MODEM_STATUS_CHECK_SECONDS 60
 #define MAX_WAIT_FOR_STMD_CONNECTION_SECONDS 5
 #define STMD_CONNECTION_RETRY_TIME_MS 200
-#define AT_ANSWER_TIMEOUT_MS 1000
+#define AT_ANSWER_TIMEOUT_MS 10000
 #define AT_WRITE_FAILED_RETRY_MS 1000
 #define INFINITE_TIMEOUT (-1)
 #define TTY_OPEN_DELAY_US 200000
 #define RECOVER_TIMEOUT_MS 2000
 #define MAX_RETRY 5
 
+static const string gpcRecoveryEnabledProperty = "persist.audiocomms.atm.recov";
+
 CATManager::CATManager(IATNotifier *observer) :
-    _pAwaitedTransactionEndATCommand(NULL), _bStarted(false), _bModemAlive(false), _bClientWaiting(false), _pCurrentATCommand(NULL), _pPendingClientATCommand(NULL), _uiTimeoutSec(-1),
+    _pAwaitedTransactionEndATCommand(NULL), _bStarted(false), _bModemAlive(false), _bClientWaiting(false), _pCurrentATCommand(NULL), _pPendingClientATCommand(NULL),
     _pEventThread(new CEventThread(this)), _bFirstModemStatusReceivedSemaphoreCreated(false),
-    _pATParser(new CATParser), _bTtyListenersStarted(false), _pIATNotifier(observer), _iRetryCount(0)
+    _pATParser(new CATParser), _bTtyListenersStarted(false), _pIATNotifier(observer), _iRetryCount(0), _bWriteOnTtyFailed(false)
 {
     // Client Mutex
     bzero(&_clientMutex, sizeof(_clientMutex));
@@ -84,7 +87,7 @@ CATManager::~CATManager()
 }
 
 
-AT_CMD_STATUS CATManager::start(const char* pcModemTty, uint32_t uiTimeoutSec)
+AT_CMD_STATUS CATManager::start(const char* pcModemTty)
 {
     LOGD("%s", __FUNCTION__);
 
@@ -150,9 +153,6 @@ AT_CMD_STATUS CATManager::start(const char* pcModemTty, uint32_t uiTimeoutSec)
 
         return AT_CMD_ERROR;
     }
-
-    // Timeout
-    _uiTimeoutSec = uiTimeoutSec;
 
     // State
     _bStarted = true;
@@ -312,7 +312,7 @@ AT_CMD_STATUS CATManager::waitEndOfTransaction(CATCommand* pATCommand)
     assert(pATCommand);
 
     // Wait
-    waitSemaphore(&_clientWaitSemaphore, _uiTimeoutSec);
+    sem_wait(&_clientWaitSemaphore);
 
     // Block {
     pthread_mutex_lock(&_clientMutex);
@@ -555,19 +555,24 @@ void CATManager::onTimeout()
     // AT command write reported an error
     if (_pCurrentATCommand) {
 
-        // Increment timeout counter
-        _iRetryCount += 1;
+        if (_bWriteOnTtyFailed) {
 
-        if (_iRetryCount < MAX_RETRY) {
+            // Write on TTY failed, try again before triggering the recover procedure
 
-            LOGE("%s: retry #%d -> try again", __FUNCTION__, _iRetryCount);
-            // Retry to send the command
-            if (!sendCurrentCommand()) {
+            // Increment timeout counter
+            _iRetryCount += 1;
 
-                LOGE("%s: send failed", __FUNCTION__);
+            if (_iRetryCount < MAX_RETRY) {
+
+                LOGE("%s: retry #%d -> try again", __FUNCTION__, _iRetryCount);
+                // Retry to send the command
+                if (!sendCurrentCommand()) {
+
+                    LOGE("%s: send failed", __FUNCTION__);
+                }
+
+                goto finish;
             }
-
-            goto finish;
         }
 
         // Stop receiving AT answer (if AT cmd was on going ie _pCurrentATCommand is set)
@@ -675,12 +680,17 @@ bool CATManager::sendCurrentCommand()
         goto error;
     }
 
+    // Reset the write error flag
+    _bWriteOnTtyFailed = false;
+
     _pEventThread->setTimeoutMs(AT_ANSWER_TIMEOUT_MS);
     LOGD("%s on %s: Sent: %s",  __FUNCTION__, _strModemTty.c_str(), _pCurrentATCommand->getCommand().c_str());
 
     return true;
 
 error:
+    // Set the write error flag
+    _bWriteOnTtyFailed = true;
     // Arms a write retry timer
     _pEventThread->setTimeoutMs(AT_WRITE_FAILED_RETRY_MS);
     LOGE("%s: Could not write AT command, retry after %dms", __FUNCTION__, AT_WRITE_FAILED_RETRY_MS);
@@ -1089,6 +1099,15 @@ CUnsollicitedATCommand* CATManager::findUnsollicitedCmdByPrefix(const string& st
 //
 bool CATManager::sendRequestCleanup()
 {
+    // Read persist.audiocomms.atm.recov property
+    CBooleanProperty pRecoverMechanismEnabledProp(gpcRecoveryEnabledProperty, true);
+
+    if (!pRecoverMechanismEnabledProp.isSet()) {
+
+        LOGW("%s: RECOVER PROCEDURE DISABLED", __FUNCTION__);
+        return false;
+    }
+
     LOGD("%s: RECOVER PROCEDURE", __FUNCTION__);
 
     int fdCleanupSocket;

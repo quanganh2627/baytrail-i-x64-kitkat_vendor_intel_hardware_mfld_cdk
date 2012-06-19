@@ -34,14 +34,15 @@ LOCAL_C_INCLUDES += \
 
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/../at-parser \
         $(LOCAL_PATH)/../tty-handler \
-        $(LOCAL_PATH)/../event-listener
+        $(LOCAL_PATH)/../event-listener \
+        $(LOCAL_PATH)/../../utility/property
 
 LOCAL_C_INCLUDES += \
         external/stlport/stlport/ \
         bionic/libstdc++ \
         bionic/
 
-LOCAL_SHARED_LIBRARIES := libstlport libcutils libtty-handler libat-parser libevent-listener
+LOCAL_SHARED_LIBRARIES := libstlport libcutils libtty-handler libat-parser libevent-listener libproperty
 
 LOCAL_MODULE := libat-manager
 LOCAL_MODULE_TAGS := optional

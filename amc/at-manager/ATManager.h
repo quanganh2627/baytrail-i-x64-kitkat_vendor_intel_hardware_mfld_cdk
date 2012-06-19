@@ -69,7 +69,7 @@ public:
     ~CATManager();
 
     // Start
-    AT_CMD_STATUS start(const char* pcModemTty, uint32_t uiTimeoutSec);
+    AT_CMD_STATUS start(const char* pcModemTty);
 
     // Stop
     void stop();
@@ -189,8 +189,6 @@ private:
     CATCommand* _pCurrentATCommand;
     // Pending Client Command
     CATCommand* _pPendingClientATCommand;
-    // Transaction timeout
-    uint32_t _uiTimeoutSec;
     // Thread
     CEventThread* _pEventThread;
     // Client mutex
@@ -213,5 +211,7 @@ private:
     uint32_t _mModemStatus;
     // Timeout retry counter
     int _iRetryCount;
+    // Write on tty failed flag
+    bool _bWriteOnTtyFailed;
 };
 

@@ -44,7 +44,7 @@ CATManager* getInstance()
 
 AT_STATUS at_start(const char *pATchannel, uint32_t uiIfxI2s1ClkSelect, uint32_t uiIfxI2s2ClkSelect)
 {
-    AT_CMD_STATUS eStatus = getInstance()->start(pATchannel, MAX_WAIT_ACK_SECONDS);
+    AT_CMD_STATUS eStatus = getInstance()->start(pATchannel);
 
     if (eStatus != AT_CMD_OK) {
 

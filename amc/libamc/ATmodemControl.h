@@ -33,7 +33,6 @@ extern "C"
 
 #define AT_MAX_CMD_LENGTH 80
 #define AT_MAX_RESP_LENGTH 300
-#define MAX_WAIT_ACK_SECONDS 2
 
 /* TTY status */
 typedef enum {

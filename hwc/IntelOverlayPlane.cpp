@@ -1108,6 +1108,27 @@ void IntelOverlayContext::setPipeByMode(intel_overlay_mode_t displayMode)
     setPipe(pipe);
 }
 
+void IntelOverlayContext::forceBottom(bool bottom)
+{
+    if (!mContext)
+        return;
+
+    lock();
+
+    // this setting only available for overlay A
+    if (mContext->pipe) {
+        unlock();
+        return;
+    }
+
+    if (bottom)
+        mOverlayBackBuffer->OCONFIG |= (1 << 15);
+    else
+        mOverlayBackBuffer->OCONFIG &= ~(1 << 15);
+
+    unlock();
+}
+
 // DRM mode change handle
 intel_overlay_mode_t
 IntelOverlayContext::onDrmModeChange()
@@ -1509,8 +1530,8 @@ bool IntelOverlayPlane::flip(void *context, uint32_t flags)
             if (ret == false)
                 LOGE("%s: failed to reset overlay\n", __func__);
         } else {
-            flags |= IntelDisplayPlane::UPDATE_COEF |
-                    IntelDisplayPlane::FLASH_NEEDED |
+            flags |= IntelDisplayPlane::FLASH_NEEDED |
+                    IntelDisplayPlane::UPDATE_COEF |
                     IntelDisplayPlane::WAIT_VBLANK;
             ret = overlayContext->flush_frame_or_top_field(flags);
             if (ret == false)
@@ -1574,6 +1595,12 @@ void IntelOverlayPlane::setPipeByMode(intel_overlay_mode_t displayMode)
     }
 }
 
+void IntelOverlayPlane::forceBottom(bool bottom)
+{
+    if (initCheck()) {
+        mForceBottom = bottom;
+    }
+}
 
 uint32_t IntelOverlayPlane::onDrmModeChange()
 {

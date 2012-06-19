@@ -56,7 +56,7 @@ private:
                        int index,
                        hwc_layer_t *layer,
                        int& flags);
-    void revisitLayerList(hwc_layer_list_t *list);
+    void revisitLayerList(hwc_layer_list_t *list, bool isGeometryChanged);
     bool useOverlayRotation(hwc_layer_t *layer, int index, uint32_t& handle,
                            int& w, int& h,
                            int& srcX, int& srcY, int& srcW, int& srcH, uint32_t& transform);
@@ -72,6 +72,7 @@ private:
     void handleHotplugEvent();
 public:
     void onUEvent(const char *msg, int msgLen, int msgType);
+    bool flipFramebufferContexts(void *contexts);
 public:
     bool initCheck() { return mInitialized; }
     bool initialize();

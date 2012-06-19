@@ -142,6 +142,10 @@ bool MedfieldSpritePlane::setDataBuffer(IntelDisplayBuffer& buffer)
         context->surf = gttOffsetInPage << 12;
         context->update_mask = SPRITE_UPDATE_ALL;
 
+        // update Z order; switch z order may cause flicker
+        //if (mForceBottom)
+        //   context->cntr |= INTEL_SPRITE_FORCE_BOTTOM;
+
         LOGV("%s: cntr 0x%x, stride 0x%x, surf 0x%x\n",
              __func__, context->cntr, context->stride, context->surf);
 
@@ -216,6 +220,11 @@ bool MedfieldSpritePlane::flip(void *contexts, uint32_t flags)
     mdfld_plane_contexts_t *planeContexts;
     bool ret = true;
 
+    if (!initCheck()) {
+        LOGE("%s: overlay plane wasn't initialized\n", __func__);
+        return false;
+    }
+
     if (!contexts) {
         LOGE("%s: Invalid plane contexts\n", __func__);
         return false;
@@ -275,3 +284,9 @@ bool MedfieldSpritePlane::invalidateDataBuffer()
     return true;
 }
 
+void MedfieldSpritePlane::forceBottom(bool bottom)
+{
+    if (initCheck()) {
+        mForceBottom = bottom;
+    }
+}

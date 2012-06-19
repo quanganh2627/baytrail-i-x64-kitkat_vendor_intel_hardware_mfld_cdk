@@ -82,6 +82,7 @@ protected:
     IntelDisplayBuffer *mDataBuffer;
     uint32_t mDataBufferHandle;
     intel_display_plane_position_t mPosition;
+    bool mForceBottom;
 
     bool mInitialized;
 public:
@@ -90,6 +91,7 @@ public:
         : mDrmFd(fd), mType(type), mIndex(index),
           mBufferManager(bufferManager),
           mContext(0), mDataBuffer(0), mDataBufferHandle(0),
+          mForceBottom(false),
           mInitialized(false) {
 	    memset(&mPosition, 0, sizeof(intel_display_plane_position_t));
     }
@@ -122,6 +124,7 @@ public:
     virtual bool reset() { return true; }
     virtual void setPipe(intel_display_pipe_t pipe) {}
     virtual void setPipeByMode(intel_overlay_mode_t displayMode) {}
+    virtual void forceBottom(bool bottom) {}
 
     // DRM mode change handler
     virtual uint32_t onDrmModeChange() { return 0; }
@@ -253,6 +256,7 @@ public:
     bool reset();
     void setPipe(intel_display_pipe_t pipe);
     void setPipeByMode(intel_overlay_mode_t displayMode);
+    void forceBottom(bool bottom);
 
     // DRM mode change handle
     intel_overlay_mode_t onDrmModeChange();
@@ -308,18 +312,26 @@ public:
     virtual bool disable();
     virtual void setPipe(intel_display_pipe_t pipe);
     virtual void setPipeByMode(intel_overlay_mode_t displayMode);
+    virtual void forceBottom(bool bottom);
     virtual uint32_t onDrmModeChange();
 
     virtual bool setWidiPlane(IntelDisplayPlane*);
 
 };
 
+// sprite plane formats
 enum {
     INTEL_SPRITE_PIXEL_FORMAT_BGRX565  = 0x14000000UL,
     INTEL_SPRITE_PIXEL_FORMAT_BGRX8888 = 0x18000000UL,
     INTEL_SPRITE_PIXEL_FORMAT_BGRA8888 = 0x1c000000UL,
     INTEL_SPRITE_PIXEL_FORMAT_RGBX8888 = 0x38000000UL,
     INTEL_SPRITE_PIXEL_FORMAT_RGBA8888 = 0x3c000000UL,
+};
+
+// plane z order configuration bits
+enum {
+    INTEL_SPRITE_FORCE_BOTTOM = 0x00000004UL,
+    INTEL_OVERLAY_FORCE_BOTTOM = 0x00008000UL,
 };
 
 class IntelSpriteContext : public IntelDisplayPlaneContext {
@@ -369,9 +381,17 @@ public:
     virtual bool flip(void *context, uint32_t flags);
     virtual bool reset();
     virtual bool disable();
+    virtual void forceBottom(bool bottom);
 };
 
 class IntelDisplayPlaneManager : public IntelHWComposerDump {
+public:
+    enum {
+        ZORDER_POaOc = 0,
+        ZORDER_POcOa,
+        ZORDER_OaOcP,
+        ZORDER_OcOaP,
+    };
 private:
     int mSpritePlaneCount;
     int mPrimaryPlaneCount;
@@ -407,6 +427,8 @@ private:
     void *mPlaneContexts;
     int mContextLength;
 
+    int *mZOrderConfigs;
+
     bool mInitialized;
 private:
     int getPlane(uint32_t& mask);
@@ -436,7 +458,8 @@ public:
     void disableReclaimedPlanes(int type);
     void *getPlaneContexts() const;
     int getContextLength() const;
-
+    void setZOrderConfig(int config, int pipe);
+    int getZOrderConfig(int pipe);
     // dump plane info
     bool dump(char *buff, int buff_len, int *cur_len);
 };

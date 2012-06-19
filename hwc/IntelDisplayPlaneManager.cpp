@@ -36,10 +36,7 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
     detect();
 
     // allocate plane context
-    mContextLength = 2 * sizeof(uint32_t);
-    mContextLength += mPrimaryPlaneCount * sizeof(sprite_plane_context_t);
-    mContextLength += mSpritePlaneCount * sizeof(sprite_plane_context_t);
-    mContextLength += mOverlayPlaneCount * sizeof(overlay_plane_context_t);
+    mContextLength = sizeof(struct mdfld_plane_contexts);
 
     mPlaneContexts = malloc(mContextLength);
     if (!mPlaneContexts) {
@@ -114,16 +111,27 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
         }
     }
 
+    // allocate zorder configs
+    mZOrderConfigs = (int *)malloc(mPrimaryPlaneCount * sizeof(int));
+    if (!mZOrderConfigs) {
+        LOGE("%s: failed to allocated ZOrderConfigs\n", __func__);
+        goto overlay_alloc_err;
+    }
+
+    memset(mZOrderConfigs, 0, sizeof(*mZOrderConfigs));
+
     // allocate Widi plane
     mWidiPlane = new IntelWidiPlane(mDrmFd,mOverlayPlaneCount, mGrallocBufferManager);
     if (!mWidiPlane) {
         LOGE("%s: failed to allocate widi plane %d\n", __func__, i);
-        goto overlay_alloc_err;
+        goto zorder_config_err;
     }
 
     mInitialized = true;
     return;
 
+zorder_config_err:
+    free(mZOrderConfigs);
 overlay_alloc_err:
     for (; i >= 0; i--)
         delete mOverlayPlanes[i];
@@ -184,6 +192,10 @@ IntelDisplayPlaneManager::~IntelDisplayPlaneManager()
         free(mOverlayPlanes);
         mSpritePlanes = 0;
     }
+
+    // delete zorder configs
+    if (mZOrderConfigs)
+        free(mZOrderConfigs);
 
     if (mWidiPlane)
         delete mWidiPlane;
@@ -437,12 +449,65 @@ void IntelDisplayPlaneManager::disableReclaimedPlanes(int type)
 
 void* IntelDisplayPlaneManager::getPlaneContexts() const
 {
+    memset(mPlaneContexts, 0, mContextLength);
     return mPlaneContexts;
 }
 
 int IntelDisplayPlaneManager::getContextLength() const
 {
     return mContextLength;
+}
+
+void IntelDisplayPlaneManager::setZOrderConfig(int config, int pipe)
+{
+    LOGV("%s: %d", __func__, config);
+
+    if (!initCheck()) {
+        LOGE("%s: plane manager is not initialized\n", __func__);
+        return;
+    }
+
+    if (pipe > 2 || pipe < 0)
+        return;
+
+    if (mZOrderConfigs[pipe] == config)
+        return;
+
+    switch (config) {
+    case ZORDER_POcOa:
+        mPrimaryPlanes[pipe]->forceBottom(false);
+        mOverlayPlanes[0]->forceBottom(true);
+        break;
+    case ZORDER_OaOcP:
+        mPrimaryPlanes[pipe]->forceBottom(true);
+        mOverlayPlanes[0]->forceBottom(false);
+        break;
+    case ZORDER_OcOaP:
+        mPrimaryPlanes[pipe]->forceBottom(true);
+        mOverlayPlanes[0]->forceBottom(true);
+        break;
+    case ZORDER_POaOc:
+    default:
+        config = ZORDER_POaOc;
+        mPrimaryPlanes[pipe]->forceBottom(false);
+        mOverlayPlanes[0]->forceBottom(false);
+    }
+
+    LOGD("%s: set zorder: %d\n", __func__, config);
+    mZOrderConfigs[pipe] = config;
+}
+
+int IntelDisplayPlaneManager::getZOrderConfig(int pipe)
+{
+    if (!initCheck()) {
+        LOGE("%s: plane manager is not initialized\n", __func__);
+        return ZORDER_POaOc;
+    }
+
+    if (pipe > 2 || pipe < 0)
+        return ZORDER_POaOc;
+
+    return mZOrderConfigs[pipe];
 }
 
 IntelDisplayPlane*

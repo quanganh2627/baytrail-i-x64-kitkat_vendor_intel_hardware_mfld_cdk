@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 #include <cutils/log.h>
 #include <cutils/atomic.h>
 
@@ -183,6 +182,9 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
 
     IntelWidiPlane* widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
 
+    // clear hints
+    layer->hints = 0;
+
     // check format
     if (mLayerList->getLayerType(index) != IntelHWComposerLayer::LAYER_TYPE_YUV) {
         useOverlay = false;
@@ -229,6 +231,7 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
     // fall back if HWC_SKIP_LAYER was set, if forced to use
     // overlay skip this check
     if (!forceOverlay && (layer->flags & HWC_SKIP_LAYER)) {
+        LOGD("isOverlayLayer: skip layer was set");
         useOverlay = false;
         goto out_check;
    }
@@ -428,8 +431,10 @@ bool IntelHWComposer::isPrimaryLayer(hwc_layer_list_t *list,
     return isSpriteLayer(list, index, layer, flags);
 }
 
-void IntelHWComposer::revisitLayerList(hwc_layer_list_t *list)
+void IntelHWComposer::revisitLayerList(hwc_layer_list_t *list, bool isGeometryChanged)
 {
+    int zOrderConfig = IntelDisplayPlaneManager::ZORDER_OcOaP;
+
     if (!list)
         return;
 
@@ -440,8 +445,13 @@ void IntelHWComposer::revisitLayerList(hwc_layer_list_t *list)
         if (mLayerList->isProtectedLayer(i))
             list->hwLayers[i].compositionType = HWC_OVERLAY;
         // check if we can apply primary plane to an RGB layer
-        if (mLayerList->getLayerType(i) != IntelHWComposerLayer::LAYER_TYPE_RGB)
+        // if overlay plane was used for a YUV layer, force overlay layer to
+        // be the bottom layer.
+        if (mLayerList->getLayerType(i) != IntelHWComposerLayer::LAYER_TYPE_RGB) {
+            if (list->hwLayers[i].compositionType == HWC_OVERLAY)
+            zOrderConfig = IntelDisplayPlaneManager::ZORDER_POcOa;
             continue;
+        }
 
         if (isPrimaryLayer(list, i, &list->hwLayers[i], flags)) {
             bool ret = primaryPrepare(i, &list->hwLayers[i], flags);
@@ -451,6 +461,10 @@ void IntelHWComposer::revisitLayerList(hwc_layer_list_t *list)
                 list->hwLayers[i].hints = 0;
             }
         }
+    }
+
+    if (isGeometryChanged) {
+        mPlaneManager->setZOrderConfig(zOrderConfig, 0);
     }
 }
 
@@ -511,7 +525,7 @@ void IntelHWComposer::onGeometryChanged(hwc_layer_list_t *list)
 
      // revisit each layer, make sure protected layers were handled by hwc,
      // and check if we can make use of primary plane
-     revisitLayerList(list);
+     revisitLayerList(list, true);
 
      // disable reclaimed planes
      mPlaneManager->disableReclaimedPlanes(IntelDisplayPlane::DISPLAY_PLANE_SPRITE);
@@ -695,7 +709,9 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
 
     if (mPlaneManager->isWidiActive()) {
          widiplane = (IntelWidiPlane*) mPlaneManager->getWidiPlane();
-    }
+         mFBDev->bBypassPost = 0;
+    } else
+         mFBDev->bBypassPost = 1;
 
     for (size_t i=0 ; i<list->numHwLayers ; i++) {
         hwc_layer_t *layer = &list->hwLayers[i];
@@ -847,7 +863,9 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
             }
         } else if (planeType == IntelDisplayPlane::DISPLAY_PLANE_SPRITE ||
                    planeType == IntelDisplayPlane::DISPLAY_PLANE_PRIMARY) {
+
             // adjust the buffer format if no blending is needed
+            // some test cases would fail due to a weird format!
             if (layer->blending == HWC_BLENDING_NONE) {
                 switch (format) {
                     case HAL_PIXEL_FORMAT_BGRA_8888:
@@ -1013,6 +1031,63 @@ void IntelHWComposer::onUEvent(const char *msg, int msgLen, int msgType)
     } while (*msg);
 }
 
+bool IntelHWComposer::flipFramebufferContexts(void *contexts)
+{
+    LOGV("flipFrameBufferContexts");
+    intel_sprite_context_t *context;
+    mdfld_plane_contexts_t *planeContexts;
+    uint32_t fbWidth, fbHeight;
+    int zOrderConfig;
+    bool forceBottom = false;
+
+    if (!contexts) {
+        LOGE("%s: Invalid plane contexts\n", __func__);
+        return false;
+    }
+
+    planeContexts = (mdfld_plane_contexts_t*)contexts;
+
+    for (int output = 0; output < OUTPUT_MAX; output++) {
+        drmModeConnection connection = mDrm->getOutputConnection(output);
+        if (connection != DRM_MODE_CONNECTED)
+            continue;
+        drmModeFBPtr fbInfo = mDrm->getOutputFBInfo(output);
+
+        fbWidth = fbInfo->width;
+        fbHeight = fbInfo->height;
+
+        zOrderConfig = mPlaneManager->getZOrderConfig(output);
+        if ((zOrderConfig == IntelDisplayPlaneManager::ZORDER_OcOaP) ||
+            (zOrderConfig == IntelDisplayPlaneManager::ZORDER_OaOcP))
+            forceBottom = true;
+
+        context = &planeContexts->primary_contexts[output];
+
+        // update context
+        context->update_mask = SPRITE_UPDATE_ALL;
+        context->index = output;
+        context->pipe = output;
+        context->linoff = 0;
+        context->stride = align_to((4 * fbWidth), 64);
+        context->pos = 0;
+        context->size = ((fbHeight - 1) & 0xfff) << 16 | ((fbWidth - 1) & 0xfff);
+        context->surf = 0;
+
+        // config z order; switch z order may cause flicker
+        if (forceBottom)
+            context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRX8888;
+        else
+            context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRA8888;
+
+        context->cntr |= 0x80000000;
+
+        // update active primary
+        planeContexts->active_primaries |= (1 << output);
+    }
+
+    return true;
+}
+
 bool IntelHWComposer::prepare(hwc_layer_list_t *list)
 {
     LOGV("%s\n", __func__);
@@ -1081,7 +1156,7 @@ bool IntelHWComposer::prepare(hwc_layer_list_t *list)
     // handle buffer changing. setup data buffer.
     if (!updateLayersData(list)) {
         LOGV("prepare: revisiting layer list\n");
-        revisitLayerList(list);
+        revisitLayerList(list, false);
     }
 
     return true;
@@ -1102,6 +1177,10 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
     }
 
     android::Mutex::Autolock _l(mLock);
+
+    // if hotplug was happened & didn't be handled skip the flip
+    if (mHotplugEvent)
+        return true;
 
     void *context = mPlaneManager->getPlaneContexts();
     if (!context) {
@@ -1136,6 +1215,7 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
             return false;
         }
     }
+
     if(mPlaneManager->isWidiActive()) {
         IntelDisplayPlane *p = mPlaneManager->getWidiPlane();
         LOGV("Widi Plane is %p",p);
@@ -1145,52 +1225,79 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
              LOGE("Widi Plane is NULL");
     }
 
-    // if hotplug was happened & didn't be handled skip the flip
-    if (mHotplugEvent)
-        return true;
+    if (mFBDev->bBypassPost) {
+        buffer_handle_t bufferHandles[INTEL_DISPLAY_PLANE_NUM];
+        int numBuffers = 0;
+        // setup primary plane contexts if swap buffers is needed
+        if (needSwapBuffer) {
+            flipFramebufferContexts(context);
+            bufferHandles[numBuffers++] = 0;
+        }
 
-    // Call plane's flip for each layer in hwc_layer_list, if a plane has
-    // been attached to a layer
-    buffer_handle_t bufferHandles[INTEL_DISPLAY_PLANE_NUM];
-    int numBuffers = 0;
-    for (size_t i=0 ; i<list->numHwLayers ; i++) {
-        IntelDisplayPlane *plane = mLayerList->getPlane(i);
-        int flags = mLayerList->getFlags(i);
-        if (plane &&
-            (!(list->hwLayers[i].flags & HWC_SKIP_LAYER)) &&
-            !mDrm->isOverlayOff()) {
+        // Call plane's flip for each layer in hwc_layer_list, if a plane has
+        // been attached to a layer
+        // First post RGB layers, then overlay layers.
+        for (size_t i=0 ; i<list->numHwLayers ; i++) {
+            IntelDisplayPlane *plane = mLayerList->getPlane(i);
+            int flags = mLayerList->getFlags(i);
+
+            if (!plane)
+                continue;
+            if (plane->getPlaneType() == IntelDisplayPlane::DISPLAY_PLANE_OVERLAY)
+                continue;
+            if (list->hwLayers[i].flags & HWC_SKIP_LAYER)
+                continue;
+            if (list->hwLayers[i].compositionType != HWC_OVERLAY)
+                continue;
             bool ret = plane->flip(context, flags);
             if (!ret)
                 LOGW("%s: failed to flip plane %d\n", __func__, i);
+            bufferHandles[numBuffers++] =
+            (buffer_handle_t)plane->getDataBufferHandle();
+            // clear flip flags
+            mLayerList->setFlags(i, 0);
 
-            // add bufferHandle
-            // NOTE: since overlay flip was not using Post2 yet
-            // so only append the sprite plane buffers right now
-            // TODO: support both overlay & sprite flip via Post2
-            if (plane->getPlaneType() == IntelDisplayPlane::DISPLAY_PLANE_SPRITE ||
-                plane->getPlaneType() == IntelDisplayPlane::DISPLAY_PLANE_PRIMARY)
-                bufferHandles[numBuffers++] =
-                    (buffer_handle_t)plane->getDataBufferHandle();
+            // remove clear fb hints
+            list->hwLayers[i].hints &= ~HWC_HINT_CLEAR_FB;
         }
 
+        // commit plane contexts
+        if (mFBDev && numBuffers) {
+            LOGV("%s: commits %d buffers\n", __func__, numBuffers);
+            int err = mFBDev->Post2(&mFBDev->base,
+                                    bufferHandles,
+                                    numBuffers,
+                                    context,
+                                    mPlaneManager->getContextLength());
+            if (err) {
+                LOGE("%s: Post2 failed with errno %d\n", __func__, err);
+            }
+        }
+    }
+
+    // Post overlays
+    // FIXME: This is little bit scary, need move overlay posting into Post2.
+    for (size_t i=0 ; i<list->numHwLayers ; i++) {
+        IntelDisplayPlane *plane = mLayerList->getPlane(i);
+        int flags = mLayerList->getFlags(i);
+
+        if (!plane)
+            continue;
+        if (plane->getPlaneType() != IntelDisplayPlane::DISPLAY_PLANE_OVERLAY)
+            continue;
+        if (list->hwLayers[i].flags & HWC_SKIP_LAYER)
+            continue;
+        if (mDrm->isOverlayOff())
+            continue;
+
+        bool ret = plane->flip(context, flags);
+        if (!ret)
+            LOGW("%s: failed to flip plane %d\n", __func__, i);
         // clear flip flags
         mLayerList->setFlags(i, 0);
 
         // remove clear fb hints
         list->hwLayers[i].hints &= ~HWC_HINT_CLEAR_FB;
-    }
-
-    // commit plane contexts
-    if (mFBDev && numBuffers) {
-        LOGV("%s: commits %d buffers\n", __func__, numBuffers);
-        int err = mFBDev->Post2(&mFBDev->base,
-                                bufferHandles,
-                                numBuffers,
-                                context,
-                                mPlaneManager->getContextLength());
-        if (err) {
-            LOGE("%s: Post2 failed with errno %d\n", __func__, err);
-        }
     }
 
     return true;
@@ -1264,7 +1371,7 @@ bool IntelHWComposer::initialize()
         IMG_gralloc_module_public_t *imgGrallocModule;
         imgGrallocModule = (IMG_gralloc_module_public_t*)module;
         mFBDev = imgGrallocModule->psFrameBufferDevice;
-        //mFBDev->bBypassPost = 1;
+        mFBDev->bBypassPost = 1;
     }
 
     if (!mFBDev) {

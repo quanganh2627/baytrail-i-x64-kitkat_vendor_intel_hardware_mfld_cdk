@@ -423,9 +423,10 @@ void IntelDisplayPlaneManager::disableReclaimedPlanes(int type)
         for (int i = 0; i < mOverlayPlaneCount; i++) {
             int bit = (1 << i);
             if (mReclaimedOverlayPlanes & bit) {
-                if (mOverlayPlanes[i])
+                if (mOverlayPlanes[i]) {
                     mOverlayPlanes[i]->disable();
                     mOverlayPlanes[i]->invalidateDataBuffer();
+                }
             }
         }
         // merge into free overlay bitmap

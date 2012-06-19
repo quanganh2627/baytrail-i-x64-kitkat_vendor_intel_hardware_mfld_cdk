@@ -69,6 +69,7 @@ public:
             UPDATE_CONTROL   = 0x00000008UL,
             UPDATE_SURFACE   = 0x00000010UL,
             BOB_DEINTERLACE  = 0x00000020UL,
+            DELAY_DISABLE    = 0x00000040UL,
         };
 protected:
     int mDrmFd;

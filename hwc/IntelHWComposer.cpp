@@ -801,12 +801,10 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                     layer->hints &= ~HWC_HINT_CLEAR_FB;
                     mForceSwapBuffer = true;
                     handled = false;
-                } else {
-                    // skip this frame when rotated buffer is not ready
-                    flags &= ~IntelDisplayPlane::FLASH_NEEDED;
-                    mLayerList->setFlags(i, flags);
-                    plane->disable();
                 }
+                // disable overlay when rotated buffer is not ready
+                flags |= IntelDisplayPlane::DELAY_DISABLE;
+                mLayerList->setFlags(i, flags);
                 continue;
             }
 
@@ -816,7 +814,6 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
             } else {
                 flags &= ~IntelDisplayPlane::BOB_DEINTERLACE;
             }
-            flags |= IntelDisplayPlane::FLASH_NEEDED;
             mLayerList->setFlags(i, flags);
 
             // clear FB first on first overlay frame
@@ -1161,7 +1158,7 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
         int flags = mLayerList->getFlags(i);
         if (plane &&
             (!(list->hwLayers[i].flags & HWC_SKIP_LAYER)) &&
-            (list->hwLayers[i].compositionType == HWC_OVERLAY) && !mDrm->isOverlayOff()) {
+            !mDrm->isOverlayOff()) {
             bool ret = plane->flip(context, flags);
             if (!ret)
                 LOGW("%s: failed to flip plane %d\n", __func__, i);

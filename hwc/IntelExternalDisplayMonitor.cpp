@@ -45,7 +45,6 @@ IntelExternalDisplayMonitor::IntelExternalDisplayMonitor(IntelHWComposer *hwc) :
     mMDClient(NULL),
     mActiveDisplayMode(UNKNOWN_MDS_MODE),
     mWidiOn(false),
-    mMipiOn(true),
     mInitialized(false),
     mComposer(hwc)
 {
@@ -119,10 +118,7 @@ bool IntelExternalDisplayMonitor::notifyWidi(bool on)
 bool IntelExternalDisplayMonitor::notifyMipi(bool on)
 {
     LOGV("Exteranal display notify the MDS that Mipi should be turned on/off");
-    // TODO: remove mMipiOn. MultiDisplay Service maintains the state machine.
-    if ((mMDClient != NULL) && (mMipiOn != on)
-                && (mActiveDisplayMode & MDS_HDMI_VIDEO_EXT)) {
-        mMipiOn = on;
+    if ((mMDClient != NULL) && (mActiveDisplayMode & MDS_HDMI_VIDEO_EXT)) {
         return mMDClient->notifyMipi(on);
     }
     return false;

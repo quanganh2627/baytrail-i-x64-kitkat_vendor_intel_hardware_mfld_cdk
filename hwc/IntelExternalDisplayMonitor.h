@@ -79,7 +79,6 @@ private:
     android::Condition mModeChanged;
     int mActiveDisplayMode;
     bool mWidiOn;
-    bool mMipiOn;
     bool mInitialized;
     IntelHWComposer *mComposer;
     char mUeventMessage[UEVENT_MSG_LEN];

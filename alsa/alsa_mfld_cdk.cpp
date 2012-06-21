@@ -35,6 +35,8 @@
 #define PERIOD_TIME   (23220)  //microseconds
 #define CAPTURE_PERIOD_TIME (20000) //microseconds
 #define MAX_RETRY (6)
+#define NB_RING_BUFFER_NORMAL	2
+#define NB_RING_BUFFER_INCALL	4
 
 #define ALSA_STRCAT(x, y) \
     do { \
@@ -121,7 +123,7 @@ static alsa_handle_t _defaultsOut = {
     channels           : 2,
     sampleRate         : NOT_SET,
     expectedSampleRate : NOT_SET, //expected sample rate
-    latency            : PERIOD_TIME * 4, // Desired Delay in usec
+    latency            : NOT_SET, // Desired Delay in usec
     bufferSize         : NOT_SET, // Desired Number of samples
     modPrivate         : 0,
     openFlag           : 0,
@@ -361,10 +363,12 @@ static status_t setHardwareParams(alsa_handle_t *handle)
             snd_pcm_hw_params_free(hardwareParams);
             return err;
         }
+
         if (handle->curMode == AudioSystem::MODE_NORMAL)
-            periodTime = latency/2;
+            periodTime = latency/NB_RING_BUFFER_NORMAL;
         else
-            periodTime = latency/4;
+            periodTime = latency/NB_RING_BUFFER_INCALL;
+
         err = snd_pcm_hw_params_set_period_time_near(handle->handle,
                 hardwareParams, &periodTime, NULL);
         if (err < 0) {
@@ -415,13 +419,9 @@ static status_t setSoftwareParams(alsa_handle_t *handle)
     snd_pcm_get_params(handle->handle, &bufferSize, &periodSize);
 
     if (handle->devices & AudioSystem::DEVICE_OUT_ALL) {
-        if (handle->curMode == AudioSystem::MODE_NORMAL) {
-            // For playback, configure ALSA to start the transfer when the
-            // buffer is full.
-            startThreshold = bufferSize - 1;
-        } else {
-            startThreshold = periodSize - 1;
-        }
+        // For playback, configure ALSA to start the transfer when the
+        // first period is full.
+        startThreshold = periodSize - 1;
         stopThreshold = bufferSize;
     } else {
         // For recording, configure ALSA to start the transfer on the
@@ -606,7 +606,7 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode, int fm
         // reset the initial value for playback
         handle->sampleRate = _defaultsOut.sampleRate;
         handle->expectedSampleRate = _defaultsOut.expectedSampleRate;
-        handle->latency = PERIOD_TIME * 4;
+        handle->latency = PERIOD_TIME * NB_RING_BUFFER_NORMAL;
 
         if (mode == AudioSystem::MODE_IN_CALL) {
             LOGD("Setting expected sample rate to %d (IN_CALL)", VOICE_MODEM_DEFAULT_SAMPLE_RATE);

@@ -50,6 +50,7 @@ typedef struct vpc_device_t {
     int (*set_tty)(vpc_tty_t);
     int (*bt_nrec)(vpc_bt_nrec_t);
     int (*set_hac)(vpc_hac_set_t);
+    int (*set_bt_sco_path)(vpc_route_t);
 } vpc_device_t;
 
 #ifdef __cplusplus

@@ -102,7 +102,9 @@ static int       modem_gain_ul            = 88; // 0 dB
 static int       modem_status             = MODEM_DOWN;
 static bool      call_connected           = false;
 
-static bool      vpc_audio_routed     = false;
+static bool      vpc_audio_routed      = false;
+// ref counter used only to handle BT route in "NORMAL" mode
+static int       vpc_bt_enabled_ref_count = 0;
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
 static bool      audience_awake        = false;
@@ -169,8 +171,8 @@ static int vpc_params(int mode, uint32_t device)
     current_mode = mode;
     current_device = device;
 
-    LOGD("vpc_params mode = %d device = %d\n", current_mode, current_device);
-    LOGD("vpc_params previous mode = %d previous device = %d\n", prev_mode, prev_device);
+    LOGD("vpc_params mode = %d device = 0x%X\n", current_mode, current_device);
+    LOGD("vpc_params previous mode = %d previous device = 0x%X\n", prev_mode, prev_device);
 
     vpc_lock.unlock();
     return NO_ERROR;
@@ -217,15 +219,6 @@ static void vpc_set_modem_state(int status)
 
     if(status != modem_status) {
         modem_status = status;
-        if(modem_status == MODEM_UP){
-            /* set BT SCO Path to PCM by default when modem is up */
-            /* this path has to be disabled only if a MSIC device is in use or when the modem is rebooting */
-            bt::pcm_enable();
-        }
-        else{
-            /* modem is unavailable: disable BT SCO path */
-            bt::pcm_disable();
-        }
     }
 
     LOGD("vpc_set_modem_state modem_status = %d \n", modem_status);
@@ -272,7 +265,6 @@ static void vpc_set_audio_routed(bool isRouted)
 /*---------------------------------------------------------------------------*/
 /* Route/unroute functions                                                   */
 /*---------------------------------------------------------------------------*/
-
 static int vpc_unroute_voip()
 {
     LOGD("%s", __FUNCTION__);
@@ -281,6 +273,8 @@ static int vpc_unroute_voip()
         return NO_ERROR;
 
     msic::pcm_disable();
+    // need to put the I2S from BT chip in high Z when not used
+    bt::pcm_disable();
 
     // Update internal state variables
     vpc_set_audio_routed(false);
@@ -300,6 +294,8 @@ static int vpc_unroute_csvcall()
     if(modem_status == MODEM_UP)
         amc_mute();
     msic::pcm_disable();
+    // need to put the I2S from BT chip in high Z when not used
+    bt::pcm_disable();
 
     if(modem_status == MODEM_UP)
         amc_off();
@@ -336,9 +332,6 @@ static void vpc_suspend()
     audience_awake = false;
 #endif
 
-    /* enable BT SCO path by default except is MODEM is not UP*/
-    if(modem_status == MODEM_UP)
-        bt::pcm_enable();
 }
 
 static inline bool vpc_route_conditions_changed()
@@ -368,8 +361,8 @@ static int vpc_route(vpc_route_t route)
     /* -------------------------------------------------------------- */
     if (current_device & AudioSystem::DEVICE_OUT_ALL)
     {
-        LOGD("mode = %d device = %d modem status = %d\n", current_mode, current_device, modem_status);
-        LOGD("previous mode = %d previous device = %d\n", prev_mode, prev_device);
+        LOGD("mode = %d device = 0x%X modem status = %d\n", current_mode, current_device, modem_status);
+        LOGD("previous mode = %d previous device = 0x%X\n", prev_mode, prev_device);
         LOGD("current tty = %d previous tty = %d\n", current_tty_call, previous_tty_call);
 
         if (route == VPC_ROUTE_OPEN)
@@ -688,12 +681,12 @@ static int vpc_route(vpc_route_t route)
         }
         else
         {
-            LOGD("Nothing to do with VPC\n");
+            LOGW("%s: Unknown route request %d: bail out\n", __FUNCTION__,route);
         }
     }
     else
     {
-        LOGD("Nothing to do with VPC\n");
+        LOGW("%s: VPC called for input device 0x%X in mode %d: should not occur\n", __FUNCTION__, current_device, current_mode);
     }
 
     vpc_lock.unlock();
@@ -897,6 +890,36 @@ static void translate_to_amc_device(const uint32_t current_device, IFX_TRANSDUCE
 }
 
 /*---------------------------------------------------------------------------*/
+/* Enable/Disable BT SCO path on route manager request                       */
+/*---------------------------------------------------------------------------*/
+
+static int vpc_set_bt_sco_path(vpc_route_t bt_route)
+{
+    vpc_lock.lock();
+
+    if (bt_route == VPC_ROUTE_OPEN)
+    {
+        if(!vpc_bt_enabled_ref_count++)
+        {
+            bt::pcm_enable();
+        }
+        LOGD("%s: increment ref count %d\n", __FUNCTION__, vpc_bt_enabled_ref_count);
+    }
+    else //VPC_ROUTE_CLOSE
+    {
+        if(!--vpc_bt_enabled_ref_count)
+        {
+            bt::pcm_disable();
+        }
+        LOGD("%s: decrement ref count %d\n", __FUNCTION__, vpc_bt_enabled_ref_count);
+
+    }
+
+    vpc_lock.unlock();
+    return NO_ERROR;
+}
+
+/*---------------------------------------------------------------------------*/
 /* Enable/Disable BT acoustic with AT+NREC command in handset                */
 /*---------------------------------------------------------------------------*/
 
@@ -985,6 +1008,7 @@ static int s_device_open(const hw_module_t* module, const char* name,
     dev->set_tty        = vpc_set_tty;
     dev->bt_nrec        = vpc_bt_nrec;
     dev->set_hac        = vpc_set_hac;
+    dev->set_bt_sco_path= vpc_set_bt_sco_path;
     *device = &dev->common;
     return 0;
 }

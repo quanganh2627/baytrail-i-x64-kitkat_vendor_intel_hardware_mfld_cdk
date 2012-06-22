@@ -15,6 +15,27 @@
 
 LOCAL_PATH := $(call my-dir)
 
+include $(CLEAR_VARS)
+LOCAL_COPY_HEADERS_TO := hwc
+LOCAL_COPY_HEADERS := \
+    IntelBufferManager.h \
+    IntelDisplayPlaneManager.h \
+    IntelExternalDisplayMonitor.h \
+    IntelHWCUEventObserver.h \
+    IntelHWComposer.h \
+    IntelHWComposerDrm.h \
+    IntelHWComposerDump.h \
+    IntelHWComposerLayer.h \
+    IntelOverlayContext.h \
+    IntelOverlayHW.h \
+    IntelOverlayPlane.h \
+    IntelOverlayUtil.h \
+    IntelWidiPlane.h \
+    IntelWsbm.h \
+    IntelWsbmWrapper.h \
+    hal_public.h
+include $(BUILD_COPY_HEADERS)
+
 # HAL module implemenation, not prelinked and stored in
 # hw/<OVERLAY_HARDWARE_MODULE_ID>.<ro.product.board>.so
 include $(CLEAR_VARS)
@@ -50,15 +71,13 @@ endif
 
 LOCAL_C_INCLUDES := $(addprefix $(LOCAL_PATH)/../../, $(SGX_INCLUDES)) \
             frameworks/base/include \
-            hardware/intel/include/eurasia/pvr2d \
-            hardware/intel/include/eurasia/include4 \
-            hardware/intel/libdrm/libdrm \
-            hardware/intel/libdrm/shared-core \
-            hardware/intel/libwsbm/src \
-            hardware/intel/linux-2.6/drivers/staging/mrst/drv \
-            hardware/intel/linux-2.6/include/drm \
-            hardware/intel/linux-2.6/drivers/staging/mrst/bc_video \
-            hardware/intel/linux-2.6/drivers/staging/mrst/imgv \
+            $(TARGET_OUT_HEADERS)/eurasia/pvr2d \
+            $(TARGET_OUT_HEADERS)/eurasia/include4 \
+            $(TARGET_OUT_HEADERS)/drm \
+            $(TARGET_OUT_HEADERS)/libdrm \
+            $(TARGET_OUT_HEADERS)/libdrm/shared-core \
+            $(TARGET_OUT_HEADERS)/libwsbm/wsbm \
+            $(TARGET_OUT_HEADERS)/libttm \
             hardware/libhardware_legacy/include/hardware_legacy \
             $(TARGET_OUT_HEADERS)/widi	\
             $(addprefix $(LOCAL_PATH),libhwcwidi)

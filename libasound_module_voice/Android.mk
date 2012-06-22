@@ -34,7 +34,7 @@ LOCAL_CFLAGS += -DPIC -UNDEBUG -DDEBUG=1 -DLOG_NDEBUG=1
 
 LOCAL_C_INCLUDES:= \
         external/alsa-lib/include \
-        hardware/intel/mfld_cdk/vpc
+        $(TARGET_OUT_HEADERS)/hw
 
 LOCAL_SHARED_LIBRARIES := \
         liblog \

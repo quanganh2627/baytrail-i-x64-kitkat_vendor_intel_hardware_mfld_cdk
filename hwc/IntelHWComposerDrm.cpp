@@ -28,7 +28,7 @@
 #include <IntelHWComposerDrm.h>
 #include <IntelOverlayUtil.h>
 #include <IntelOverlayHW.h>
-#include <bufferclass_video_linux.h>
+#include <linux/bufferclass_video_linux.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <cutils/log.h>

@@ -1,4 +1,12 @@
 LOCAL_PATH := $(call my-dir)
+
+include $(CLEAR_VARS)
+LOCAL_COPY_HEADERS_TO := property
+LOCAL_COPY_HEADERS := \
+    BooleanProperty.h \
+    IntProperty.h \
+    Property.h
+include $(BUILD_COPY_HEADERS)
 include $(CLEAR_VARS)
 
 LOCAL_CFLAGS := \

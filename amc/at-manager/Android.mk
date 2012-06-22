@@ -1,4 +1,18 @@
 LOCAL_PATH := $(call my-dir)
+
+include $(CLEAR_VARS)
+LOCAL_COPY_HEADERS_TO := at-manager
+LOCAL_COPY_HEADERS := \
+    ATCommand.h \
+    ATManager.h \
+    ATNotifier.h \
+    CallStatUnsollicitedATCommand.h \
+    PeriodicATCommand.h \
+    ProgressUnsollicitedATCommand.h \
+    Tokenizer.h \
+    UnsollicitedATCommand.h
+include $(BUILD_COPY_HEADERS)
+
 include $(CLEAR_VARS)
 
 LOCAL_CFLAGS := \
@@ -16,7 +30,7 @@ LOCAL_SRC_FILES := \
 LOCAL_C_INCLUDES += \
         hardware/intel/rapid_ril/CORE \
         system/core/include/cutils \
-        hardware/intel/IFX-modem
+        $(TARGET_OUT_HEADERS)/IFX-modem
 
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/../at-parser \
         $(LOCAL_PATH)/../tty-handler \

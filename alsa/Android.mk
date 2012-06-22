@@ -16,10 +16,12 @@ ifeq ($(USE_INTEL_HDMI), true)
   LOCAL_CFLAGS += -DUSE_INTEL_HDMI=1
 endif
 
-
-LOCAL_C_INCLUDES += external/alsa-lib/include hardware/alsa_sound hardware/intel/include hardware/intel/mfld_cdk/alsa hardware/intel/mfld_cdk/vpc
-					  
-
+  LOCAL_C_INCLUDES += \
+    	external/alsa-lib/include \
+    	hardware/alsa_sound \
+    	$(TARGET_OUT_HEADERS)/hw \
+    	$(TARGET_OUT_HEADERS)/alsa \
+    	$(TARGET_OUT_HEADERS)/vpc
 
   LOCAL_SRC_FILES:= \
 	alsa_mfld_cdk.cpp \

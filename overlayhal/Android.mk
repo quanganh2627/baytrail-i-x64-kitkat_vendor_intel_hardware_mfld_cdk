@@ -25,14 +25,10 @@ LOCAL_PRELINK_MODULE := false
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
 LOCAL_CFLAGS:= -Wno-unused-parameter
 LOCAL_C_INCLUDES := $(addprefix $(LOCAL_PATH)/../../, $(SGX_INCLUDES)) \
-            hardware/intel/include/eurasia/pvr2d \
+            $(TARGET_OUT_HEADERS)/eurasia/pvr2d \
             hardware/intel/libdrm/libdrm \
             hardware/intel/libdrm/shared-core \
-            hardware/intel/libwsbm/src \
-            hardware/intel/linux-2.6/drivers/staging/mrst/drv \
-            hardware/intel/linux-2.6/drivers/staging/mrst/imgv \
-            hardware/intel/linux-2.6/include/drm \
-            hardware/intel/linux-2.6/drivers/staging/mrst/bc_video
+            hardware/intel/libwsbm/src
 
 LOCAL_SRC_FILES := PVROverlayModule.cpp \
             PVROverlayHAL.cpp \

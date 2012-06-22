@@ -1,4 +1,12 @@
 LOCAL_PATH := $(call my-dir)
+
+include $(CLEAR_VARS)
+LOCAL_COPY_HEADERS_TO := libamc
+LOCAL_COPY_HEADERS := \
+    ATmodemControl.h \
+    AudioModemControl.h \
+    amc.h
+include $(BUILD_COPY_HEADERS)
 include $(CLEAR_VARS)
 
 LOCAL_CFLAGS := \

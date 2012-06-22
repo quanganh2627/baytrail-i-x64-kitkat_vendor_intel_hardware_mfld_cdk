@@ -36,7 +36,7 @@ ifeq ($(BOARD_HAVE_AUDIENCE),true)
     LOCAL_CFLAGS += -DCUSTOM_BOARD_WITH_AUDIENCE
     LOCAL_SRC_FILES += acoustic.cpp
     LOCAL_C_INCLUDES += \
-        hardware/intel/mfld_cdk/utility/property \
+        $(TARGET_OUT_HEADERS)/property \
         external/stlport/stlport/ \
         bionic/libstdc++ \
         bionic
@@ -67,12 +67,11 @@ endif
 
 LOCAL_C_INCLUDES += \
      external/alsa-lib/include \
-     hardware/intel/include \
-     hardware/intel/mfld_cdk/vpc \
-     hardware/intel/mfld_cdk/amc/libamc \
+     $(TARGET_OUT_HEADERS)/vpc \
+     $(TARGET_OUT_HEADERS)/libamc \
      system/core/include/cutils \
      external/bluetooth/bluez/lib/bluetooth \
-     hardware/intel/IFX-modem
+     $(TARGET_OUT_HEADERS)/IFX-modem
 
 LOCAL_MODULE:= vpc.$(TARGET_DEVICE)
 LOCAL_MODULE_TAGS := optional

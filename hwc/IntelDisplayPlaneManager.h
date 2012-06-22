@@ -38,7 +38,7 @@
 #include <IntelBufferManager.h>
 #include <IntelOverlayHW.h>
 
-#include <psb_drm.h>
+#include <linux/psb_drm.h>
 
 typedef struct intel_sprite_context sprite_plane_context_t;
 typedef struct intel_overlay_context overlay_plane_context_t;

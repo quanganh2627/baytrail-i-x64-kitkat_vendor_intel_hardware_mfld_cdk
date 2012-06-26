@@ -593,7 +593,7 @@ void IntelHWComposer::onGeometryChanged(hwc_layer_list_t *list)
     if (isScreenshotActive(list))
         goto out_check;
 
-    for (size_t i = 0; i < list->numHwLayers; i++) {
+    for (size_t i = 0; list && i < list->numHwLayers; i++) {
         // check whether a layer can be handled in general
         if (!isHWCLayer(&list->hwLayers[i]))
             continue;
@@ -1219,11 +1219,6 @@ bool IntelHWComposer::prepare(hwc_layer_list_t *list)
         return false;
     }
 
-    if (!list) {
-        LOGE("%s: Invalid hwc_layer_list\n", __func__);
-        return false;
-    }
-
     android::Mutex::Autolock _l(mLock);
 
     // disable useless overlay planes
@@ -1245,10 +1240,11 @@ bool IntelHWComposer::prepare(hwc_layer_list_t *list)
     // handle geometry changing. attach display planes to layers
     // which can be handled by HWC.
     // plane control information (e.g. position) will be set here
-    IntelWidiPlane* widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
-    if ((list->flags & HWC_GEOMETRY_CHANGED) || mHotplugEvent
+    if (!list || (list->flags & HWC_GEOMETRY_CHANGED) || mHotplugEvent
         || mPlaneManager->isWidiStatusChanged()) {
         onGeometryChanged(list);
+
+        IntelWidiPlane* widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
 
         if(mHotplugEvent) {
             if(mPlaneManager->isWidiActive()) {
@@ -1267,7 +1263,7 @@ bool IntelHWComposer::prepare(hwc_layer_list_t *list)
         }
 
         intel_overlay_mode_t mode = mDrm->getDisplayMode();
-        if ((mode == OVERLAY_EXTEND ||  widiPlane->isStreaming()) &&
+        if (list && (mode == OVERLAY_EXTEND ||  widiPlane->isStreaming()) &&
             (list->flags & HWC_GEOMETRY_CHANGED)) {
             if (list->numHwLayers == 1)
                 mDrm->notifyMipi(false);
@@ -1277,7 +1273,7 @@ bool IntelHWComposer::prepare(hwc_layer_list_t *list)
     }
 
     // handle buffer changing. setup data buffer.
-    if (!updateLayersData(list)) {
+    if (list && !updateLayersData(list)) {
         LOGV("prepare: revisiting layer list\n");
         revisitLayerList(list, false);
     }
@@ -1290,9 +1286,6 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
                              hwc_layer_list_t *list)
 {
     LOGV("%s\n", __func__);
-
-    if (!list)
-        return true;
 
     if (!initCheck()) {
         LOGE("%s: failed to initialize HWComposer\n", __func__);
@@ -1316,14 +1309,15 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
 
     // if all layers were attached with display planes then we don't need
     // swap buffers.
-    if (mLayerList->getLayersCount() != mLayerList->getAttachedPlanesCount() ||
+    if (!mLayerList->getLayersCount() ||
+        mLayerList->getLayersCount() != mLayerList->getAttachedPlanesCount() ||
         mForceSwapBuffer) {
         // FIXME: it might be a surface flinger bug
         // surface flinger failed to render a layer to FB sometimes
 	// because screen dirty region was unchanged, in this case
         // we don't to swap buffers.
 #ifdef INTEL_EXT_SF_NEED_SWAPBUFFER
-        if (list->flags & HWC_NEED_SWAPBUFFERS)
+        if (!list || (list->flags & HWC_NEED_SWAPBUFFERS))
 #endif
             needSwapBuffer = true;
     }
@@ -1334,7 +1328,7 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
 
     // Post overlays
     // FIXME: This is little bit scary, need move overlay posting into Post2.
-    for (size_t i=0 ; i<list->numHwLayers ; i++) {
+    for (size_t i=0 ; list && i<list->numHwLayers ; i++) {
         IntelDisplayPlane *plane = mLayerList->getPlane(i);
         int flags = mLayerList->getFlags(i);
 
@@ -1391,7 +1385,7 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
         // Call plane's flip for each layer in hwc_layer_list, if a plane has
         // been attached to a layer
         // First post RGB layers, then overlay layers.
-        for (size_t i=0 ; i<list->numHwLayers ; i++) {
+        for (size_t i=0 ; list && i<list->numHwLayers ; i++) {
             IntelDisplayPlane *plane = mLayerList->getPlane(i);
             int flags = mLayerList->getFlags(i);
 

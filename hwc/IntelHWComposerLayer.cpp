@@ -81,9 +81,24 @@ IntelHWComposerLayerList::~IntelHWComposerLayerList()
 
 void IntelHWComposerLayerList::updateLayerList(hwc_layer_list_t *layerList)
 {
-    int numLayers = layerList->numHwLayers;
+    int numLayers;
     int numRGBLayers = 0;
     int numYUVLayers = 0;
+
+    if (!layerList) {
+        mNumLayers = 0;
+        mNumRGBLayers = 0;
+        mNumYUVLayers = 0;
+        mAttachedSpritePlanes = 0;
+        mAttachedOverlayPlanes = 0;
+        mNumAttachedPlanes = 0;
+
+        delete [] mLayerList;
+        mLayerList = 0;
+        return;
+    }
+
+    numLayers = layerList->numHwLayers;
 
     if (numLayers <= 0 || !initCheck())
         return;

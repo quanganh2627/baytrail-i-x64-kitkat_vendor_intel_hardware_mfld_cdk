@@ -1,5 +1,8 @@
 LOCAL_PATH:= $(call my-dir)
 
+# Do not compile the Audience proxy if the board does not include Audience
+ifeq ($(BOARD_HAVE_AUDIENCE),true)
+
 common_c_includes := \
 	$(KERNEL_HEADERS) \
 
@@ -19,4 +22,6 @@ LOCAL_MODULE := ad_proxy
 LOCAL_MODULE_TAGS := debug
 
 include $(BUILD_EXECUTABLE)
+
+endif
 

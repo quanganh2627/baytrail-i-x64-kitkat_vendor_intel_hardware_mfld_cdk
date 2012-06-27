@@ -85,9 +85,7 @@ static int hwc_set(hwc_composer_device_t *dev,
             status = HWC_EGL_ERROR;
             goto set_out;
         }
-    }
-
-    if (hwc->commit(dpy, sur, list) ==  false) {
+    } else if (hwc->commit(dpy, sur, list) == false) {
         LOGE("%s: failed to commit\n", __func__);
         status = HWC_EGL_ERROR;
         goto set_out;

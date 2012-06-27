@@ -540,8 +540,12 @@ bool IntelHWComposer::isScreenshotActive(hwc_layer_list_t *list)
         return false;
 
     hwc_layer_t *topLayer = &list->hwLayers[list->numHwLayers - 1];
+    IntelWidiPlane* widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
 
     if (mDrm->getDisplayMode() == OVERLAY_EXTEND)
+        return false;
+
+    if (widiPlane->isActive())
         return false;
 
     if (!topLayer) {

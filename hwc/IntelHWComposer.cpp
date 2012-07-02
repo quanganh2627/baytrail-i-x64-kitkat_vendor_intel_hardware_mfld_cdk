@@ -459,6 +459,10 @@ void IntelHWComposer::revisitLayerList(hwc_layer_list_t *list, bool isGeometryCh
     for (size_t i = 0; i < list->numHwLayers; i++) {
         int flags = 0;
 
+        // also need check whether a layer can be handled in general
+        if (!isHWCLayer(&list->hwLayers[i]))
+            continue;
+
         // make sure all protected layers were marked as overlay
         if (mLayerList->isProtectedLayer(i))
             list->hwLayers[i].compositionType = HWC_OVERLAY;
@@ -508,14 +512,14 @@ void IntelHWComposer::onGeometryChanged(hwc_layer_list_t *list)
      mLayerList->updateLayerList(list);
 
      for (size_t i = 0; i < list->numHwLayers; i++) {
-	 // check whether a layer can be handled in general
+         // check whether a layer can be handled in general
          if (!isHWCLayer(&list->hwLayers[i]))
              continue;
 
          // further check whether a layer can be handle by overlay/sprite
-	 int flags = 0;
-	 bool hasOverlay = mPlaneManager->hasFreeOverlays();
-	 bool hasSprite = mPlaneManager->hasFreeSprites();
+         int flags = 0;
+         bool hasOverlay = mPlaneManager->hasFreeOverlays();
+         bool hasSprite = mPlaneManager->hasFreeSprites();
 
          if (hasOverlay && isOverlayLayer(list, i, &list->hwLayers[i], flags)) {
              ret = overlayPrepare(i, &list->hwLayers[i], flags);
@@ -922,6 +926,12 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
 // TODO: list valid usages
 bool IntelHWComposer::isHWCUsage(int usage)
 {
+    // For SW access buffer, should handle with
+    // FB in order to avoid tearing
+    if ((usage & GRALLOC_USAGE_SW_WRITE_OFTEN) &&
+         (usage & GRALLOC_USAGE_SW_READ_OFTEN))
+        return false;
+
     if (!(usage & GRALLOC_USAGE_HW_COMPOSER))
         return false;
 

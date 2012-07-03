@@ -1,7 +1,6 @@
 ifeq ($(BOARD_USES_ALSA_AUDIO),true)
 
 LOCAL_PATH := $(call my-dir)
-
 include $(CLEAR_VARS)
 
 LOCAL_PRELINK_MODULE := false
@@ -30,7 +29,10 @@ LOCAL_SHARED_LIBRARIES := \
      libasound \
      liblog \
      libcutils \
-     libamc
+     libamc \
+     libbinder \
+     libutils \
+     libmediabtproxy
 
 ifeq ($(BOARD_HAVE_BLUETOOTH),true)
 LOCAL_SHARED_LIBRARIES += \
@@ -83,7 +85,8 @@ LOCAL_C_INCLUDES += \
      $(TARGET_OUT_HEADERS)/libamc \
      $(TARGET_OUT_HEADERS)/at-manager \
      system/core/include/cutils \
-     $(TARGET_OUT_HEADERS)/IFX-modem
+     $(TARGET_OUT_HEADERS)/IFX-modem \
+     hardware/intel/mfld_cdk/MediaBTService
 
 ifeq ($(BOARD_HAVE_BLUETOOTH),true)
 LOCAL_C_INCLUDES += \
@@ -91,9 +94,12 @@ LOCAL_C_INCLUDES += \
      $(TARGET_OUT_HEADERS)/libbluetooth_vs
 endif
 
+
 LOCAL_MODULE:= vpc.$(TARGET_DEVICE)
 LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_SHARED_LIBRARY)
 
+
 endif
+

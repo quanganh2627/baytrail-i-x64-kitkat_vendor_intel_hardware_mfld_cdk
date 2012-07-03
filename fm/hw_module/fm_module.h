@@ -39,7 +39,7 @@ extern "C"
 #define FM_AUDIO_ENABLE_CMD_LEN         2
 
 #define FM_SND_PCM_LATENCY_US           500000
-#define FM_RATE_HZ                      48000
+#define FM_RATE_HZ                      44100
 #define FM_CHANNEL_NB                   2
 #define FM_SND_PCM_SOFT_RESAMPLE        0
 

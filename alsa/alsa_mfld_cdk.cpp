@@ -123,7 +123,7 @@ static alsa_handle_t _defaultsOut = {
     channels           : 2,
     sampleRate         : NOT_SET,
     expectedSampleRate : NOT_SET, //expected sample rate
-    latency            : NOT_SET, // Desired Delay in usec
+    latency            : PERIOD_TIME * NB_RING_BUFFER_NORMAL, // Desired Delay in usec. Do not initialize to NOT_SET as it could be called from AudioStreamOutALSA::latency().
     bufferSize         : NOT_SET, // Desired Number of samples
     modPrivate         : 0,
     openFlag           : 0,

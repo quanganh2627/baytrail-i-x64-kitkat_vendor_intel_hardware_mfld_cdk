@@ -25,6 +25,11 @@ endif
     	$(TARGET_OUT_HEADERS)/alsa \
     	$(TARGET_OUT_HEADERS)/vpc
 
+ifeq ($(BOARD_HAVE_AUDIENCE),true)
+    LOCAL_CFLAGS += -DCUSTOM_BOARD_WITH_AUDIENCE
+endif
+
+
   LOCAL_SRC_FILES:= \
 	alsa_mfld_cdk.cpp \
 

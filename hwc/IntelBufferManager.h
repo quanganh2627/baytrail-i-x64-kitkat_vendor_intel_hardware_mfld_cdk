@@ -226,9 +226,11 @@ typedef struct {
     uint32_t chroma_v_stride;
     uint32_t format;
     uint32_t khandle;
-    uint32_t khandles_count;
-    uint32_t khandles[32];
     int64_t  timestamp;
+
+    uint32_t rotate_luma_stride;
+    uint32_t rotate_chroma_u_stride;
+    uint32_t rotate_chroma_v_stride;
 } intel_gralloc_payload_t;
 
 typedef struct {
@@ -238,8 +240,7 @@ typedef struct {
     uint32_t chroma_u_stride;
     uint32_t chroma_v_stride;
     uint32_t format;
-    uint32_t khandle;
-} intel_widi_ext_video_buffer_t;
+} intel_widi_ext_buffer_meta_t;
 
 class IntelPVRBufferManager : public IntelBufferManager {
 private:

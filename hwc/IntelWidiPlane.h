@@ -119,9 +119,9 @@ protected:
     android::Mutex                  mExtBufferMapLock;
     widiPayloadBuffer_t             mCurrExtFramePayload;
     uint32_t                        mPrevExtFrame;
-    uint32_t                        mExtVideoBuffersCount;
-    intel_widi_ext_video_buffer_t   mExtVideoBuffers[EXT_VIDEO_MODE_MAX_SURFACE];
+    intel_widi_ext_buffer_meta_t    mExtVideoBufferMeta;
     android::KeyedVector<intel_gralloc_buffer_handle_t*, widiPayloadBuffer_t> mExtVideoBuffersMapping;
+    bool                            mUseRotateHandle;
 };
 
 #else  // Stub implementation in case of widi module is not compiled

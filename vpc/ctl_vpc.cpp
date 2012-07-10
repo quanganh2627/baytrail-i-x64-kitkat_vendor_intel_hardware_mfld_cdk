@@ -399,12 +399,17 @@ static int vpc_route(vpc_route_t route)
                         case AudioSystem::DEVICE_OUT_SPEAKER:
                         case AudioSystem::DEVICE_OUT_WIRED_HEADSET:
                         case AudioSystem::DEVICE_OUT_WIRED_HEADPHONE:
-                            amc_mute();
 
-                            msic::pcm_disable();
-                            /* Disable SCO path if a MSIC device is in use  */
-                            bt::pcm_disable();
-                            amc_off();
+                            /* If VPC was not routed previously, avoid uncessary steps!!! */
+                            if (vpc_get_audio_routed()) {
+
+                                amc_mute();
+
+                                msic::pcm_disable();
+                                /* Disable SCO path if a MSIC device is in use  */
+                                bt::pcm_disable();
+                                amc_off();
+                            }
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
                             device_profile = (current_tty_call == AMC_TTY_OFF && current_hac_setting == VPC_HAC_OFF) ? current_device : device_out_defaut;
@@ -438,9 +443,14 @@ static int vpc_route(vpc_route_t route)
                         case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO:
                         case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET:
                         case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_CARKIT:
-                            amc_mute();
 
-                            msic::pcm_disable();
+                            /* If VPC was not routed previously, avoid uncessary steps!!! */
+                            if (vpc_get_audio_routed()) {
+
+                                amc_mute();
+
+                                msic::pcm_disable();
+                            }
 
                             // If is_acoustic_in_bt_device is true, bypass phone embedded algorithms
                             // and use acoustic alogrithms from Bluetooth headset.
@@ -519,9 +529,13 @@ static int vpc_route(vpc_route_t route)
                     case AudioSystem::DEVICE_OUT_WIRED_HEADSET:
                     case AudioSystem::DEVICE_OUT_WIRED_HEADPHONE:
 
-                        msic::pcm_disable();
-                        /* Disable SCO path if a MSIC device is in use  */
-                        bt::pcm_disable();
+                        /* If VPC was not routed previously, avoid uncessary steps!!! */
+                        if (vpc_get_audio_routed()) {
+
+                            msic::pcm_disable();
+                            /* Disable SCO path if a MSIC device is in use  */
+                            bt::pcm_disable();
+                        }
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
                         device_profile = (current_tty_call == AMC_TTY_OFF && current_hac_setting == VPC_HAC_OFF) ? current_device : device_out_defaut;

@@ -37,6 +37,10 @@ LOCAL_C_INCLUDES += \
         bionic/libstdc++ \
         bionic/
 
+ifeq ($(BOARD_HAVE_AUDIENCE),true)
+    LOCAL_CFLAGS += -DCUSTOM_BOARD_WITH_AUDIENCE
+endif
+
 LOCAL_SHARED_LIBRARIES := libstlport libcutils libat-manager
 
 LOCAL_MODULE := libamc

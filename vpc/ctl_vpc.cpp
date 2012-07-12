@@ -41,6 +41,7 @@ namespace android_audio_legacy
 static int vpc_init(uint32_t ifx_i2s1_clk_select, uint32_t ifx_i2s2_clk_select, bool have_modem);
 static int vpc_params(int mode, uint32_t device);
 static void vpc_set_mode(int mode);
+static void vpc_set_input_source(int input_source);
 static void vpc_set_modem_state(int state);
 static int vpc_route(vpc_route_t);
 static int vpc_volume(float);
@@ -85,6 +86,7 @@ Mutex vpc_lock;
 
 static int       prev_mode             = AudioSystem::MODE_NORMAL;
 static int       current_mode          = AudioSystem::MODE_NORMAL;
+static int       current_input_source  = AUDIO_SOURCE_DEFAULT;
 static uint32_t  prev_device           = 0x0000;
 static uint32_t  current_device        = 0x0000;
 static uint32_t  device_out_defaut     = 0x8000;
@@ -92,7 +94,7 @@ static bool      at_thread_init        = false;
 static AMC_TTY_STATE current_tty_call  = AMC_TTY_OFF;
 static AMC_TTY_STATE previous_tty_call = AMC_TTY_OFF;
 static bool      mixing_enable         = false;
-static bool      voice_call_recording  = false;
+static bool      voice_call_record_requested  = false;
 // If the audio gateway does not support HFP profile (HSP only),
 // this variable is not updated and must be set so that no acoustic is performed in Audience chip
 static bool      is_acoustic_in_bt_device = true;
@@ -120,7 +122,7 @@ static int       vpc_bt_enabled_ref_count = 0;
 static bool      audience_awake        = false;
 #endif
 /* Forward declaration */
-static void voice_call_record_restore();
+static void handle_voice_call_record();
 
 static const char * BAND_NAME[] = {"NB", "WB"};
 
@@ -205,6 +207,21 @@ static void vpc_set_mode(int mode)
     LOGD("%s: previous mode = %d\n", __FUNCTION__, prev_mode);
 
     vpc_lock.unlock();
+}
+
+/*---------------------------------------------------------------------------*/
+/* Set input source                                                  */
+/*---------------------------------------------------------------------------*/
+static void vpc_set_input_source(int input_source)
+{
+    vpc_lock.lock();
+
+    current_input_source = input_source;
+
+    vpc_lock.unlock();
+
+    LOGD("%s: input_source = %d\n", __FUNCTION__, input_source);
+
 }
 
 /*---------------------------------------------------------------------------*/
@@ -527,7 +544,7 @@ static int vpc_route(vpc_route_t route)
                             break;
                     }
                     // Restore record path if required
-                    voice_call_record_restore();
+                    handle_voice_call_record();
 
                     // Update internal state variables
                     vpc_set_audio_routed(true);
@@ -728,36 +745,33 @@ static int vpc_volume(float volume)
 /*---------------------------------------------------------------------------*/
 /* Voice Call Record Enable/disable                                          */
 /*---------------------------------------------------------------------------*/
-static void voice_call_record_on()
+static void handle_voice_call_record()
 {
-    if (!voice_call_recording)
-    {
-        // Enable voice call record
-        LOGD("%s: voice in call recording", __FUNCTION__);
-        amc_voice_record_on();
-        voice_call_recording = true;
+    AMC_VOICE_RECORD_SOURCE input_source = AMC_VOICE_INVALID_SOURCE;
+
+    switch(current_input_source) {
+    case AUDIO_SOURCE_VOICE_CALL:
+        input_source = AMC_VOICE_CALL_SOURCE;
+        break;
+
+    case AUDIO_SOURCE_VOICE_UPLINK:
+        input_source = AMC_VOICE_UPLINK_SOURCE;
+        break;
+
+    case AUDIO_SOURCE_VOICE_DOWNLINK:
+        input_source = AMC_VOICE_DOWNLINK_SOURCE;
+        break;
+
+    default:
+        LOGE("%s: Unknown Input Source.", __FUNCTION__);
+        input_source = AMC_VOICE_INVALID_SOURCE;
     }
+
+    LOGD("%s: %s recording for input source %d", __FUNCTION__, (voice_call_record_requested) ? "enable" : "disable", input_source);
+
+    amc_voice_record_source_enable(input_source, voice_call_record_requested);
 }
 
-static void voice_call_record_off()
-{
-    if (voice_call_recording)
-    {
-        LOGD("%s: disable recording", __FUNCTION__);
-        voice_call_recording = false;
-        amc_voice_record_off();
-    }
-}
-
-static void voice_call_record_restore()
-{
-    if (voice_call_recording)
-    {
-        // Restore voice call record
-        LOGD("%s", __FUNCTION__);
-        amc_voice_record_on();
-    }
-}
 /*---------------------------------------------------------------------------*/
 /* Mixing Enable/disable                                                     */
 /*---------------------------------------------------------------------------*/
@@ -798,7 +812,10 @@ static int vpc_mixing_disable(bool isOut)
     // Request from an instream? -> record disable request
     else
     {
-        voice_call_record_off();
+        if (voice_call_record_requested) {
+            voice_call_record_requested = false;
+            handle_voice_call_record();
+        }
     }
 
     vpc_lock.unlock();
@@ -822,7 +839,10 @@ static int vpc_mixing_enable(bool isOut, uint32_t device)
     {
         if (device == AudioSystem::DEVICE_IN_VOICE_CALL)
         {
-            voice_call_record_on();
+            if (!voice_call_record_requested) {
+                voice_call_record_requested = true;
+                handle_voice_call_record();
+            }
         }
     }
 
@@ -1045,6 +1065,7 @@ static int s_device_open(const hw_module_t* module, const char* name,
     dev->init           = vpc_init;
     dev->params         = vpc_params;
     dev->set_mode       = vpc_set_mode;
+    dev->set_input_source = vpc_set_input_source;
     dev->set_call_status = vpc_set_call_status;
     dev->set_modem_state = vpc_set_modem_state;
     dev->route          = vpc_route;

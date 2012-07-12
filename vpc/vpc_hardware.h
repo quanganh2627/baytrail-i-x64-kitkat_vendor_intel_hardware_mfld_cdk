@@ -42,6 +42,7 @@ typedef struct vpc_device_t {
     int (*init)(uint32_t ifx_i2s1_clk_select, uint32_t ifx_i2s2_clk_select, bool have_modem);
     int (*params)(int mode, uint32_t device);
     void (*set_mode)(int mode);
+    void (*set_input_source)(int input_source);
     void (*set_call_status)(bool isConnected);
     void (*set_modem_state)(int state);
     int (*route)(vpc_route_t);

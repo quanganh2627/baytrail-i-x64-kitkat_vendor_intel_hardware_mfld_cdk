@@ -35,8 +35,10 @@
 #define PERIOD_TIME   (23220*2)     //microseconds, aligned to LPE FW
 #define CAPTURE_PERIOD_TIME (20000) //microseconds
 #define MAX_RETRY (6)
+
 #define NB_RING_BUFFER_NORMAL   2
 #define NB_RING_BUFFER_INCALL   4
+#define TIMEOUT_MULTIPLICATION_FACTOR (4) // Empiric choice
 
 #define USEC_PER_SEC        (1000000)
 
@@ -77,6 +79,7 @@ static status_t s_standby(alsa_handle_t *);
 static status_t s_close(alsa_handle_t *);
 static status_t s_config(alsa_handle_t *, int);
 static status_t s_volume(alsa_handle_t *, uint32_t, float);
+static int s_wait_pcm(alsa_handle_t *);
 
 static hw_module_methods_t s_module_methods = {
     open : s_device_open
@@ -120,6 +123,7 @@ static alsa_handle_t _defaultsOut = {
     channels           : 2,
     sampleRate         : NOT_SET,
     latency            : PERIOD_TIME * NB_RING_BUFFER_NORMAL, // Desired Delay in usec. Do not initialize to NOT_SET as it could be called from AudioStreamOutALSA::latency().
+    wait_timeoutMs     : (PERIOD_TIME * TIMEOUT_MULTIPLICATION_FACTOR)/1000, // Proportional to the hw period
     bufferSize         : NOT_SET, // Desired Number of samples
     modPrivate         : 0,
     openFlag           : 0,
@@ -135,6 +139,7 @@ static alsa_handle_t _defaultsIn = {
     channels           : 2,
     sampleRate         : NOT_SET,
     latency            : CAPTURE_PERIOD_TIME * 4, // Desired Delay in usec
+    wait_timeoutMs     : (CAPTURE_PERIOD_TIME * TIMEOUT_MULTIPLICATION_FACTOR)/1000, // Proportional to the hw period
     bufferSize         : 2048, // Desired Number of samples
     modPrivate         : 0,
     openFlag           : 0,
@@ -503,6 +508,11 @@ static status_t s_init_stream(alsa_handle_t *handle, uint32_t devices, int mode,
     return NO_ERROR;
 }
 
+static int s_wait_pcm(alsa_handle_t *handle)
+{
+    return snd_pcm_wait(handle->handle, handle->wait_timeoutMs);
+}
+
 static int s_device_open(const hw_module_t* module, const char* name,
                          hw_device_t** device)
 {
@@ -523,6 +533,7 @@ static int s_device_open(const hw_module_t* module, const char* name,
     dev->close = s_close;
     dev->volume = s_volume;
     dev->initStream = s_init_stream;
+    dev->wait_pcm = s_wait_pcm;
 
     *device = &dev->common;
     return 0;
@@ -552,7 +563,7 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode, int fm
         // AudioFlinger seems to assume blocking mode too, so asynchronous mode
         // should not be used.
         err = snd_pcm_open(&handle->handle, devName, direction(handle),
-                           SND_PCM_ASYNC);
+                           (direction(handle) == SND_PCM_STREAM_CAPTURE) ? SND_PCM_NONBLOCK : SND_PCM_ASYNC);
         if (err == 0) break;
 
         if ((err == -EBUSY) && (attempt < MAX_RETRY)) {
@@ -592,6 +603,7 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode, int fm
         // reset the initial value for playback
         handle->sampleRate = _defaultsOut.sampleRate;
         handle->latency = PERIOD_TIME * NB_RING_BUFFER_NORMAL;
+        handle->wait_timeoutMs = _defaultsOut.wait_timeoutMs;
         handle->channels = _defaultsOut.channels;
 
         if (mode == AudioSystem::MODE_IN_CALL) {
@@ -623,6 +635,7 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode, int fm
         // reset the initial value for record
         handle->sampleRate = _defaultsIn.sampleRate;
         handle->channels = _defaultsIn.channels;
+        handle->wait_timeoutMs = _defaultsIn.wait_timeoutMs;
 
         if (mode == AudioSystem::MODE_IN_CALL) {
             handle->sampleRate = VOICE_CODEC_DEFAULT_SAMPLE_RATE;

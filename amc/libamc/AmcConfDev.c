@@ -114,6 +114,7 @@ void get_route_id(AMC_ROUTE_ID route, destForSourceRoute *pdestForSource)
         pdestForSource->source = AMC_RADIO_RX;
         pdestForSource->dests[0] = AMC_PCM_GENERALD;
         break;
+
     default :
         break;
     }
@@ -148,6 +149,7 @@ int amc_conf_i2s1(AMC_TTY_STATE tty, IFX_TRANSDUCER_MODE_SOURCE modeSource, IFX_
 #ifndef CUSTOM_BOARD_WITH_AUDIENCE
     amc_configure_source_probe(AMC_PROBE_IN_A, PROBING_POINT_SPEECH_ENCODER_IN);
 #endif
+
     return 0;
 }
 
@@ -218,24 +220,29 @@ int amc_unmute(int gainDL, int gainUL)
     return 0;
 }
 
-int amc_voice_record_on()
+int amc_voice_record_source_enable(AMC_VOICE_RECORD_SOURCE source, bool enable)
 {
+    int route_index;
 #ifndef CUSTOM_BOARD_WITH_AUDIENCE
-    amc_enable(AMC_PROBE_IN);
-    amc_enable(AMC_PROBE_IN_A);
-#endif
-    amc_route(&pdestForSource[ROUTE_RECORD_RADIO][0]);
-    amc_route(&pdestForSource[ROUTE_RECORD_I2S1][0]);
-    return 0;
-}
+    if( (source != AMC_VOICE_DOWNLINK_SOURCE)) {
+        if(enable){
+            amc_enable(AMC_PROBE_IN);
+            amc_enable(AMC_PROBE_IN_A);
+        }else{
+            amc_disable(AMC_PROBE_IN);
+            amc_disable(AMC_PROBE_IN_A);
+        }
+    }
+#endif /* CUSTOM_BOARD_WITH_AUDIENCE */
 
-int amc_voice_record_off()
-{
-#ifndef CUSTOM_BOARD_WITH_AUDIENCE
-    amc_disable(AMC_PROBE_IN);
-    amc_disable(AMC_PROBE_IN_A);
-#endif
-    amc_route(&pdestForSource[ROUTE_RADIO][0]);
-    amc_route(&pdestForSource[ROUTE_I2S1][0]);
+    if (source == AMC_VOICE_DOWNLINK_SOURCE || source == AMC_VOICE_CALL_SOURCE) {
+        route_index = ( (enable) ? ROUTE_RECORD_RADIO : ROUTE_RADIO);
+        amc_route(&pdestForSource[route_index][0]);
+    }
+    if (source == AMC_VOICE_UPLINK_SOURCE || source == AMC_VOICE_CALL_SOURCE) {
+        route_index = ( (enable) ? ROUTE_RECORD_I2S1 : ROUTE_I2S1);
+        amc_route(&pdestForSource[route_index][0]);
+    }
+
     return 0;
 }

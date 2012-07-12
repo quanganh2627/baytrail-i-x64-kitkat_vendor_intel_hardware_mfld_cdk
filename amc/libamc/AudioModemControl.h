@@ -238,6 +238,14 @@ typedef struct destForSourceRoute {
     AMC_DEST *dests;
 } destForSourceRoute;
 
+
+typedef enum {
+    AMC_VOICE_CALL_SOURCE,
+    AMC_VOICE_UPLINK_SOURCE,
+    AMC_VOICE_DOWNLINK_SOURCE,
+    AMC_VOICE_INVALID_SOURCE
+} AMC_VOICE_RECORD_SOURCE;
+
 AT_STATUS amc_enable(AMC_SOURCE source);
 AT_STATUS amc_disable(AMC_SOURCE source);
 AT_STATUS amc_configure_dest(AMC_DEST dest, IFX_CLK clk, IFX_MASTER_SLAVE mode,
@@ -246,14 +254,14 @@ AT_STATUS amc_configure_dest(AMC_DEST dest, IFX_CLK clk, IFX_MASTER_SLAVE mode,
 AT_STATUS amc_configure_source(AMC_SOURCE source, IFX_CLK clk, IFX_MASTER_SLAVE mode, IFX_I2S_SR sr,
         IFX_I2S_SW sw, IFX_I2S_TRANS_MODE trans, IFX_I2S_SETTINGS settings, IFX_I2S_AUDIO_MODE audio,
         IFX_I2S_UPDATES update, IFX_TRANSDUCER_MODE_SOURCE transducer_source);
+AT_STATUS amc_configure_mic(AMC_SOURCE source, int mode);
 AT_STATUS amc_configure_source_probe(AMC_SOURCE source, AMC_PROBING_POINT probe);
 AT_STATUS amc_route(destForSourceRoute *destForSource);
 AT_STATUS amc_setGainsource(AMC_SOURCE source, int gainDDB);
 AT_STATUS amc_setGaindest(AMC_DEST dest, int gainDDB);
 AT_STATUS amc_setAcoustic(AMC_ACOUSTIC acousticProfile);
 
-int amc_voice_record_on(void);
-int amc_voice_record_off(void);
+int amc_voice_record_source_enable(AMC_VOICE_RECORD_SOURCE source, bool enable);
 void amc_dest_for_source(void);
 int amc_conf_i2s1(AMC_TTY_STATE tty, IFX_TRANSDUCER_MODE_SOURCE modeSource, IFX_TRANSDUCER_MODE_DEST modeDest);
 int amc_conf_i2s2_route();

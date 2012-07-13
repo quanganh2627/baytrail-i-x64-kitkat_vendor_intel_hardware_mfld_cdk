@@ -957,7 +957,6 @@ static int vpc_set_hac(vpc_hac_set_t set_hac)
     return NO_ERROR;
 }
 
-
 /*===========================================================================*/
 /* HW module interface definition                                            */
 /*===========================================================================*/
@@ -970,7 +969,9 @@ static hw_module_methods_t s_module_methods =
     open : s_device_open
 };
 
-extern "C" hw_module_t HAL_MODULE_INFO_SYM =
+extern "C" hw_module_t HAL_MODULE_INFO_SYM;
+
+hw_module_t HAL_MODULE_INFO_SYM =
 {
     tag           : HARDWARE_MODULE_TAG,
     version_major : 1,
@@ -1019,5 +1020,4 @@ static int s_device_close(hw_device_t* device)
     return 0;
 }
 
-}
-
+}; // namespace android_audio_legacy

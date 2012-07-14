@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+ifeq ($(INTEL_HWC),true)
 
 LOCAL_PATH := $(call my-dir)
 
@@ -85,4 +86,5 @@ include $(BUILD_SHARED_LIBRARY)
 
 ifeq ($(INTEL_WIDI), true)
 include $(LOCAL_PATH)/libhwcwidi/Android.mk
+endif
 endif

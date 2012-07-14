@@ -1,3 +1,4 @@
+ifeq ($(BOARD_USES_ALSA_AUDIO),true)
 
 LOCAL_PATH := $(call my-dir)
 
@@ -78,3 +79,4 @@ LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_SHARED_LIBRARY)
 
+endif

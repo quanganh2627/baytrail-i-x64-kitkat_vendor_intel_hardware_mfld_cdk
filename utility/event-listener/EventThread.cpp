@@ -14,19 +14,21 @@
  ** See the License for the specific language governing permissions and
  ** limitations under the License.
  */
-#include "EventThread.h"
 #include <unistd.h>
 #include <assert.h>
 #include <strings.h>
 #include <string.h>
-#include "EventListener.h"
-#define LOG_TAG "AMC"
+
+#define LOG_TAG "EVENT_THREAD"
 #include <utils/Log.h>
+#include "EventListener.h"
+
+#include "EventThread.h"
 
 CEventThread::CEventThread(IEventListener* pEventListener) :
     _pEventListener(pEventListener), _bIsStarted(false), _ulThreadId(0), _uiNbPollFds(0), _uiTimeoutMs(-1), _bThreadContext(false)
 {
-    assert(_pEventListener);
+    assert(pEventListener);
 
     // Create inband pipe
     pipe(_aiInbandPipe);
@@ -48,7 +50,7 @@ CEventThread::~CEventThread()
 // Add open FDs
 void CEventThread::addOpenedFd(uint32_t uiFdClientId, int iFd, bool bToListenTo)
 {
-    assert(!_bIsStarted || _bThreadContext);
+    assert(!_bIsStarted || inThreadContext());
 
     _sFdList.push_back(SFd(uiFdClientId, iFd, bToListenTo));
 
@@ -62,7 +64,7 @@ void CEventThread::addOpenedFd(uint32_t uiFdClientId, int iFd, bool bToListenTo)
 // Remove and close FD
 void CEventThread::closeAndRemoveFd(uint32_t uiClientFdId)
 {
-    assert(!_bIsStarted || _bThreadContext);
+    assert(!_bIsStarted || inThreadContext());
 
     SFdListIterator it;
 
@@ -168,6 +170,12 @@ void CEventThread::trig()
     LOGD("%s: out", __func__);
 }
 
+// Context check
+bool CEventThread::inThreadContext() const
+{
+    return pthread_self() == _ulThreadId;
+}
+
 // Thread
 void* CEventThread::thread_func(void* pData)
 {
@@ -190,15 +198,12 @@ void CEventThread::run()
 
         if (!iPollRes) {
 
-            CThreadContext ctx(this);
-
             // Timeout case
             _pEventListener->onTimeout();
 
             continue;
         }
         if (iPollRes < 0) {
-            CThreadContext ctx(this);
 
             // I/O error?
             _pEventListener->onPollError();
@@ -226,8 +231,6 @@ void CEventThread::run()
         }
 
         {
-            CThreadContext ctx(this);
-
             //bool bContinue = false;
             uint32_t uiIndex;
 
@@ -268,12 +271,6 @@ void CEventThread::run()
             }
         }
     }
-}
-
-// ThreadContext
-void CEventThread::setThreadContext(bool bEnter)
-{
-    _bThreadContext = bEnter;
 }
 
 // Poll FD computation

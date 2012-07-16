@@ -14,7 +14,7 @@
  ** See the License for the specific language governing permissions and
  ** limitations under the License.
  */
-#define LOG_TAG "ATMANAGER_UNSOLLICITED"
+#define LOG_TAG "AT_MANAGER_UNSOLLICITED"
 #include "UnsollicitedATCommand.h"
 #include <errno.h>
 #include <ctype.h>
@@ -24,8 +24,10 @@
 
 #define base CATCommand
 
-CUnsollicitedATCommand::CUnsollicitedATCommand(const string& strCommand, const string& strRespPrefix)
-    : base(strCommand, strRespPrefix)
+CUnsollicitedATCommand::CUnsollicitedATCommand(const string& strCommand, const string& strRespPrefix, uint32_t eventId) :
+    base(strCommand, strRespPrefix),
+    _uiEventId(eventId)
+
 {
     LOGD("%s", __FUNCTION__);
 }
@@ -34,7 +36,14 @@ CUnsollicitedATCommand::CUnsollicitedATCommand(const string& strCommand, const s
 // Clear
 void CUnsollicitedATCommand::addAnswerFragment(const string& strAnswerFragment)
 {
-    LOGD("%s", __FUNCTION__);
-
     base::addAnswerFragment(strAnswerFragment);
+}
+
+uint32_t CUnsollicitedATCommand::getEventId() const
+{
+    return _uiEventId;
+}
+
+void CUnsollicitedATCommand::doProcessAnswer()
+{
 }

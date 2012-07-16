@@ -21,8 +21,10 @@
 #include <string.h>
 #include <utils/Log.h>
 
-CATCommand::CATCommand(const string& strCommand, const string& strRespPrefix)
-    : _strCommand(strCommand), _strRespPrefix(strRespPrefix), _eStatus(StatusUnset)
+CATCommand::CATCommand(const string& strCommand, const string& strRespPrefix) :
+    _strCommand(strCommand),
+    _strRespPrefix(strRespPrefix),
+    _eStatus(StatusUnset)
 {
 }
 

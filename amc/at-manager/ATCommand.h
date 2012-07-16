@@ -1,4 +1,4 @@
-/*
+/* ATCommand.h
  **
  ** Copyright 2011 Intel Corporation
  **
@@ -85,11 +85,5 @@ private:
     string _strAnswer;
     // Status
     Status _eStatus;
-    // Flag indicating that command is sent and waiting for answer
-    bool bAwaitingAnswer;
-    // Timeout
-    unsigned long ulTimeout;
-    // Absolute time received dealine
-    struct timespec tsReceiveDeadline;
 };
 

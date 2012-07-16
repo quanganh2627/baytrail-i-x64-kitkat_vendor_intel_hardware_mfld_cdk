@@ -1,4 +1,4 @@
-/* ATNotifier.h
+/* ATCmdStatus.h
  **
  ** Copyright 2011 Intel Corporation
  **
@@ -6,7 +6,7 @@
  ** you may not use this file except in compliance with the License.
  ** You may obtain a copy of the License at
  **
- **     http://www.apache.org/licenses/LICENSE-2.0
+ ** http://www.apache.org/licenses/LICENSE-2.0
  **
  ** Unless required by applicable law or agreed to in writing, software
  ** distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,14 +16,16 @@
  */
 #pragma once
 
-class CUnsollicitedATCommand;
-class CATcommand;
+typedef enum {
+    AT_OK = 0,
+    AT_RUNNING = 1,/* Command sent but no modem response yet.*/
+    AT_ERROR = 2,
+    AT_BUSY,
+    AT_UNABLE_TO_CREATE_THREAD,
+    AT_UNABLE_TO_OPEN_DEVICE,
+    AT_WRITE_ERROR,
+    AT_READ_ERROR,
+    AT_UNINITIALIZED,
 
-class IATNotifier
-{
-public:
-    virtual bool onUnsollicitedReceived(CUnsollicitedATCommand* pUnsollicitedCmd) = 0;
-    virtual bool onAnsynchronousError(const CATcommand* pATCmd, int errorType) = 0;
-    virtual void onModemStateChanged() = 0;
-};
-
+    AT_NB
+} AT_STATUS;

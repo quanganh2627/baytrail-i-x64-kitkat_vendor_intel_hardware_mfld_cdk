@@ -8,6 +8,13 @@ LOCAL_COPY_HEADERS := \
     amc.h
 include $(BUILD_COPY_HEADERS)
 include $(CLEAR_VARS)
+LOCAL_COPY_HEADERS_TO := libamc
+LOCAL_COPY_HEADERS := \
+    amc.h \
+    ATmodemControl.h  \
+    AudioModemControl.h
+include $(BUILD_COPY_HEADERS)
+include $(CLEAR_VARS)
 
 LOCAL_CFLAGS := \
         -DDEBUG
@@ -22,10 +29,10 @@ LOCAL_C_INCLUDES += \
         system/core/include/cutils \
         hardware/intel/IFX-modem
 
-LOCAL_C_INCLUDES += $(LOCAL_PATH)/../at-parser \
+LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/at-parser \
         $(LOCAL_PATH)/../tty-handler \
-        $(LOCAL_PATH)/../event-listener \
-        $(LOCAL_PATH)/../at-manager
+        $(TARGET_OUT_HEADERS)/event-listener \
+        $(TARGET_OUT_HEADERS)/at-manager
 
 LOCAL_C_INCLUDES += \
         external/stlport/stlport/ \

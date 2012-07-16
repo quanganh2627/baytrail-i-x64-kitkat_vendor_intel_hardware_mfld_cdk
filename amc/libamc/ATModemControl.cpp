@@ -15,24 +15,13 @@
  ** limitations under the License.
  */
 
-#define LOG_TAG "AMC"
+#define LOG_TAG "LIBAMC_AT_MANAGER"
+
 #include "ATManager.h"
 #include "AudioModemControl.h"
 #include <utils/Log.h>
 
 extern "C" {
-
-static const AT_STATUS translate_error_code[AT_CMD_NB] = {
-    AT_OK, /* [AT_CMD_OK] */
-    AT_RUNNING, /* [AT_CMD_RUNNING] */
-    AT_ERROR, /* [AT_CMD_ERROR] */
-    AT_BUSY, /* [AT_CMD_BUSY] */
-    AT_UNABLE_TO_CREATE_THREAD, /* [AT_CMD_UNABLE_TO_CREATE_THREAD] */
-    AT_UNABLE_TO_OPEN_DEVICE, /* [AT_CMD_UNABLE_TO_OPEN_DEVICE] */
-    AT_WRITE_ERROR, /* [AT_CMD_WRITE_ERROR] */
-    AT_READ_ERROR, /* [AT_CMD_READ_ERROR] */
-    AT_UNINITIALIZED, /* [AT_CMD_UNINITIALIZED] */
-};
 
 // Singleton access
 CATManager* getInstance()
@@ -44,27 +33,28 @@ CATManager* getInstance()
 
 AT_STATUS at_start(const char *pATchannel, uint32_t uiIfxI2s1ClkSelect, uint32_t uiIfxI2s2ClkSelect)
 {
-    AT_CMD_STATUS eStatus = getInstance()->start(pATchannel);
+    AT_STATUS eStatus = getInstance()->start(pATchannel);
 
-    if (eStatus != AT_CMD_OK) {
+    if (eStatus != AT_OK) {
 
-        return translate_error_code[eStatus];
+        return eStatus;
     }
-    LOGD("*** ATmodemControl started");
+    LOGD("%s: *** ATmodemControl started", __FUNCTION__);
     amc_dest_for_source();
     amc_set_default_clocks(uiIfxI2s1ClkSelect, uiIfxI2s2ClkSelect);
     LOGV("After dest for source init matrix");
 
-    return translate_error_code[eStatus];
+    return eStatus;
 }
 
 AT_STATUS at_send(const char *pATcmd, const char *pRespPrefix)
 {
     CATCommand command(pATcmd, pRespPrefix);
 
-    AT_CMD_STATUS eStatus = getInstance()->sendCommand(&command, true);
-
-    return translate_error_code[eStatus];
+    // Use synchronous sendCommand API.
+    // In case of asynchronous, it would require to keep the AT command instance
+    // until answer is received
+    return getInstance()->sendCommand(&command, true);
 }
 
 }

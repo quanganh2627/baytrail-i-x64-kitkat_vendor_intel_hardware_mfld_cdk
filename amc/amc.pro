@@ -3,10 +3,11 @@ TEMPLATE = subdirs
 CONFIG += ordered
 
 SUBDIRS += \
-    event-listener \
     at-parser \
     tty-handler \
     at-manager \
+    audio-at-manager \
+    modem-audio-manager \
     libamc \
     modem-simulator \
     libamc-test

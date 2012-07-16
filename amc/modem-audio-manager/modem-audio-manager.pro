@@ -6,30 +6,29 @@
 
 QT       -= core gui
 
-TARGET = at-manager
+TARGET = at-modem-manager
 TEMPLATE = lib
 
-DEFINES += ATMANAGER_LIBRARY
+DEFINES += ATMODEMMANAGER_LIBRARY
 
 QMAKE_CXXFLAGS += -Wno-unused-result
 
-SOURCES += ATCommand.cpp \
-    ATManager.cpp \
-    PeriodicATCommand.cpp \
-    UnsollicitedATCommand.cpp \
+SOURCES += ModemAudioManager.cpp \
+    DualSimModemAudioManager.cpp \
+    ModemAudioManagerInstance.cpp \
     ../simulation/cutils/sockets.c
 
-HEADERS += ATManager.h \
+HEADERS += \
     ../simulation/utils/Log.h \
     ../simulation/cutils/log.h \
-    ../simulation/stmd.h \
-    PeriodicATCommand.h \
-    UnsollicitedATCommand.h \
+    DualSimModemAudioManager.h \
+    ModemAudioManager.h \
+    ModemAudioManagerFactory.h \
+    ModemStatusNotifier.h \
     ../simulation/cutils/sockets.h \
-    ATCommand.h \
     EventNotifier.h
 
-INCLUDEPATH += ../simulation ../../utility/event-listener ../at-parser ../tty-handler
+INCLUDEPATH += ../simulation ../../utility/event-listener ../at-parser ../tty-handler ../at-manager ../audio-at-manager
 
 CONFIG(debug, debug|release) {
     DESTDIR = ../build/debug
@@ -37,7 +36,7 @@ CONFIG(debug, debug|release) {
     DESTDIR = ../build/release
 }
 
-LIBS += -L$$DESTDIR -levent-listener -lat-parser -ltty-handler -lrt
+LIBS += -L$$DESTDIR -levent-listener -lat-parser -ltty-handler -lrt -lat-manager -laudio-at-manager
 OTHER_FILES += \
     Android.mk \
 

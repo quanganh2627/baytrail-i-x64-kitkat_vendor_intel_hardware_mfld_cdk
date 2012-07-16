@@ -14,8 +14,8 @@
  ** See the License for the specific language governing permissions and
  ** limitations under the License.
  */
-#define LOG_TAG "ATMANAGER_XPROGRESS"
-#include "ProgressUnsollicitedATCommand.h"
+#define LOG_TAG "AUDIO_AT_MANAGER_CALLPROGRESS"
+
 #include <errno.h>
 #include <ctype.h>
 #include <assert.h>
@@ -25,19 +25,22 @@
 #include <utils/Log.h>
 #include "Tokenizer.h"
 
+#include "ModemAudioEvent.h"
+#include "ProgressUnsollicitedATCommand.h"
+
 #define AT_XPROGRESS "AT+XPROGRESS=1"
 #define AT_XPROGRESS_PREFIX "+XPROGRESS:"
 
 #define base CUnsollicitedATCommand
 
 CProgressUnsollicitedATCommand::CProgressUnsollicitedATCommand()
-    : base(AT_XPROGRESS, AT_XPROGRESS_PREFIX), _bAudioPathAvailable(false)
+    : base(AT_XPROGRESS, AT_XPROGRESS_PREFIX, EModemAudioAvailabilibty), _bAudioPathAvailable(false)
 {
     LOGD("%s", __FUNCTION__);
 }
 
 // Indicate if Modem Audio Path is available
-bool CProgressUnsollicitedATCommand::isAudioPathAvailable()
+bool CProgressUnsollicitedATCommand::isAudioPathAvailable() const
 {
     LOGD("%s: avail = %d", __FUNCTION__, _bAudioPathAvailable);
 
@@ -53,11 +56,7 @@ bool CProgressUnsollicitedATCommand::isAudioPathAvailable()
 //
 void CProgressUnsollicitedATCommand::doProcessAnswer()
 {
-    LOGD("%s", __FUNCTION__);
-
     string strAnswer = getAnswer();
-
-    LOGD("%s: ans=(%s) %d", __FUNCTION__, strAnswer.c_str(), strAnswer.find(getPrefix()));
 
     // Assert the answer has the CallStat prefix...
     assert((strAnswer.find(getPrefix()) != string::npos));

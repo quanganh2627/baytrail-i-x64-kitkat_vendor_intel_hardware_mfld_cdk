@@ -18,7 +18,7 @@ TEMPLATE = app
 SOURCES += main.cpp \
     ModemSimulator.cpp
 
-INCLUDEPATH += ../libamc ../event-listener ../simulation ../at-parser ../tty-handler
+INCLUDEPATH += ../libamc ../../utility/event-listener ../simulation ../at-parser ../tty-handler
 
 CONFIG(debug, debug|release) {
     DESTDIR = ../build/debug

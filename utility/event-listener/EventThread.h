@@ -14,22 +14,6 @@
  ** See the License for the specific language governing permissions and
  ** limitations under the License.
  */
-/*
- **
- ** Copyright 2011 Intel Corporation
- **
- ** Licensed under the Apache License, Version 2.0 (the "License");
- ** you may not use this file except in compliance with the License.
- ** You may obtain a copy of the License at
- **
- ** http://www.apache.org/licenses/LICENSE-2.0
- **
- ** Unless required by applicable law or agreed to in writing, software
- ** distributed under the License is distributed on an "AS IS" BASIS,
- ** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- ** See the License for the specific language governing permissions and
- ** limitations under the License.
- */
 #pragma once
 
 #include <poll.h>
@@ -61,6 +45,7 @@ class CEventThread
 
     typedef list<SFd>::iterator SFdListIterator;
     typedef list<SFd>::const_iterator SFdListConstIterator;
+
 public:
     // Construction
     CEventThread(IEventListener* pEventListener);
@@ -89,25 +74,10 @@ public:
     // trigger
     void trig();
 
+    // Context check
+    bool inThreadContext() const;
+
 private:
-    friend class CThreadContext;
-    // Thread context tracer
-    class CThreadContext {
-
-    public:
-        CThreadContext(CEventThread* pEventThread) : _pEventThread(pEventThread)
-        {
-            pEventThread->setThreadContext(true);
-        }
-        ~CThreadContext()
-        {
-            _pEventThread->setThreadContext(false);
-        }
-
-    private:
-        CEventThread* _pEventThread;
-    };
-
     // Thread
     static void* thread_func(void* pData);
     // Run
@@ -116,8 +86,6 @@ private:
     void addListenedFd(int iFd);
     // Remove FD
     void removeListenedFd(int iFd);
-    // ThreadContext
-    void setThreadContext(bool bEnter);
     // Poll FD computation
     void buildPollFds(struct pollfd* paPollFds) const;
 

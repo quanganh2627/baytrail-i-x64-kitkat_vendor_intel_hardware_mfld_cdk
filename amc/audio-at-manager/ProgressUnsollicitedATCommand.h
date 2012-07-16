@@ -1,4 +1,4 @@
-/*
+/*  ProgressUnsollicitedATCommand.h
  **
  ** Copyright 2011 Intel Corporation
  **
@@ -15,12 +15,12 @@
  ** limitations under the License.
  */
 #pragma once
-#include "UnsollicitedATCommand.h"
 #include <stdint.h>
 #include <stddef.h>
 #include <sys/time.h>
 #include <string>
 
+#include "UnsollicitedATCommand.h"
 
 using namespace std;
 
@@ -45,7 +45,7 @@ public:
     CProgressUnsollicitedATCommand();
 
     // Indicate if Modem Audio Path is available
-    bool isAudioPathAvailable();
+    bool isAudioPathAvailable() const;
 
 private:
     // Inherited from CUnsollicitedATCommand

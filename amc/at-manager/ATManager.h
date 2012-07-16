@@ -16,31 +16,19 @@
  */
 #pragma once
 
+#include <list>
+#include <pthread.h>
+#include <semaphore.h>
+
 #include "ATCommand.h"
+#include "ATCmdStatus.h"
 #include "PeriodicATCommand.h"
 #include "UnsollicitedATCommand.h"
 #include "EventListener.h"
-#include <pthread.h>
-#include <semaphore.h>
-#include <list>
+#include "EventNotifier.h"
 
 class CEventThread;
 class CATParser;
-class IATNotifier;
-
-typedef enum {
-    AT_CMD_OK = 0,
-    AT_CMD_RUNNING = 1,/* Command sent but no modem response yet.*/
-    AT_CMD_ERROR = 2,
-    AT_CMD_BUSY,
-    AT_CMD_UNABLE_TO_CREATE_THREAD,
-    AT_CMD_UNABLE_TO_OPEN_DEVICE,
-    AT_CMD_WRITE_ERROR,
-    AT_CMD_READ_ERROR,
-    AT_CMD_UNINITIALIZED,
-
-    AT_CMD_NB
-} AT_CMD_STATUS;
 
 using namespace std;
 
@@ -55,6 +43,8 @@ class CATManager : public IEventListener {
     typedef list<CUnsollicitedATCommand*>::iterator CUnsollicedATCommandListIterator;
     typedef list<CUnsollicitedATCommand*>::const_iterator CUnsollicedATCommandConstListIterator;
 
+    typedef list<IEventNotifier*>::const_iterator IEventNotifierListConstIterator;
+
     enum FileDesc {
         FdStmd,
         FdFromModem,
@@ -63,13 +53,18 @@ class CATManager : public IEventListener {
         ENbFileDesc
     };
 
+    enum NotifyType {
+        ENotifyModem,
+        ENotifyEvent
+    };
+
 
 public:
-    CATManager(IATNotifier *observer = NULL);
+    CATManager();
     ~CATManager();
 
     // Start
-    AT_CMD_STATUS start(const char* pcModemTty);
+    AT_STATUS start(const char* pcModemTty);
 
     // Stop
     void stop();
@@ -86,33 +81,36 @@ public:
     // Remove Unsollicited AT Command from the list
     void removeUnsollicitedATCommand(CUnsollicitedATCommand* pUnsollicitedATCommand);
 
-    // Send
-    AT_CMD_STATUS sendCommand(CATCommand* pATCommand, bool bSynchronous);
+    // Send - asynchronous or synchronous
+    AT_STATUS sendCommand(CATCommand* pATCommand, bool bSynchronous);
 
     // Cancel
     void cancelCommand();
 
-    // Get AT Notifier
-    const IATNotifier* getATNotifier() const;
-    IATNotifier* getATNotifier();
-
-    // Get the modem status
+    // Get the modem status (from STMD definition)
     int getModemStatus() const;
 
+    // Get modem availability
+    bool isModemAlive() const;
+
+    // Add an event notifier to the ATManager
+    void addEventNotifier(IEventNotifier *eventNotifier);
+
 private:
-    // Event processing - From IEventListener
+    // // Inherited from IEventListener: Event processing
     virtual bool onEvent(int iFd);
     virtual bool onError(int iFd);
     virtual bool onHangup(int iFd);
     virtual void onTimeout();
     virtual void onPollError();
     virtual void onProcess();
+
     // Push AT command to the send list
     void pushCommandToSendList(CATCommand* pATCommand);
     // Pop AT command from the send list
     CATCommand* popCommandFromSendList(void);
     // Wait for the end of the transaction
-    AT_CMD_STATUS waitEndOfTransaction(CATCommand* pATCommand);
+    AT_STATUS waitEndOfTransaction(CATCommand* pATCommand);
     // terminate the transaction
     void terminateTransaction(bool bSuccess);
     // Send the current command
@@ -159,6 +157,8 @@ private:
     // Recovery procedure: reset of the modem
     bool sendRequestCleanup();
 
+    // Notify an event to all listeners
+    void notify(NotifyType aType, uint32_t eventId = 0);
 
 public:
     // Periodic command list
@@ -173,11 +173,13 @@ public:
     // command list
     list<CATCommand*> _toSendATList;
 
+    // Periodic command list
+    list<IEventNotifier*> _eventNotiferList;
+
     // Client AT command
     CATCommand* _pAwaitedTransactionEndATCommand;
 
 private:
-
     // Running state
     bool _bStarted;
     // Modem state
@@ -205,10 +207,8 @@ private:
     string _strModemTty;
     // Modem tty listeners state
     bool _bTtyListenersStarted;
-    // Notification Interface
-    IATNotifier* _pIATNotifier;
     // Modem Status
-    uint32_t _mModemStatus;
+    uint32_t _uiModemStatus;
     // Timeout retry counter
     int _iRetryCount;
     // Write on tty failed flag

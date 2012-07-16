@@ -1,4 +1,4 @@
-/*
+/* ModemAudioManagerInstance.h
  **
  ** Copyright 2011 Intel Corporation
  **
@@ -6,7 +6,7 @@
  ** you may not use this file except in compliance with the License.
  ** You may obtain a copy of the License at
  **
- ** http://www.apache.org/licenses/LICENSE-2.0
+ **     http://www.apache.org/licenses/LICENSE-2.0
  **
  ** Unless required by applicable law or agreed to in writing, software
  ** distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,35 +16,20 @@
  */
 #pragma once
 
-#include <stdint.h>
-#include <stddef.h>
-#include <sys/time.h>
-#include <string>
-
-#include "ATCommand.h"
+#include "ModemAudioManager.h"
+#include "DualSimModemAudioManager.h"
 
 using namespace std;
 
-class CPeriodicATCommand : public CATCommand
-{
+class CModemAudioManagerInstance {
 
 public:
-    CPeriodicATCommand(const string& strCommand, const string& strRespPrefix = "");
+    // Kind of factory to create either ATModemManager or DualSimATModemManager
+    static CModemAudioManager* get();
 
-    // Set Send Deadline
-    bool setSendDeadLine(struct timespec tsDeadLine);
-
-    // Inherited from CATCommand
-    virtual void setAnswerOK(bool bIsOK);
-
-    // Deadline reached
-    bool deadlineReached();
+    static CModemAudioManager* create(IModemStatusNotifier *observer);
 
 private:
-    // Period time in seconds
-    uint32_t _uiDelaySeconds;
-
-    // Send Deadline
-    struct timespec _tsSendDeadline;
+    static CModemAudioManager* _pModemAudioManager;
 };
 

@@ -14,7 +14,7 @@
  ** See the License for the specific language governing permissions and
  ** limitations under the License.
  */
-#define LOG_TAG "ATMANAGER_PERIODIC"
+#define LOG_TAG "AT_MANAGER_PERIODIC"
 #include "PeriodicATCommand.h"
 #include <errno.h>
 #include <ctype.h>

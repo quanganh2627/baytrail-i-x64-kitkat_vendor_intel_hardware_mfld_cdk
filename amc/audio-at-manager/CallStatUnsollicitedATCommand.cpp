@@ -14,8 +14,8 @@
  ** See the License for the specific language governing permissions and
  ** limitations under the License.
  */
-#define LOG_TAG "ATMANAGER_XCALLSTAT"
-#include "CallStatUnsollicitedATCommand.h"
+#define LOG_TAG "AUDIO_AT_MANAGER_CALLSTAT"
+
 #include <errno.h>
 #include <ctype.h>
 #include <assert.h>
@@ -23,7 +23,10 @@
 #include <string.h>
 #include <stdlib.h>
 #include <utils/Log.h>
+
 #include "Tokenizer.h"
+#include "ModemAudioEvent.h"
+#include "CallStatUnsollicitedATCommand.h"
 
 #define AT_XCALL_STAT "AT+XCALLSTAT=1"
 #define AT_XCALL_STAT_PREFIX "+XCALLSTAT:"
@@ -31,17 +34,17 @@
 #define base CUnsollicitedATCommand
 
 CCallStatUnsollicitedATCommand::CCallStatUnsollicitedATCommand()
-    : base(AT_XCALL_STAT, AT_XCALL_STAT_PREFIX), _bAudioPathAvailable(false), _uiCallSession(0)
+    : base(AT_XCALL_STAT, AT_XCALL_STAT_PREFIX, EModemAudioAvailabilibty), _bAudioPathAvailable(false), _uiCallSession(0)
 {
     LOGD("%s", __FUNCTION__);
     for (int i = 0; i < MAX_CALL_SESSIONS; i++)
     {
-         _abCallSessionStat[i] = CallDisconnected;
+         _aiCallSessionStat[i] = CallDisconnected;
     }
 }
 
 // Indicate if Modem Audio Path is available
-bool CCallStatUnsollicitedATCommand::isAudioPathAvailable()
+bool CCallStatUnsollicitedATCommand::isAudioPathAvailable() const
 {
     LOGD("%s: avail = %d", __FUNCTION__, _bAudioPathAvailable);
 
@@ -57,11 +60,7 @@ bool CCallStatUnsollicitedATCommand::isAudioPathAvailable()
 //
 void CCallStatUnsollicitedATCommand::doProcessAnswer()
 {
-    LOGD("%s", __FUNCTION__);
-
     string str = getAnswer();
-
-    LOGD("%s: ans=(%s) %d", __FUNCTION__, str.c_str(), str.find(getPrefix()));
 
     // Assert the answer has the CallStat prefix...
     assert((str.find(getPrefix()) != string::npos));
@@ -92,7 +91,7 @@ void CCallStatUnsollicitedATCommand::doProcessAnswer()
     }
 
     // Call Index received from the modem starts from 1
-    _abCallSessionStat[iCallIndex - 1] = uiCallStatus;
+    _aiCallSessionStat[iCallIndex - 1] = uiCallStatus;
 
     _bAudioPathAvailable = isModemAudioPathEnabled();
 
@@ -108,10 +107,10 @@ bool CCallStatUnsollicitedATCommand::isModemAudioPathEnabled()
     // answers true...
     for (int i = 0; i < MAX_CALL_SESSIONS; i++)
     {
-        if (_abCallSessionStat[i] == CallAlerting
-                || _abCallSessionStat[i] == CallActive
-                || _abCallSessionStat[i] == CallHold
-                ||_abCallSessionStat[i] == CallConnected) {
+        if (_aiCallSessionStat[i] == CallAlerting
+                || _aiCallSessionStat[i] == CallActive
+                || _aiCallSessionStat[i] == CallHold
+                || _aiCallSessionStat[i] == CallConnected) {
             return true;
         }
     }

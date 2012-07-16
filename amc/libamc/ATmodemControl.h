@@ -34,6 +34,8 @@ extern "C"
 #define AT_MAX_CMD_LENGTH 80
 #define AT_MAX_RESP_LENGTH 300
 
+#include "ATCmdStatus.h"
+
 /* TTY status */
 typedef enum {
     AMC_TTY_OFF,
@@ -42,22 +44,8 @@ typedef enum {
     AMC_TTY_HCO
 } AMC_TTY_STATE;
 
-/* Return status:*/
-typedef enum {
-    AT_OK = 0,
-    AT_RUNNING = 1,/* Command sent but no modem response yet.*/
-    AT_ERROR = 2,
-    AT_BUSY,
-    AT_UNABLE_TO_CREATE_THREAD,
-    AT_UNABLE_TO_OPEN_DEVICE,
-    AT_WRITE_ERROR,
-    AT_READ_ERROR,
-    AT_UNINITIALIZED,
-
-    AT_STATUS_NB
-} AT_STATUS;
-
 AT_STATUS at_start(const char *pATchannel, uint32_t uiIfxI2s1ClkSelect, uint32_t uiIfxI2s2ClkSelect);
+
 AT_STATUS at_send(const char *pATcmd, const char *pRespPrefix);
 
 #ifdef __cplusplus

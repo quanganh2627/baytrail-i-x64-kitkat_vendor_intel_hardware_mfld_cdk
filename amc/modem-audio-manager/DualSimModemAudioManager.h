@@ -48,8 +48,8 @@ private:
     // Secondary SIM Audio AT Manager instance
     CAudioATManager* _pSecondaryAudioATManager;
 
-    static const string _strAtXSIMSEL;
+    static const char* const _pcAtXSIMSEL;
 
     // Secondary Channel name property
-    static const string _strSecondaryChannelNameProperty;
+    static const char* const _pcSecondaryChannelNameProperty;
 };

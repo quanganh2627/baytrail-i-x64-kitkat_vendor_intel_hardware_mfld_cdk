@@ -18,16 +18,14 @@
 #define LOG_TAG "VPC_Acoustic"
 #include <utils/Log.h>
 
-#include <cutils/properties.h>
 #include <utils/threads.h>
 #include <fcntl.h>
 #include <linux/a1026.h>
 #include <hardware_legacy/AudioSystemLegacy.h>
-#include <Property.h>
-#include <BooleanProperty.h>
 
 #include "vpc_hardware.h"
 #include "acoustic.h"
+#include "Property.h"
 
 /* The time is us before the ACK of es305b can be read: Audience
  * specifies 20ms.
@@ -93,19 +91,18 @@ const char *acoustic::profile_name[profile_number] = {
 /*---------------------------------------------------------------------------*/
 int acoustic::private_cache_profiles()
 {
-    CProperty vp_profile_prefix(vp_profile_prefix_prop_name, "/system/etc/phonecall_es305b_");
+    TProperty<string> vp_profile_prefix(vp_profile_prefix_prop_name, "/system/etc/phonecall_es305b_");
 
     LOGD("Initialize Audience A1026 profiles cache\n");
 
     for (int i = 0; i < profile_number; i++)
     {
-        char profile_path[profile_path_len_max];
+        string strProfilePath = vp_profile_prefix;
+        strProfilePath += string(profile_name[i]);
 
-        snprintf(profile_path, sizeof(profile_path), "%s%s", (char *) vp_profile_prefix.getValue().c_str(), profile_name[i]);
-
-        FILE *fd = fopen(profile_path, "r");
+        FILE *fd = fopen(strProfilePath.c_str(), "r");
         if (fd == NULL) {
-            LOGE("Cannot open %s\n", profile_path);
+            LOGE("Cannot open %s\n", strProfilePath.c_str());
             goto return_error;
         }
 
@@ -113,7 +110,7 @@ int acoustic::private_cache_profiles()
         profile_size[i] = ftell(fd);
         fseek(fd, 0, SEEK_SET);
 
-        LOGD("Profile %d : size = %d, \t path = %s", i, profile_size[i], profile_path);
+        LOGD("Profile %d : size = %d, \t path = %s", i, profile_size[i], strProfilePath.c_str());
 
         if (i2c_cmd_profile[i] != NULL)
             free(i2c_cmd_profile[i]);
@@ -338,9 +335,9 @@ int acoustic::process_init()
 
     int fd_a1026 = -1;
     int rc;
-    CBooleanProperty vp_bypass_prop(vp_bypass_prop_name, false);
-    CBooleanProperty vp_tuning_prop(vp_tuning_prop_name, false);
-    CProperty vp_fw_name(vp_fw_name_prop_name, "vpimg_es305b.bin");
+    TProperty<bool> vp_bypass_prop(vp_bypass_prop_name, false);
+    TProperty<bool> vp_tuning_prop(vp_tuning_prop_name, false);
+    TProperty<string> vp_fw_name(vp_fw_name_prop_name, "vpimg_es305b.bin");
 
     rc = private_cache_profiles();
     if (rc) goto return_error;
@@ -356,7 +353,7 @@ int acoustic::process_init()
     if (rc) goto return_error;
 
     LOGD("Load Audience A1026 FW\n");
-    rc = ioctl(fd_a1026, A1026_BOOTUP_INIT, vp_fw_name.getValue().c_str());
+    rc = ioctl(fd_a1026, A1026_BOOTUP_INIT, ((string)vp_fw_name).c_str());
     if (rc) goto return_error;
 
     rc = private_get_fw_label(fd_a1026);
@@ -371,11 +368,11 @@ int acoustic::process_init()
     close(fd_a1026);
     a1026_lock.unlock();
 
-    vp_bypass_on = vp_bypass_prop.isSet();
+    vp_bypass_on = vp_bypass_prop;
     if (vp_bypass_on == true)
         LOGW("%s: %s is set: Audience digital hardware pass through will be forced\n", __FUNCTION__, vp_bypass_prop_name);
 
-    vp_tuning_on = vp_tuning_prop.isSet();
+    vp_tuning_on = vp_tuning_prop;
     if (vp_tuning_on == true)
         LOGW("%s: %s is set: Audience tuning mode is on and will never be suspended\n", __FUNCTION__, vp_tuning_prop_name);
 

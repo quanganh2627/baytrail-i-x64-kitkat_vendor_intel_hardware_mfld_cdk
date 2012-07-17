@@ -16,32 +16,61 @@
  */
 #define LOG_TAG "PROPERTY"
 
-#include "Property.h"
 #include <errno.h>
 #include <ctype.h>
-#include <unistd.h>
-#include <string.h>
-#include <utils/Log.h>
-
 #include <cutils/properties.h>
+#include <utils/Log.h>
+#include <sstream>
+#include "Property.h"
+#include <stdint.h>
 
-CProperty::CProperty(const string& strProperty, const string& strDefaultValue)
+#define base CPropertyBase
+
+template <typename type>
+TProperty<type>::TProperty(const string& strProperty, const type& typeDefaultValue) :
+    CPropertyBase(strProperty), _typeDefaultValue(typeDefaultValue)
 {
-    char value[PROPERTY_VALUE_MAX];
-    property_get(strProperty.c_str(), value, strDefaultValue.c_str());
+    // Convert default value to string
+    ostringstream ostr;
+    ostr << typeDefaultValue;
 
-    _strValue = value;
+    // Set the default value
+    setDefaultValue(ostr.str());
 }
 
-CProperty::~CProperty()
+// get the property
+template <typename type>
+type TProperty<type>::getValue() const
 {
+    type typeValue = type();
 
+    // Convert the string property to the correct type
+    istringstream istr(get());
+    istr >> boolalpha >> typeValue;
+    if (istr.fail()) {
+
+        typeValue = _typeDefaultValue;
+    }
+
+    return typeValue;
 }
 
-
-// Command
-const string& CProperty::getValue() const
+// set the property
+template <typename type>
+bool TProperty<type>::setValue(const type& typeVal)
 {
-    LOGD("%s: %s", __FUNCTION__, _strValue.c_str());
-    return _strValue;
+    ostringstream ostr;
+    ostr << boolalpha << typeVal;
+
+    return set(ostr.str());
 }
+
+// Cast accessor
+template <typename type>
+TProperty<type>::operator type() const
+{
+    return getValue();
+}
+
+// Export supported types as library symbols
+#include "PropertyTemplateInstanciations.h"

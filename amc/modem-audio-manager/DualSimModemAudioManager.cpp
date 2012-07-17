@@ -29,9 +29,9 @@
 
 #define base    CModemAudioManager
 
-const string CDualSimModemAudioManager::_strAtXSIMSEL = "AT+XSIMSEL=";
+const char* const CDualSimModemAudioManager::_pcAtXSIMSEL = "AT+XSIMSEL=";
 
-const string CDualSimModemAudioManager::_strSecondaryChannelNameProperty = "audiocomms.atm.secondaryChannel";
+const char* const CDualSimModemAudioManager::_pcSecondaryChannelNameProperty = "audiocomms.atm.secondaryChannel";
 
 CDualSimModemAudioManager::CDualSimModemAudioManager(IModemStatusNotifier *observer) :
     base(observer), _pSecondaryAudioATManager(new CAudioATManager(this))
@@ -39,9 +39,9 @@ CDualSimModemAudioManager::CDualSimModemAudioManager(IModemStatusNotifier *obser
     LOGD("%s", __FUNCTION__);
 
     // Read primary AT Manager TTY name property
-    CProperty pTtyProp(_strSecondaryChannelNameProperty);
+    TProperty<string> propStrTty(_pcSecondaryChannelNameProperty);
 
-    _pSecondaryAudioATManager->setTtyName(pTtyProp.getValue());
+    _pSecondaryAudioATManager->setTtyName(propStrTty);
 
     // Tricks: use unsollicted to add the SIMSEL registration
     // It will be automatically sent if the modem is resetted
@@ -49,10 +49,10 @@ CDualSimModemAudioManager::CDualSimModemAudioManager(IModemStatusNotifier *obser
     // hence before registering to modem audio messages
 
     // Primary ATManager: listening to SIM1
-    _pPrimaryAudioATManager->addUnsollicitedATCommand(new CUnsollicitedATCommand(_strAtXSIMSEL + "0", "", ""));
+    _pPrimaryAudioATManager->addUnsollicitedATCommand(new CUnsollicitedATCommand(string(_pcAtXSIMSEL) + "0", "", ""));
 
     // Secondary ATManager: listening to SIM2
-    _pSecondaryAudioATManager->addUnsollicitedATCommand(new CUnsollicitedATCommand(_strAtXSIMSEL + "1", "", ""));
+    _pSecondaryAudioATManager->addUnsollicitedATCommand(new CUnsollicitedATCommand(string(_pcAtXSIMSEL) + "1", "", ""));
 
 }
 

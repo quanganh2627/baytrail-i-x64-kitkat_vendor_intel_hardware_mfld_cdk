@@ -34,7 +34,7 @@
 #include "ATParser.h"
 #include "TtyHandler.h"
 #include "EventNotifier.h"
-#include "BooleanProperty.h"
+#include "Property.h"
 
 #define MAX_TIME_MODEM_STATUS_CHECK_SECONDS 60
 #define MAX_WAIT_FOR_STMD_CONNECTION_SECONDS 5
@@ -1150,9 +1150,9 @@ void CATManager::notify(NotifyType aType, uint32_t eventId)
 bool CATManager::sendRequestCleanup()
 {
     // Read persist.audiocomms.atm.recov property
-    CBooleanProperty pRecoverMechanismEnabledProp(gpcRecoveryEnabledProperty, true);
+    TProperty<bool> recoverMechanismEnabledProp(gpcRecoveryEnabledProperty, true);
 
-    if (!pRecoverMechanismEnabledProp.isSet()) {
+    if (!recoverMechanismEnabledProp) {
 
         LOGW("%s: RECOVER PROCEDURE DISABLED", __FUNCTION__);
         return false;

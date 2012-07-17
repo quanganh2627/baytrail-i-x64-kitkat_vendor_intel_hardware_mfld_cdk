@@ -32,16 +32,16 @@
 #include "ModemAudioManager.h"
 
 
-const string CModemAudioManager::_strPrimaryChannelNameProperty = "audiocomms.atm.primaryChannel";
+const char* const CModemAudioManager::_pcPrimaryChannelNameProperty = "audiocomms.atm.primaryChannel";
 
 CModemAudioManager::CModemAudioManager(IModemStatusNotifier *observer) :
     _pPrimaryAudioATManager(new CAudioATManager(this)),
     _pObserver(observer)
 {
     // Read primary AT Manager TTY name property
-    CProperty pTtyProperty(_strPrimaryChannelNameProperty);
+    TProperty<string> propStrTty(_pcPrimaryChannelNameProperty);
 
-    _pPrimaryAudioATManager->setTtyName(pTtyProperty.getValue());
+    _pPrimaryAudioATManager->setTtyName(propStrTty);
 }
 
 CModemAudioManager::~CModemAudioManager()

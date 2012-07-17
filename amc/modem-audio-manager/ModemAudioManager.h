@@ -70,6 +70,6 @@ private:
     IModemStatusNotifier* _pObserver;
 
     // Primary Channel name property
-    static const string _strPrimaryChannelNameProperty;
+    static const char* const _pcPrimaryChannelNameProperty;
 };
 

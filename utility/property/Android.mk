@@ -3,16 +3,14 @@ LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 LOCAL_COPY_HEADERS_TO := property
 LOCAL_COPY_HEADERS := \
-    BooleanProperty.h \
-    IntProperty.h \
+    PropertyBase.h \
     Property.h
 include $(BUILD_COPY_HEADERS)
 include $(CLEAR_VARS)
 LOCAL_COPY_HEADERS_TO := property
 LOCAL_COPY_HEADERS := \
-    BooleanProperty.h \
-    IntProperty.h \
-    Property.h
+    Property.h \
+    PropertyBase.h
 include $(BUILD_COPY_HEADERS)
 include $(CLEAR_VARS)
 
@@ -20,9 +18,8 @@ LOCAL_CFLAGS := \
         -DDEBUG
 
 LOCAL_SRC_FILES := \
-        Property.cpp \
-        BooleanProperty.cpp \
-        IntProperty.cpp
+        PropertyBase.cpp \
+        Property.cpp
 
 LOCAL_C_INCLUDES += \
         system/core/include/cutils

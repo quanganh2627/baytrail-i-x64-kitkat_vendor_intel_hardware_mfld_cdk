@@ -28,6 +28,11 @@ LOCAL_C_INCLUDES += \
         bionic/libstdc++ \
         bionic/
 
+LOCAL_COPY_HEADERS_TO := event-listener
+
+LOCAL_COPY_HEADERS := \
+        EventListener.h
+
 LOCAL_SHARED_LIBRARIES := libstlport libcutils
 
 LOCAL_MODULE := libevent-listener

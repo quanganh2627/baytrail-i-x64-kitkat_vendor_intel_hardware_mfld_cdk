@@ -16,25 +16,26 @@
  */
 #pragma once
 
-#include <stdint.h>
-#include <stddef.h>
-#include <sys/time.h>
-#include <string>
+#include "PropertyBase.h"
 
 using namespace std;
 
-class CProperty
+template <typename type>
+class TProperty : public CPropertyBase
 {
-
 public:
-    CProperty(const string& strProperty, const string& strDefaultValue = "");
-    virtual ~CProperty();
+    TProperty(const string& strProperty, const type& typeDefaultValue = type());
 
-    // Command
-    const string& getValue() const;
+    // get the property
+    type getValue() const;
+
+    // set the property
+    bool setValue(const type& typeVal);
+
+    // Cast accessor
+    operator type() const;
 
 private:
-    // AT Command
-    string _strValue;
+    // property default value
+    type _typeDefaultValue;
 };
-

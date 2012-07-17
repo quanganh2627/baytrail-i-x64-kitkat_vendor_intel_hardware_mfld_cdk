@@ -29,7 +29,7 @@ HEADERS += ATManager.h \
     ATCommand.h \
     EventNotifier.h
 
-INCLUDEPATH += ../simulation ../../utility/event-listener ../at-parser ../tty-handler
+INCLUDEPATH += ../simulation ../../utility/event-listener ../at-parser ../tty-handler ../../../mfld_cdk/utility/property
 
 CONFIG(debug, debug|release) {
     DESTDIR = ../build/debug

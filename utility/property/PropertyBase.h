@@ -1,4 +1,4 @@
-/* IntProperty.h
+/* PropertyBase.h
  **
  ** Copyright 2011 Intel Corporation
  **
@@ -16,30 +16,34 @@
  */
 #pragma once
 
-#include <stdint.h>
-#include <stddef.h>
-#include <sys/time.h>
 #include <string>
-
-#include "Property.h"
 
 using namespace std;
 
-class CIntProperty : public CProperty
+class CPropertyBase
 {
-
 public:
-    CIntProperty(const string& strProperty, int32_t iDefaultValue = 0);
-    virtual ~CIntProperty();
 
-    // Command
-    int getValue() const;
+    virtual ~CPropertyBase();
+
+protected:
+
+    CPropertyBase(const string& strProperty);
+
+    // set default value
+    void setDefaultValue(const string& strDefaultValue);
+
+    // get the property
+    string get() const;
+
+    // set the property
+    bool set(const string& strVal);
 
 private:
-    static string toString(int32_t iValue);
 
-private:
-    // AT Command
-    int32_t _iPropertyValue;
+    // property key
+    string _strProperty;
+
+    // property default value
+    string _strDefaultValue;
 };
-

@@ -26,10 +26,10 @@
 #include <errno.h>
 #include <utils/Log.h>
 
-#include "BooleanProperty.h"
+#include "Property.h"
 #include "ModemAudioManagerInstance.h"
 
-static const string gpcDualStackProperty = "audiocomms.atm.isDualSimModem";
+static const char* const gpcDualStackPropertyName = "audiocomms.atm.isDualSimModem";
 
 CModemAudioManager* CModemAudioManagerInstance::_pModemAudioManager = NULL;
 
@@ -38,9 +38,9 @@ CModemAudioManager* CModemAudioManagerInstance::create(IModemStatusNotifier *obs
     assert(!_pModemAudioManager);
 
     // Read AudioComms.dualstack property
-    CBooleanProperty pDualSimProp(gpcDualStackProperty, false);
+    TProperty<bool> propDualSim(gpcDualStackPropertyName, false);
 
-    if (pDualSimProp.isSet()) {
+    if (propDualSim) {
 
         LOGD("%s: DUAL STACK SUPPORTED", __FUNCTION__);
         _pModemAudioManager = new CDualSimModemAudioManager(observer);

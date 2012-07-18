@@ -29,9 +29,18 @@ LOCAL_SRC_FILES:= \
 LOCAL_SHARED_LIBRARIES := \
      libasound \
      liblog \
-     libbluetooth \
      libcutils \
      libamc
+
+ifeq ($(BOARD_HAVE_BLUETOOTH),true)
+LOCAL_SHARED_LIBRARIES += \
+     libbluetooth
+endif
+
+
+ifeq ($(BOARD_HAVE_BLUETOOTH),false)
+LOCAL_CFLAGS += -DBTDISABLED
+endif
 
 ifeq ($(BOARD_HAVE_AUDIENCE),true)
     LOCAL_CFLAGS += -DCUSTOM_BOARD_WITH_AUDIENCE
@@ -71,8 +80,12 @@ LOCAL_C_INCLUDES += \
      $(TARGET_OUT_HEADERS)/vpc \
      $(TARGET_OUT_HEADERS)/libamc \
      system/core/include/cutils \
-     external/bluetooth/bluez/lib/bluetooth \
      $(TARGET_OUT_HEADERS)/IFX-modem
+
+ifeq ($(BOARD_HAVE_BLUETOOTH),true)
+LOCAL_C_INCLUDES += \
+     external/bluetooth/bluez/lib/bluetooth
+endif
 
 LOCAL_MODULE:= vpc.$(TARGET_DEVICE)
 LOCAL_MODULE_TAGS := optional

@@ -20,12 +20,15 @@
 
 #include <errno.h>
 
+#ifndef BTDISABLED
 #include "bluetooth.h"
 #include "hci.h"
 #include "hci_lib.h"
 #include "hci_vs_lib.h"
+#endif
 
 #include "bt.h"
+
 
 namespace android_audio_legacy
 {
@@ -37,7 +40,7 @@ int bt::pcm_enable()
     int err = 0;
     int dev_id;
     int hci_sk = -1;
-
+#ifndef BTDISABLED
     LOGD("Enable BT PCM voice path ~~~ Entry\n");
 
     /* Get hci device id if up */
@@ -63,7 +66,7 @@ int bt::pcm_enable()
         hci_close_dev(hci_sk);
 
     LOGD("Enable BT PCM voice path ~~~ Exit\n");
-
+#endif
     return err;
 }
 
@@ -72,7 +75,7 @@ int bt::pcm_disable()
     int err = 0;
     int dev_id;
     int hci_sk = -1;
-
+#ifndef BTDISABLED
     LOGD("Disable BT voice path ~~~ Entry\n");
 
     /* Get hci device id if up */
@@ -98,7 +101,7 @@ int bt::pcm_disable()
         hci_close_dev(hci_sk);
 
     LOGD("Disable BT voice path ~~~ Exit\n");
-
+#endif
     return err;
 }
 

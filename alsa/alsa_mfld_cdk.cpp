@@ -35,8 +35,8 @@
 #define PERIOD_TIME   (23220*2)  //microseconds, aligned to LPE fw
 #define CAPTURE_PERIOD_TIME (20000) //microseconds
 #define MAX_RETRY (6)
-#define NB_RING_BUFFER_NORMAL	2
-#define NB_RING_BUFFER_INCALL	4
+#define NB_RING_BUFFER_NORMAL   2
+#define NB_RING_BUFFER_INCALL   4
 
 #define USEC_PER_SEC        (1000000)
 
@@ -648,13 +648,13 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode, int fm
 #endif
     }
 
-    // Buffer size in frame
-    handle->bufferSize = handle->sampleRate * handle->latency / USEC_PER_SEC;
+    // Buffer size in frames
+    handle->bufferSize = (uint64_t) handle->sampleRate * handle->latency / USEC_PER_SEC;
 
     handle->curDev = devices;
     handle->curMode = mode;
 
-	err = setHardwareParams(handle);
+        err = setHardwareParams(handle);
 
     if (err == NO_ERROR) err = setSoftwareParams(handle);
 

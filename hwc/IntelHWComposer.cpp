@@ -32,6 +32,8 @@
 #include <IntelOverlayUtil.h>
 #include <IntelWidiPlane.h>
 
+//#define INTEL_EXT_SF_NEED_SWAPBUFFER
+//#define INTEL_EXT_SF_ANIMATION_HINT
 
 IntelHWComposer::~IntelHWComposer()
 {
@@ -279,7 +281,9 @@ out_check:
         layer->flags &= ~HWC_SKIP_LAYER;
         mLayerList->setForceOverlay(index, true);
         layer->compositionType = HWC_OVERLAY;
+#ifdef INTEL_EXT_SF_ANIMATION_HINT
         layer->hints |= HWC_HINT_DISABLE_ANIMATION;
+#endif
     }
 
     // check if frame buffer clear is needed
@@ -1227,7 +1231,9 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
         // surface flinger failed to render a layer to FB sometimes
 	// because screen dirty region was unchanged, in this case
         // we don't to swap buffers.
+#ifdef INTEL_EXT_SF_NEED_SWAPBUFFER
         if (list->flags & HWC_NEED_SWAPBUFFERS)
+#endif
             needSwapBuffer = true;
     }
 

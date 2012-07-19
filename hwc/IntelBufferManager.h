@@ -32,6 +32,8 @@
 #include <hardware/hardware.h>
 #include <system/graphics.h>
 #include <IntelWsbm.h>
+#include <OMX_IVCommon.h>
+#include <hal_public.h>
 #include <pvr2d.h>
 #include <pthread.h>
 #include <services.h>
@@ -69,14 +71,11 @@ public:
 // pixel format supported by HWC
 // TODO: share the extended pixel format with gralloc HAL
 enum {
-    HAL_PIXEL_FORMAT_INTEL_HWC_NV12 = HAL_PIXEL_FORMAT_NV12_VED,
+    HAL_PIXEL_FORMAT_INTEL_HWC_NV12 = OMX_INTEL_COLOR_FormatYUV420PackedSemiPlanar,
     HAL_PIXEL_FORMAT_INTEL_HWC_YUY2 = HAL_PIXEL_FORMAT_YUY2,
     HAL_PIXEL_FORMAT_INTEL_HWC_UYVY = HAL_PIXEL_FORMAT_UYVY,
     HAL_PIXEL_FORMAT_INTEL_HWC_I420 = HAL_PIXEL_FORMAT_I420,
 };
-
-// this is toooooooooooo ugly, but gralloc refined it
-#define HAL_PIXEL_FORMAT_BGRX_8888 0x1FF
 
 class IntelDisplayDataBuffer : public IntelDisplayBuffer
 {

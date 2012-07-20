@@ -30,6 +30,7 @@ typedef enum { VPC_ROUTE_OPEN, VPC_ROUTE_CLOSE } vpc_route_t;
 typedef enum { VPC_TTY_OFF, VPC_TTY_FULL, VPC_TTY_VCO, VPC_TTY_HCO } vpc_tty_t;
 typedef enum { VPC_BT_NREC_OFF, VPC_BT_NREC_ON } vpc_bt_nrec_t;
 typedef enum { VPC_HAC_OFF, VPC_HAC_ON } vpc_hac_set_t;
+typedef enum { VPC_BAND_NARROW, VPC_BAND_WIDE, VPC_BAND_INVALID} vpc_band_t;
 
 /* VPC module struct */
 #define VPC_HARDWARE_MODULE_ID "vpc"
@@ -51,6 +52,7 @@ typedef struct vpc_device_t {
     int (*bt_nrec)(vpc_bt_nrec_t);
     int (*set_hac)(vpc_hac_set_t);
     int (*set_bt_sco_path)(vpc_route_t);
+    void (*set_band)(vpc_band_t band, int for_mode);
 } vpc_device_t;
 
 #ifdef __cplusplus

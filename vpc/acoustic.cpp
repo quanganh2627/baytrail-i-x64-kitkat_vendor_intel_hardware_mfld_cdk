@@ -26,6 +26,7 @@
 #include <Property.h>
 #include <BooleanProperty.h>
 
+#include "vpc_hardware.h"
 #include "acoustic.h"
 
 /* The time is us before the ACK of es305b can be read: Audience
@@ -52,20 +53,38 @@ const char *   acoustic::vp_fw_name_prop_name = "audiocomms.vp.fw_name";
 const char *   acoustic::vp_profile_prefix_prop_name = "audiocomms.vp.profile_prefix";
 
 const char *acoustic::profile_name[profile_number] = {
-    "close_talk.bin",                // EP
-    "speaker_far_talk.bin",          // IHF
-    "headset_close_talk.bin",        // Headset
-    "headphone_close_talk.bin",      // Headphone
-    "bt_hsp.bin",                    // BT HSP
-    "bt_carkit.bin",                 // BT Car Kit
-    "no_acoustic.bin",               // All other devices
-    "close_talk_voip.bin",           // EP VOIP
-    "speaker_far_talk_voip.bin",     // IHF VOIP
-    "headset_close_talk_voip.bin",   // Headset VOIP
-    "headphone_close_talk_voip.bin", // Headphone VOIP
-    "bt_hsp_voip.bin",               // BT HSP VOIP
-    "bt_carkit_voip.bin",            // BT Car Kit VOIP
-    "no_acoustic_voip.bin"           // All other devices VOIP
+    /* CSV NB */
+    "close_talk_csv_nb.bin",                // EP in CSV NB
+    "speaker_far_talk_csv_nb.bin",          // IHF in CSV NB
+    "headset_close_talk_csv_nb.bin",        // Headset in CSV NB
+    "headphone_close_talk_csv_nb.bin",      // Headphone in CSV NB
+    "bt_hsp_csv_nb.bin",                    // BT HSP in CSV NB
+    "bt_carkit_csv_nb.bin",                 // BT Car Kit in CSV NB
+    "no_acoustic_csv_nb.bin",               // All other devices in CSV NB
+    /* CSV WB */
+    "close_talk_csv_wb.bin",                // EP in CSV WB
+    "speaker_far_talk_csv_wb.bin",          // IHF in CSV WB
+    "headset_close_talk_csv_wb.bin",        // Headset in CSV WB
+    "headphone_close_talk_csv_wb.bin",      // Headphone in CSV WB
+    "bt_hsp_csv_wb.bin",                    // BT HSP in CSV WB
+    "bt_carkit_csv_wb.bin",                 // BT Car Kit in CSV WB
+    "no_acoustic_csv_wb.bin",               // All other devices in CSV WB
+    /* VOIP NB */
+    "close_talk_voip_nb.bin",               // EP in VOIP NB
+    "speaker_far_talk_voip_nb.bin",         // IHF in VOIP NB
+    "headset_close_talk_voip_nb.bin",       // Headset in VOIP NB
+    "headphone_close_talk_voip_nb.bin",     // Headphone in VOIP NB
+    "bt_hsp_voip_nb.bin",                   // BT HSP in VOIP NB
+    "bt_carkit_voip_nb.bin",                // BT Car Kit in VOIP NB
+    "no_acoustic_voip_nb.bin",              // All other devices in VOIP NB
+    /* VOIP WB */
+    "close_talk_voip_wb.bin",               // EP in VOIP WB
+    "speaker_far_talk_voip_wb.bin",         // IHF in VOIP WB
+    "headset_close_talk_voip_wb.bin",       // Headset in VOIP WB
+    "headphone_close_talk_voip_wb.bin",     // Headphone in VOIP WB
+    "bt_hsp_voip_wb.bin",                   // BT HSP in VOIP WB
+    "bt_carkit_voip_wb.bin",                // BT Car Kit in VOIP WB
+    "no_acoustic_voip_wb.bin"               // All other devices in VOIP WB
 };
 
 
@@ -130,63 +149,37 @@ return_error:
 /*---------------------------------------------------------------------------*/
 /* Get profile ID to access cache                                            */
 /*---------------------------------------------------------------------------*/
-int acoustic::private_get_profile_id(uint32_t device, uint32_t mode)
+int acoustic::private_get_profile_id(uint32_t device, profile_mode_t mode)
 {
-    int device_id = 0;
     int profile_id = PROFILE_DEFAULT;
 
-    if (device <= device_id_max) {
-        uint32_t local_device = device;
-        while (local_device != 1) {
-            local_device = local_device / 2;
-            device_id++;
-        }
-
         // Associate a profile to the detected device
-        switch(device_id)
-        {
-        case DEVICE_EARPIECE :
-            LOGD("Earpiece device detected, => force use of Earpiece device profile\n");
-            profile_id = PROFILE_EARPIECE;
-            break;
-        case DEVICE_SPEAKER :
-            LOGD("Speaker device detected, => force use of Speaker device profile\n");
-            profile_id = PROFILE_SPEAKER;
-            break;
-        case DEVICE_WIRED_HEADSET :
-            LOGD("Headset device detected, => force use of Headset device profile\n");
-            profile_id = PROFILE_WIRED_HEADSET;
-            break;
-        case DEVICE_WIRED_HEADPHONE :
-            LOGD("Headphone device detected, => force use of Headphone device profile\n");
-            profile_id = PROFILE_WIRED_HEADPHONE;
-            break;
-        case DEVICE_BLUETOOTH_SCO :
-            LOGD("BT SCO device detected, => force use of BT HSP device profile\n");
-            profile_id = PROFILE_BLUETOOTH_HSP;
-            break;
-        case DEVICE_BLUETOOTH_SCO_HEADSET :
-            LOGD("BT SCO Headset device detected, => force use of BT HSP device profile\n");
-            profile_id = PROFILE_BLUETOOTH_HSP;
-            break;
-        case DEVICE_BLUETOOTH_SCO_CARKIT :
-            LOGD("BT SCO CarKit device detected, => force use of BT CARKIT device profile\n");
-            profile_id = PROFILE_BLUETOOTH_CARKIT;
-            break;
-        default :
-            LOGD("No device detected, => force use of DEFAULT device profile\n");
-            profile_id = PROFILE_DEFAULT;
-            break;
-        }
-        if (mode == AudioSystem::MODE_IN_CALL)
-        {
-            profile_id += PROFILE_MODE_OFFSET_IN_CALL;
-        }
-        else if (mode == AudioSystem::MODE_IN_COMMUNICATION)
-        {
-            profile_id += PROFILE_MODE_OFFSET_IN_COMMUNICATION;
-        }
+    if (device & AudioSystem::DEVICE_OUT_EARPIECE) {
+        LOGD("Earpiece device detected, => force use of Earpiece device profile\n");
+        profile_id = PROFILE_EARPIECE;
+    } else if (device & AudioSystem::DEVICE_OUT_SPEAKER) {
+        LOGD("Speaker device detected, => force use of Speaker device profile\n");
+        profile_id = PROFILE_SPEAKER;
+    } else if (device & AudioSystem::DEVICE_OUT_WIRED_HEADSET) {
+        LOGD("Headset device detected, => force use of Headset device profile\n");
+        profile_id = PROFILE_WIRED_HEADSET;
+    } else if (device & AudioSystem::DEVICE_OUT_WIRED_HEADPHONE) {
+        LOGD("Headphone device detected, => force use of Headphone device profile\n");
+        profile_id = PROFILE_WIRED_HEADPHONE;
+    } else if (device & AudioSystem::DEVICE_OUT_BLUETOOTH_SCO) {
+        LOGD("BT SCO device detected, => force use of BT HSP device profile\n");
+        profile_id = PROFILE_BLUETOOTH_HSP;
+    } else if (device & AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET) {
+        LOGD("BT SCO Headset device detected, => force use of BT HSP device profile\n");
+        profile_id = PROFILE_BLUETOOTH_HSP;
+    } else if (device & AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_CARKIT) {
+        LOGD("BT SCO CarKit device detected, => force use of BT CARKIT device profile\n");
+        profile_id = PROFILE_BLUETOOTH_CARKIT;
+    } else {
+        LOGD("No device detected, => force use of DEFAULT device profile\n");
+        profile_id = PROFILE_DEFAULT;
     }
+    profile_id += PROFILE_NUMBER * mode;
 
     LOGD("Profile %d : size = %d, name = %s", profile_id, profile_size[profile_id], profile_name[profile_id]);
 
@@ -514,7 +507,7 @@ return_error:
 /*---------------------------------------------------------------------------*/
 /* Set profile                                                               */
 /*---------------------------------------------------------------------------*/
-int acoustic::process_profile(uint32_t device, uint32_t mode)
+int acoustic::process_profile(uint32_t device, uint32_t mode, vpc_band_t band)
 {
     a1026_lock.lock();
     LOGD("Set Audience A1026 profile\n");
@@ -522,6 +515,7 @@ int acoustic::process_profile(uint32_t device, uint32_t mode)
     int fd_a1026 = -1;
     int rc;
     int profile_id;
+    profile_mode_t profile_mode;
 
     if (!is_a1026_init) {
         LOGE("Audience A1026 not initialized.\n");
@@ -533,10 +527,22 @@ int acoustic::process_profile(uint32_t device, uint32_t mode)
         LOGE("Cannot open audience_a1026 device (%d)\n", fd_a1026);
         goto return_error;
     }
+    LOGD("%s: Selecting profile for device=0x%08X mode=%d band=%d\n", __FUNCTION__, device, mode, band);
 
-    if (vp_bypass_on == false)
-        profile_id = private_get_profile_id(device, mode);
-    else {
+    if (vp_bypass_on == false) {
+
+        if (mode == AudioSystem::MODE_IN_CALL) {
+            profile_mode = band == VPC_BAND_NARROW ? PROFILE_MODE_IN_CALL_NB : PROFILE_MODE_IN_CALL_WB;
+            profile_id = private_get_profile_id(device, profile_mode);
+        } else if (mode == AudioSystem::MODE_IN_COMMUNICATION) {
+            profile_mode = band == VPC_BAND_WIDE ? PROFILE_MODE_IN_COMM_NB : PROFILE_MODE_IN_COMM_WB;
+            profile_id = private_get_profile_id(device, profile_mode);
+        } else {
+            /* That case should not occur: fall into digital hardware passthrough */
+            profile_id = PROFILE_DEFAULT;
+            LOGW("%s: Unhandled mode %d: force Audience in digital hardware pass through\n", __FUNCTION__, mode);
+        }
+    } else {
         profile_id = PROFILE_DEFAULT;
         LOGW("%s: %s is set: force Audience in digital hardware pass through\n", __FUNCTION__, vp_bypass_prop_name);
     }

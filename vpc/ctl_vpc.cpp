@@ -21,13 +21,13 @@
 #include <utils/threads.h>
 #include <hardware_legacy/AudioSystemLegacy.h>
 
-#include "acoustic.h"
 #include "AudioModemControl.h"
 #include "bt.h"
 #include "msic.h"
 #include "volume_keys.h"
 #include "stmd.h"
 #include "vpc_hardware.h"
+#include "acoustic.h"
 
 namespace android_audio_legacy
 {
@@ -48,6 +48,7 @@ static int vpc_set_tty(vpc_tty_t);
 static void translate_to_amc_device(const uint32_t current_device, IFX_TRANSDUCER_MODE_SOURCE* mode_source, IFX_TRANSDUCER_MODE_DEST* mode_dest);
 static int vpc_bt_nrec(vpc_bt_nrec_t);
 static int vpc_set_hac(vpc_hac_set_t);
+static void vpc_set_band(vpc_band_t band, int for_mode);
 
 
 /*===========================================================================*/
@@ -57,6 +58,8 @@ static int vpc_set_hac(vpc_hac_set_t);
 #define DEVICE_OUT_BLUETOOTH_SCO_ALL (AudioSystem::DEVICE_OUT_BLUETOOTH_SCO | \
                                       AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET | \
                                       AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_CARKIT)
+
+#define CURRENT_BAND_FOR_MODE(mode) ((mode) == AudioSystem::MODE_IN_CALL ? current_csv_band:current_voip_band)
 
 static const AMC_TTY_STATE translate_vpc_to_amc_tty[] = {
     AMC_TTY_OFF, /*[VPC_TTY_OFF] */
@@ -99,6 +102,8 @@ static int       modem_gain_ul            = 100; // +6 dB
 #else
 static int       modem_gain_ul            = 88; // 0 dB
 #endif
+static vpc_band_t current_csv_band        = VPC_BAND_NARROW;
+static vpc_band_t current_voip_band       = VPC_BAND_NARROW;
 static int       modem_status             = MODEM_DOWN;
 static bool      call_connected           = false;
 
@@ -111,6 +116,8 @@ static bool      audience_awake        = false;
 #endif
 /* Forward declaration */
 static void voice_call_record_restore();
+
+static const char * BAND_NAME[] = {"NB", "WB"};
 
 /*---------------------------------------------------------------------------*/
 /* Initialization                                                            */
@@ -413,7 +420,7 @@ static int vpc_route(vpc_route_t route)
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
                             device_profile = (current_tty_call == AMC_TTY_OFF && current_hac_setting == VPC_HAC_OFF) ? current_device : device_out_defaut;
-                            ret = acoustic::process_profile(device_profile, current_mode);
+                            ret = acoustic::process_profile(device_profile, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
                             if (ret) goto return_error;
                             mode_source = IFX_USER_DEFINED_15_S;
                             mode_dest = IFX_USER_DEFINED_15_D;
@@ -473,7 +480,7 @@ static int vpc_route(vpc_route_t route)
                             }
 
 
-                            ret = acoustic::process_profile(device_profile, current_mode);
+                            ret = acoustic::process_profile(device_profile, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
                             if (ret) goto return_error;
                             usleep(50000);
 
@@ -541,7 +548,7 @@ static int vpc_route(vpc_route_t route)
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
                         device_profile = (current_tty_call == AMC_TTY_OFF && current_hac_setting == VPC_HAC_OFF) ? current_device : device_out_defaut;
-                        ret = acoustic::process_profile(device_profile, current_mode);
+                        ret = acoustic::process_profile(device_profile, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
                         if (ret) goto return_error;
 #endif
 
@@ -593,7 +600,7 @@ static int vpc_route(vpc_route_t route)
                         // and use acoustic alogrithms from Bluetooth headset.
                         device_profile = (is_acoustic_in_bt_device == true) ? device_out_defaut : current_device;
 
-                        ret = acoustic::process_profile(device_profile, current_mode);
+                        ret = acoustic::process_profile(device_profile, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
                         if (ret) goto return_error;
                         usleep(50000);
 
@@ -973,6 +980,46 @@ static int vpc_set_hac(vpc_hac_set_t set_hac)
     return NO_ERROR;
 }
 
+/*---------------------------------------------------------------------------*/
+/* Set VOIP or CSV band in use                                               */
+/*---------------------------------------------------------------------------*/
+
+static void vpc_set_band(vpc_band_t band, int for_mode)
+{
+    vpc_band_t current_band_for_mode;
+
+    vpc_lock.lock();
+
+    // What is the current band for that mode ?
+    current_band_for_mode = CURRENT_BAND_FOR_MODE(for_mode);
+    // Is it really a band change request ?
+    if (band == current_band_for_mode)
+        goto unlock;
+    // Is it a correct band ?
+    if (band >= VPC_BAND_INVALID) {
+        LOGE("Invalid band: %d\n", band);
+        goto unlock;
+    }
+
+    LOGD("New band: %s for mode %d\n", BAND_NAME[band], for_mode);
+
+    CURRENT_BAND_FOR_MODE(for_mode) = band;
+
+#ifdef CUSTOM_BOARD_WITH_AUDIENCE
+    // Request the band-specific Audience profile only if the path is already established
+    if (vpc_get_audio_routed() && (current_mode == for_mode)) {
+
+        // Reconfigure Audience only if we are not using it in passthrough for HAC, TTY or
+        // because the BT device in-use includes its own acoustic processings
+        if (current_tty_call == AMC_TTY_OFF && current_hac_setting == VPC_HAC_OFF && is_acoustic_in_bt_device == false)
+            acoustic::process_profile(current_device, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
+    }
+#endif
+
+unlock:
+    vpc_lock.unlock();
+}
+
 /*===========================================================================*/
 /* HW module interface definition                                            */
 /*===========================================================================*/
@@ -1026,6 +1073,7 @@ static int s_device_open(const hw_module_t* module, const char* name,
     dev->bt_nrec        = vpc_bt_nrec;
     dev->set_hac        = vpc_set_hac;
     dev->set_bt_sco_path= vpc_set_bt_sco_path;
+    dev->set_band       = vpc_set_band;
     *device = &dev->common;
     return 0;
 }

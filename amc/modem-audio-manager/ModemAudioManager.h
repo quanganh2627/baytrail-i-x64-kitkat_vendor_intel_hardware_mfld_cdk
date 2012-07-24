@@ -17,7 +17,7 @@
 #pragma once
 
 #include "AudioATManager.h"
-
+#include "AudioATModemTypes.h"
 #include "ModemStatusNotifier.h"
 
 class CAudioATManager;
@@ -41,6 +41,9 @@ public:
 
     // Get modem audio status
     virtual bool isModemAudioAvailable() const;
+
+    // Get modem audio PCM codec
+    virtual MODEM_CODEC getModemCodec() const;
 
     // Get modem status
     bool isModemAlive() const;

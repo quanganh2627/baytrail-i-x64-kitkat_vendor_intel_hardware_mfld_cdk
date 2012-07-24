@@ -150,6 +150,11 @@ private:
     {
         return cmd->hasPrefix() && !strRespPrefix.find(cmd->getPrefix());
     }
+    // Check if cmd has a notification prefix that matches with received answer
+    inline bool cmdHasNotificationPrefixAndMatches(CUnsollicitedATCommand* cmd, const string& strNotifPrefix) const
+    {
+        return cmd->hasNotificationPrefix() && !strNotifPrefix.find(cmd->getNotificationPrefix());
+    }
 
     // Checks if need to send cmd
     void checksAndProcessSendList();

@@ -30,11 +30,12 @@
 
 #define AT_XCALL_STAT "AT+XCALLSTAT=1"
 #define AT_XCALL_STAT_PREFIX "+XCALLSTAT:"
+#define AT_XCALL_STAT_NOTIFICATION_PREFIX "+XCALLSTAT:"
 
 #define base CUnsollicitedATCommand
 
 CCallStatUnsollicitedATCommand::CCallStatUnsollicitedATCommand()
-    : base(AT_XCALL_STAT, AT_XCALL_STAT_PREFIX, EModemAudioAvailabilibty), _bAudioPathAvailable(false), _uiCallSession(0)
+    : base(AT_XCALL_STAT, AT_XCALL_STAT_PREFIX, AT_XCALL_STAT_NOTIFICATION_PREFIX, EModemAudioAvailabilibty), _bAudioPathAvailable(false), _uiCallSession(0)
 {
     LOGD("%s", __FUNCTION__);
     for (int i = 0; i < MAX_CALL_SESSIONS; i++)
@@ -58,15 +59,15 @@ bool CCallStatUnsollicitedATCommand::isAudioPathAvailable() const
 // This code may be repeated so that for each call one line
 // is displayed (up to 6)
 //
-void CCallStatUnsollicitedATCommand::doProcessAnswer()
+void CCallStatUnsollicitedATCommand::doProcessNotification()
 {
     string str = getAnswer();
 
     // Assert the answer has the CallStat prefix...
-    assert((str.find(getPrefix()) != string::npos));
+    assert((str.find(getNotificationPrefix()) != string::npos));
 
     // Remove the prefix from the answer
-    string strwoPrefix = str.substr(str.find(getPrefix()) + getPrefix().size());
+    string strwoPrefix = str.substr(str.find(getNotificationPrefix()) + getNotificationPrefix().size());
 
     // Extract the xcallstat params using "," token
     Tokenizer tokenizer(strwoPrefix, ",");

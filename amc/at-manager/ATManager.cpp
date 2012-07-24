@@ -431,6 +431,10 @@ void CATManager::terminateTransaction(bool bSuccess)
         // Record failure status
         _pCurrentATCommand->setAnswerOK(bSuccess);
 
+        // Give a chance to parse the response
+        if (bSuccess)
+            _pCurrentATCommand->doProcessAnswer();
+
         // Is a client waiting for this command to terminate?
         if (_bClientWaiting && _pAwaitedTransactionEndATCommand == _pCurrentATCommand) {
 
@@ -798,7 +802,7 @@ void CATManager::processUnsollicited(const string& strResponse)
 
         pUnsollicitedCmd->addAnswerFragment(strResponse);
 
-        pUnsollicitedCmd->doProcessAnswer();
+        pUnsollicitedCmd->doProcessNotification();
 
         // Report the event to whom it concerns
         notify(ENotifyEvent, pUnsollicitedCmd->getEventId());
@@ -1103,7 +1107,7 @@ CUnsollicitedATCommand* CATManager::findUnsollicitedCmdByPrefix(const string& st
 
         CUnsollicitedATCommand* pCmd = *it;
 
-        if (cmdHasPrefixAndMatches(pCmd, strRespPrefix))
+        if (cmdHasNotificationPrefixAndMatches(pCmd, strRespPrefix))
         {
             return pCmd;
         }

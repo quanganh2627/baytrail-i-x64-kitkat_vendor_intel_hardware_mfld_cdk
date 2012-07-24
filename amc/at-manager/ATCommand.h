@@ -35,7 +35,7 @@ class CATCommand
     };
 
 public:
-    CATCommand(const string& strCommand, const string& strRespPrefix = "");
+    CATCommand(const string& strCommand, const string& strRespPrefix);
     virtual ~CATCommand();
 
     // Clear
@@ -55,6 +55,9 @@ public:
 
     // Set Status
     virtual void setAnswerOK(bool bIsOK);
+
+    // Process response
+    virtual void doProcessAnswer();
 
     // Get Status
     bool isAnswerOK() const;

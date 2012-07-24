@@ -49,7 +49,7 @@ public:
 
 private:
     // Inherited from CUnsollicitedATCommand
-    virtual void doProcessAnswer();
+    virtual void doProcessNotification();
 
     // Flag to indicate if Modem Audio Path is available
     bool _bAudioPathAvailable;

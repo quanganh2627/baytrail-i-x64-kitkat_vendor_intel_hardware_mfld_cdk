@@ -18,6 +18,7 @@
 
 #include "ModemAudioManager.h"
 #include "DualSimModemAudioManager.h"
+#include "AudioATModemTypes.h"
 
 using namespace std;
 

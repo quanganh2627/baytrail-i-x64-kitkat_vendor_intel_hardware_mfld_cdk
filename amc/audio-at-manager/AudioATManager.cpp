@@ -31,6 +31,7 @@
 #include "AudioATManager.h"
 #include "CallStatUnsollicitedATCommand.h"
 #include "ProgressUnsollicitedATCommand.h"
+#include "XDRVIUnsollicitedATCommand.h"
 
 #define MAX_WAIT_ACK_SECONDS    2
 
@@ -39,6 +40,7 @@
 CAudioATManager::CAudioATManager(IEventNotifier *observer) :
     _pXProgressCmd(NULL),
     _pXCallstatCmd(NULL),
+    _pXDRVICmd(NULL),
     _bModemCallActive(false),
     _strTtyName()
 {
@@ -67,6 +69,12 @@ bool CAudioATManager::isModemAudioAvailable() const
     return _pXCallstatCmd->isAudioPathAvailable() || _pXProgressCmd->isAudioPathAvailable();
 }
 
+
+MODEM_CODEC CAudioATManager::getModemCodec() const
+{
+    return _pXDRVICmd->getCodec();
+}
+
 AT_STATUS CAudioATManager::start()
 {
     LOGD("on %s: %s", _strTtyName.c_str(), __FUNCTION__);
@@ -74,7 +82,9 @@ AT_STATUS CAudioATManager::start()
     // Add XProgress and XCallStat commands to Unsollicited commands list of the ATManager
     // (it will be automatically resent after reset of the modem)
     base::addUnsollicitedATCommand(_pXProgressCmd = new CProgressUnsollicitedATCommand());
-    base::addUnsollicitedATCommand(_pXCallstatCmd = new CCallStatUnsollicitedATCommand());;
+    base::addUnsollicitedATCommand(_pXCallstatCmd = new CCallStatUnsollicitedATCommand());
+    // Add 'XDRVI PCM change' commands to Unsollicited command list of the ATManager
+    base::addUnsollicitedATCommand(_pXDRVICmd = new CXDRVIUnsollicitedATCommand());
 
     // Check TTY name was set correctly
     if (_strTtyName.empty()) {

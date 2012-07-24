@@ -1,4 +1,4 @@
-/* ModemAudioEvent.h
+/* AudioATModemTypes.h
  **
  ** Copyright 2011 Intel Corporation
  **
@@ -17,11 +17,25 @@
 #pragma once
 
 
-enum ModemAudioEvent {
+typedef enum  {
+    CODEC_TYPE_FULL_RATE_SPEECH = 0,
+    CODEC_TYPE_ENHANCED_FULL_RATE_SPEECH,
+    CODEC_TYPE_HALF_RATE_SPEECH,
+    CODEC_TYPE_NB_AMR_SPEECH,
+    CODEC_TYPE_WB_AMR_SPEECH,
+    CODEC_TYPE_INVALID
+} MODEM_CODEC;
 
-    EModemAudioInvalid = 0,
-    EModemAudioAvailabilibty,
-    EModemAudioPCMChanged
-};
-
+typedef enum {
+    SAMPLE_RATE_8000Hz = 0,
+    SAMPLE_RATE_11025Hz,
+    SAMPLE_RATE_12000Hz,
+    SAMPLE_RATE_16000Hz,
+    SAMPLE_RATE_22050Hz,
+    SAMPLE_RATE_24000Hz,
+    SAMPLE_RATE_32000Hz,
+    SAMPLE_RATE_44100Hz,
+    SAMPLE_RATE_48000Hz,
+    SAMPLE_RATE_INVALID
+} MODEM_SAMPLE_RATE;
 

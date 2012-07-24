@@ -26,5 +26,6 @@ public:
     // as running within the ModemAudioATManager thread context
     virtual void onModemAudioStatusChanged() = 0;
     virtual void onModemStateChanged() = 0;
+    virtual void onModemAudioPCMChanged() = 0;
 };
 

@@ -47,7 +47,7 @@ public:
 
 private:
     // Inherited from CUnsollicitedATCommand
-    virtual void doProcessAnswer();
+    virtual void doProcessNotification();
 
     bool isModemAudioPathEnabled();
 

@@ -63,19 +63,26 @@ AT_STATUS CModemAudioManager::start()
 
 void CModemAudioManager::onEvent(uint32_t uiEventId)
 {
-    if (uiEventId != EModemAudioAvailabilibty) {
-
-        // Not for us, bailing out
-        return ;
-    }
 
     LOGD("%s: eventId=%d", __FUNCTION__, uiEventId);
 
-    if (_pObserver) {
+    if (_pObserver != NULL) {
+        if (uiEventId == EModemAudioAvailabilibty) {
 
-        _pObserver->onModemAudioStatusChanged();
+            _pObserver->onModemAudioStatusChanged();
+        }
+        else if (uiEventId == EModemAudioPCMChanged) {
+
+            _pObserver->onModemAudioPCMChanged();
+        }
+        else {
+
+            LOGW("%s: unhandled event %d", __FUNCTION__, uiEventId);
+        }
+    } else{
+
+        LOGW("%s: No listener for event %d", __FUNCTION__, uiEventId);
     }
-
 }
 
 void CModemAudioManager::onModemStateChanged()
@@ -112,6 +119,13 @@ bool CModemAudioManager::isModemAudioAvailable() const
     // According to network, some can receive XCALLSTAT, some can receive XPROGRESS
     // so compute both information
     return _pPrimaryAudioATManager->isModemAudioAvailable();
+}
+
+MODEM_CODEC CModemAudioManager::getModemCodec() const
+{
+    LOGD("%s", __FUNCTION__);
+
+    return _pPrimaryAudioATManager->getModemCodec();
 }
 
 int CModemAudioManager::getModemStatus() const

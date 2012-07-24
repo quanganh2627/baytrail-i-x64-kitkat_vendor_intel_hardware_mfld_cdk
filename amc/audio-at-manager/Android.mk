@@ -6,6 +6,8 @@ LOCAL_COPY_HEADERS := \
     ModemAudioEvent.h \
     CallStatUnsollicitedATCommand.h \
     ProgressUnsollicitedATCommand.h \
+    XDRVIUnsollicitedATCommand.h \
+    AudioATModemTypes.h \
     Tokenizer.h
 include $(BUILD_COPY_HEADERS)
 include $(CLEAR_VARS)
@@ -17,7 +19,8 @@ LOCAL_SRC_FILES := \
         AudioATManager.cpp \
         Tokenizer.cpp \
         CallStatUnsollicitedATCommand.cpp \
-        ProgressUnsollicitedATCommand.cpp
+        ProgressUnsollicitedATCommand.cpp \
+        XDRVIUnsollicitedATCommand.cpp
 
 LOCAL_C_INCLUDES += \
         $(TARGET_OUT_HEADERS)/event-listener \

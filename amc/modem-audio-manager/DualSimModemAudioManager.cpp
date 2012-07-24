@@ -49,10 +49,10 @@ CDualSimModemAudioManager::CDualSimModemAudioManager(IModemStatusNotifier *obser
     // hence before registering to modem audio messages
 
     // Primary ATManager: listening to SIM1
-    _pPrimaryAudioATManager->addUnsollicitedATCommand(new CUnsollicitedATCommand(_strAtXSIMSEL + "0"));
+    _pPrimaryAudioATManager->addUnsollicitedATCommand(new CUnsollicitedATCommand(_strAtXSIMSEL + "0", "", ""));
 
     // Secondary ATManager: listening to SIM2
-    _pSecondaryAudioATManager->addUnsollicitedATCommand(new CUnsollicitedATCommand(_strAtXSIMSEL + "1"));
+    _pSecondaryAudioATManager->addUnsollicitedATCommand(new CUnsollicitedATCommand(_strAtXSIMSEL + "1", "", ""));
 
 }
 
@@ -98,3 +98,4 @@ bool CDualSimModemAudioManager::isModemAudioAvailable() const
     // so compute both information
     return _pSecondaryAudioATManager->isModemAudioAvailable() || base::isModemAudioAvailable();
 }
+

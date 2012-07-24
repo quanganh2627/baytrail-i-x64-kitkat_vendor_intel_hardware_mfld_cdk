@@ -24,14 +24,13 @@
 
 #define base CATCommand
 
-CUnsollicitedATCommand::CUnsollicitedATCommand(const string& strCommand, const string& strRespPrefix, uint32_t eventId) :
+CUnsollicitedATCommand::CUnsollicitedATCommand(const string& strCommand, const string& strRespPrefix, const string& strNotifPrefix, uint32_t eventId) :
     base(strCommand, strRespPrefix),
-    _uiEventId(eventId)
-
+    _uiEventId(eventId),
+    _strNotifPrefix(strNotifPrefix)
 {
     LOGD("%s", __FUNCTION__);
 }
-
 
 // Clear
 void CUnsollicitedATCommand::addAnswerFragment(const string& strAnswerFragment)
@@ -39,11 +38,23 @@ void CUnsollicitedATCommand::addAnswerFragment(const string& strAnswerFragment)
     base::addAnswerFragment(strAnswerFragment);
 }
 
+// Notification prefix
+const string& CUnsollicitedATCommand::getNotificationPrefix() const
+{
+    return _strNotifPrefix;
+}
+
+// Has notification prefix
+bool CUnsollicitedATCommand::hasNotificationPrefix() const
+{
+    return !_strNotifPrefix.empty();
+}
+
 uint32_t CUnsollicitedATCommand::getEventId() const
 {
     return _uiEventId;
 }
 
-void CUnsollicitedATCommand::doProcessAnswer()
+void CUnsollicitedATCommand::doProcessNotification()
 {
 }

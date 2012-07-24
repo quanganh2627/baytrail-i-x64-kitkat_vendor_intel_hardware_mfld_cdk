@@ -21,9 +21,11 @@
 #include <list>
 
 #include "ATManager.h"
+#include "AudioATModemTypes.h"
 
 class CProgressUnsollicitedATCommand;
 class CCallStatUnsollicitedATCommand;
+class CXDRVIUnsollicitedATCommand;
 
 using namespace std;
 
@@ -46,9 +48,13 @@ public:
     // Get modem audio status
     bool isModemAudioAvailable() const;
 
+    // Get Modem PCM Codec
+    MODEM_CODEC getModemCodec() const;
+
 private:
     CProgressUnsollicitedATCommand* _pXProgressCmd;
     CCallStatUnsollicitedATCommand* _pXCallstatCmd;
+    CXDRVIUnsollicitedATCommand*    _pXDRVICmd;
 
     // Modem Call state
     bool _bModemCallActive;

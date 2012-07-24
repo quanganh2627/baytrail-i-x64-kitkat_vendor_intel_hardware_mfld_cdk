@@ -69,6 +69,11 @@ void CATCommand::setAnswerOK(bool bIsOK)
     _eStatus = bIsOK ? StatusOK : StatusError;
 }
 
+// Process response
+void CATCommand::doProcessAnswer()
+{
+}
+
 // Get Status
 bool CATCommand::isAnswerOK() const
 {

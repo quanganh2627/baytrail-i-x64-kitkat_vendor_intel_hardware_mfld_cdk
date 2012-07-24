@@ -30,11 +30,12 @@
 
 #define AT_XPROGRESS "AT+XPROGRESS=1"
 #define AT_XPROGRESS_PREFIX "+XPROGRESS:"
+#define AT_XPROGRESS_NOTIFICATION_PREFIX "+XPROGRESS:"
 
 #define base CUnsollicitedATCommand
 
 CProgressUnsollicitedATCommand::CProgressUnsollicitedATCommand()
-    : base(AT_XPROGRESS, AT_XPROGRESS_PREFIX, EModemAudioAvailabilibty), _bAudioPathAvailable(false)
+    : base(AT_XPROGRESS, AT_XPROGRESS_PREFIX, AT_XPROGRESS_NOTIFICATION_PREFIX, EModemAudioAvailabilibty), _bAudioPathAvailable(false)
 {
     LOGD("%s", __FUNCTION__);
 }
@@ -54,15 +55,15 @@ bool CProgressUnsollicitedATCommand::isAudioPathAvailable() const
 // This code may be repeated so that for each call one line
 // is displayed (up to 6)
 //
-void CProgressUnsollicitedATCommand::doProcessAnswer()
+void CProgressUnsollicitedATCommand::doProcessNotification()
 {
     string strAnswer = getAnswer();
 
     // Assert the answer has the CallStat prefix...
-    assert((strAnswer.find(getPrefix()) != string::npos));
+    assert((strAnswer.find(getNotificationPrefix()) != string::npos));
 
     // Remove the prefix from the answer
-    string strwoPrefix = strAnswer.substr(strAnswer.find(getPrefix()) + getPrefix().size());
+    string strwoPrefix = strAnswer.substr(strAnswer.find(getNotificationPrefix()) + getNotificationPrefix().size());
 
     // Extract the xcallstat params using "," token
     Tokenizer tokenizer(strwoPrefix, ",");

@@ -51,6 +51,7 @@ private:
     IMG_framebuffer_device_public_t *mFBDev;
     bool mInitialized;
 private:
+    void dumpLayerList(hwc_layer_list_t *list);
     void onGeometryChanged(hwc_layer_list_t *list);
     bool overlayPrepare(int index, hwc_layer_t *layer, int flags);
     bool spritePrepare(int index, hwc_layer_t *layer, int flags);
@@ -67,6 +68,7 @@ private:
                        int index,
                        hwc_layer_t *layer,
                        int& flags);
+    bool isScreenshotActive(hwc_layer_list_t *list);
     void revisitLayerList(hwc_layer_list_t *list, bool isGeometryChanged);
     bool useOverlayRotation(hwc_layer_t *layer, int index, uint32_t& handle,
                            int& w, int& h,

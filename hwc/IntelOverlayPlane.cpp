@@ -295,6 +295,7 @@ bool IntelOverlayContext::flush(uint32_t flags)
     memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
     arg.overlay_write_mask = 1;
     arg.overlay_read_mask = 0;
+    //arg.overlay.b_wms = 0;
     arg.overlay.b_wait_vblank = (flags & IntelDisplayPlane::WAIT_VBLANK) ? 1 : 0;
     arg.overlay.OVADD = (mContext->gtt_offset_in_page << 12);
     // pipe select
@@ -402,7 +403,7 @@ bool IntelOverlayContext::bufferOffsetSetup(IntelDisplayDataBuffer &buf)
         mOverlayBackBuffer->OBUF_0Y = 0;
         mOverlayBackBuffer->OBUF_0U = 0;
         mOverlayBackBuffer->OBUF_0V = 0;
-	    mOverlayBackBuffer->OCMD |= OVERLAY_FORMAT_PACKED_YUV422;
+        mOverlayBackBuffer->OCMD |= OVERLAY_FORMAT_PACKED_YUV422;
         mOverlayBackBuffer->OCMD |= OVERLAY_PACKED_ORDER_YUY2;
         break;
     case HAL_PIXEL_FORMAT_INTEL_HWC_UYVY:    /*UYVY*/
@@ -1247,6 +1248,7 @@ bool IntelOverlayContextMfld::flush_frame_or_top_field(uint32_t flags)
     memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
     arg.overlay_write_mask = 1;
     arg.overlay_read_mask = 0;
+    //arg.overlay.b_wms = (flags & IntelDisplayPlane::WMS_NEEDED) ? 1 : 0;
     arg.overlay.b_wait_vblank = (flags & IntelDisplayPlane::WAIT_VBLANK) ? 1 : 0;
     arg.overlay.OVADD = (mContext->gtt_offset_in_page << 12);
     // pipe select
@@ -1544,8 +1546,7 @@ bool IntelOverlayPlane::flip(void *context, uint32_t flags)
         IntelOverlayContextMfld *overlayContext =
             reinterpret_cast<IntelOverlayContextMfld*>(mContext);
 
-        if ((mWidiPlane && mWidiPlane->isStreaming()) ||
-             (flags & IntelDisplayPlane::DELAY_DISABLE)) {
+        if (mWidiPlane && mWidiPlane->isActive()) {
             ret = overlayContext->disable();
             if (ret == false)
                 LOGE("%s: failed to reset overlay\n", __func__);

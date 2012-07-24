@@ -154,8 +154,8 @@ bool MedfieldSpritePlane::setDataBuffer(IntelDisplayBuffer& buffer)
         context->update_mask = SPRITE_UPDATE_ALL;
 
         // update Z order; switch z order may cause flicker
-        //if (mForceBottom)
-        //   context->cntr |= INTEL_SPRITE_FORCE_BOTTOM;
+        if (mForceBottom)
+           context->cntr |= INTEL_SPRITE_FORCE_BOTTOM;
 
         LOGV("%s: cntr 0x%x, stride 0x%x, surf 0x%x\n",
              __func__, context->cntr, context->stride, context->surf);

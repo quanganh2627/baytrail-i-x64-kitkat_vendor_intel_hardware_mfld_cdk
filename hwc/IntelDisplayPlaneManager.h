@@ -66,13 +66,13 @@ typedef enum {
 
 class IntelDisplayPlane : public IntelHWComposerDump {
 public:
-	enum {
+    enum {
             DISPLAY_PLANE_SPRITE = 1,
             DISPLAY_PLANE_PRIMARY,
             DISPLAY_PLANE_OVERLAY,
-	};
+    };
 
-	// flush flags
+        // flush flags
         enum {
             FLASH_NEEDED     = 0x00000001UL,
             WAIT_VBLANK      = 0x00000002UL,
@@ -81,6 +81,7 @@ public:
             UPDATE_SURFACE   = 0x00000010UL,
             BOB_DEINTERLACE  = 0x00000020UL,
             DELAY_DISABLE    = 0x00000040UL,
+            WMS_NEEDED       = 0x00000080UL,
         };
 protected:
     int mDrmFd;

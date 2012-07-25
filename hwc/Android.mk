@@ -20,6 +20,27 @@ LOCAL_PATH := $(call my-dir)
 # hw/<OVERLAY_HARDWARE_MODULE_ID>.<ro.product.board>.so
 include $(CLEAR_VARS)
 
+ifeq ($(INTEL_WIDI), true)
+LOCAL_COPY_HEADERS_TO := hwc
+LOCAL_COPY_HEADERS := \
+    IntelBufferManager.h \
+    IntelDisplayPlaneManager.h \
+    IntelExternalDisplayMonitor.h \
+    IntelHWCUEventObserver.h \
+    IntelHWComposer.h \
+    IntelHWComposerDrm.h \
+    IntelHWComposerDump.h \
+    IntelHWComposerLayer.h \
+    IntelOverlayContext.h \
+    IntelOverlayHW.h \
+    IntelOverlayPlane.h \
+    IntelOverlayUtil.h \
+    IntelWidiPlane.h \
+    IntelWsbm.h \
+    IntelWsbmWrapper.h
+include $(BUILD_COPY_HEADERS)
+endif
+
 LOCAL_PRELINK_MODULE := false
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
 LOCAL_SHARED_LIBRARIES := liblog libEGL libcutils libdrm libpvr2d \

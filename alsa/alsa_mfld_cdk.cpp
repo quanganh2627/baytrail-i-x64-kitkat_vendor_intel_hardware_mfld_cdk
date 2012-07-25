@@ -162,7 +162,7 @@ static const device_suffix_t deviceSuffix[] = {
     { AudioSystem::DEVICE_OUT_WIRED_HEADSET,         "_Headset" },
     { AudioSystem::DEVICE_OUT_BLUETOOTH_A2DP,        "_Bluetooth-A2DP" },
     { AudioSystem::DEVICE_OUT_AUX_DIGITAL,           "_HDMI" },
-    { AudioSystem::DEVICE_OUT_WIDI_LOOPBACK,         "_Widi-Loopback" },
+    { AudioSystem::DEVICE_OUT_WIDI,                  "_Widi" },
     { AudioSystem::DEVICE_OUT_DEFAULT,                "_Null" },
     { AudioSystem::DEVICE_IN_BUILTIN_MIC,            "_BuiltinMic" },
     { AudioSystem::DEVICE_IN_BACK_MIC,               "_BuiltinBackMic" },
@@ -611,7 +611,7 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode, int fm
             handle->sampleRate = VOICE_CODEC_DEFAULT_SAMPLE_RATE;
 #endif
         }
-        else if (devices & AudioSystem::DEVICE_OUT_WIDI_LOOPBACK) {
+        else if (devices & AudioSystem::DEVICE_OUT_WIDI) {
 
             handle->latency = WIDI_DEFAULT_LATENCY;
         }

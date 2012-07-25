@@ -463,6 +463,8 @@ static int vpc_route(vpc_route_t route)
                              */
                             if(!vpc_get_audio_routed())
                             {
+                                // mute modem I2S ports
+                                amc_mute();
                                 // configure modem I2S1
                                 amc_conf_i2s1(current_tty_call, IFX_USER_DEFINED_15_S, IFX_USER_DEFINED_15_D);
                                 // Configure modem I2S2 and do the modem routing

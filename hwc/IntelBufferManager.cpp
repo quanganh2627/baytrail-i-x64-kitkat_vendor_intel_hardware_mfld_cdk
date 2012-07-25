@@ -29,7 +29,6 @@
 #include <IntelHWComposerDrm.h>
 #include <IntelOverlayUtil.h>
 #include <IntelOverlayHW.h>
-#include <linux/bufferclass_video_linux.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <cutils/log.h>
@@ -204,49 +203,7 @@ bool IntelTTMBufferManager::initialize()
     return true;
 }
 
-uint32_t IntelTTMBufferManager::getBufferHandle(uint32_t device,
-                                                uint32_t handle)
-{
-    BC_Video_ioctl_package ioctl_package;
-    int ret = 0;
 
-    if (!mVideoBridgeIoctl) {
-        LOGE("%s: invalid video bridge ioctl offset\n", __func__);
-        return 0;
-    }
-
-    LOGV("%s: getting kernel handle for 0x%x from BCD device 0x%x\n",
-         __func__, handle, device);
-
-    ioctl_package.ioctl_cmd = BC_Video_ioctl_get_buffer_handle;
-    ioctl_package.device_id = device;
-    ioctl_package.inputparam = (int)handle;
-    ret = drmCommandWriteRead(mDrmFd,
-                              mVideoBridgeIoctl,
-                              &ioctl_package,
-                              sizeof(ioctl_package));
-    if (ret) {
-        LOGE("%s: fail to get kernel handle, err = %d\n",
-             __func__, ret);
-        return 0;
-    }
-
-    LOGV("%s: got kernel handle 0x%x\n",
-         __func__,ioctl_package.outputparam);
-
-    return ioctl_package.outputparam;
-}
-
-IntelDisplayBuffer* IntelTTMBufferManager::map(uint32_t device, uint32_t handle)
-{
-    uint32_t wsbmKernelHandle = getBufferHandle(device, handle);
-    if (!wsbmKernelHandle) {
-        LOGE("%s: fail to get wsbmKernel Handle\n", __func__);
-        return 0;
-    }
-
-    return map(wsbmKernelHandle);
-}
 IntelDisplayBuffer* IntelTTMBufferManager::map(uint32_t handle)
 {
     if (!mWsbm) {

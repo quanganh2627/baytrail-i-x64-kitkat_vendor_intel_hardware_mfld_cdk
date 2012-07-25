@@ -169,14 +169,12 @@ private:
     uint32_t mVideoBridgeIoctl;
 private:
     bool getVideoBridgeIoctl();
-    uint32_t getBufferHandle(uint32_t device, uint32_t handle);
 public:
     IntelTTMBufferManager(int fd)
         : IntelBufferManager(fd), mWsbm(0), mVideoBridgeIoctl(0) {}
     ~IntelTTMBufferManager();
     bool initialize();
     IntelDisplayBuffer* map(uint32_t handle);
-    IntelDisplayBuffer* map(uint32_t device, uint32_t handle);
     IntelDisplayBuffer* get(int size, int gttAlignment);
     void put(IntelDisplayBuffer *buf);
     void unmap(IntelDisplayBuffer *buffer);

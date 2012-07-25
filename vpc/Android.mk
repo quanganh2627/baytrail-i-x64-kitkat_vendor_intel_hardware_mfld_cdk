@@ -34,6 +34,7 @@ LOCAL_SHARED_LIBRARIES := \
 
 ifeq ($(BOARD_HAVE_BLUETOOTH),true)
 LOCAL_SHARED_LIBRARIES += \
+     libbluetooth_vs \
      libbluetooth
 endif
 
@@ -84,7 +85,8 @@ LOCAL_C_INCLUDES += \
 
 ifeq ($(BOARD_HAVE_BLUETOOTH),true)
 LOCAL_C_INCLUDES += \
-     external/bluetooth/bluez/lib/bluetooth
+     external/bluetooth/bluez/lib/bluetooth \
+     $(TARGET_OUT_HEADERS)/libbluetooth_vs
 endif
 
 LOCAL_MODULE:= vpc.$(TARGET_DEVICE)

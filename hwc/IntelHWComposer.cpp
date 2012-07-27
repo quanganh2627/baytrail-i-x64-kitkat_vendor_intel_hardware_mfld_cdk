@@ -1419,6 +1419,7 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
                                     mPlaneManager->getContextLength());
             if (err) {
                 LOGE("%s: Post2 failed with errno %d\n", __func__, err);
+                return false;
             }
         }
     }

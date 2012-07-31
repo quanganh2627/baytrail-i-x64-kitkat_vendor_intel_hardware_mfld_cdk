@@ -1245,13 +1245,13 @@ bool IntelHWComposer::prepare(hwc_layer_list_t *list)
     // handle geometry changing. attach display planes to layers
     // which can be handled by HWC.
     // plane control information (e.g. position) will be set here
+    IntelWidiPlane* widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
     if ((list->flags & HWC_GEOMETRY_CHANGED) || mHotplugEvent
         || mPlaneManager->isWidiStatusChanged()) {
         onGeometryChanged(list);
 
         if(mHotplugEvent) {
             if(mPlaneManager->isWidiActive()) {
-                IntelWidiPlane* widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
                 if(widiPlane->isExtVideoAllowed()) {
                     // default fps to 0. widi stack will decide what correct fps should be
                     int displayW = 0, displayH = 0, fps = 0, isInterlace = 0;
@@ -1267,7 +1267,8 @@ bool IntelHWComposer::prepare(hwc_layer_list_t *list)
         }
 
         intel_overlay_mode_t mode = mDrm->getDisplayMode();
-        if (mode == OVERLAY_EXTEND && (list->flags & HWC_GEOMETRY_CHANGED)) {
+        if ((mode == OVERLAY_EXTEND ||  widiPlane->isStreaming()) &&
+            (list->flags & HWC_GEOMETRY_CHANGED)) {
             if (list->numHwLayers == 1)
                 mDrm->notifyMipi(false);
             else

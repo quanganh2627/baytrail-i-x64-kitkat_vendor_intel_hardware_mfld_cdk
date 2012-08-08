@@ -4,13 +4,11 @@ include $(CLEAR_VARS)
 LOCAL_COPY_HEADERS_TO := libamc
 LOCAL_COPY_HEADERS := \
     ATmodemControl.h \
-    AudioModemControl.h \
-    amc.h
+    AudioModemControl.h
 include $(BUILD_COPY_HEADERS)
 include $(CLEAR_VARS)
 LOCAL_COPY_HEADERS_TO := libamc
 LOCAL_COPY_HEADERS := \
-    amc.h \
     ATmodemControl.h  \
     AudioModemControl.h
 include $(BUILD_COPY_HEADERS)

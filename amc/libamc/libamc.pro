@@ -23,7 +23,6 @@ HEADERS += ../simulation/utils/Log.h \
     ../simulation/stmd.h \
     AudioModemControl.h \
     ATmodemControl.h \
-    amc.h \
     ../simulation/cutils/sockets.h
 
 INCLUDEPATH += ../simulation  ../event-listener  ../at-manager

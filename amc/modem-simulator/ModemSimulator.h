@@ -1,4 +1,4 @@
-/* Amc.h
+/* ModemSimulator.h
  **
  ** Copyright 2011 Intel Corporation
  **

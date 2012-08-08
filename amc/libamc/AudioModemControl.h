@@ -238,7 +238,6 @@ typedef struct destForSourceRoute {
     AMC_DEST *dests;
 } destForSourceRoute;
 
-AT_STATUS amc_stop(void);
 AT_STATUS amc_enable(AMC_SOURCE source);
 AT_STATUS amc_disable(AMC_SOURCE source);
 AT_STATUS amc_configure_dest(AMC_DEST dest, IFX_CLK clk, IFX_MASTER_SLAVE mode,
@@ -252,7 +251,6 @@ AT_STATUS amc_route(destForSourceRoute *destForSource);
 AT_STATUS amc_setGainsource(AMC_SOURCE source, int gainDDB);
 AT_STATUS amc_setGaindest(AMC_DEST dest, int gainDDB);
 AT_STATUS amc_setAcoustic(AMC_ACOUSTIC acousticProfile);
-AT_STATUS amc_waitForCmdCompletion();
 
 int amc_voice_record_on(void);
 int amc_voice_record_off(void);

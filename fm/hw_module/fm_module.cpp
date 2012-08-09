@@ -33,7 +33,6 @@ namespace android_audio_legacy
 {
 
 static int fm_configure_codec(int mode);
-static int fm_audio_control_cmd(bool enable);
 
 /*---------------------------------------------------------------------------*/
 /* Initialization                                                            */
@@ -57,11 +56,6 @@ int fm_set_state(int mode)
             (mode == AudioSystem::MODE_FM_ON) ? "ON" : "OFF");
     }
 
-    if ((err = fm_audio_control_cmd((mode == AudioSystem::MODE_FM_ON) ? true : false)) < 0) {
-        LOGE("Cannot set/unset FM audio path (mode %s)",
-            (mode == AudioSystem::MODE_FM_ON) ? "ON" : "OFF");
-        return err;
-    }
     return err;
 }
 
@@ -105,32 +99,6 @@ static int fm_configure_codec(int mode) {
             LOGD("Device PCM1 already closed!");
         }
     }
-    return err;
-}
-
-/*---------------------------------------------------------------------------*/
-/* Audio Enable/Disable                                                      */
-/*---------------------------------------------------------------------------*/
-static int fm_audio_control_cmd(bool enable) {
-    int err = NO_ERROR;
-
-    /* Check if FM is enabled */
-    if (FM_RX_SM_IsContextEnabled()) {
-
-        /* Get fm context */
-        FmRxContext *fm_context = FM_RX_SM_GetContext();
-
-        /* Enable audio routing to I2S */
-        if (enable)
-            err = FM_RX_EnableAudioRouting (fm_context);
-        else
-            err = FM_RX_DisableAudioRouting (fm_context);
-        if (err != FM_RX_STATUS_SUCCESS)
-            err = UNKNOWN_ERROR;
-    }
-    else
-        err = NO_INIT;
-
     return err;
 }
 

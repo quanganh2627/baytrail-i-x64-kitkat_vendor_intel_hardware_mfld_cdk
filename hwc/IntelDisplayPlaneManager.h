@@ -462,6 +462,7 @@ public:
 
     bool hasFreeSprites();
     bool hasFreeOverlays();
+    bool hasReclaimedOverlays();
     bool primaryAvailable(int index);
 
     bool isWidiActive();
@@ -470,7 +471,7 @@ public:
     void disableReclaimedPlanes(int type);
     void *getPlaneContexts() const;
     int getContextLength() const;
-    void setZOrderConfig(int config, int pipe);
+    int setZOrderConfig(int config, int pipe);
     int getZOrderConfig(int pipe);
     // dump plane info
     bool dump(char *buff, int buff_len, int *cur_len);

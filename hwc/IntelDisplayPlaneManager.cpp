@@ -362,6 +362,14 @@ bool IntelDisplayPlaneManager::hasFreeOverlays()
     return (mFreeOverlayPlanes || mReclaimedOverlayPlanes) ? true : false;
 }
 
+bool IntelDisplayPlaneManager::hasReclaimedOverlays()
+{
+    if (!initCheck())
+        return false;
+
+    return (mReclaimedOverlayPlanes) ? true : false;
+}
+
 bool IntelDisplayPlaneManager::primaryAvailable(int pipe)
 {
     if (!initCheck())
@@ -469,20 +477,20 @@ int IntelDisplayPlaneManager::getContextLength() const
     return mContextLength;
 }
 
-void IntelDisplayPlaneManager::setZOrderConfig(int config, int pipe)
+int IntelDisplayPlaneManager::setZOrderConfig(int config, int pipe)
 {
     LOGV("%s: %d", __func__, config);
 
     if (!initCheck()) {
         LOGE("%s: plane manager is not initialized\n", __func__);
-        return;
+        return -1;
     }
 
     if (pipe > 2 || pipe < 0)
-        return;
+        return -1;
 
     if (mZOrderConfigs[pipe] == config)
-        return;
+        return -1;
 
     switch (config) {
     case ZORDER_POcOa:
@@ -506,6 +514,7 @@ void IntelDisplayPlaneManager::setZOrderConfig(int config, int pipe)
 
     LOGD("%s: set zorder: %d\n", __func__, config);
     mZOrderConfigs[pipe] = config;
+    return 0;
 }
 
 int IntelDisplayPlaneManager::getZOrderConfig(int pipe)

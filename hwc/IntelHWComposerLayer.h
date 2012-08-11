@@ -96,6 +96,7 @@ public:
     int getAttachedPlanesCount() const { return mNumAttachedPlanes; }
     int getAttachedSpriteCount() const { return mAttachedSpritePlanes; }
     int getAttachedOverlayCount() const { return mAttachedOverlayPlanes; }
+    void clearWithOpenGL() const;
 };
 
 #endif /*__INTEL_HWCOMPOSER_LAYER_H__*/

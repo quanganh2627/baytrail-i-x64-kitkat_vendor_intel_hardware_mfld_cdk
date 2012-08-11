@@ -263,13 +263,13 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
     // check whether layer are covered by layers above it
     // if layer is covered by a layer which needs blending,
     // clear corresponding region in frame buffer
-    for (size_t i = index + 1; i < list->numHwLayers; i++) {
-        if (areLayersIntersecting(&list->hwLayers[i], layer)) {
-            LOGV("%s: overlay %d is covered by layer %d\n", __func__, index, i);
-                if (list->hwLayers[i].blending !=  HWC_BLENDING_NONE)
-                    mLayerList->setNeedClearup(index, true);
-        }
-    }
+    // for (size_t i = index + 1; i < list->numHwLayers; i++) {
+    //     if (areLayersIntersecting(&list->hwLayers[i], layer)) {
+    //         LOGV("%s: overlay %d is covered by layer %d\n", __func__, index, i);
+    //             if (list->hwLayers[i].blending !=  HWC_BLENDING_NONE)
+    //                 mLayerList->setNeedClearup(index, true);
+    //     }
+    // }
 
     useOverlay = true;
     needClearFb = true;
@@ -291,7 +291,7 @@ out_check:
     if (useOverlay) {
         LOGD("isOverlayLayer: got an overlay layer");
         if (needClearFb) {
-            layer->hints |= HWC_HINT_CLEAR_FB;
+            //layer->hints |= HWC_HINT_CLEAR_FB;
             LOGV("isOverlayLayer: clear fb");
             mForceSwapBuffer = true;
         }
@@ -402,8 +402,8 @@ out_check:
         LOGD("isSpriteLayer: got a sprite layer");
         if (needClearFb) {
             LOGV("isSpriteLayer: clear fb");
-            layer->hints |= HWC_HINT_CLEAR_FB;
-	    mForceSwapBuffer = true;
+            //layer->hints |= HWC_HINT_CLEAR_FB;
+            mForceSwapBuffer = true;
         }
         layer->compositionType = HWC_OVERLAY;
     }
@@ -499,10 +499,9 @@ void IntelHWComposer::revisitLayerList(hwc_layer_list_t *list, bool isGeometryCh
         }
     }
 
-    if (isGeometryChanged) {
-        mPlaneManager->setZOrderConfig(zOrderConfig, 0);
-        mForceSwapBuffer = true;
-    }
+    // if (isGeometryChanged && !mPlaneManager->setZOrderConfig(zOrderConfig, 0))
+    //     mForceSwapBuffer = true;
+
 }
 
 void IntelHWComposer::dumpLayerList(hwc_layer_list_t *list)
@@ -855,11 +854,11 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
 
         // clear layer's visible region if need clear up flag was set
         // and sprite plane was used as primary plane (point to FB)
-        if (mLayerList->getNeedClearup(i) &&
-            mPlaneManager->primaryAvailable(0)) {
-            LOGV("updateLayersData: clear visible region of layer %d", i);
-            list->hwLayers[i].hints |= HWC_HINT_CLEAR_FB;
-        }
+        // if (mLayerList->getNeedClearup(i) &&
+        //     mPlaneManager->primaryAvailable(0)) {
+        //     LOGV("updateLayersData: clear visible region of layer %d", i);
+        //     list->hwLayers[i].hints |= HWC_HINT_CLEAR_FB;
+        // }
 
         int bobDeinterlace;
         int srcX = layer->sourceCrop.left;
@@ -931,13 +930,12 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                 if (!mLayerList->getForceOverlay(i)) {
                     // fallback to ST to render this frame
                     layer->compositionType = HWC_FRAMEBUFFER;
-                    layer->hints &= ~HWC_HINT_CLEAR_FB;
                     mForceSwapBuffer = true;
                     handled = false;
                 }
                 // disable overlay when rotated buffer is not ready
-                //flags |= IntelDisplayPlane::DELAY_DISABLE;
-                //mLayerList->setFlags(i, flags);
+                flags |= IntelDisplayPlane::DELAY_DISABLE;
+                mLayerList->setFlags(i, flags);
                 continue;
             }
 
@@ -952,7 +950,7 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
             // clear FB first on first overlay frame
             if (layer->compositionType == HWC_FRAMEBUFFER) {
                 LOGV("updateLayerData: first overlay frame clear fb");
-                layer->hints |= HWC_HINT_CLEAR_FB;
+                //layer->hints |= HWC_HINT_CLEAR_FB;
                 mForceSwapBuffer = true;
             }
 
@@ -1225,8 +1223,17 @@ bool IntelHWComposer::prepare(hwc_layer_list_t *list)
 
     android::Mutex::Autolock _l(mLock);
 
-    // disable useless overlay planes
-    mPlaneManager->disableReclaimedPlanes(IntelDisplayPlane::DISPLAY_PLANE_OVERLAY);
+    // delay 3 circles to disable useless overlay planes
+    static int counter = 0;
+    if (mPlaneManager->hasReclaimedOverlays()) {
+        if (++counter == 3) {
+            mPlaneManager->disableReclaimedPlanes(IntelDisplayPlane::DISPLAY_PLANE_OVERLAY);
+            counter = 0;
+        }
+    }
+    else
+        counter = 0;
+
 
     // clear force swap buffer flag
     mForceSwapBuffer = false;
@@ -1281,6 +1288,11 @@ bool IntelHWComposer::prepare(hwc_layer_list_t *list)
         LOGV("prepare: revisiting layer list\n");
         revisitLayerList(list, false);
     }
+
+    //FIXME: we have to clear fb by hwc itself because
+    //surfaceflinger can't do proper clear now.
+    if (mForceSwapBuffer)
+        mLayerList->clearWithOpenGL();
 
     return true;
 }

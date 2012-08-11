@@ -26,6 +26,8 @@
  *
  */
 #include <IntelHWComposerLayer.h>
+#include <GLES/gl.h>
+#include <GLES/glext.h>
 
 IntelHWComposerLayer::IntelHWComposerLayer()
     : mHWCLayer(0), mPlane(0), mFlags(0)
@@ -349,4 +351,32 @@ int IntelHWComposerLayerList::getYUVLayerCount() const
     }
 
     return mNumYUVLayers;
+}
+
+void IntelHWComposerLayerList::clearWithOpenGL() const
+{
+    drmModeModeInfoPtr mode;
+    mode = IntelHWComposerDrm::getInstance().getOutputMode(OUTPUT_MIPI0);
+
+    if (!mode || !mode->hdisplay || !mode->vdisplay) {
+        LOGE("%s: failed to detect mode of output OUTPUT_MIPI0\n", __func__);
+        return;
+    }
+
+    LOGD("%s: clear fb here, size %d x %d", __func__, mode->hdisplay, mode->vdisplay);
+    GLfloat vertices[][2] = {
+        { 0,  mode->vdisplay-1 },
+        { 0,  0 },
+        { mode->hdisplay-1, 0 },
+        { mode->hdisplay-1, mode->vdisplay-1 }
+    };
+
+    glColor4f(0, 0, 0, 0);
+
+    glDisable(GL_TEXTURE_EXTERNAL_OES);
+    glDisable(GL_TEXTURE_2D);
+    glDisable(GL_BLEND);
+
+    glVertexPointer(2, GL_FLOAT, 0, vertices);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 }

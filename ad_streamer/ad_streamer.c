@@ -29,6 +29,8 @@
 #include <sys/ioctl.h>
 #include <semaphore.h>
 
+#include "hardware_legacy/power.h"
+
 #define ES305_DEVICE_PATH	"/dev/audience_es305"
 
 #define ES305_CH_PRI_MIC	0x1
@@ -37,12 +39,16 @@
 #define ES305_CH_FAR_END_IN	0x8
 #define ES305_CH_FAR_END_OUT	0x10
 
+#define ES305_CHANNEL_SELECT_FIELD 3
+
 #define DEFAULT_OUTPUT_FILE	"/data/a1026_stream.bin"
 
 //Total byte of buffer size would be ES305_BUFFER_SIZE * ES305_BUFFER_COUNT
-#define ES305_BUFFER_SIZE		1024
+//Audience send 328 bytes for each frame. 164 bytes are half of the frame size.
+//It also need to be less than 256 bytes as the limitation of I2C driver.
+#define ES305_BUFFER_SIZE		164
 /* ES305_BUFFER_COUNT must be a power of 2 */
-#define ES305_BUFFER_COUNT		16
+#define ES305_BUFFER_COUNT		256
 
 #define false	0
 #define true	1
@@ -54,7 +60,7 @@
 //that the capture thread has stopped and does not produce
 //buffer anymore. Assuming a bandwith of about 70KB/s for the
 //catpure thread, and a buffer size of 1024B, the capture thread
-//should produce a buffer about every 14 ms. Since the time out 
+//should produce a buffer about every 14 ms. Since the time out
 //value must be in seconds, the closest value is 1 second.
 #define READ_TIMEOUT_IN_SEC 1
 //wait for streaming capture starts
@@ -67,7 +73,6 @@ static const unsigned char stopStreamCmd[4] = { 0x80, 0x25, 0x00, 0x00 };
 static const unsigned char setOutputKnownSignal[4] = { 0x80, 0x1E, 0x00, 0x05 };
 static unsigned char setChannelCmd[4] = { 0x80, 0x28, 0x00, 0x03 };
 
-
 // Globals.....
 static int fd = -1;
 static FILE *outfile = NULL;
@@ -79,10 +84,16 @@ static unsigned char data[ES305_BUFFER_COUNT][ES305_BUFFER_SIZE];
 static sem_t sem_read;
 static sem_t sem_start;
 
+static char lockid[32];
+
+static volatile long int cap_idx = 0;
+static volatile long int wrt_idx = 0;
+
 // Thread to keep track of time
 void* run_capture(void *ptr) {
 	int index = 0;
 	struct timespec ts;
+	int buffer_level;
 
 	clock_gettime(CLOCK_REALTIME, &ts);
 	ts.tv_sec += START_TIMEOUT_IN_SEC;
@@ -91,15 +102,19 @@ void* run_capture(void *ptr) {
 		stop_requested = true;
 		return NULL;
 	}
-
 	while (!stop_requested) {
 		read(fd, data[index++], ES305_BUFFER_SIZE);
+		cap_idx++;
 		if(UINT_MAX - read_bytes >= ES305_BUFFER_SIZE)
 			read_bytes += ES305_BUFFER_SIZE;
 		else
 			printf("read bytes are overflowed.\n");
-		sem_post(&sem_read);
 		index &= ES305_BUFFER_COUNT-1;
+		buffer_level = cap_idx + wrt_idx;
+		if(buffer_level > ES305_BUFFER_COUNT){
+			printf("Warning: buffer overflow (%d/%d)\n", buffer_level, ES305_BUFFER_COUNT);
+		}
+		sem_post(&sem_read);
 	}
 	return NULL;
 }
@@ -119,6 +134,7 @@ void* run_writefile(void *ptr) {
 			return NULL;
 		}
 		fwrite(data[index++], sizeof(unsigned char),ES305_BUFFER_SIZE, outfile);
+		wrt_idx--;
 		if(UINT_MAX - written_bytes >= ES305_BUFFER_SIZE)
 			written_bytes+=ES305_BUFFER_SIZE;
 		else
@@ -129,6 +145,7 @@ void* run_writefile(void *ptr) {
 }
 
 void cleanup() {
+	release_wake_lock(lockid);
 	if (fd > 0)
 		close(fd);
 	if (outfile != NULL)
@@ -164,6 +181,9 @@ int main(int argc, char **argv) {
 	unsigned char buf[READ_ACK_BUF_SIZE];
 	char fname[MAX_FILE_PATH_SIZE];
 
+	struct sched_param param;
+	pthread_attr_t thread_attr;
+
 	pthread_t pt_capture;
 	pthread_t pt_fwrite;
 
@@ -192,19 +212,7 @@ int main(int argc, char **argv) {
 
 	// Cap the duration_in_sec to capture samples (in seconds)
 	duration_in_sec = atoi(argv[2]);
-/*
-	if(!channel_flag){
-		display_help();
-		printf("\n*Please use valid numeric value for channel flag\n");
-		return -1;
-	}
 
-	if(!duration_in_sec){
-		display_help();
-		printf("\n*Please use valid numeric value for seconds\n");
-		return -1;
-	}
-*/
 	// Initialize
 	fd = open(ES305_DEVICE_PATH, O_RDWR | O_NONBLOCK, 0);
 
@@ -230,8 +238,8 @@ int main(int argc, char **argv) {
 	printf("Outputing raw streaming data to %s\n", fname);
 
 	// Set streaming channels
-	setChannelCmd[3] = channel_flag;
-	printf("Setting streaming channels: 0x%02x\n", setChannelCmd[3]);
+	setChannelCmd[ES305_CHANNEL_SELECT_FIELD] = channel_flag;
+	printf("Setting streaming channels: 0x%02x\n", setChannelCmd[ES305_CHANNEL_SELECT_FIELD]);
 
 	rc = write(fd, setChannelCmd, sizeof(setChannelCmd));
 	if (rc < 0) {
@@ -251,7 +259,20 @@ int main(int argc, char **argv) {
 		cleanup();
 		return -1;
 	}
-	if(pthread_create(&pt_capture, NULL, run_capture, NULL) != 0){
+	if(pthread_attr_init(&thread_attr) != 0){
+		cleanup();
+		return -1;
+	}
+	if(pthread_attr_setschedpolicy(&thread_attr, SCHED_RR) != 0){
+		cleanup();
+		return -1;
+	}
+	param.sched_priority = sched_get_priority_max(SCHED_RR);
+	if(pthread_attr_setschedparam (&thread_attr, &param) != 0){
+		cleanup();
+		return -1;
+	}
+	if(pthread_create(&pt_capture, &thread_attr, run_capture, NULL) != 0){
 		printf("Initialzing read thread failed\n");
 		cleanup();
 		return -1;
@@ -261,6 +282,7 @@ int main(int argc, char **argv) {
 		cleanup();
 		return -1;
 	}
+	acquire_wake_lock(PARTIAL_WAKE_LOCK, lockid);
 
 	// Start Streaming
 	rc = write(fd, startStreamCmd, sizeof(startStreamCmd));

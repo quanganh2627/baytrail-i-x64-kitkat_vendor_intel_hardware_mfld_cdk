@@ -8,7 +8,8 @@ common_c_includes := \
 
 common_shared_libraries := \
 	libsysutils \
-	libcutils
+	libcutils \
+	libhardware_legacy
 
 include $(CLEAR_VARS)
 

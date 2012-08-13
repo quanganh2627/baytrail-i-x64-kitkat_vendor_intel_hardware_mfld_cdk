@@ -1300,6 +1300,8 @@ IntelOverlayPlane::IntelOverlayPlane(int fd, int index, IntelBufferManager *bm)
     // clear up overlay buffers
     memset(mDataBuffers, 0, sizeof(mDataBuffers));
     mNextBuffer = 0;
+    mRenderBuffer = 0;
+    mRenderingBuffer = -1;
 
     // initialized successfully
     mDataBuffer = dataBuffer;
@@ -1347,10 +1349,27 @@ void IntelOverlayPlane::setPosition(int left, int top, int right, int bottom)
     }
 }
 
+bool IntelOverlayPlane::getBuffPayload(int fd, intel_gralloc_payload_t* &payload)
+{
+    if (fd <= 0)
+        return false;
+
+    // map payload buffer
+    IntelDisplayBuffer *buffer = mBufferManager->map(fd);
+    if (!buffer)
+        return false;
+
+    payload = (intel_gralloc_payload_t *)buffer->getCpuAddr();
+
+    // unmap payload buffer
+    mBufferManager->unmap(buffer);
+    return payload ? true : false;
+}
+
 bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
                                       intel_gralloc_buffer_handle_t* nHandle)
 {
-    unsigned long long ui64Stamp = nHandle->ui64Stamp;
+    unsigned long long ui64Stamp = 0ULL;
     IntelDisplayBuffer *buffer = 0;
     uint32_t bufferType;
 
@@ -1358,6 +1377,13 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
         LOGE("%s: overlay plane wasn't initialized\n", __func__);
         return false;
     }
+
+    if (handle == 0 || nHandle == NULL) {
+        LOGE("%s: invalid handle on %d\n", __func__, __LINE__);
+        return false;
+    }
+
+    ui64Stamp = nHandle->ui64Stamp;
 
     // verify if HW overlay capable for this data buffer
     IntelDisplayDataBuffer *overlayDataBuffer =
@@ -1415,6 +1441,9 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
     // update data buffer's yuv strides and continue
     overlayDataBuffer->setStride(yStride, uvStride);
 
+    int grallocBuffFd = nHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12 ?
+        nHandle->fd[GRALLOC_SUB_BUFFER1] : 0;
+
     if (flags)
         bufferType = IntelBufferManager::TTM_BUFFER;
     else
@@ -1425,10 +1454,8 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
             mDataBuffers[i].handle == handle &&
             mDataBuffers[i].bufferType == bufferType) {
             buffer = mDataBuffers[i].buffer;
-            if (i == mNextBuffer) {
-                LOGV("%s: Ready to reuse the oldest buffer in the cache, so move mNextBuffer pointer.");
-                mNextBuffer = (mNextBuffer + 1) % OVERLAY_DATA_BUFFER_NUM_MAX;
-            }
+            mRenderBuffer = i;
+            mNextBuffer = (i + 1) % OVERLAY_DATA_BUFFER_NUM_MAX;
             break;
         }
     }
@@ -1451,6 +1478,7 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
             mDataBuffers[mNextBuffer].handle = 0;
             mDataBuffers[mNextBuffer].buffer = 0;
             mDataBuffers[mNextBuffer].bufferType = 0;
+            mDataBuffers[mNextBuffer].grallocBuffFd = 0;
         }
 
         if (bufferType == IntelBufferManager::TTM_BUFFER)
@@ -1469,6 +1497,7 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
              mDataBuffers[0].handle = 0;
              mDataBuffers[0].buffer = 0;
              mDataBuffers[0].bufferType = 0;
+             mDataBuffers[0].grallocBuffFd = 0;
              mNextBuffer = 0;
 
              if (bufferType == IntelBufferManager::TTM_BUFFER)
@@ -1488,7 +1517,9 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
         mDataBuffers[mNextBuffer].handle = handle;
         mDataBuffers[mNextBuffer].buffer = buffer;
         mDataBuffers[mNextBuffer].bufferType = bufferType;
+        mDataBuffers[mNextBuffer].grallocBuffFd = grallocBuffFd;
 
+        mRenderBuffer = mNextBuffer;
         // move mNextBuffer pointer
         mNextBuffer = (mNextBuffer + 1) % OVERLAY_DATA_BUFFER_NUM_MAX;
     }
@@ -1536,6 +1567,7 @@ bool IntelOverlayPlane::invalidateDataBuffer()
     memset(mDataBuffers, 0, sizeof(mDataBuffers));
     memset(mDataBuffer, 0, sizeof(*mDataBuffer));
     mNextBuffer = 0;
+    mRenderBuffer = 0;
     return true;
 }
 
@@ -1555,9 +1587,32 @@ bool IntelOverlayPlane::flip(void *context, uint32_t flags)
             flags |= IntelDisplayPlane::FLASH_NEEDED |
                     IntelDisplayPlane::UPDATE_COEF |
                     IntelDisplayPlane::WAIT_VBLANK;
+
+            intel_gralloc_payload_t *payload = NULL;
+
+            if (mDataBuffers[mRenderBuffer].grallocBuffFd > 0) {
+                bool ret = getBuffPayload(
+                        mDataBuffers[mRenderBuffer].grallocBuffFd,
+                        payload);
+
+                if (ret) payload->renderStatus = 1;
+            }
+
             ret = overlayContext->flush_frame_or_top_field(flags);
             if (ret == false)
                 LOGE("%s: failed to do overlay flip\n", __func__);
+
+            if (mRenderingBuffer >= 0 &&
+                mRenderingBuffer != mRenderBuffer &&
+                mDataBuffers[mRenderingBuffer].grallocBuffFd > 0) {
+                bool ret = getBuffPayload(
+                        mDataBuffers[mRenderingBuffer].grallocBuffFd,
+                        payload);
+
+                if (ret) payload->renderStatus = 0;
+            }
+
+            mRenderingBuffer = mRenderBuffer;
         }
     }
 
@@ -1594,6 +1649,17 @@ bool IntelOverlayPlane::disable()
         ret = overlayContext->disable();
         if (ret == false)
             LOGE("%s: failed to reset overlay\n", __func__);
+
+        if (mRenderingBuffer >= 0 &&
+                mDataBuffers[mRenderingBuffer].grallocBuffFd > 0) {
+            intel_gralloc_payload_t *payload = NULL;
+            bool ret = getBuffPayload(
+                    mDataBuffers[mRenderingBuffer].grallocBuffFd,
+                    payload);
+
+            if (ret) payload->renderStatus = 0;
+        }
+        mRenderingBuffer = -1;
     }
 
     return ret;

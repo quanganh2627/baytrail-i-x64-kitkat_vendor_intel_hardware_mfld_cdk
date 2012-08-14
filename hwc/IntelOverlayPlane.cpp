@@ -1579,6 +1579,7 @@ bool IntelOverlayPlane::flip(void *context, uint32_t flags)
             reinterpret_cast<IntelOverlayContextMfld*>(mContext);
 
         if ((mWidiPlane && mWidiPlane->isActive()) ||
+	    (flags & IntelDisplayPlane::DELAY_DISABLE) ||
             IntelHWComposerDrm::getInstance().isOverlayOff()){
             ret = overlayContext->disable();
             if (ret == false)

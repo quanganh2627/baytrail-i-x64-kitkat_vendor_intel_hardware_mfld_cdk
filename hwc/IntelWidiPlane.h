@@ -52,7 +52,7 @@ public:
     virtual void setPosition(int left, int top, int right, int bottom);
 
     android::status_t  enablePlane(android::sp<android::IBinder> display);
-    void  disablePlane();
+    void  disablePlane(bool isConnected);
     android::status_t  registerFlipListener(android::sp<IPageFlipListener> listener);
     void allowExtVideoMode(bool allow);
     bool isExtVideoAllowed() {return mAllowExtVideoMode;};
@@ -106,6 +106,7 @@ protected:
     WidiPlaneState                  mState;
     bool                            mWidiStatusChanged;
     bool                            mPlayerStatus;
+    bool                            mStreamingEnabled;
     int                             mExtFrameRate;
 
     android::Mutex                  mLock;

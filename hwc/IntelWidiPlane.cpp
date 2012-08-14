@@ -79,6 +79,7 @@ IntelWidiPlane::IntelWidiPlane(int fd, int index, IntelBufferManager *bm)
       mState(WIDI_PLANE_STATE_UNINIT),
       mWidiStatusChanged(false),
       mPlayerStatus(false),
+      mStreamingEnabled(false),
       mExtFrameRate(30),
       mInitThread(NULL),
       mFlipListener(NULL),
@@ -143,20 +144,32 @@ IntelWidiPlane::enablePlane(sp<IBinder> display) {
         mWidiStatusChanged = true;
     }
 
+    mStreamingEnabled = true;
     return 0;
 }
 
 void
-IntelWidiPlane::disablePlane() {
+IntelWidiPlane::disablePlane(bool isConnected) {
 
     Mutex::Autolock _l(mLock);
-    if ((mState == WIDI_PLANE_STATE_ACTIVE) || (mState == WIDI_PLANE_STATE_STREAMING)) {
-        LOGD_IF(ALLOW_HWC_PRINT, "Plane Disabled !!");
-        mWirelessDisplay = NULL;
-        mState = WIDI_PLANE_STATE_INITIALIZED;
-        mWidiStatusChanged = true;
-
-        clearExtVideoModeContext();
+    mStreamingEnabled = false;
+    if(isConnected)
+    {
+       if(mState == WIDI_PLANE_STATE_STREAMING)
+       {
+          mState = WIDI_PLANE_STATE_ACTIVE;
+          mWidiStatusChanged = true;
+          clearExtVideoModeContext();
+       }
+    }
+    else {
+       if ((mState == WIDI_PLANE_STATE_ACTIVE) || (mState == WIDI_PLANE_STATE_STREAMING)) {
+           LOGV("Plane Disabled !!");
+           mWirelessDisplay = NULL;
+           mState = WIDI_PLANE_STATE_INITIALIZED;
+           mWidiStatusChanged = true;
+           clearExtVideoModeContext();
+        }
     }
     return;
 }
@@ -173,7 +186,7 @@ IntelWidiPlane::flip(void *context, uint32_t flags) {
 
     LOGD_IF(ALLOW_HWC_PRINT,
                    "Widi Plane flip, flip listener = %p", mFlipListener.get());
-    if (mFlipListener != NULL && mState == WIDI_PLANE_STATE_ACTIVE) {
+    if (mFlipListener != NULL && mState == WIDI_PLANE_STATE_ACTIVE && mStreamingEnabled) {
         mFlipListener->pageFlipped(systemTime(),mCurrentOrientation);
 
     } else if (mState == WIDI_PLANE_STATE_STREAMING) {
@@ -491,7 +504,7 @@ void
 IntelWidiPlane::DeathNotifier::binderDied(const wp<IBinder>& who) {
     LOGW("widi server died - trying to register again");
 
-    mSelf->disablePlane();
+    mSelf->disablePlane(false);
 
     mSelf->init();
 

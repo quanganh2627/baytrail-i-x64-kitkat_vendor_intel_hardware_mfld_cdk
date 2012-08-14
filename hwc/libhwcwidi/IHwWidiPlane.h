@@ -48,7 +48,7 @@ public:
     DECLARE_META_INTERFACE(HwWidiPlane);
 
     virtual android::status_t  enablePlane(android::sp<android::IBinder> display) = 0;
-    virtual void disablePlane() = 0;
+    virtual void disablePlane(bool isConnected) = 0;
     virtual void allowExtVideoMode(bool allow) = 0;
     virtual android::status_t  registerFlipListener(android::sp<IPageFlipListener> listener) = 0;
     virtual void returnBuffer(int index) = 0;

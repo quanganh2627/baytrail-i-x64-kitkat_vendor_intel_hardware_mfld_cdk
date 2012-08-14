@@ -61,10 +61,11 @@ public:
         remote()->transact(ENABLE_HW_WIDI_PLANE, data, &reply);
         return reply.readInt32();
     }
-    virtual void  disablePlane()
+    virtual void  disablePlane(bool isConnected)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IHwWidiPlane::getInterfaceDescriptor());
+        data.writeInt32((int32_t)(isConnected ? 1 : 0));
         remote()->transact(DISABLE_HW_WIDI_PLANE, data, &reply);
         return;
     }
@@ -108,8 +109,10 @@ status_t BnHwWidiPlane::onTransact(
             return NO_ERROR;
         } break;
         case DISABLE_HW_WIDI_PLANE: {
+            bool isConnected =false;
             CHECK_INTERFACE(IHwWidiPlane, data, reply);
-            disablePlane();
+            isConnected = data.readInt32() == 1;
+            disablePlane(isConnected);
             reply->writeInt32(NO_ERROR);
             return NO_ERROR;
         } break;

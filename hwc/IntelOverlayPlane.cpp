@@ -315,6 +315,32 @@ bool IntelOverlayContext::flush(uint32_t flags)
     return true;
 }
 
+bool IntelOverlayContext::waitForFlip()
+{
+    if (mDrmFd <= 0)
+        return false;
+
+    if (!mContext)
+        return false;
+
+    struct drm_psb_register_rw_arg arg;
+
+    memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
+    arg.overlay_write_mask = OV_REGRWBITS_WAIT_FLIP;
+
+    int ret = drmCommandWriteRead(mDrmFd,
+                                  DRM_PSB_REGISTER_RW,
+                                  &arg, sizeof(arg));
+    if (ret) {
+        LOGW("%s: overlay update failed with error code %d\n",
+             __func__, ret);
+        return false;
+    }
+
+    LOGV("%s: done\n", __func__);
+    return true;
+}
+
 bool IntelOverlayContext::backBufferInit()
 {
     if(!mOverlayBackBuffer) {
@@ -1625,7 +1651,14 @@ bool IntelOverlayPlane::flip(void *context, uint32_t flags)
 
 void IntelOverlayPlane::waitForFlipCompletion()
 {
-    // we already wait for vblank in flip() so do nothing here
+    bool ret = true;
+    if (initCheck()) {
+        IntelOverlayContextMfld *overlayContext =
+            reinterpret_cast<IntelOverlayContextMfld*>(mContext);
+            ret = overlayContext->waitForFlip();
+            if (ret == false)
+                LOGE("%s: failed to do overlay flip\n", __func__);
+    }
 }
 
 bool IntelOverlayPlane::reset()

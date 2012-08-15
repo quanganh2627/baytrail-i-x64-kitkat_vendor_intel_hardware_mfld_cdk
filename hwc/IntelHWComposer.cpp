@@ -1440,6 +1440,20 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
         list->hwLayers[i].hints &= ~HWC_HINT_CLEAR_FB;
     }
 
+    // make sure all flips were finished
+    for (size_t i=0 ; list && i<list->numHwLayers ; i++) {
+        IntelDisplayPlane *plane = mLayerList->getPlane(i);
+        int flags = mLayerList->getFlags(i);
+        if (!plane)
+            continue;
+        if (list->hwLayers[i].flags & HWC_SKIP_LAYER)
+            continue;
+        if (list->hwLayers[i].compositionType != HWC_OVERLAY)
+            continue;
+
+        plane->waitForFlipCompletion();
+    }
+
     return true;
 }
 

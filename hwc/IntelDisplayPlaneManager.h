@@ -273,6 +273,7 @@ public:
     void setPipe(intel_display_pipe_t pipe);
     void setPipeByMode(intel_overlay_mode_t displayMode);
     void forceBottom(bool bottom);
+    bool waitForFlip();
 
     // DRM mode change handle
     intel_overlay_mode_t onDrmModeChange();

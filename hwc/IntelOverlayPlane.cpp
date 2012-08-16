@@ -1204,7 +1204,7 @@ IntelOverlayContext::onDrmModeChange()
     LOGD_IF(ALLOW_OVERLAY_PRINT,
            "%s: old %d, new %d\n", __func__, oldDisplayMode, newDisplayMode);
 
-    if (oldDisplayMode == newDisplayMode) {
+    if (oldDisplayMode == newDisplayMode && !IntelHWComposerDrm::getInstance().isOverlayOff()) {
         goto mode_change_done;
     }
 

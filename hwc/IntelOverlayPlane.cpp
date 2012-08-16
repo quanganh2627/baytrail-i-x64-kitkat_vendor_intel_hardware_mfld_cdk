@@ -824,6 +824,8 @@ bool IntelOverlayContext::setDataBuffer(IntelDisplayDataBuffer& buffer)
 
     lock();
 
+    mOverlayBackBuffer->OCMD &= ~OVERLAY_ENABLE;
+
     bool ret = bufferOffsetSetup(buffer);
     if (ret == false) {
         LOGE("%s: failed to set up buffer offsets\n", __func__);
@@ -1032,7 +1034,7 @@ bool IntelOverlayContext::enable()
 
     lock();
 
-    mOverlayBackBuffer->OCMD |= (0x00000001);
+    mOverlayBackBuffer->OCMD |= OVERLAY_ENABLE;
     bool ret = flush(IntelDisplayPlane::FLASH_NEEDED | IntelDisplayPlane::WAIT_VBLANK);
     if (ret == false) {
         LOGE("%s: failed to enable overlay\n", __func__);
@@ -1051,13 +1053,13 @@ bool IntelOverlayContext::disable()
 
     lock();
 
-    if (!(mOverlayBackBuffer->OCMD & 0x1)) {
+    if (!(mOverlayBackBuffer->OCMD & OVERLAY_ENABLE)) {
         unlock();
         return true;
     }
 
     LOGD("%s: disable overlay...\n", __func__);
-    mOverlayBackBuffer->OCMD &= ~(0x00000001);
+    mOverlayBackBuffer->OCMD &= ~OVERLAY_ENABLE;
     bool ret = flush((IntelDisplayPlane::FLASH_NEEDED |
                       IntelDisplayPlane::WAIT_VBLANK));
     if (ret == false) {
@@ -1271,6 +1273,8 @@ bool IntelOverlayContextMfld::flush_frame_or_top_field(uint32_t flags)
         LOGE("%s: invalid gtt offset\n", __func__);
         return false;
     }
+
+    mOverlayBackBuffer->OCMD |= OVERLAY_ENABLE;
 
     struct drm_psb_register_rw_arg arg;
 

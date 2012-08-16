@@ -33,7 +33,7 @@
 #include <IntelWidiPlane.h>
 
 //#define INTEL_EXT_SF_NEED_SWAPBUFFER
-//#define INTEL_EXT_SF_ANIMATION_HINT
+#define INTEL_EXT_SF_ANIMATION_HINT
 
 IntelHWComposer::~IntelHWComposer()
 {
@@ -715,7 +715,7 @@ bool IntelHWComposer::useOverlayRotation(hwc_layer_t *layer,
         }
 
         if (transform != payload->client_transform) {
-            LOGD("%s: rotation buffer was not prepared by client!\n", __func__);
+            LOGV("%s: rotation buffer was not prepared by client!\n", __func__);
             return false;
         }
 

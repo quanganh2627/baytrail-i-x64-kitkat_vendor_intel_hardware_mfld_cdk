@@ -1342,6 +1342,34 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
     if (!mPlaneManager->primaryAvailable(0))
         needSwapBuffer = false;
 
+    // Post overlays
+    // FIXME: This is little bit scary, need move overlay posting into Post2.
+    for (size_t i=0 ; list && i<list->numHwLayers ; i++) {
+        IntelDisplayPlane *plane = mLayerList->getPlane(i);
+        int flags = mLayerList->getFlags(i);
+
+        if (!plane)
+            continue;
+        if (plane->getPlaneType() != IntelDisplayPlane::DISPLAY_PLANE_OVERLAY)
+            continue;
+        if (list->hwLayers[i].flags & HWC_SKIP_LAYER)
+            continue;
+        if (list->hwLayers[i].compositionType != HWC_OVERLAY)
+            continue;
+
+        if (!needSwapBuffer)
+            flags |= IntelDisplayPlane::WMS_NEEDED;
+
+        bool ret = plane->flip(context, flags);
+        if (!ret)
+            LOGW("%s: failed to flip plane %d\n", __func__, i);
+        // clear flip flags, except for delay_disble
+        mLayerList->setFlags(i, flags & IntelDisplayPlane::DELAY_DISABLE);
+
+        // remove clear fb hints
+        list->hwLayers[i].hints &= ~HWC_HINT_CLEAR_FB;
+    }
+
     // check whether eglSwapBuffers is still needed for the given layer list
     if (needSwapBuffer) {
         LOGV("%s: eglSwapBuffers\n", __func__);
@@ -1409,49 +1437,6 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
                 return false;
             }
         }
-    }
-
-    // Post overlays
-    // FIXME: This is little bit scary, need move overlay posting into Post2.
-    for (size_t i=0 ; list && i<list->numHwLayers ; i++) {
-        IntelDisplayPlane *plane = mLayerList->getPlane(i);
-        int flags = mLayerList->getFlags(i);
-
-        if (!plane)
-            continue;
-        if (plane->getPlaneType() != IntelDisplayPlane::DISPLAY_PLANE_OVERLAY)
-            continue;
-        if (list->hwLayers[i].flags & HWC_SKIP_LAYER)
-            continue;
-        if (list->hwLayers[i].compositionType != HWC_OVERLAY)
-            continue;
-
-        if (list->numHwLayers == 1 && !needSwapBuffer) {
-            flags |= IntelDisplayPlane::WMS_NEEDED;
-        }
-
-        bool ret = plane->flip(context, flags);
-        if (!ret)
-            LOGW("%s: failed to flip plane %d\n", __func__, i);
-        // clear flip flags, except for delay_disble
-        mLayerList->setFlags(i, flags & IntelDisplayPlane::DELAY_DISABLE);
-
-        // remove clear fb hints
-        list->hwLayers[i].hints &= ~HWC_HINT_CLEAR_FB;
-    }
-
-    // make sure all flips were finished
-    for (size_t i=0 ; list && i<list->numHwLayers ; i++) {
-        IntelDisplayPlane *plane = mLayerList->getPlane(i);
-        int flags = mLayerList->getFlags(i);
-        if (!plane)
-            continue;
-        if (list->hwLayers[i].flags & HWC_SKIP_LAYER)
-            continue;
-        if (list->hwLayers[i].compositionType != HWC_OVERLAY)
-            continue;
-
-        plane->waitForFlipCompletion();
     }
 
     return true;

@@ -647,8 +647,11 @@ bool IntelOverlayContext::scalingSetup(IntelDisplayDataBuffer& buffer)
     }
 
     if ((buffer.isFlags(IntelDisplayDataBuffer::SIZE_CHANGE) == false) &&
-        (mContext->position_changed == false))
+        (mContext->position_changed == false) &&
+        (mContext->is_interlaced == buffer.mBobDeinterlace))
         return true;
+
+    mContext->is_interlaced = buffer.mBobDeinterlace;
 
     x = mContext->position.x;
     y = mContext->position.y;

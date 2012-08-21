@@ -91,30 +91,6 @@ typedef enum {
     OVERLAY_ORIENTATION_LANDSCAPE,
 } intel_overlay_orientation_t;
 
-typedef struct {
-    // back buffer info
-    uint32_t back_buffer_handle;
-    uint32_t gtt_offset_in_page;
-
-    // dest info
-    intel_overlay_position_t position;
-    intel_overlay_rotation_t rotation;
-    intel_overlay_orientation_t orientation;
-    bool is_rotated;
-    bool position_changed;
-
-    // power info
-    intel_overlay_state_t state;
-
-    // drm mode info
-    intel_drm_output_state_t output_state;
-
-    // ashmem related
-    pthread_mutex_t lock;
-    pthread_mutexattr_t attr;
-    volatile int32_t refCount;
-} intel_overlay_context_t;
-
 class IntelOverlayContext
 {
 public:

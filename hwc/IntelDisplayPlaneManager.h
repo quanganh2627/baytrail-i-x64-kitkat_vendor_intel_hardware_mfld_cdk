@@ -187,6 +187,7 @@ typedef struct {
     intel_overlay_orientation_t orientation;
     bool is_rotated;
     bool position_changed;
+    bool is_interlaced;
 
     // power info
     intel_overlay_state_t state;

@@ -365,10 +365,10 @@ void IntelHWComposerLayerList::clearWithOpenGL() const
 
     LOGD("%s: clear fb here, size %d x %d", __func__, mode->hdisplay, mode->vdisplay);
     GLfloat vertices[][2] = {
-        { 0,  mode->vdisplay-1 },
+        { 0,  mode->vdisplay },
         { 0,  0 },
-        { mode->hdisplay-1, 0 },
-        { mode->hdisplay-1, mode->vdisplay-1 }
+        { mode->hdisplay, 0 },
+        { mode->hdisplay, mode->vdisplay }
     };
 
     glColor4f(0, 0, 0, 0);

@@ -27,6 +27,7 @@
  */
 #include <IntelBufferManager.h>
 #include <IntelHWComposerDrm.h>
+#include <IntelHWComposerCfg.h>
 #include <IntelOverlayUtil.h>
 #include <IntelOverlayHW.h>
 #include <fcntl.h>
@@ -42,7 +43,7 @@ IntelDisplayDataBuffer::IntelDisplayDataBuffer(uint32_t format,
                                                uint32_t h)
         : mFormat(format), mWidth(w), mHeight(h), mBuffer(0), mBobDeinterlace(0)
 {
-    LOGV("%s: width %d, format 0x%x\n", __func__, w, format);
+    LOGD_IF(ALLOW_BUFFER_PRINT, "%s: width %d, format 0x%x\n", __func__, w, format);
 
 
     mRawStride = 0;
@@ -132,14 +133,15 @@ bool IntelTTMBufferManager::getVideoBridgeIoctl()
     const char lncExt[] = "lnc_video_getparam";
     int ret = 0;
 
-    LOGV("%s: get video bridge ioctl num...\n", __func__);
+    LOGD_IF(ALLOW_BUFFER_PRINT, "%s: get video bridge ioctl num...\n", __func__);
 
     if(mDrmFd <= 0) {
         LOGE("%s: invalid drm fd %d\n", __func__, mDrmFd);
         return false;
     }
 
-    LOGV("%s: DRM_PSB_EXTENSION %d\n", __func__, DRM_PSB_EXTENSION);
+    LOGD_IF(ALLOW_BUFFER_PRINT,
+           "%s: DRM_PSB_EXTENSION %d\n", __func__, DRM_PSB_EXTENSION);
 
     /*get devOffset via drm IOCTL*/
     strncpy(arg.extension, lncExt, sizeof(lncExt));
@@ -151,7 +153,7 @@ bool IntelTTMBufferManager::getVideoBridgeIoctl()
         return false;
     }
 
-    LOGV("%s: video ioctl offset 0x%x\n",
+    LOGD_IF(ALLOW_BUFFER_PRINT, "%s: video ioctl offset 0x%x\n",
               __func__,
               arg.rep.driver_ioctl_offset + 1);
 
@@ -199,7 +201,7 @@ bool IntelTTMBufferManager::initialize()
 
     mWsbm = wsbm;
 
-    LOGV("%s: done\n", __func__);
+    LOGD_IF(ALLOW_BUFFER_PRINT, "%s: done\n", __func__);
     return true;
 }
 
@@ -228,7 +230,8 @@ IntelDisplayBuffer* IntelTTMBufferManager::map(uint32_t handle)
                                                      gttOffsetInPage,
                                                      size);
 
-    LOGV("%s: mapped TTM overlay buffer. cpu %p, gtt %d\n",
+    LOGD_IF(ALLOW_BUFFER_PRINT,
+           "%s: mapped TTM overlay buffer. cpu %p, gtt %d\n",
          __func__, virtAddr, gttOffsetInPage);
 
     return buf;
@@ -269,7 +272,8 @@ IntelDisplayBuffer* IntelTTMBufferManager::get(int size, int alignment)
                                                         gttOffsetInPage,
                                                         size,
                                                         handle);
-    LOGV("%s: created TTM overlay buffer. cpu %p, gtt %d\n",
+    LOGD_IF(ALLOW_BUFFER_PRINT,
+           "%s: created TTM overlay buffer. cpu %p, gtt %d\n",
          __func__, virtAddr, gttOffsetInPage);
     return buffer;
 }
@@ -302,7 +306,7 @@ bool IntelPVRBufferManager::initialize()
         LOGE("%s: failed to init PVR2D\n", __func__);
         return false;
     }
-    LOGV("%s: done\n", __func__);
+    LOGD_IF(ALLOW_BUFFER_PRINT, "%s: done\n", __func__);
     return true;
 }
 
@@ -351,7 +355,8 @@ bool IntelPVRBufferManager::pvr2DInit()
         goto pvr_init_err;
     }
 
-    LOGV("%s: pvr2d context inited. handle %p\n", __func__, mPVR2DHandle);
+    LOGD_IF(ALLOW_BUFFER_PRINT,
+            "%s: pvr2d context inited. handle %p\n", __func__, mPVR2DHandle);
     ret = true;
 
 pvr_init_err:
@@ -364,7 +369,7 @@ pvr_init_err:
 
 void IntelPVRBufferManager::pvr2DDestroy()
 {
-    LOGV("%s: destroying...\n", __func__);
+    LOGD_IF(ALLOW_BUFFER_PRINT, "%s: destroying...\n", __func__);
 
     if(mPVR2DHandle) {
         PVR2DDestroyDeviceContext(mPVR2DHandle);
@@ -386,7 +391,7 @@ bool IntelPVRBufferManager::gttMap(PVR2DMEMINFO *buf,
         return false;
     }
 
-    LOGV("%s: mapping to gtt. buffer %p, offset %p\n",
+    LOGD_IF(ALLOW_BUFFER_PRINT, "%s: mapping to gtt. buffer %p, offset %p\n",
          __func__, buf, offset);
 
     if (mDrmFd < 0) {
@@ -412,7 +417,8 @@ bool IntelPVRBufferManager::gttMap(PVR2DMEMINFO *buf,
 
     *offset =  arg.offset_pages;
 
-    LOGV("%s: mapped succussfully, gtt offset %d\n", __func__, *offset);
+    LOGD_IF(ALLOW_BUFFER_PRINT,
+           "%s: mapped succussfully, gtt offset %d\n", __func__, *offset);
     return true;
 }
 
@@ -426,7 +432,8 @@ bool IntelPVRBufferManager::gttUnmap(PVR2DMEMINFO *buf)
         return false;
     }
 
-    LOGV("%s: unmapping from gtt. buffer %p\n", __func__, buf);
+    LOGD_IF(ALLOW_BUFFER_PRINT,
+           "%s: unmapping from gtt. buffer %p\n", __func__, buf);
 
     if(mDrmFd < 0) {
         LOGE("%s: drm is not ready\n", __func__);
@@ -448,7 +455,7 @@ bool IntelPVRBufferManager::gttUnmap(PVR2DMEMINFO *buf)
         return false;
     }
 
-    LOGV("%s: unmapped successfully.\n", __func__);
+    LOGD_IF(ALLOW_BUFFER_PRINT, "%s: unmapped successfully.\n", __func__);
     return true;
 }
 
@@ -491,7 +498,7 @@ IntelPVRBufferManager::wrap(void *virt, int size)
                                                         virt,
                                                         gttOffsetInPage,
                                                         size);
-    LOGV("%s: done\n", __func__);
+    LOGD_IF(ALLOW_BUFFER_PRINT, "%s: done\n", __func__);
     return buffer;
 }
 
@@ -515,7 +522,7 @@ void IntelPVRBufferManager::unwrap(IntelDisplayBuffer *buffer)
     // destroy overlay buffer
     delete buffer;
 
-    LOGV("%s: done\n", __func__);
+    LOGD_IF(ALLOW_BUFFER_PRINT, "%s: done\n", __func__);
 }
 
 IntelDisplayBuffer* IntelPVRBufferManager::map(uint32_t handle)
@@ -541,7 +548,8 @@ IntelDisplayBuffer* IntelPVRBufferManager::map(uint32_t handle)
     uint32_t size = pvr2dMemInfo->ui32MemSize;
     int gttOffsetInPage = 0;
 
-    LOGV("%s: virt %p, size %dB\n", __func__, virtAddr, size);
+    LOGD_IF(ALLOW_BUFFER_PRINT,
+           "%s: virt %p, size %dB\n", __func__, virtAddr, size);
 
     // map it into gtt
     bool ret = gttMap(pvr2dMemInfo, &gttOffsetInPage,
@@ -552,7 +560,8 @@ IntelDisplayBuffer* IntelPVRBufferManager::map(uint32_t handle)
         return 0;
     }
 
-    LOGV("%s: mapped handle 0x%x, gtt %d\n", __func__, handle,
+    LOGD_IF(ALLOW_BUFFER_PRINT,
+           "%s: mapped handle 0x%x, gtt %d\n", __func__, handle,
          gttOffsetInPage);
 
     IntelDisplayBuffer *buffer = new IntelDisplayBuffer(pvr2dMemInfo,
@@ -634,7 +643,8 @@ bool IntelBCDBufferManager::gttUnmap(uint32_t devId, uint32_t bufferId)
 {
     struct psb_gtt_mapping_arg arg;
 
-    LOGV("%s: unmapping from gtt. buffer %p\n", __func__, bufferId);
+    LOGD_IF(ALLOW_BUFFER_PRINT,
+           "%s: unmapping from gtt. buffer %p\n", __func__, bufferId);
 
     if(mDrmFd < 0) {
         LOGE("%s: drm is not ready\n", __func__);
@@ -772,7 +782,8 @@ IntelDisplayBuffer** IntelBCDBufferManager::map(uint32_t device,
             goto gtt_map_err;
         }
 
-        LOGV("%s: creating buffer, dev %d buffer %d, gtt %d\n",
+        LOGD_IF(ALLOW_BUFFER_PRINT,
+               "%s: creating buffer, dev %d buffer %d, gtt %d\n",
              __func__, device, i, gttOffsetInPage);
 
         bufferList[i] = new IntelDisplayBuffer(0,//(void *)devHandle,
@@ -820,7 +831,8 @@ void IntelBCDBufferManager::unmap(IntelDisplayBuffer **buffers, uint32_t count)
         // unmap from gtt
         gttUnmap(device, i);
 
-        LOGV("%s: dev %d, buffer %d\n", __func__, device, i);
+        LOGD_IF(ALLOW_BUFFER_PRINT,
+                "%s: dev %d, buffer %d\n", __func__, device, i);
 
         // delete
         delete buffers[i];
@@ -854,7 +866,8 @@ IntelDisplayBuffer* IntelBCDBufferManager::get(int size, int alignment)
                                                         gttOffsetInPage,
                                                         size,
                                                         handle);
-    LOGV("%s: created TTM overlay buffer. cpu %p, gtt %d\n",
+    LOGD_IF(ALLOW_BUFFER_PRINT,
+           "%s: created TTM overlay buffer. cpu %p, gtt %d\n",
          __func__, virtAddr, gttOffsetInPage);
     return buffer;
 }
@@ -1120,7 +1133,8 @@ IntelDisplayBuffer* IntelGraphicBufferManager::get(int size, int alignment)
                                                         gttOffsetInPage,
                                                         size,
                                                         handle);
-    LOGV("%s: created TTM overlay buffer. cpu %p, gtt %d\n",
+    LOGD_IF(ALLOW_BUFFER_PRINT,
+            "%s: created TTM overlay buffer. cpu %p, gtt %d\n",
          __func__, virtAddr, gttOffsetInPage);
     return buffer;
 }

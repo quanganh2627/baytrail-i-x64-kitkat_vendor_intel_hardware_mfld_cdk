@@ -35,9 +35,11 @@
 //#define INTEL_EXT_SF_NEED_SWAPBUFFER
 #define INTEL_EXT_SF_ANIMATION_HINT
 
+#include <IntelHWComposerCfg.h>
+
 IntelHWComposer::~IntelHWComposer()
 {
-    LOGV("%s\n", __func__);
+    LOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
 
     delete mLayerList;
     delete mPlaneManager;
@@ -84,10 +86,6 @@ bool IntelHWComposer::spritePrepare(int index, hwc_layer_t *layer, int flags)
         LOGE("%s: Invalid layer\n", __func__);
         return false;
     }
-    int dstLeft = layer->displayFrame.left;
-    int dstTop = layer->displayFrame.top;
-    int dstRight = layer->displayFrame.right;
-    int dstBottom = layer->displayFrame.bottom;
 
     // allocate sprite plane
     IntelDisplayPlane *plane = mPlaneManager->getSpritePlane();
@@ -95,6 +93,11 @@ bool IntelHWComposer::spritePrepare(int index, hwc_layer_t *layer, int flags)
         LOGE("%s: failed to create sprite plane\n", __func__);
         return false;
     }
+
+    int dstLeft = layer->displayFrame.left;
+    int dstTop = layer->displayFrame.top;
+    int dstRight = layer->displayFrame.right;
+    int dstBottom = layer->displayFrame.bottom;
 
     // setup plane parameters
     plane->setPosition(dstLeft, dstTop, dstRight, dstBottom);
@@ -222,6 +225,7 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
             goto out_check;
         }
         if(widiPlane->isPlayerOn() && widiPlane->isExtVideoAllowed()) {
+            LOGD_IF(ALLOW_HWC_PRINT, "isOverlayLayer: widi video on and force overlay");
             forceOverlay = true;
         }
     }
@@ -231,8 +235,10 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
         forceOverlay = true;
 
     // check buffer usage
-    if ((grallocHandle->usage & GRALLOC_USAGE_PROTECTED) || isForceOverlay(layer))
+    if ((grallocHandle->usage & GRALLOC_USAGE_PROTECTED) || isForceOverlay(layer)) {
+        LOGD_IF(ALLOW_HWC_PRINT, "isOverlayLayer: protected video/force Overlay");
         forceOverlay = true;
+    }
 
     // check blending, overlay cannot support blending
     if (layer->blending != HWC_BLENDING_NONE) {
@@ -243,7 +249,7 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
     // fall back if HWC_SKIP_LAYER was set, if forced to use
     // overlay skip this check
     if (!forceOverlay && (layer->flags & HWC_SKIP_LAYER)) {
-        LOGV("isOverlayLayer: skip layer was set");
+        LOGD_IF(ALLOW_HWC_PRINT, "isOverlayLayer: skip layer was set");
         useOverlay = false;
         goto out_check;
    }
@@ -265,7 +271,8 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
     // clear corresponding region in frame buffer
     // for (size_t i = index + 1; i < list->numHwLayers; i++) {
     //     if (areLayersIntersecting(&list->hwLayers[i], layer)) {
-    //         LOGV("%s: overlay %d is covered by layer %d\n", __func__, index, i);
+    //         LOGD_IF(ALLOW_HWC_PRINT,
+    //             "%s: overlay %d is covered by layer %d\n", __func__, index, i);
     //             if (list->hwLayers[i].blending !=  HWC_BLENDING_NONE)
     //                 mLayerList->setNeedClearup(index, true);
     //     }
@@ -292,7 +299,7 @@ out_check:
         LOGD("isOverlayLayer: got an overlay layer");
         if (needClearFb) {
             //layer->hints |= HWC_HINT_CLEAR_FB;
-            LOGV("isOverlayLayer: clear fb");
+            LOGD_IF(ALLOW_HWC_PRINT, "isOverlayLayer: clear fb");
             mForceSwapBuffer = true;
         }
         layer->compositionType = HWC_OVERLAY;
@@ -329,13 +336,14 @@ bool IntelHWComposer::isSpriteLayer(hwc_layer_list_t *list,
         (intel_gralloc_buffer_handle_t*)layer->handle;
 
     if (!grallocHandle) {
-        LOGV("%s: invalid gralloc handle\n", __func__);
+        LOGD_IF(ALLOW_HWC_PRINT, "%s: invalid gralloc handle\n", __func__);
         return false;
     }
 
     // check whether pixel format is supported RGB formats
     if (mLayerList->getLayerType(index) != IntelHWComposerLayer::LAYER_TYPE_RGB) {
-        LOGV("%s: invalid format 0x%x\n", __func__, grallocHandle->format);
+        LOGD_IF(ALLOW_HWC_PRINT,
+                "%s: invalid format 0x%x\n", __func__, grallocHandle->format);
         useSprite = false;
         goto out_check;
     }
@@ -355,6 +363,7 @@ bool IntelHWComposer::isSpriteLayer(hwc_layer_list_t *list,
 
     // fall back if HWC_SKIP_LAYER was set
     if ((layer->flags & HWC_SKIP_LAYER)) {
+        LOGD_IF(ALLOW_HWC_PRINT, "isSpriteLayer: HWC_SKIP_LAYER");
         useSprite = false;
         goto out_check;
     }
@@ -372,6 +381,7 @@ bool IntelHWComposer::isSpriteLayer(hwc_layer_list_t *list,
 
     // check rotation
     if (layer->transform) {
+        LOGD_IF(ALLOW_HWC_PRINT, "isSpriteLayer: need do transform");
         useSprite = false;
         goto out_check;
     }
@@ -384,6 +394,10 @@ bool IntelHWComposer::isSpriteLayer(hwc_layer_list_t *list,
 
     if ((srcWidth == dstWidth) && (srcHeight == dstHeight))
         useSprite = true;
+    else
+        LOGD_IF(ALLOW_HWC_PRINT,
+               "isSpriteLayer: src W,H [%d, %d], dst W,H [%d, %d]",
+               srcWidth, srcHeight, dstWidth, dstHeight);
 
     if (layer->blending == HWC_BLENDING_NONE)
         needClearFb = true;
@@ -401,7 +415,7 @@ out_check:
     if (useSprite) {
         LOGD("isSpriteLayer: got a sprite layer");
         if (needClearFb) {
-            LOGV("isSpriteLayer: clear fb");
+            LOGD_IF(ALLOW_HWC_PRINT, "isSpriteLayer: clear fb");
             //layer->hints |= HWC_HINT_CLEAR_FB;
             mForceSwapBuffer = true;
         }
@@ -593,8 +607,10 @@ void IntelHWComposer::onGeometryChanged(hwc_layer_list_t *list)
     // TODO: uncomment it to print out layer list info
     // dumpLayerList(list);
 
-    if (isScreenshotActive(list))
+    if (isScreenshotActive(list)) {
+        LOGD_IF(ALLOW_HWC_PRINT, "%s: Screenshot Active!\n", __func__);
         goto out_check;
+    }
 
     for (size_t i = 0; list && i < list->numHwLayers; i++) {
         // check whether a layer can be handled in general
@@ -698,7 +714,8 @@ bool IntelHWComposer::useOverlayRotation(hwc_layer_t *layer,
         }
 
         if (payload->force_output_method == OUTPUT_FORCE_GPU) {
-            LOGV("%s: force to use surface texture.", __func__);
+            LOGD_IF(ALLOW_HWC_PRINT,
+                    "%s: force to use surface texture.", __func__);
             return false;
         }
 
@@ -710,7 +727,8 @@ bool IntelHWComposer::useOverlayRotation(hwc_layer_t *layer,
         }
 
         if (!transform) {
-            LOGV("%s: use overlay to display original buffer.", __func__);
+            LOGD_IF(ALLOW_HWC_PRINT,
+                    "%s: use overlay to display original buffer.", __func__);
             return true;
         }
 
@@ -753,8 +771,11 @@ bool IntelHWComposer::useOverlayRotation(hwc_layer_t *layer,
     } else {
         //For software codec, overlay can't handle rotate
         //and fallback to surface texture.
-        if ((displayMode != OVERLAY_EXTEND) && transform)
+        if ((displayMode != OVERLAY_EXTEND) && transform) {
+            LOGD_IF(ALLOW_HWC_PRINT,
+                    "%s: software codec rotation, back to ST!", __func__);
             return false;
+        }
         //set this flag for mapping correct buffer
         transform = 0;
     }
@@ -819,7 +840,7 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
          widiplane = (IntelWidiPlane*) mPlaneManager->getWidiPlane();
          mFBDev->bBypassPost = 0;
     } else
-         mFBDev->bBypassPost = 1;
+         mFBDev->bBypassPost = cfg.bypasspost;
 
     for (size_t i=0 ; i<list->numHwLayers ; i++) {
         hwc_layer_t *layer = &list->hwLayers[i];
@@ -856,6 +877,8 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
         // and sprite plane was used as primary plane (point to FB)
         // if (mLayerList->getNeedClearup(i) &&
         //     mPlaneManager->primaryAvailable(0)) {
+        //    LOGD_IF(ALLOW_HWC_PRINT,
+        //           "updateLayersData: clear visible region of layer %d", i);
         //     LOGV("updateLayersData: clear visible region of layer %d", i);
         //     list->hwLayers[i].hints |= HWC_HINT_CLEAR_FB;
         // }
@@ -910,6 +933,8 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
 
             // disable overlay if DELAY_DISABLE flag was set
             if (flags & IntelDisplayPlane::DELAY_DISABLE) {
+                LOGD_IF(ALLOW_HWC_PRINT,
+                       "updateLayerData: disable plane (DELAY)!");
                 flags &= ~IntelDisplayPlane::DELAY_DISABLE;
                 mLayerList->setFlags(i, flags);
                 plane->disable();
@@ -927,7 +952,11 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
                                                  transform);
 
             if (!useOverlay) {
+                LOGD_IF(ALLOW_HWC_PRINT,
+                       "updateLayerData: useOverlayRotation failed!");
                 if (!mLayerList->getForceOverlay(i)) {
+                    LOGD_IF(ALLOW_HWC_PRINT,
+                           "updateLayerData: fallback to ST to do rendering!");
                     // fallback to ST to render this frame
                     layer->compositionType = HWC_FRAMEBUFFER;
                     mForceSwapBuffer = true;
@@ -949,7 +978,8 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
 
             // clear FB first on first overlay frame
             if (layer->compositionType == HWC_FRAMEBUFFER) {
-                LOGV("updateLayerData: first overlay frame clear fb");
+                LOGD_IF(ALLOW_HWC_PRINT,
+                       "updateLayerData: first overlay frame clear fb");
                 //layer->hints |= HWC_HINT_CLEAR_FB;
                 mForceSwapBuffer = true;
             }
@@ -1114,7 +1144,7 @@ bool IntelHWComposer::areLayersIntersecting(hwc_layer_t *top,
 
 void IntelHWComposer::handleHotplugEvent()
 {
-    LOGV("handleHotplugEvent");
+    LOGD_IF(ALLOW_HWC_PRINT, "handleHotplugEvent");
 
     // go through layer list and call plane's onModeChange()
     for (size_t i = 0 ; i < mLayerList->getLayersCount(); i++) {
@@ -1155,7 +1185,7 @@ void IntelHWComposer::onUEvent(const char *msg, int msgLen, int msgType)
 
 bool IntelHWComposer::flipFramebufferContexts(void *contexts)
 {
-    LOGV("flipFrameBufferContexts");
+    LOGD_IF(ALLOW_HWC_PRINT, "flipFrameBufferContexts");
     intel_sprite_context_t *context;
     mdfld_plane_contexts_t *planeContexts;
     uint32_t fbWidth, fbHeight;
@@ -1214,7 +1244,7 @@ bool IntelHWComposer::flipFramebufferContexts(void *contexts)
 
 bool IntelHWComposer::prepare(hwc_layer_list_t *list)
 {
-    LOGV("%s\n", __func__);
+    LOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
 
     if (!initCheck()) {
         LOGE("%s: failed to initialize HWComposer\n", __func__);
@@ -1276,6 +1306,8 @@ bool IntelHWComposer::prepare(hwc_layer_list_t *list)
         intel_overlay_mode_t mode = mDrm->getDisplayMode();
         if (list && (mode == OVERLAY_EXTEND ||  widiPlane->isStreaming()) &&
             (list->flags & HWC_GEOMETRY_CHANGED)) {
+            LOGD_IF(ALLOW_HWC_PRINT,
+                    "layers num:%d", list->numHwLayers);
             if (list->numHwLayers == 1)
                 mDrm->notifyMipi(false);
             else
@@ -1285,7 +1317,7 @@ bool IntelHWComposer::prepare(hwc_layer_list_t *list)
 
     // handle buffer changing. setup data buffer.
     if (list && !updateLayersData(list)) {
-        LOGV("prepare: revisiting layer list\n");
+        LOGD_IF(ALLOW_HWC_PRINT, "prepare: revisiting layer list\n");
         revisitLayerList(list, false);
     }
 
@@ -1301,7 +1333,7 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
                              hwc_surface_t sur,
                              hwc_layer_list_t *list)
 {
-    LOGV("%s\n", __func__);
+    LOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
 
     if (!initCheck()) {
         LOGE("%s: failed to initialize HWComposer\n", __func__);
@@ -1328,6 +1360,11 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
     if (!mLayerList->getLayersCount() ||
         mLayerList->getLayersCount() != mLayerList->getAttachedPlanesCount() ||
         mForceSwapBuffer) {
+        LOGD_IF(ALLOW_HWC_PRINT,
+               "%s: mForceSwapBuffer: %d, layer count: %d, attached plane:%d\n",
+               __func__, mForceSwapBuffer, mLayerList->getLayersCount(),
+               mLayerList->getAttachedPlanesCount());
+
         // FIXME: it might be a surface flinger bug
         // surface flinger failed to render a layer to FB sometimes
 	// because screen dirty region was unchanged, in this case
@@ -1339,8 +1376,10 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
     }
 
     // if primary plane is in use, skip eglSwapBuffers
-    if (!mPlaneManager->primaryAvailable(0))
+    if (!mPlaneManager->primaryAvailable(0)) {
+        LOGD_IF(ALLOW_HWC_PRINT, "%s: primary plane in use\n", __func__);
         needSwapBuffer = false;
+    }
 
     // Post overlays
     // FIXME: This is little bit scary, need move overlay posting into Post2.
@@ -1374,7 +1413,7 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
 
     // check whether eglSwapBuffers is still needed for the given layer list
     if (needSwapBuffer) {
-        LOGV("%s: eglSwapBuffers\n", __func__);
+        LOGD_IF(ALLOW_HWC_PRINT, "%s: eglSwapBuffers\n", __func__);
         EGLBoolean sucess = eglSwapBuffers((EGLDisplay)dpy, (EGLSurface)sur);
         if (!sucess) {
             return false;
@@ -1383,7 +1422,7 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
 
     if(mPlaneManager->isWidiActive()) {
         IntelDisplayPlane *p = mPlaneManager->getWidiPlane();
-        LOGV("Widi Plane is %p",p);
+        LOGD_IF(ALLOW_HWC_PRINT, "Widi Plane is %p",p);
          if (p)
              p->flip(context, 0);
          else
@@ -1414,6 +1453,10 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
                 continue;
             if (list->hwLayers[i].compositionType != HWC_OVERLAY)
                 continue;
+
+            LOGD_IF(ALLOW_HWC_PRINT, "%s: flip sprite plane %d, flags: 0x%x\n",
+                __func__, i, flags);
+
             bool ret = plane->flip(context, flags);
             if (!ret)
                 LOGW("%s: failed to flip plane %d\n", __func__, i);
@@ -1428,7 +1471,7 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
 
         // commit plane contexts
         if (mFBDev && numBuffers) {
-            LOGV("%s: commits %d buffers\n", __func__, numBuffers);
+            LOGD_IF(ALLOW_HWC_PRINT, "%s: commits %d buffers\n", __func__, numBuffers);
             int err = mFBDev->Post2(&mFBDev->base,
                                     bufferHandles,
                                     numBuffers,
@@ -1440,6 +1483,20 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
             }
         }
     }
+
+        //make sure all flips were finished
+        for (size_t i=0 ; list && i<list->numHwLayers ; i++) {
+            IntelDisplayPlane *plane = mLayerList->getPlane(i);
+            int flags = mLayerList->getFlags(i);
+            if (!plane)
+                continue;
+            if (list->hwLayers[i].flags & HWC_SKIP_LAYER)
+                continue;
+            if (list->hwLayers[i].compositionType != HWC_OVERLAY)
+                continue;
+
+            plane->waitForFlipCompletion();
+        }
 
     return true;
 }
@@ -1478,18 +1535,29 @@ bool IntelHWComposer::dump(char *buff,
     mDumpBuflen = buff_len;
     mDumpLen = 0;
 
+    IntelWidiPlane* widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
+
     if (mLayerList) {
-           for (i = 0; i < mLayerList->getLayersCount(); i++) {
-                       dumpPrintf("     layer %d:\n", i);
+       dumpPrintf("------------ Totally %d layers -------------\n",
+                                     mLayerList->getLayersCount());
+       for (i = 0; i < mLayerList->getLayersCount(); i++) {
+           plane = mLayerList->getPlane(i);
 
-                       plane = mLayerList->getPlane(i);
-                       if (plane) {
-                               int planeType = plane->getPlaneType();
+           if (plane) {
+               int planeType = plane->getPlaneType();
+               dumpPrintf("   # layer %d attached to %s plane \n", i,
+                            (planeType == 3) ? "overlay" : "sprite");
+           } else
+               dumpPrintf("   # layer %d goes through eglswapbuffer\n ", i);
+       }
 
-                               dumpPrintf("    PlaneType: %s\n",
-                                   planeType ? "sprite" : "overlay");
-                       }
-           }
+       dumpPrintf("-------------runtime parameters -------------\n");
+       dumpPrintf("  + bypassPost: %d \n", mFBDev->bBypassPost);
+       dumpPrintf("  + mForceSwapBuffer: %d \n", mForceSwapBuffer);
+       dumpPrintf("  + Display Mode: %d \n", mDrm->getDisplayMode());
+       dumpPrintf("  + isHdmiConnected: %d \n",
+        (mDrm->getOutputConnection(OUTPUT_HDMI) == DRM_MODE_CONNECTED) ? 1 : 0);
+       dumpPrintf("  + isWidiActive: %d \n", (widiPlane->isActive()) ? 1 : 0);
     }
 
     mPlaneManager->dump(mDumpBuf,  mDumpBuflen, &mDumpLen);
@@ -1504,7 +1572,7 @@ bool IntelHWComposer::initialize()
     //TODO: replace the hard code buffer type later
     int bufferType = IntelBufferManager::TTM_BUFFER;
 
-    LOGV("%s\n", __func__);
+    LOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
 
     // open IMG frame buffer device
     hw_module_t const* module;
@@ -1512,7 +1580,7 @@ bool IntelHWComposer::initialize()
         IMG_gralloc_module_public_t *imgGrallocModule;
         imgGrallocModule = (IMG_gralloc_module_public_t*)module;
         mFBDev = imgGrallocModule->psFrameBufferDevice;
-        mFBDev->bBypassPost = 1;
+        mFBDev->bBypassPost = cfg.bypasspost;
     }
 
     if (!mFBDev) {
@@ -1590,7 +1658,7 @@ bool IntelHWComposer::initialize()
 
     mInitialized = true;
 
-    LOGV("%s: successfully\n", __func__);
+    LOGD_IF(ALLOW_HWC_PRINT, "%s: successfully\n", __func__);
     return true;
 
 pm_err:

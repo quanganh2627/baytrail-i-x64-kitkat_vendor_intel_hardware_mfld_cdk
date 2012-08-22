@@ -37,6 +37,7 @@
 #include <IntelHWComposerDump.h>
 #include <IntelBufferManager.h>
 #include <IntelOverlayHW.h>
+#include <IntelHWComposerCfg.h>
 
 #include <linux/psb_drm.h>
 

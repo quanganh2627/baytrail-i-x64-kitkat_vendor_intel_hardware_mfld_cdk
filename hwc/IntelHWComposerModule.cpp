@@ -27,6 +27,8 @@
  */
 #include <hardware/hardware.h>
 
+#include <string.h>
+#include <stdio.h>
 #include <fcntl.h>
 #include <errno.h>
 
@@ -34,6 +36,10 @@
 #include <cutils/atomic.h>
 
 #include <IntelHWComposer.h>
+#include <IntelHWComposerCfg.h>
+
+/* global hwcomposer cfg info */
+hwc_cfg cfg;
 
 static void dump_layer(hwc_layer_t const* l)
 {
@@ -130,6 +136,50 @@ static int hwc_device_close(struct hw_device_t *dev)
     return 0;
 }
 
+static int hwc_get_cfg(hwc_cfg *cfg)
+{
+    FILE *fp = NULL;
+    char cfg_string[CFG_STRING_LEN];
+    char * pch;
+
+    if (cfg == NULL) {
+        LOGE("%s: pass NULL parameter!\n", __func__);
+        return -1;
+    } else {
+        /* set default cfg parameter */
+        cfg->enable = 1;
+        cfg->log_level = 0;
+        cfg->bypasspost = 1;
+    }
+
+    fp = fopen(HWC_CFG_PATH, "r");
+    if (fp != NULL) {
+        memset(cfg_string, '\0', CFG_STRING_LEN);
+        fread(cfg_string, 1, CFG_STRING_LEN, fp);
+
+        LOGD("%s: read config line %s!\n", __func__, cfg_string);
+
+        pch = strstr(cfg_string, "enable");
+        if (pch != NULL)
+            cfg->enable = *(pch+strlen("enable=")) - '0';
+
+        pch = strstr(cfg_string, "log_level");
+        if (pch != NULL)
+            cfg->log_level = atoi(pch+strlen("log_level="));
+
+        pch = strstr(cfg_string, "bypasspost");
+        if (pch != NULL)
+            cfg->bypasspost = atoi(pch+strlen("bypasspost="));
+
+
+        LOGD("%s:get cfg parameter enable_hwc=%d,log_level=%d,bypasspost=%d!\n",
+                     __func__, cfg->enable, cfg->log_level, cfg->bypasspost);
+        fclose(fp);
+    }
+
+    return 0;
+}
+
 /*****************************************************************************/
 
 static int hwc_device_open(const struct hw_module_t* module, const char* name,
@@ -138,6 +188,13 @@ static int hwc_device_open(const struct hw_module_t* module, const char* name,
     int status = -EINVAL;
 
     LOGV("%s: name %s\n", __func__, name);
+
+    hwc_get_cfg(&cfg);
+
+    if (cfg.enable == 0) {
+        status = -EINVAL;
+        goto hwc_init_out;
+    }
 
     if (!strcmp(name, HWC_HARDWARE_COMPOSER)) {
         IntelHWComposer *hwc = new IntelHWComposer();

@@ -26,6 +26,7 @@
  *
  */
 //#define LOG_NDEBUG 0
+#include <IntelHWComposerCfg.h>
 #include <binder/IServiceManager.h>
 #include <poll.h>
 #include <sys/socket.h>
@@ -48,20 +49,20 @@ IntelExternalDisplayMonitor::IntelExternalDisplayMonitor(IntelHWComposer *hwc) :
     mInitialized(false),
     mComposer(hwc)
 {
-    LOGV("External display monitor created");
+    LOGD_IF(ALLOW_MONITOR_PRINT, "External display monitor created");
     initialize();
 }
 
 IntelExternalDisplayMonitor::~IntelExternalDisplayMonitor()
 {
-    LOGV("External display monitor Destroyed");
+    LOGD_IF(ALLOW_MONITOR_PRINT, "External display monitor Destroyed");
     mInitialized = false;
     mComposer = 0;
 }
 
 void IntelExternalDisplayMonitor::initialize()
 {
-    LOGV("External display monitor initialized");
+    LOGD_IF(ALLOW_MONITOR_PRINT, "External display monitor initialized");
     mInitialized = true;
 }
 
@@ -74,7 +75,7 @@ void IntelExternalDisplayMonitor::onModeChange(int mode)
 
 int IntelExternalDisplayMonitor::getDisplayMode()
 {
-    LOGV("Get display mode %d", mActiveDisplayMode);
+    LOGD_IF(ALLOW_MONITOR_PRINT, "Get display mode %d", mActiveDisplayMode);
     if (mActiveDisplayMode & MDS_HDMI_VIDEO_EXT)
         return OVERLAY_EXTEND;
     else if (mActiveDisplayMode & MDS_HDMI_CLONE)
@@ -101,12 +102,12 @@ bool IntelExternalDisplayMonitor::isOverlayOff()
 
 void IntelExternalDisplayMonitor::binderDied(const wp<IBinder>& who)
 {
-    LOGV("External display monitor binderDied");
+    LOGD_IF(ALLOW_MONITOR_PRINT, "External display monitor binderDied");
 }
 
 bool IntelExternalDisplayMonitor::notifyWidi(bool on)
 {
-    LOGV("Exteranal display notify the MDS widi's state");
+    LOGD_IF(ALLOW_MONITOR_PRINT, "Exteranal display notify the MDS widi's state");
     // TODO: remove mWideOn. MultiDisplay Service maintains the state machine.
     if ((mMDClient != NULL) && (mWidiOn != on)) {
         mWidiOn = on;
@@ -117,7 +118,8 @@ bool IntelExternalDisplayMonitor::notifyWidi(bool on)
 
 bool IntelExternalDisplayMonitor::notifyMipi(bool on)
 {
-    LOGV("Exteranal display notify the MDS that Mipi should be turned on/off");
+    LOGD_IF(ALLOW_MONITOR_PRINT,
+            "Exteranal display notify the MDS that Mipi should be turned on/off");
     if ((mMDClient != NULL) &&
         ((mActiveDisplayMode & MDS_HDMI_VIDEO_EXT) ||
          (mWidiOn && mActiveDisplayMode & MDS_VIDEO_PLAYING))) {
@@ -137,10 +139,10 @@ bool IntelExternalDisplayMonitor::getVideoInfo(int *displayW, int *displayH, int
 
 bool IntelExternalDisplayMonitor::threadLoop()
 {
-    //LOGV("External display monitor thread loop");
+    //LOGD_IF(ALLOW_MONITOR_PRINT, "External display monitor thread loop");
 
     if (mMDClient !=  0) {
-        LOGV("threadLoop: found MDS, threadLoop will exit.");
+        LOGD_IF(ALLOW_MONITOR_PRINT, "threadLoop: found MDS, threadLoop will exit.");
         requestExit();
         return true;
     }
@@ -167,7 +169,7 @@ bool IntelExternalDisplayMonitor::threadLoop()
 
 status_t IntelExternalDisplayMonitor::readyToRun()
 {
-    LOGV("External display monitor ready to run");
+    LOGD_IF(ALLOW_MONITOR_PRINT, "External display monitor ready to run");
 
     // get multi-display manager service, retry 10 seconds
     int retry = 2;
@@ -234,6 +236,6 @@ status_t IntelExternalDisplayMonitor::readyToRun()
 
 void IntelExternalDisplayMonitor::onFirstRef()
 {
-    LOGV("External display monitor onFirstRef");
+    LOGD_IF(ALLOW_MONITOR_PRINT, "External display monitor onFirstRef");
     run("HWC external display monitor", PRIORITY_URGENT_DISPLAY);
 }

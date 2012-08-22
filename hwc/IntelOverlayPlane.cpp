@@ -100,7 +100,7 @@ bool IntelOverlayContext::create()
     mOverlayBackBuffer = (intel_overlay_back_buffer_t*)backBuffer->getCpuAddr();
     mBackBuffer = backBuffer;
 
-    LOGV("%s: created overlay context!\n", __func__);
+    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: created overlay context!\n", __func__);
 
     return true;
 
@@ -116,7 +116,8 @@ mmap_err:
 
 bool IntelOverlayContext::open(int handle, int size)
 {
-    LOGV("%s: fd %d, size %d\n", __func__, handle, size);
+    LOGD_IF(ALLOW_OVERLAY_PRINT,
+            "%s: fd %d, size %d\n", __func__, handle, size);
 
     if (!mBufferManager) {
         LOGE("%s: no buffer manager found\n", __func__);
@@ -160,7 +161,7 @@ bool IntelOverlayContext::open(int handle, int size)
     mOverlayBackBuffer = (intel_overlay_back_buffer_t*)backBuffer->getCpuAddr();
     mBackBuffer = backBuffer;
 
-    LOGV("%s: opened overlay context\n", __func__);
+    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: opened overlay context\n", __func__);
     return true;
 
 map_err:
@@ -173,7 +174,7 @@ bool IntelOverlayContext::destroy()
     bool ret = true;
     bool closeFd = false;
 
-    LOGV("%s\n", __func__);
+    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s\n", __func__);
 
     if (!mContext) {
         LOGE("%s: context doesn't exist\n", __func__);
@@ -181,7 +182,8 @@ bool IntelOverlayContext::destroy()
     }
 
     if (android_atomic_dec(&mContext->refCount) == 1) {
-        LOGV("%s: refcount = 0, destroy mutex\n", __func__);
+        LOGD_IF(ALLOW_OVERLAY_PRINT,
+               "%s: refcount = 0, destroy mutex\n", __func__);
         if (pthread_mutex_destroy(&mContext->lock)) {
             LOGE("%s: destroy share context lock failed\n", __func__);
             ret = false;
@@ -216,13 +218,13 @@ bool IntelOverlayContext::destroy()
         mHandle = -1;
     }
 
-    LOGV("%s: destroyed overlay context\n", __func__);
+    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: destroyed overlay context\n", __func__);
     return ret;
 }
 
 void IntelOverlayContext::clean()
 {
-    LOGV("%s\n", __func__);
+    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s\n", __func__);
 }
 
 void IntelOverlayContext::lock()
@@ -311,7 +313,7 @@ bool IntelOverlayContext::flush(uint32_t flags)
         return false;
     }
 
-    LOGV("%s: done\n", __func__);
+    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: done\n", __func__);
     return true;
 }
 
@@ -348,7 +350,7 @@ bool IntelOverlayContext::backBufferInit()
         return false;
     }
 
-    LOGV("%s: control block init...\n", __func__);
+    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: control block init...\n", __func__);
 
     memset(mOverlayBackBuffer, 0, sizeof(intel_overlay_back_buffer_t));
 
@@ -364,13 +366,13 @@ bool IntelOverlayContext::backBufferInit()
     mOverlayBackBuffer->SCHRKEN &= ~(0x7 << 24);
     mOverlayBackBuffer->SCHRKEN |= 0xff;
 
-    LOGV("%s: successfully.\n", __func__);
+    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: successfully.\n", __func__);
     return true;
 }
 
 bool IntelOverlayContext::bufferOffsetSetup(IntelDisplayDataBuffer &buf)
 {
-    LOGV("%s: setting up buffer offset...\n", __func__);
+    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: setting up buffer offset...\n", __func__);
 
     if(!mOverlayBackBuffer) {
         LOGE("%s: invalid buf\n", __func__);
@@ -451,7 +453,7 @@ bool IntelOverlayContext::bufferOffsetSetup(IntelDisplayDataBuffer &buf)
     mOverlayBackBuffer->OBUF_1U = mOverlayBackBuffer->OBUF_0U;
     mOverlayBackBuffer->OBUF_1V = mOverlayBackBuffer->OBUF_0V;
 
-    LOGV("%s: done. offset (%d, %d, %d)\n", __func__,
+    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: done. offset (%d, %d, %d)\n", __func__,
                       mOverlayBackBuffer->OBUF_0Y,
                       mOverlayBackBuffer->OBUF_0U,
                       mOverlayBackBuffer->OBUF_0V);
@@ -460,7 +462,8 @@ bool IntelOverlayContext::bufferOffsetSetup(IntelDisplayDataBuffer &buf)
 
 uint32_t IntelOverlayContext::calculateSWidthSW(uint32_t offset, uint32_t width)
 {
-    LOGV("%s: calculating SWidthSW...offset %d, width %d\n", __func__,
+    LOGD_IF(ALLOW_OVERLAY_PRINT,
+            "%s: calculating SWidthSW...offset %d, width %d\n", __func__,
                                                              offset,
                                                              width);
 
@@ -477,7 +480,7 @@ bool IntelOverlayContext::coordinateSetup(IntelDisplayDataBuffer& buf)
     uint32_t swidthy = 0;
     uint32_t swidthuv = 0;
 
-    LOGV("%s: setting up coordinates...\n", __func__);
+    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: setting up coordinates...\n", __func__);
 
     if (buf.isFlags(IntelDisplayDataBuffer::SIZE_CHANGE) == false)
         return true;
@@ -522,7 +525,7 @@ bool IntelOverlayContext::coordinateSetup(IntelDisplayDataBuffer& buf)
     mOverlayBackBuffer->OSTRIDE = (yStride & (~0x3f)) |
                                   ((uvStride & (~0x3f)) << 16);
 
-    LOGV("%s: finished\n", __func__);
+    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: finished\n", __func__);
 
     return true;
 }
@@ -686,7 +689,8 @@ bool IntelOverlayContext::scalingSetup(IntelDisplayDataBuffer& buffer)
 
     // check position
     checkPosition(x, y, w, h, buffer);
-    LOGV("%s: Final position (%d, %d, %d, %d)", __func__, x, y, w, h);
+    LOGD_IF(ALLOW_OVERLAY_PRINT,
+           "%s: Final position (%d, %d, %d, %d)", __func__, x, y, w, h);
 
     if ((w <= 0) || (h <= 0)) {
          LOGE("%s: Invalid dst width/height", __func__);
@@ -702,7 +706,8 @@ bool IntelOverlayContext::scalingSetup(IntelDisplayDataBuffer& buffer)
     uint32_t dstWidth = w;
     uint32_t dstHeight = h;
 
-    LOGV("%s: src (%dx%d) v.s. (%dx%d)\n", __func__,
+    LOGD_IF(ALLOW_OVERLAY_PRINT,
+            "%s: src (%dx%d) v.s. (%dx%d)\n", __func__,
                                            srcWidth, srcHeight,
                                            dstWidth, dstHeight);
     /*
@@ -810,7 +815,7 @@ bool IntelOverlayContext::scalingSetup(IntelDisplayDataBuffer& buffer)
         }
     }
 
-    LOGV("%s: done\n", __func__);
+    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: done\n", __func__);
 
     return true;
 }
@@ -867,7 +872,7 @@ bool IntelOverlayContext::setDataBuffer(IntelDisplayDataBuffer& buffer)
 
     unlock();
 
-    LOGV("%s: done\n", __func__);
+    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: done\n", __func__);
 
     return true;
 }
@@ -1007,7 +1012,7 @@ void IntelOverlayContext::checkPosition(int& x, int& y, int& w, int& h,
 
 void IntelOverlayContext::setPosition(int x, int y, int w, int h)
 {
-    LOGV("%s: %d, %d, %d, %d\n", __func__, x, y, w, h);
+    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: %d, %d, %d, %d\n", __func__, x, y, w, h);
 
     if (!mContext)
         return;
@@ -1080,7 +1085,7 @@ bool IntelOverlayContext::reset()
 
     lock();
 
-    LOGV("%s: reset overlay...\n", __func__);
+    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: reset overlay...\n", __func__);
     backBufferInit();
     bool ret = flush((IntelDisplayPlane::FLASH_NEEDED |
                       IntelDisplayPlane::WAIT_VBLANK));
@@ -1196,7 +1201,8 @@ IntelOverlayContext::onDrmModeChange()
     /*get new drm mode*/
     newDisplayMode = IntelHWComposerDrm::getInstance().getDisplayMode();
 
-    LOGV("%s: old %d, new %d\n", __func__, oldDisplayMode, newDisplayMode);
+    LOGD_IF(ALLOW_OVERLAY_PRINT,
+           "%s: old %d, new %d\n", __func__, oldDisplayMode, newDisplayMode);
 
     if (oldDisplayMode == newDisplayMode) {
         goto mode_change_done;
@@ -1221,7 +1227,7 @@ bool IntelOverlayContextMfld::flush_bottom_field(uint32_t flags)
     mOverlayBackBuffer->OBUF_1U = mOverlayBackBuffer->OBUF_1U - uvStride;
     mOverlayBackBuffer->OBUF_1V = mOverlayBackBuffer->OBUF_1V - uvStride;
 
-    LOGV("%s: done. offset (%d, %d, %d)\n", __func__,
+    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: done. offset (%d, %d, %d)\n", __func__,
                       mOverlayBackBuffer->OBUF_0Y,
                       mOverlayBackBuffer->OBUF_0U,
                       mOverlayBackBuffer->OBUF_0V);
@@ -1298,7 +1304,7 @@ bool IntelOverlayContextMfld::flush_frame_or_top_field(uint32_t flags)
     }
     if (flags & IntelDisplayPlane::BOB_DEINTERLACE)
         flush_bottom_field(flags);
-    LOGV("%s: done\n", __func__);
+    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: done\n", __func__);
     return true;
 }
 
@@ -1306,7 +1312,7 @@ IntelOverlayPlane::IntelOverlayPlane(int fd, int index, IntelBufferManager *bm)
     : IntelDisplayPlane(fd, IntelDisplayPlane::DISPLAY_PLANE_OVERLAY, index, bm)
 {
     bool ret;
-    LOGV("%s\n", __func__);
+    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s\n", __func__);
 
     // create data buffer, pixel format set to NV12 by default
     IntelDisplayBuffer *dataBuffer =
@@ -1493,7 +1499,7 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
         }
     }
 
-    LOGV("%s: next buffer %d\n", __func__, mNextBuffer);
+    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: next buffer %d\n", __func__, mNextBuffer);
 
     // map the handle if no buffer found
     if (!buffer) {
@@ -1501,7 +1507,8 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
         if (mDataBuffers[mNextBuffer].ui64Stamp ||
             mDataBuffers[mNextBuffer].handle ||
             mDataBuffers[mNextBuffer].buffer) {
-            LOGV("%s: releasing buffer %d...\n", __func__, mNextBuffer);
+            LOGD_IF(ALLOW_OVERLAY_PRINT,
+                    "%s: releasing buffer %d...\n", __func__, mNextBuffer);
             if (mDataBuffers[mNextBuffer].bufferType ==
                 IntelBufferManager::TTM_BUFFER)
                 mBufferManager->unwrap(mDataBuffers[mNextBuffer].buffer);
@@ -1545,7 +1552,8 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
              LOGI("%s: continue...\n", __func__);
         }
 
-        LOGV("%s: mapping buffer at %d...\n", __func__, mNextBuffer);
+        LOGD_IF(ALLOW_OVERLAY_PRINT,
+               "%s: mapping buffer at %d...\n", __func__, mNextBuffer);
         mDataBuffers[mNextBuffer].ui64Stamp = ui64Stamp;
         mDataBuffers[mNextBuffer].handle = handle;
         mDataBuffers[mNextBuffer].buffer = buffer;
@@ -1614,6 +1622,8 @@ bool IntelOverlayPlane::flip(void *context, uint32_t flags)
         if ((mWidiPlane && mWidiPlane->isActive()) ||
 	    (flags & IntelDisplayPlane::DELAY_DISABLE) ||
             IntelHWComposerDrm::getInstance().isOverlayOff()){
+            LOGD_IF(ALLOW_OVERLAY_PRINT,
+                    "%s: disable overlay context!\n", __func__);
             ret = disable();
             if (ret == false)
                 LOGE("%s: failed to disable overlay\n", __func__);

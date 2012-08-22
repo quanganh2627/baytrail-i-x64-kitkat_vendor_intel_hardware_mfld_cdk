@@ -26,6 +26,7 @@
  *
  */
 #include <IntelHWCUEventObserver.h>
+#include <IntelHWComposerCfg.h>
 #include <cutils/log.h>
 #include <poll.h>
 #include <sys/socket.h>

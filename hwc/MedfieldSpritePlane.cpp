@@ -157,7 +157,12 @@ bool MedfieldSpritePlane::setDataBuffer(IntelDisplayBuffer& buffer)
         // if (mForceBottom)
         //    context->cntr |= INTEL_SPRITE_FORCE_BOTTOM;
 
-        LOGV("%s: cntr 0x%x, stride 0x%x, surf 0x%x\n",
+        LOGD_IF(ALLOW_SPRITE_PRINT,
+             "%s: srcX 0x%x, srcY 0x%x, bufWidth 0x%x, bufHeight 0x%x\n",
+             __func__, srcX, srcY, bufferWidth, bufferHeight);
+        LOGD_IF(ALLOW_SPRITE_PRINT, "%s: format 0x%x, bpp  0x%x, linoff 0x%x\n",
+             __func__, spriteFormat, bpp, context->linoff);
+        LOGD_IF(ALLOW_SPRITE_PRINT, "%s: cntr 0x%x, stride 0x%x, surf 0x%x\n",
              __func__, context->cntr, context->stride, context->surf);
 
         return true;
@@ -178,7 +183,7 @@ bool MedfieldSpritePlane::setDataBuffer(uint32_t handle, uint32_t flags, intel_g
         return false;
     }
 
-    LOGV("%s: next buffer %d\n", __func__, mNextBuffer);
+    LOGD_IF(ALLOW_SPRITE_PRINT, "%s: next buffer %d\n", __func__, mNextBuffer);
 
     // Notice!!! Maybe handle can be reused, it will cause problem.
     for (i = 0; i < SPRITE_DATA_BUFFER_NUM_MAX; i++) {
@@ -192,7 +197,8 @@ bool MedfieldSpritePlane::setDataBuffer(uint32_t handle, uint32_t flags, intel_g
             // release the buffer in the next slot
             if (mDataBuffers[mNextBuffer].ui64Stamp ||
                             mDataBuffers[mNextBuffer].buffer) {
-                    LOGV("%s: releasing buffer %d...\n", __func__, mNextBuffer);
+                    LOGD_IF(ALLOW_SPRITE_PRINT,
+                            "%s: releasing buffer %d...\n", __func__, mNextBuffer);
                     mBufferManager->unmap(mDataBuffers[mNextBuffer].buffer);
                     mDataBuffers[mNextBuffer].ui64Stamp = 0;
                     mDataBuffers[mNextBuffer].handle = 0;
@@ -247,7 +253,8 @@ bool MedfieldSpritePlane::flip(void *contexts, uint32_t flags)
     if (!context->update_mask)
         return true;
 
-    LOGV("%s: flip to surface 0x%x\n", __func__, context->surf);
+    LOGD_IF(ALLOW_SPRITE_PRINT,
+           "%s: flip to surface 0x%x\n", __func__, context->surf);
 
     // update context
     for (int output = 0; output < OUTPUT_MAX; output++) {
@@ -255,7 +262,8 @@ bool MedfieldSpritePlane::flip(void *contexts, uint32_t flags)
             IntelHWComposerDrm::getInstance().getOutputConnection(output);
 
         if (connection != DRM_MODE_CONNECTED) {
-            LOGV("%s: output %d not connected\n", __func__, output);
+            LOGD_IF(ALLOW_SPRITE_PRINT,
+                   "%s: output %d not connected\n", __func__, output);
             continue;
         }
 
@@ -286,7 +294,7 @@ bool MedfieldSpritePlane::disable()
 
 bool MedfieldSpritePlane::invalidateDataBuffer()
 {
-    LOGV("%s\n", __func__);
+    LOGD_IF(ALLOW_SPRITE_PRINT, "%s\n", __func__);
 
     // keep the mapping of sprite data buffers till HWC was unload
     // if we unmap them dynamically, post2 may be failed.

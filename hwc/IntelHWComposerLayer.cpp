@@ -28,6 +28,7 @@
 #include <IntelHWComposerLayer.h>
 #include <GLES/gl.h>
 #include <GLES/glext.h>
+#include <IntelHWComposerCfg.h>
 
 IntelHWComposerLayer::IntelHWComposerLayer()
     : mHWCLayer(0), mPlane(0), mFlags(0)

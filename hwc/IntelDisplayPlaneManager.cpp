@@ -41,7 +41,7 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
 {
     int i = 0;
 
-    LOGV("%s\n", __func__);
+    LOGD_IF(ALLOW_PLANE_PRINT, "%s\n", __func__);
 
     // detect display plane usage. Hopefully throw DRM ioctl
     detect();
@@ -391,7 +391,7 @@ void IntelDisplayPlaneManager::reclaimPlane(IntelDisplayPlane *plane)
 
     int index = plane->mIndex;
 
-    LOGV("%s: reclaimPlane %d\n", __func__, index);
+    LOGD_IF(ALLOW_PLANE_PRINT, "%s: reclaimPlane %d\n", __func__, index);
 
     if (plane->mType == IntelDisplayPlane::DISPLAY_PLANE_OVERLAY)
         putPlane(index, mReclaimedOverlayPlanes);
@@ -479,7 +479,7 @@ int IntelDisplayPlaneManager::getContextLength() const
 
 int IntelDisplayPlaneManager::setZOrderConfig(int config, int pipe)
 {
-    LOGV("%s: %d", __func__, config);
+    LOGD_IF(ALLOW_PLANE_PRINT, "%s: %d", __func__, config);
 
     if (!initCheck()) {
         LOGE("%s: plane manager is not initialized\n", __func__);
@@ -556,10 +556,15 @@ bool IntelDisplayPlaneManager::dump(char *buff,
     mDumpBuflen = buff_len;
     mDumpLen = *cur_len;
 
-    dumpPrintf("     sprite plane count %d:\n", mSpritePlaneCount);
-    dumpPrintf("     overlay plane count %d:\n", mOverlayPlaneCount);
-    dumpPrintf("     free sprite plane %x:\n", mFreeSpritePlanes);
-    dumpPrintf("     sprite plane count %d:\n", mOverlayPlaneCount);
+    dumpPrintf("-------------- Plane Infos ---------------\n");
+    dumpPrintf("     sprite plane count: %d\n", mSpritePlaneCount);
+    dumpPrintf("     primary plane count: %d\n", mPrimaryPlaneCount);
+    dumpPrintf("     overlay plane count: %d\n", mOverlayPlaneCount);
+    dumpPrintf("     free sprite plane count: %d\n", mFreeSpritePlanes);
+    dumpPrintf("     free primary plane count: %d\n", mFreePrimaryPlanes);
+    dumpPrintf("     free overlay count count: %d\n", mFreeOverlayPlanes);
+    dumpPrintf("     plane zOrder: %d\n", mZOrderConfigs[0]);
+    dumpPrintf("-------------End of Plane Infos-----------\n");
 
     *cur_len = mDumpLen;
 

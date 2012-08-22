@@ -37,7 +37,7 @@ IntelSpritePlane::IntelSpritePlane(int fd, int index, IntelBufferManager *bm)
     : IntelDisplayPlane(fd, IntelDisplayPlane::DISPLAY_PLANE_SPRITE, index, bm)
 {
     bool ret;
-    LOGV("%s\n", __func__);
+    LOGD_IF(ALLOW_SPRITE_PRINT, "%s\n", __func__);
 
     // create data buffer
     IntelDisplayBuffer *dataBuffer = new IntelDisplayDataBuffer(0, 0, 0);
@@ -175,7 +175,7 @@ bool IntelSpritePlane::disable()
 
 bool IntelSpritePlane::invalidateDataBuffer()
 {
-    LOGV("%s\n", __func__);
+    LOGD_IF(ALLOW_SPRITE_PRINT, "%s\n", __func__);
     if (initCheck()) {
 	 mBufferManager->unmap(mDataBuffer);
 	 delete mDataBuffer;

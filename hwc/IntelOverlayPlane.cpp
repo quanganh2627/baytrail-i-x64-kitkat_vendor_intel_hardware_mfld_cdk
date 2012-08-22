@@ -1584,9 +1584,9 @@ bool IntelOverlayPlane::flip(void *context, uint32_t flags)
         if ((mWidiPlane && mWidiPlane->isActive()) ||
 	    (flags & IntelDisplayPlane::DELAY_DISABLE) ||
             IntelHWComposerDrm::getInstance().isOverlayOff()){
-            ret = overlayContext->disable();
+            ret = disable();
             if (ret == false)
-                LOGE("%s: failed to reset overlay\n", __func__);
+                LOGE("%s: failed to disable overlay\n", __func__);
         } else {
             flags |= IntelDisplayPlane::FLASH_NEEDED |
                     IntelDisplayPlane::UPDATE_COEF |
@@ -1652,7 +1652,7 @@ bool IntelOverlayPlane::disable()
             reinterpret_cast<IntelOverlayContext*>(mContext);
         ret = overlayContext->disable();
         if (ret == false)
-            LOGE("%s: failed to reset overlay\n", __func__);
+            LOGE("%s: failed to disable overlay\n", __func__);
 
         if (mRenderingBuffer >= 0 &&
                 mDataBuffers[mRenderingBuffer].grallocBuffFd > 0) {

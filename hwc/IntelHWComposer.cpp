@@ -1357,8 +1357,10 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
         if (list->hwLayers[i].compositionType != HWC_OVERLAY)
             continue;
 
-        if (!needSwapBuffer)
+        if (list->numHwLayers == 1 && !needSwapBuffer)
             flags |= IntelDisplayPlane::WMS_NEEDED;
+        else
+            flags &= ~IntelDisplayPlane::WMS_NEEDED;
 
         bool ret = plane->flip(context, flags);
         if (!ret)

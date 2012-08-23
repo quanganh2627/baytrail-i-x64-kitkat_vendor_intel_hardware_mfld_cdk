@@ -532,7 +532,7 @@ int acoustic::process_profile(uint32_t device, uint32_t mode, vpc_band_t band)
             profile_mode = band == VPC_BAND_NARROW ? PROFILE_MODE_IN_CALL_NB : PROFILE_MODE_IN_CALL_WB;
             profile_id = private_get_profile_id(device, profile_mode);
         } else if (mode == AudioSystem::MODE_IN_COMMUNICATION) {
-            profile_mode = band == VPC_BAND_WIDE ? PROFILE_MODE_IN_COMM_NB : PROFILE_MODE_IN_COMM_WB;
+            profile_mode = band == VPC_BAND_NARROW ? PROFILE_MODE_IN_COMM_NB : PROFILE_MODE_IN_COMM_WB;
             profile_id = private_get_profile_id(device, profile_mode);
         } else {
             /* That case should not occur: fall into digital hardware passthrough */

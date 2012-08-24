@@ -419,7 +419,7 @@ static int vpc_route(vpc_route_t route)
                             }
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
-                            device_profile = (current_tty_call == AMC_TTY_OFF && current_hac_setting == VPC_HAC_OFF) ? current_device : device_out_defaut;
+                            device_profile = (current_tty_call == AMC_TTY_OFF) ? current_device : device_out_defaut;
                             ret = acoustic::process_profile(device_profile, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
                             if (ret) goto return_error;
                             mode_source = IFX_USER_DEFINED_15_S;
@@ -547,7 +547,7 @@ static int vpc_route(vpc_route_t route)
                         }
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
-                        device_profile = (current_tty_call == AMC_TTY_OFF && current_hac_setting == VPC_HAC_OFF) ? current_device : device_out_defaut;
+                        device_profile = (current_tty_call == AMC_TTY_OFF) ? current_device : device_out_defaut;
                         ret = acoustic::process_profile(device_profile, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
                         if (ret) goto return_error;
 #endif
@@ -974,7 +974,13 @@ static int vpc_set_hac(vpc_hac_set_t set_hac)
 
     current_hac_setting = set_hac;
 
-    LOGD("HAC set for audio route");
+    LOGD("HAC set for audio route (%d)", current_hac_setting);
+
+#ifdef CUSTOM_BOARD_WITH_AUDIENCE
+    acoustic::set_hac(current_hac_setting);
+    // Audience profile switch is not needed since in-call HAC switch triggers a
+    // rerouting sequence in which the correct Audience profile will be applied.
+#endif
 
     vpc_lock.unlock();
     return NO_ERROR;
@@ -1009,9 +1015,9 @@ static void vpc_set_band(vpc_band_t band, int for_mode)
     // Request the band-specific Audience profile only if the path is already established
     if (vpc_get_audio_routed() && (current_mode == for_mode)) {
 
-        // Reconfigure Audience only if we are not using it in passthrough for HAC, TTY or
+        // Reconfigure Audience only if we are not using it in passthrough for TTY or
         // because the BT device in-use includes its own acoustic processings
-        if (current_tty_call == AMC_TTY_OFF && current_hac_setting == VPC_HAC_OFF && is_acoustic_in_bt_device == false)
+        if (current_tty_call == AMC_TTY_OFF && is_acoustic_in_bt_device == false)
             acoustic::process_profile(current_device, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
     }
 #endif

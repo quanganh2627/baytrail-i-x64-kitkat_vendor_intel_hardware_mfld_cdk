@@ -40,6 +40,7 @@ using android::Mutex;
 Mutex a1026_lock;
 
 bool           acoustic::is_a1026_init = false;
+vpc_hac_set_t  acoustic::hac_state = VPC_HAC_OFF;
 bool           acoustic::vp_bypass_on = false;
 bool           acoustic::vp_tuning_on = false;
 int            acoustic::profile_size[profile_number];
@@ -53,6 +54,7 @@ const char *   acoustic::vp_profile_prefix_prop_name = "audiocomms.vp.profile_pr
 const char *acoustic::profile_name[profile_number] = {
     /* CSV NB */
     "close_talk_csv_nb.bin",                // EP in CSV NB
+    "close_talk_hac_csv_nb.bin",            // EP+HAC in CSV NB
     "speaker_far_talk_csv_nb.bin",          // IHF in CSV NB
     "headset_close_talk_csv_nb.bin",        // Headset in CSV NB
     "headphone_close_talk_csv_nb.bin",      // Headphone in CSV NB
@@ -61,6 +63,7 @@ const char *acoustic::profile_name[profile_number] = {
     "no_acoustic_csv_nb.bin",               // All other devices in CSV NB
     /* CSV WB */
     "close_talk_csv_wb.bin",                // EP in CSV WB
+    "close_talk_hac_csv_wb.bin",            // EP+HAC in CSV WB
     "speaker_far_talk_csv_wb.bin",          // IHF in CSV WB
     "headset_close_talk_csv_wb.bin",        // Headset in CSV WB
     "headphone_close_talk_csv_wb.bin",      // Headphone in CSV WB
@@ -69,6 +72,7 @@ const char *acoustic::profile_name[profile_number] = {
     "no_acoustic_csv_wb.bin",               // All other devices in CSV WB
     /* VOIP NB */
     "close_talk_voip_nb.bin",               // EP in VOIP NB
+    "close_talk_hac_voip_nb.bin",           // EP+HAC in VOIP NB
     "speaker_far_talk_voip_nb.bin",         // IHF in VOIP NB
     "headset_close_talk_voip_nb.bin",       // Headset in VOIP NB
     "headphone_close_talk_voip_nb.bin",     // Headphone in VOIP NB
@@ -77,6 +81,7 @@ const char *acoustic::profile_name[profile_number] = {
     "no_acoustic_voip_nb.bin",              // All other devices in VOIP NB
     /* VOIP WB */
     "close_talk_voip_wb.bin",               // EP in VOIP WB
+    "close_talk_hac_voip_wb.bin",           // EP+HAC in VOIP WB
     "speaker_far_talk_voip_wb.bin",         // IHF in VOIP WB
     "headset_close_talk_voip_wb.bin",       // Headset in VOIP WB
     "headphone_close_talk_voip_wb.bin",     // Headphone in VOIP WB
@@ -152,8 +157,13 @@ int acoustic::private_get_profile_id(uint32_t device, profile_mode_t mode)
 
         // Associate a profile to the detected device
     if (device & AudioSystem::DEVICE_OUT_EARPIECE) {
-        LOGD("Earpiece device detected, => force use of Earpiece device profile\n");
-        profile_id = PROFILE_EARPIECE;
+        if (hac_state == VPC_HAC_OFF) {
+            LOGD("Earpiece device detected, => force use of Earpiece device profile\n");
+            profile_id = PROFILE_EARPIECE;
+        } else {
+            LOGD("Earpiece device detected in HAC mode, => force use of Earpiece+HAC device profile\n");
+            profile_id = PROFILE_EARPIECE_HAC;
+        }
     } else if (device & AudioSystem::DEVICE_OUT_SPEAKER) {
         LOGD("Speaker device detected, => force use of Speaker device profile\n");
         profile_id = PROFILE_SPEAKER;
@@ -386,6 +396,14 @@ return_error:
         close(fd_a1026);
     a1026_lock.unlock();
     return -1;
+}
+
+/*---------------------------------------------------------------------------*/
+/* Public HAC set method                                                     */
+/*---------------------------------------------------------------------------*/
+void acoustic::set_hac(vpc_hac_set_t state)
+{
+    hac_state = state;
 }
 
 /*---------------------------------------------------------------------------*/

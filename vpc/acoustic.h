@@ -27,6 +27,7 @@ class acoustic
 {
 public :
     static int process_init();
+    static void set_hac(vpc_hac_set_t state);
     static int process_profile(uint32_t device, uint32_t mode, vpc_band_t band);
     static int process_wake();
     static int process_suspend();
@@ -35,12 +36,13 @@ private :
 
     typedef enum {
         PROFILE_EARPIECE         = 0,
-        PROFILE_SPEAKER          = 1,
-        PROFILE_WIRED_HEADSET    = 2,
-        PROFILE_WIRED_HEADPHONE  = 3,
-        PROFILE_BLUETOOTH_HSP    = 4,
-        PROFILE_BLUETOOTH_CARKIT = 5,
-        PROFILE_DEFAULT          = 6,
+        PROFILE_EARPIECE_HAC,
+        PROFILE_SPEAKER,
+        PROFILE_WIRED_HEADSET,
+        PROFILE_WIRED_HEADPHONE,
+        PROFILE_BLUETOOTH_HSP,
+        PROFILE_BLUETOOTH_CARKIT,
+        PROFILE_DEFAULT,
         PROFILE_NUMBER
     } profile_id_t;
 
@@ -66,6 +68,7 @@ private :
 
     static char           bid[80];
     static bool           is_a1026_init;
+    static vpc_hac_set_t  hac_state;
     static bool           vp_bypass_on;
     static bool           vp_tuning_on;
     static const char *   vp_bypass_prop_name;

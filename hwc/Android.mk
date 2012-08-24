@@ -45,11 +45,11 @@ LOCAL_PRELINK_MODULE := false
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
 LOCAL_SHARED_LIBRARIES := liblog libEGL libcutils libdrm libpvr2d \
                           libwsbm libsrv_um libui libutils libbinder\
-                          libmultidisplay libhardware libGLESv1_CM
+                          libhardware libGLESv1_CM
 LOCAL_SRC_FILES := IntelHWComposerModule.cpp \
                    IntelHWComposer.cpp \
                    IntelHWComposerLayer.cpp \
-		   IntelHWComposerDump.cpp \
+                   IntelHWComposerDump.cpp \
                    IntelBufferManager.cpp \
                    IntelDisplayPlaneManager.cpp \
                    IntelHWComposerDrm.cpp \
@@ -58,8 +58,7 @@ LOCAL_SRC_FILES := IntelHWComposerModule.cpp \
                    MedfieldSpritePlane.cpp \
                    IntelWsbm.cpp \
                    IntelWsbmWrapper.c \
-                   IntelHWCUEventObserver.cpp \
-                   IntelExternalDisplayMonitor.cpp
+                   IntelHWCUEventObserver.cpp
 LOCAL_MODULE_TAGS := eng
 LOCAL_MODULE := hwcomposer.$(TARGET_DEVICE)
 LOCAL_CFLAGS:= -DLOG_TAG=\"hwcomposer\" -DLINUX
@@ -82,11 +81,20 @@ LOCAL_C_INCLUDES := $(addprefix $(LOCAL_PATH)/../../, $(SGX_INCLUDES)) \
             $(TARGET_OUT_HEADERS)/libdrm/shared-core \
             $(TARGET_OUT_HEADERS)/libwsbm/wsbm \
             $(TARGET_OUT_HEADERS)/libttm \
-            $(TARGET_OUT_HEADERS)/widi	\
+            $(TARGET_OUT_HEADERS)/widi \
             $(addprefix $(LOCAL_PATH),libhwcwidi)
+
+ifeq ($(TARGET_HAS_MULTIPLE_DISPLAY),true)
+    LOCAL_CFLAGS += -DTARGET_HAS_MULTIPLE_DISPLAY
+    LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/display
+    LOCAL_SHARED_LIBRARIES += libmultidisplay
+    LOCAL_SRC_FILES += IntelExternalDisplayMonitor.cpp
+endif
+
 include $(BUILD_SHARED_LIBRARY)
 
 ifeq ($(INTEL_WIDI), true)
 include $(LOCAL_PATH)/libhwcwidi/Android.mk
 endif
+
 endif

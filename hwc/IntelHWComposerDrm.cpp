@@ -35,7 +35,10 @@
 #include <cutils/atomic.h>
 #include <cutils/ashmem.h>
 #include <sys/mman.h>
-#include <display/MultiDisplayType.h>
+
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+#include "MultiDisplayType.h"
+#endif
 
 IntelHWComposerDrm *IntelHWComposerDrm::mInstance(0);
 
@@ -152,36 +155,46 @@ intel_overlay_mode_t IntelHWComposerDrm::getDisplayMode()
 
 bool IntelHWComposerDrm::isVideoPlaying()
 {
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
     if (mMonitor != NULL)
         return mMonitor->isVideoPlaying();
+#endif
     return false;
 }
 
 bool IntelHWComposerDrm::isOverlayOff()
 {
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
     if (mMonitor != NULL)
         return mMonitor->isOverlayOff();
+#endif
     return false;
 }
 
 bool IntelHWComposerDrm::notifyWidi(bool on)
 {
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
     if (mMonitor != NULL)
         return mMonitor->notifyWidi(on);
+#endif
     return false;
 }
 
 bool IntelHWComposerDrm::notifyMipi(bool on)
 {
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
     if (mMonitor != NULL)
         return mMonitor->notifyMipi(on);
+#endif
     return false;
 }
 
 bool IntelHWComposerDrm::getVideoInfo(int *displayW, int *displayH, int *fps, int *isinterlace)
 {
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
     if (mMonitor != NULL)
         return mMonitor->getVideoInfo(displayW, displayH, fps, isinterlace);
+#endif
     return false;
 }
 
@@ -204,6 +217,7 @@ bool IntelHWComposerDrm::initialize(IntelHWComposer *hwc)
         }
     }
 
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
     // create external display monitor
     mMonitor = new IntelExternalDisplayMonitor(hwc);
     if (mMonitor == 0) {
@@ -211,6 +225,7 @@ bool IntelHWComposerDrm::initialize(IntelHWComposer *hwc)
         drmDestroy();
         return false;
     }
+#endif
 
     // detect display mode
     ret = detectDrmModeInfo();
@@ -324,6 +339,7 @@ bool IntelHWComposerDrm::detectDrmModeInfo()
 
     int mdsMode = 0;
     if (mMonitor != 0) {
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
         mdsMode = mMonitor->getDisplayMode();
         LOGD("%s: getDisplayMode %d", __func__, mdsMode);
         //TODO: overlay only support OVERLAY_EXTEND and OVERLAY_MIPI0
@@ -333,19 +349,9 @@ bool IntelHWComposerDrm::detectDrmModeInfo()
             setDisplayMode(OVERLAY_CLONE_MIPI0);
         else
             setDisplayMode(OVERLAY_MIPI0);
+#endif
     } else {
-        if (hdmi == DRM_MODE_CONNECTED)
-            setDisplayMode(OVERLAY_EXTEND);
-        else if ((mipi0 == DRM_MODE_CONNECTED) && (mipi1 == mipi0))
-            setDisplayMode(OVERLAY_CLONE_DUAL);
-        else if (mipi0 == DRM_MODE_CONNECTED)
-            setDisplayMode(OVERLAY_CLONE_MIPI0);
-        else if (mipi1 == DRM_MODE_CONNECTED)
-            setDisplayMode(OVERLAY_CLONE_MIPI1);
-        else {
-            LOGW("%s: unknown display mode\n", __func__);
-            setDisplayMode(OVERLAY_UNKNOWN);
-        }
+        setDisplayMode(OVERLAY_MIPI0);
     }
 
     LOGD_IF(ALLOW_MONITOR_PRINT,

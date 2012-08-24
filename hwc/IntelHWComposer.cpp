@@ -1158,6 +1158,7 @@ void IntelHWComposer::onUEvent(const char *msg, int msgLen, int msgType)
 {
     android::Mutex::Autolock _l(mLock);
 
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
     // if send by mds, set the hotplug event and return
     if (msgType == IntelExternalDisplayMonitor::MSG_TYPE_MDS) {
         LOGD("%s: got multiDisplay service event\n", __func__);
@@ -1166,6 +1167,7 @@ void IntelHWComposer::onUEvent(const char *msg, int msgLen, int msgType)
         mHotplugEvent = true;
         return;
     }
+#endif
 
     if (strcmp(msg, "change@/devices/pci0000:00/0000:00:02.0/drm/card0"))
         return;

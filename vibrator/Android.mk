@@ -17,7 +17,8 @@ LOCAL_C_INCLUDES += \
     bionic/libstdc++ \
     bionic/ \
     external/alsa-lib/include \
-    hardware/intel/mfld_cdk/utility/event-listener \
+    $(TARGET_OUT_HEADERS)/event-listener \
+    $(TARGET_OUT_HEADERS)/property \
     hardware/libhardware_legacy
 
 LOCAL_SRC_FILES += \
@@ -31,7 +32,8 @@ LOCAL_SHARED_LIBRARIES += \
         libc \
         libevent-listener \
         libxmlserializer \
-        libparameter
+        libparameter \
+        libproperty
 
 TARGET_ERROR_FLAGS += -Wno-non-virtual-dtor
 

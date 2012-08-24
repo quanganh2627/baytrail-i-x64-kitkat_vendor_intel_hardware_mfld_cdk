@@ -25,9 +25,11 @@
 #include "SelectionCriterionTypeInterface.h"
 #include "SelectionCriterionInterface.h"
 #include "Vibrator.h"
+#include "Property.h"
 
 // Parameter framework of vibrator subsystem
-const char CVibrator::PFW_VIBRA_PATH[] =  "/etc/parameter-framework/ParameterFrameworkConfigurationVibrator.xml";
+const char CVibrator::_acVibraPath[] =  "/etc/parameter-framework/ParameterFrameworkConfigurationVibrator.xml";
+const char CVibrator::_acLogsOnPropName[] = "Audiocomms.Vibrator.LogsOn";
 
 /// PFW related definitions
 // Logger
@@ -51,12 +53,13 @@ const uint32_t CVibrator::mNbVibratorStateValuePairs = sizeof(CVibrator::mVibrat
 
 
 CVibrator::CVibrator() :
-    _parameterMgrPlatformConnector(new CParameterMgrPlatformConnector(PFW_VIBRA_PATH)),
+    _parameterMgrPlatformConnector(new CParameterMgrPlatformConnector(_acVibraPath)),
     _parameterMgrPlatformConnectorLogger(new CParameterMgrPlatformConnectorLogger),
     _bOnRequested(false),
     _uiRequestedDurationMs(-1),
     _pEventThread(new CEventThread(this)),
-    _bOn(false)
+    _bOn(false),
+    _bLogsOn(false)
 {
     LOGD("New CVibrator object");
 
@@ -68,8 +71,12 @@ CVibrator::CVibrator() :
         LOGE("Failed to create event thread");
     }
 
-    // Logger
-    _parameterMgrPlatformConnector->setLogger(_parameterMgrPlatformConnectorLogger);
+    /// Attach a Logger if the corresponding Android Property is turned on
+    _bLogsOn = TProperty<bool>(_acLogsOnPropName, false);
+    LOGD("Vibrator logs status: %s", _bLogsOn ? "on" : "off");
+    if (_bLogsOn) {
+        _parameterMgrPlatformConnector->setLogger(_parameterMgrPlatformConnectorLogger);
+    }
 
     /// Criteria Types
     // Mode
@@ -224,7 +231,10 @@ bool CVibrator::onHangup(int iFd)
 //
 void CVibrator::onTimeout()
 {
-    LOGD("%s", __FUNCTION__);
+    if (_bLogsOn) {
+
+        LOGD("%s", __FUNCTION__);
+    }
 
     // Do the switch
     doSwitch(false);
@@ -246,7 +256,10 @@ void CVibrator::onPollError()
 //
 void CVibrator::onProcess()
 {
-    LOGD("%s", __FUNCTION__);
+    if (_bLogsOn) {
+
+        LOGD("%s", __FUNCTION__);
+    }
 
     // Do the switch
     doSwitch(_bOnRequested);

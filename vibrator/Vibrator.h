@@ -85,7 +85,8 @@ private:
     ISelectionCriterionInterface* _vibratorState;
 
     // Parameter framework of vibrator subsystem
-    const static char PFW_VIBRA_PATH[];
+    static const char _acVibraPath[];
+    static const char _acLogsOnPropName[];
 
     // Vibrator requested state
     bool _bOnRequested; // held by client thread
@@ -97,6 +98,8 @@ private:
     bool _bThreadStarted;
     // Vibrator actual state
     bool _bOn; // held by local thread
+    // Vibrator logs enabled
+    bool _bLogsOn;
     // Lock
     android::Mutex _lock;
 };

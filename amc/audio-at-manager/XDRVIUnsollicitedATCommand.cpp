@@ -83,11 +83,14 @@ void CXDRVIUnsollicitedATCommand::doProcessNotification()
     }
 
     _uiSpeechCodec = (MODEM_CODEC) strtoul(astrItems[XDRVI_NOTIFICATION_CODEC_ARGI].c_str(), NULL, 0);
+    if (_uiSpeechCodec > CODEC_TYPE_INVALID)
+        _uiSpeechCodec = CODEC_TYPE_INVALID;
     _uiSampleRate = (MODEM_SAMPLE_RATE) strtoul(astrItems[XDRVI_NOTIFICATION_SAMPLE_RATE_ARGI].c_str(), NULL, 0);
+    if (_uiSampleRate > SAMPLE_RATE_INVALID)
+        _uiSampleRate = SAMPLE_RATE_INVALID;
 
     LOGD("%s: Speech codec =%d (%s); Sample rate=%d (%s)", __FUNCTION__, _uiSpeechCodec, _strCodecNames[_uiSpeechCodec].c_str(), _uiSampleRate, _strSampleRate[_uiSampleRate].c_str());
 
-clear_cmd:
     // Clear the answer and the status
     clearStatus();
 }

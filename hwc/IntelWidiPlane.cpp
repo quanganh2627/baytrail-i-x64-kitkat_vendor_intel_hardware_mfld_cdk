@@ -85,7 +85,9 @@ IntelWidiPlane::IntelWidiPlane(int fd, int index, IntelBufferManager *bm)
       mWirelessDisplay(NULL),
       mCurrentOrientation(0),
       mPrevExtFrame((uint32_t)-1),
-      mUseRotateHandle(false)
+      mUseRotateHandle(false),
+      mExtWidth(0),
+      mExtHeight(0)
 {
     LOGD_IF(ALLOW_WIDI_PRINT, "Intel Widi Plane constructor");
 
@@ -274,8 +276,25 @@ IntelWidiPlane::setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t 
 
     status_t ret = NO_ERROR;
     widiPayloadBuffer_t payload;
+    bool isResolutionChanged = false;
 
     Mutex::Autolock _l(mExtBufferMapLock);
+
+    // If the resolution is changed, reset
+    if(mExtWidth != width || mExtHeight != height) {
+
+        if(mExtVideoBuffersMapping.size()) {
+            for(unsigned int i = 0; i < mExtVideoBuffersMapping.size(); i ++) {
+                widiPayloadBuffer_t payload = mExtVideoBuffersMapping.valueAt(i);
+                payload.p->used_by_widi = 0;
+            }
+        }
+        clearExtVideoModeContext(false);
+        mUseRotateHandle = false;
+        mExtWidth = width;
+        mExtHeight = height;
+        isResolutionChanged = true;
+    }
 
     ssize_t index = mExtVideoBuffersMapping.indexOfKey(nHandle);
 
@@ -286,7 +305,7 @@ IntelWidiPlane::setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t 
                 return;
             }
 
-            if ((mState == WIDI_PLANE_STATE_ACTIVE) && (mPlayerStatus == true)) {
+            if ((mState == WIDI_PLANE_STATE_ACTIVE || isResolutionChanged) && (mPlayerStatus == true)) {
                 mUseRotateHandle = false;
                 if (payload.p->metadata_transform != 0) {
                     mUseRotateHandle = true;
@@ -401,6 +420,8 @@ IntelWidiPlane::sendInitMode(int mode, uint32_t width, uint32_t height) {
         mState = WIDI_PLANE_STATE_ACTIVE;
         clearExtVideoModeContext();
         mUseRotateHandle = false;
+        mExtWidth = 0;
+        mExtHeight = 0;
 
     } else if(mode == IWirelessDisplay::WIDI_MODE_EXTENDED_VIDEO) {
 
@@ -423,9 +444,11 @@ IntelWidiPlane::sendInitMode(int mode, uint32_t width, uint32_t height) {
 }
 
 void
-IntelWidiPlane::clearExtVideoModeContext() {
+IntelWidiPlane::clearExtVideoModeContext(bool lock) {
 
-    Mutex::Autolock _l(mExtBufferMapLock);
+    if(lock) {
+        mExtBufferMapLock.lock();
+    }
 
     if(mExtVideoBuffersMapping.size()) {
         for(unsigned int i = 0; i < mExtVideoBuffersMapping.size(); i ++) {
@@ -439,6 +462,10 @@ IntelWidiPlane::clearExtVideoModeContext() {
     mExtVideoBuffersMapping.clear();
     memset(&mCurrExtFramePayload, 0, sizeof(mCurrExtFramePayload));
     mPrevExtFrame = (uint32_t)-1;
+
+    if(lock) {
+        mExtBufferMapLock.unlock();
+    }
 }
 
 void

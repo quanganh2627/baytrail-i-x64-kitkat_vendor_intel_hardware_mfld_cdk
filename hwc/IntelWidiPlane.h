@@ -72,7 +72,7 @@ protected:
     android::status_t sendInitMode(int mode, uint32_t width, uint32_t height);
     bool mapPayloadBuffer(intel_gralloc_buffer_handle_t* gHandle, widiPayloadBuffer_t* wPayload);
     void unmapPayloadBuffer(widiPayloadBuffer_t* wPayload);
-    void clearExtVideoModeContext();
+    void clearExtVideoModeContext(bool lock = true);
 
     class WidiInitThread: public android::Thread {
     public:
@@ -122,6 +122,8 @@ protected:
     intel_widi_ext_buffer_meta_t    mExtVideoBufferMeta;
     android::KeyedVector<intel_gralloc_buffer_handle_t*, widiPayloadBuffer_t> mExtVideoBuffersMapping;
     bool                            mUseRotateHandle;
+    uint32_t                        mExtWidth;
+    uint32_t                        mExtHeight;
 };
 
 #else  // Stub implementation in case of widi module is not compiled

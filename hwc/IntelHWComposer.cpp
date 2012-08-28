@@ -387,8 +387,8 @@ bool IntelHWComposer::isSpriteLayer(hwc_layer_list_t *list,
     }
 
      // check scaling
-    srcWidth = grallocHandle->width;
-    srcHeight = grallocHandle->height;
+    srcWidth = layer->sourceCrop.right - layer->sourceCrop.left;
+    srcHeight = layer->sourceCrop.bottom - layer->sourceCrop.top;
     dstWidth = layer->displayFrame.right - layer->displayFrame.left;
     dstHeight = layer->displayFrame.bottom - layer->displayFrame.top;
 
@@ -439,9 +439,11 @@ bool IntelHWComposer::isPrimaryLayer(hwc_layer_list_t *list,
                                      hwc_layer_t *layer,
                                      int& flags)
 {
+#ifndef INTEL_RGB_OVERLAY
     // only use primary when layer is the top layer
     if ((size_t)index != (list->numHwLayers - 1))
         return false;
+#endif
 
 
     // if a layer has already been handled, further check if it's a

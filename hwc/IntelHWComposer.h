@@ -37,6 +37,9 @@
 #include <IntelHWComposerDump.h>
 #include <IntelVsyncEventHandler.h>
 #include <IntelFakeVsyncEvent.h>
+#ifdef INTEL_RGB_OVERLAY
+#include <IntelHWCWrapper.h>
+#endif
 
 class IntelHWComposer : public hwc_composer_device_t, public IntelHWCUEventObserver, public IntelHWComposerDump  {
 public:
@@ -63,6 +66,9 @@ private:
     IMG_framebuffer_device_public_t *mFBDev;
     bool mInitialized;
     uint32_t mActiveVsyncs;
+#ifdef INTEL_RGB_OVERLAY
+    IntelHWCWrapper mWrapper;
+#endif
 private:
     void dumpLayerList(hwc_layer_list_t *list);
     void onGeometryChanged(hwc_layer_list_t *list);
@@ -111,6 +117,9 @@ public:
     bool release();
     bool dump(char *buff, int buff_len, int *cur_len);
     void registerProcs(hwc_procs_t const *procs) { mProcs = procs; }
+#ifdef INTEL_RGB_OVERLAY
+    IntelHWCWrapper* getWrapper() { return &mWrapper; }
+#endif
 
     IntelHWComposer()
         : IntelHWCUEventObserver(), IntelHWComposerDump(),

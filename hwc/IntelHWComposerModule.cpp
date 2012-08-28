@@ -60,10 +60,26 @@ static int hwc_prepare(hwc_composer_device_t *dev, hwc_layer_list_t* list)
         goto prepare_out;
     }
 
+#ifdef INTEL_RGB_OVERLAY
+    {
+        IntelHWCWrapper* wrapper = hwc->getWrapper();
+        wrapper->pre_prepare(list);
+    }
+#endif
+
     if (hwc->prepare(list) == false) {
         status = -EINVAL;
         goto prepare_out;
     }
+#ifdef INTEL_RGB_OVERLAY
+#ifdef SKIP_DISPLAY_SYS_LAYER
+    {
+        IntelHWCWrapper* wrapper = hwc->getWrapper();
+        wrapper->post_prepare(list);
+    }
+#endif
+#endif
+
 prepare_out:
     return 0;
 }
@@ -85,6 +101,16 @@ static int hwc_set(hwc_composer_device_t *dev,
         goto set_out;
     }
 
+#ifdef INTEL_RGB_OVERLAY
+#ifdef SKIP_DISPLAY_SYS_LAYER
+    if (dpy && sur && list)
+    {
+        IntelHWCWrapper* wrapper = hwc->getWrapper();
+        wrapper->pre_commit(dpy, sur, list);
+    }
+#endif
+#endif
+
     if (!dpy && !sur && !list) {
         if (hwc->release() == false) {
             LOGD("%s: failed to release\n", __func__);
@@ -96,6 +122,16 @@ static int hwc_set(hwc_composer_device_t *dev,
         status = HWC_EGL_ERROR;
         goto set_out;
     }
+
+#ifdef INTEL_RGB_OVERLAY
+#ifdef SKIP_DISPLAY_SYS_LAYER
+    if (dpy && sur && list)
+    {
+        IntelHWCWrapper* wrapper = hwc->getWrapper();
+        wrapper->post_commit(dpy, sur, list);
+    }
+#endif
+#endif
 
 set_out:
     return 0;
@@ -252,6 +288,16 @@ static int hwc_device_open(const struct hw_module_t* module, const char* name,
             status = -EINVAL;
             goto hwc_init_out;
         }
+
+#ifdef INTEL_RGB_OVERLAY
+        {
+            IntelHWCWrapper* wrapper = hwc->getWrapper();
+            if (wrapper->initialize() == false) {
+                // Don't return error even failed to initialize wrapper.
+                ALOGW("%s: failed to intialize HWCompowerWrapper\n", __func__);
+            }
+        }
+#endif
 
         /* initialize the procs */
         hwc->hwc_composer_device_t::common.tag = HARDWARE_DEVICE_TAG;

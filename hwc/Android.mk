@@ -71,6 +71,11 @@ LOCAL_CFLAGS += -DINTEL_WIDI=1
 LOCAL_SRC_FILES += IntelWidiPlane.cpp
 endif
 
+ifeq ($(TARGET_SUPPORT_HWC_SYS_LAYER), true)
+LOCAL_CFLAGS += -DTARGET_SUPPORT_HWC_SYS_LAYER -DINTEL_RGB_OVERLAY
+LOCAL_SRC_FILES += IntelHWCWrapper.cpp
+endif
+
 LOCAL_C_INCLUDES := $(addprefix $(LOCAL_PATH)/../../, $(SGX_INCLUDES)) \
             frameworks/native/include/media/openmax \
             frameworks/native/opengl/include \

@@ -1308,12 +1308,22 @@ bool IntelHWComposer::prepare(hwc_layer_list_t *list)
         intel_overlay_mode_t mode = mDrm->getDisplayMode();
         if (list && (mode == OVERLAY_EXTEND ||  widiPlane->isStreaming()) &&
             (list->flags & HWC_GEOMETRY_CHANGED)) {
+            bool hasSkipLayer = false;
             LOGD_IF(ALLOW_HWC_PRINT,
                     "layers num:%d", list->numHwLayers);
-            if (list->numHwLayers == 1)
-                mDrm->notifyMipi(false);
-            else
-                mDrm->notifyMipi(true);
+            for (size_t j = 0 ; j < list->numHwLayers ; j++) {
+                if (list->hwLayers[j].flags & HWC_SKIP_LAYER) {
+                hasSkipLayer = true;
+                break;
+                }
+            }
+
+            if (!hasSkipLayer) {
+                if (list->numHwLayers == 1)
+                    mDrm->notifyMipi(false);
+                else
+                    mDrm->notifyMipi(true);
+            }
         }
     }
 

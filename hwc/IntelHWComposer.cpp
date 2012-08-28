@@ -495,9 +495,6 @@ void IntelHWComposer::revisitLayerList(hwc_layer_list_t *list, bool isGeometryCh
         // be the bottom layer.
         if (mLayerList->getLayerType(i) != IntelHWComposerLayer::LAYER_TYPE_RGB) {
             if (list->hwLayers[i].compositionType == HWC_OVERLAY) {
-                if (list->numHwLayers == 1)
-                    zOrderConfig = IntelDisplayPlaneManager::ZORDER_OcOaP;
-                else
                     zOrderConfig = IntelDisplayPlaneManager::ZORDER_POcOa;
             }
             continue;
@@ -513,8 +510,8 @@ void IntelHWComposer::revisitLayerList(hwc_layer_list_t *list, bool isGeometryCh
         }
     }
 
-    // if (isGeometryChanged && !mPlaneManager->setZOrderConfig(zOrderConfig, 0))
-    //     mForceSwapBuffer = true;
+    if (isGeometryChanged)
+        mPlaneManager->setZOrderConfig(zOrderConfig, 0);
 
 }
 
@@ -1230,7 +1227,6 @@ bool IntelHWComposer::flipFramebufferContexts(void *contexts)
         // config z order; switch z order may cause flicker
         if (forceBottom) {
             context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRX8888;
-            context->cntr |= INTEL_SPRITE_FORCE_BOTTOM;
         } else {
             context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRA8888;
         }

@@ -748,6 +748,10 @@ bool IntelHWComposer::useOverlayRotation(hwc_layer_t *layer,
             int temp = srcH;
             srcH = srcW;
             srcW = temp;
+            temp = srcX;
+            srcX = srcY;
+            srcY = temp;
+
         }
 
         // skip pading bytes in rotate buffer

@@ -40,7 +40,7 @@
 
 using namespace android;
 
-#define UNKNOWN_MDS_MODE 0 // status of video/widi/HDMI/HDCP/MIPI is unknown initially, it can be set indirectly through onModeChange event or directly set by invoking mMDClient->getMode
+#define UNKNOWN_MDS_MODE 0 // status of video/widi/HDMI/HDCP/MIPI is unknown initially, it can be set indirectly through onMdsMessage event or directly set by invoking mMDClient->getMode
 
 IntelExternalDisplayMonitor::IntelExternalDisplayMonitor(IntelHWComposer *hwc) :
     mMDClient(NULL),
@@ -66,11 +66,17 @@ void IntelExternalDisplayMonitor::initialize()
     mInitialized = true;
 }
 
-void IntelExternalDisplayMonitor::onModeChange(int mode)
+void IntelExternalDisplayMonitor::onMdsMessage(int msg, int data)
 {
-    LOGI("onModeChange: External display monitor onModeChange, 0x%x", mode);
-    mActiveDisplayMode = mode;
-    mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2, MSG_TYPE_MDS);
+    LOGI("onMdsMessage: External display monitor onMdsMessage, %d, 0x%x", msg, data);
+    if (msg == MDS_ORIENTATION_CHANGE) {
+        LOGV("onMdsMessage: MDS_ORIENTATION_CHANGE received");
+        if (mWidiOn)
+            mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2, MSG_TYPE_MDS_ORIENTATION_CHANGE);
+    } else {
+        mActiveDisplayMode = data;
+        mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2, MSG_TYPE_MDS);
+    }
 }
 
 int IntelExternalDisplayMonitor::getDisplayMode()

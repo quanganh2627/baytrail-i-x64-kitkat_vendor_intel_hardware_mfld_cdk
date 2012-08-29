@@ -46,6 +46,7 @@ public:
     enum {
         MSG_TYPE_UEVENT = 0,
         MSG_TYPE_MDS,
+        MSG_TYPE_MDS_ORIENTATION_CHANGE,
     };
 
     enum {
@@ -57,8 +58,8 @@ public:
     virtual ~IntelExternalDisplayMonitor();
     void initialize();
 public:
-    // onModeChange() interface
-    void onModeChange(int mode);
+    // onMdsMessage() interface
+    void onMdsMessage(int msg, int data);
 public:
     int getDisplayMode();
     bool isVideoPlaying();

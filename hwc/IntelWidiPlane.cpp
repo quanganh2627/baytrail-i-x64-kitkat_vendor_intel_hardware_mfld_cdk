@@ -515,3 +515,15 @@ IntelWidiPlane::DeathNotifier::~DeathNotifier() {
         mSelf->mWirelesDisplayservice->unlinkToDeath(this);
     }
 }
+
+status_t
+IntelWidiPlane::setOrientationChanged() {
+   LOGI("%s()", __func__);
+   status_t ret = NO_ERROR;
+   sp<IWirelessDisplay> wd = interface_cast<IWirelessDisplay> (mWirelessDisplay);
+   ret = wd->setOrientationChanged();
+   if (ret != NO_ERROR)
+       LOGE("IntelWidiPlane::setOrientationChanged binder error");
+
+   return ret;
+}

@@ -66,6 +66,7 @@ public:
     bool flip(void *contexts, uint32_t flags);
     bool isActive();
     bool isWidiStatusChanged();
+    android::status_t setOrientationChanged();
 
 protected:
     void init();
@@ -148,6 +149,7 @@ public:
     bool isStreaming() { return false; };
     bool isPlayerOn() { return false; };
     bool isWidiStatusChanged(){return false;};
+    android::status_t setOrientationChanged() {return NO_ERROR;};
 
 
 };

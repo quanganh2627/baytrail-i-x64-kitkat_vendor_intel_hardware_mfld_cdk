@@ -1160,6 +1160,16 @@ void IntelHWComposer::onUEvent(const char *msg, int msgLen, int msgType)
     android::Mutex::Autolock _l(mLock);
 
 #ifdef TARGET_HAS_MULTIPLE_DISPLAY
+    // if mds sent orientation change message, inform widi plane and return
+    if (msgType == IntelExternalDisplayMonitor::MSG_TYPE_MDS_ORIENTATION_CHANGE) {
+        LOGD("%s: got multiDisplay service orientation change event\n", __func__);
+        if(mPlaneManager->isWidiActive()) {
+            IntelWidiPlane* widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
+            if (widiPlane->setOrientationChanged() != NO_ERROR) {
+                LOGE("%s: error in sending orientation change event to widiplane");
+            }
+        }
+    }
     // if send by mds, set the hotplug event and return
     if (msgType == IntelExternalDisplayMonitor::MSG_TYPE_MDS) {
         LOGD("%s: got multiDisplay service event\n", __func__);

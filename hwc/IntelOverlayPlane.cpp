@@ -1501,57 +1501,44 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
 
     LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: next buffer %d\n", __func__, mNextBuffer);
 
-    // map the handle if no buffer found
-    if (!buffer) {
-        // release the buffer in the next slot
-        if (mDataBuffers[mNextBuffer].ui64Stamp ||
-            mDataBuffers[mNextBuffer].handle ||
-            mDataBuffers[mNextBuffer].buffer) {
+    /** Map the handle if no buffer found **/
+    int tryMapTimes = 0;
+    while (buffer == NULL) {
+        int index = tryMapTimes == 0 ? mNextBuffer : 0;
+
+        if (mDataBuffers[index].buffer ||
+            mDataBuffers[index].handle ||
+            mDataBuffers[index].ui64Stamp)
+        {
             LOGD_IF(ALLOW_OVERLAY_PRINT,
                     "%s: releasing buffer %d...\n", __func__, mNextBuffer);
-            if (mDataBuffers[mNextBuffer].bufferType ==
+            if (mDataBuffers[index].bufferType ==
                 IntelBufferManager::TTM_BUFFER)
-                mBufferManager->unwrap(mDataBuffers[mNextBuffer].buffer);
+                mBufferManager->unwrap(mDataBuffers[index].buffer);
             else
-                mBufferManager->unmap(mDataBuffers[mNextBuffer].buffer);
-            mDataBuffers[mNextBuffer].ui64Stamp = 0;
-            mDataBuffers[mNextBuffer].handle = 0;
-            mDataBuffers[mNextBuffer].buffer = 0;
-            mDataBuffers[mNextBuffer].bufferType = 0;
-            mDataBuffers[mNextBuffer].grallocBuffFd = 0;
+                mBufferManager->unmap(mDataBuffers[index].buffer);
+
+            memset(&mDataBuffers[index], 0, sizeof(mDataBuffers[index]));
         }
 
         if (bufferType == IntelBufferManager::TTM_BUFFER)
             buffer = mBufferManager->wrap((void *)handle, 0);
         else
             buffer = mBufferManager->map(handle);
-        if (!buffer) {
-             // start over
-             LOGW("%s: graphics memory is low, retrying...\n", __func__);
-             if (mDataBuffers[0].bufferType ==
-                 IntelBufferManager::TTM_BUFFER)
-                 mBufferManager->unwrap(mDataBuffers[0].buffer);
-             else
-                 mBufferManager->unmap(mDataBuffers[0].buffer);
-             mDataBuffers[0].ui64Stamp = 0;
-             mDataBuffers[0].handle = 0;
-             mDataBuffers[0].buffer = 0;
-             mDataBuffers[0].bufferType = 0;
-             mDataBuffers[0].grallocBuffFd = 0;
-             mNextBuffer = 0;
 
-             if (bufferType == IntelBufferManager::TTM_BUFFER)
-                 buffer = mBufferManager->wrap((void *)handle, 0);
-             else
-                 buffer = mBufferManager->map(handle);
-             if (!buffer) {
-                 LOGE("%s: failed to map handle %d\n", __func__, handle);
-                 disable();
-                 return false;
-             }
-             LOGI("%s: continue...\n", __func__);
+        mNextBuffer = index;
+        if (++tryMapTimes > 1) {
+            LOGW("%s: Avail memory is low...", __func__);
+            break;
         }
+    }
 
+    if (buffer == NULL) {
+        LOGE("%s: failed to map handle %x\n", __func__, handle);
+        return false;
+    }
+
+    if (tryMapTimes > 0) {
         LOGD_IF(ALLOW_OVERLAY_PRINT,
                "%s: mapping buffer at %d...\n", __func__, mNextBuffer);
         mDataBuffers[mNextBuffer].ui64Stamp = ui64Stamp;
@@ -1564,7 +1551,6 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
         // move mNextBuffer pointer
         mNextBuffer = (mNextBuffer + 1) % OVERLAY_DATA_BUFFER_NUM_MAX;
     }
-
 
     overlayDataBuffer->setBuffer(buffer);
 

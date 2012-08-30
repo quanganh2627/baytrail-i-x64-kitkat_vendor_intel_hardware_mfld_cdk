@@ -1179,6 +1179,11 @@ IntelDisplayBuffer* IntelGraphicBufferManager::wrap(void *addr, int size)
     void *virtAddr = mWsbm->getCPUAddress(wsbmBufferObject);
     uint32_t gttOffsetInPage = mWsbm->getGttOffset(wsbmBufferObject);
 
+    if (!gttOffsetInPage || !virtAddr) {
+        LOGW("GTT offset:%x Virtual addr: %p.", gttOffsetInPage, virtAddr);
+        return 0;
+    }
+
     IntelDisplayBuffer *buf = new IntelDisplayBuffer(wsbmBufferObject,
                                                      virtAddr,
                                                      gttOffsetInPage,

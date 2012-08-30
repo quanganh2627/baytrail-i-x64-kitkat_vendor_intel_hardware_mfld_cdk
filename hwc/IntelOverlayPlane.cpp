@@ -382,6 +382,9 @@ bool IntelOverlayContext::backBufferInit()
     mOverlayBackBuffer->OCONFIG = 0;
     mOverlayBackBuffer->OCONFIG |= (0x1 << 3);
     mOverlayBackBuffer->OCONFIG |= (0x1 << 27);
+#ifdef OVERLAY_USE_SECONDARY_GAMMA
+    mOverlayBackBuffer->OCONFIG |= (0x1 << 16); // Overlay A pixel data is gamma corrected by the secondary correction logic.
+#endif
     mOverlayBackBuffer->SCHRKEN &= ~(0x7 << 24);
     mOverlayBackBuffer->SCHRKEN |= 0xff;
 

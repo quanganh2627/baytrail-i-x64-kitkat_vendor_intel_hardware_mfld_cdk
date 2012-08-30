@@ -106,6 +106,10 @@ ifeq ($(TARGET_HAS_MULTIPLE_DISPLAY),true)
     LOCAL_SRC_FILES += IntelExternalDisplayMonitor.cpp
 endif
 
+ifeq ($(BOARD_OVERLAY_USE_SECONDARY_GAMMA),true)
+    LOCAL_CFLAGS += -DOVERLAY_USE_SECONDARY_GAMMA
+endif
+
 include $(BUILD_SHARED_LIBRARY)
 
 ifeq ($(INTEL_WIDI), true)

@@ -55,10 +55,6 @@
 #define VOICE_CODEC_DEFAULT_SAMPLE_RATE (48000) // in Hz
 #endif
 
-#ifndef WIDI_DEFAULT_LATENCY
-#define WIDI_DEFAULT_LATENCY     80000 // in usec
-#endif
-
 #ifndef VOICE_CODEC_DEFAULT_SAMPLE_RATE
 #define VOICE_CODEC_DEFAULT_SAMPLE_RATE (48000) // in Hz
 #endif
@@ -614,10 +610,6 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode, int fm
             LOGD("Setting expected sample rate to %d (IN_COMM)", VOICE_CODEC_DEFAULT_SAMPLE_RATE);
             handle->sampleRate = VOICE_CODEC_DEFAULT_SAMPLE_RATE;
 #endif
-        }
-        else if (devices & AudioSystem::DEVICE_OUT_WIDI) {
-
-            handle->latency = WIDI_DEFAULT_LATENCY;
         }
     }
 

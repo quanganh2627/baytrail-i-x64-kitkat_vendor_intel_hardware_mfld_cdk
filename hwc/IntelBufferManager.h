@@ -197,7 +197,6 @@ typedef struct {
     int height;
     int format;
     int bpp;
-    unsigned int iFrameIndex;
 }__attribute__((aligned(sizeof(int)),packed)) intel_gralloc_buffer_handle_t;
 
 enum {

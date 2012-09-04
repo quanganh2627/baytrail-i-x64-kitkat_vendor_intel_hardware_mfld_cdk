@@ -24,8 +24,7 @@ LOCAL_SRC_FILES := \
 
 LOCAL_C_INCLUDES += \
         hardware/intel/rapid_ril/CORE \
-        system/core/include/cutils \
-        $(TARGET_OUT_HEADERS)/IFX-modem
+        system/core/include/cutils
 
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/../at-parser \
         $(LOCAL_PATH)/../tty-handler \
@@ -36,6 +35,14 @@ LOCAL_C_INCLUDES += \
         external/stlport/stlport/ \
         bionic/libstdc++ \
         bionic/
+
+ifeq ($(BOARD_HAVE_MODEM),true)
+LOCAL_C_INCLUDES += \
+        $(TARGET_OUT_HEADERS)/IFX-modem
+else
+LOCAL_C_INCLUDES += \
+        hardware/intel/IFX-modem
+endif
 
 LOCAL_SHARED_LIBRARIES := libstlport libcutils libtty-handler libat-parser libevent-listener libproperty
 

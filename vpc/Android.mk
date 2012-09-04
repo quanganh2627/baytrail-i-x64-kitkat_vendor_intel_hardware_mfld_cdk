@@ -85,8 +85,15 @@ LOCAL_C_INCLUDES += \
      $(TARGET_OUT_HEADERS)/libamc \
      $(TARGET_OUT_HEADERS)/at-manager \
      system/core/include/cutils \
-     $(TARGET_OUT_HEADERS)/IFX-modem \
      hardware/intel/mfld_cdk/MediaBTService
+
+ifeq ($(BOARD_HAVE_MODEM),true)
+LOCAL_C_INCLUDES += \
+     $(TARGET_OUT_HEADERS)/IFX-modem
+else
+LOCAL_C_INCLUDES += \
+     hardware/intel/IFX-modem
+endif
 
 ifeq ($(BOARD_HAVE_BLUETOOTH),true)
 LOCAL_C_INCLUDES += \

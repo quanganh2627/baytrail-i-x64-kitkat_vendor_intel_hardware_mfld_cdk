@@ -32,7 +32,7 @@
 #undef DISABLE_HARWARE_RESAMPLING
 
 #define ALSA_NAME_MAX (128)
-#define PERIOD_TIME   (23220*2)  //microseconds, aligned to LPE fw
+#define PERIOD_TIME   (23220*2)     //microseconds, aligned to LPE FW
 #define CAPTURE_PERIOD_TIME (20000) //microseconds
 #define MAX_RETRY (6)
 #define NB_RING_BUFFER_NORMAL   2
@@ -50,10 +50,6 @@
             LOGE("Cannot catenate string for buf size limitation"); \
         } \
     } while (0)
-
-#ifndef VOICE_CODEC_DEFAULT_SAMPLE_RATE
-#define VOICE_CODEC_DEFAULT_SAMPLE_RATE (48000) // in Hz
-#endif
 
 #ifndef VOICE_CODEC_DEFAULT_SAMPLE_RATE
 #define VOICE_CODEC_DEFAULT_SAMPLE_RATE (48000) // in Hz
@@ -338,7 +334,12 @@ static status_t setHardwareParams(alsa_handle_t *handle)
             snd_pcm_hw_params_free(hardwareParams);
             return err;
         }
-        bufferSize = periodSize * 4;
+
+        if (handle->curMode == AudioSystem::MODE_NORMAL)
+            bufferSize = periodSize * NB_RING_BUFFER_NORMAL;
+        else
+            bufferSize = periodSize * NB_RING_BUFFER_INCALL;
+
         if (bufferSize < handle->bufferSize) bufferSize = handle->bufferSize;
         err = snd_pcm_hw_params_set_buffer_size_near(handle->handle,
                 hardwareParams, &bufferSize);
@@ -605,11 +606,11 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode, int fm
             handle->latency = CAPTURE_PERIOD_TIME * 4;
         }
         else if (mode == AudioSystem::MODE_IN_COMMUNICATION) {
-
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
             LOGD("Setting expected sample rate to %d (IN_COMM)", VOICE_CODEC_DEFAULT_SAMPLE_RATE);
             handle->sampleRate = VOICE_CODEC_DEFAULT_SAMPLE_RATE;
 #endif
+            handle->latency = CAPTURE_PERIOD_TIME * 4;
         }
     }
 

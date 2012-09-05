@@ -82,13 +82,22 @@ void CProgressUnsollicitedATCommand::doProcessNotification()
     LOGD("%s: CALL INDEX=(%d) PROGRES STATUS=(%d)", __FUNCTION__, uiCallIndex, uiProgressStatus);
 
     //
-    // MT Call: audio path established on MTAcceptedTCHYetAvailable or TCHAvailableMTYetAccepted
-    // MO Call: audio path established on AlertingInBandOrTCHNotYetAvailable or InBandToneAvailable or TCHAvailableInBandToneYetIndicatedAvailable
+    // MT Call: audio path established on MTAcceptedTCHYetAvailable
+    //                                 or TCHAvailableMTYetAccepted
+    // MO Call: audio path established on AlertingInBandOrTCHNotYetAvailable
+    //                                 or InBandToneAvailable
+    //                                 or TCHAvailableInBandToneYetIndicatedAvailable
+    //                                 or TCHAvailableInBandYetIndicatedNotAvailable
     //
     // MO / MT: audio path disconnected on LastSpeechCallEndedSpeechCanBeDisabled
     // (Do not have to care about the # of session)
     //
-    if (uiProgressStatus == AlertingInBandOrTCHNotYetAvailable || uiProgressStatus == InBandToneAvailable || uiProgressStatus == MTAcceptedTCHYetAvailable || uiProgressStatus == TCHAvailableMTYetAccepted || uiProgressStatus == TCHAvailableInBandToneYetIndicatedAvailable)
+    if (uiProgressStatus == AlertingInBandOrTCHNotYetAvailable
+            || uiProgressStatus == InBandToneAvailable
+            || uiProgressStatus == MTAcceptedTCHYetAvailable
+            || uiProgressStatus == TCHAvailableMTYetAccepted
+            || uiProgressStatus == TCHAvailableInBandToneYetIndicatedAvailable
+            || uiProgressStatus == TCHAvailableInBandYetIndicatedNotAvailable)
     {
         // If call is alerting (MT), active (MO) or on hold (to keep the path in case
         //  of multisession or call swap

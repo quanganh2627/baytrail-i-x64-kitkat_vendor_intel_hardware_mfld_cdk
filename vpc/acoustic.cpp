@@ -51,6 +51,11 @@ const char *   acoustic::vp_tuning_prop_name = "persist.audiocomms.vp.tuning.on"
 const char *   acoustic::vp_fw_name_prop_name = "audiocomms.vp.fw_name";
 const char *   acoustic::vp_profile_prefix_prop_name = "audiocomms.vp.profile_prefix";
 
+// Command opcodes to enable smooth mute (1600dB/sec)
+const char     acoustic::i2c_cmd_smooth_mute_set[] = {0x80, 0x4E, 0x06, 0x40};
+// Command opcodes to disable smooth mute
+const char     acoustic::i2c_cmd_smooth_mute_unset[] = {0x80, 0x4E, 0x00, 0x00};
+
 const char *acoustic::profile_name[profile_number] = {
     /* CSV NB */
     "close_talk_csv_nb.bin",                // EP in CSV NB
@@ -404,6 +409,47 @@ return_error:
 void acoustic::set_hac(vpc_hac_set_t state)
 {
     hac_state = state;
+}
+
+/*---------------------------------------------------------------------------*/
+/* Public smooth mute feature set method                                     */
+/*---------------------------------------------------------------------------*/
+int acoustic::set_smooth_mute(bool enable)
+{
+    int fd_a1026 = -1;
+    int rc;
+    const char * smooth_mute_cmd = enable ? i2c_cmd_smooth_mute_set : i2c_cmd_smooth_mute_unset;
+
+    a1026_lock.lock();
+    if (!is_a1026_init) {
+        LOGE("Audience A1026 not initialized.\n");
+        goto return_error;
+    }
+
+    fd_a1026 = open(ES305_DEVICE_PATH, O_RDWR);
+    if (fd_a1026 < 0) {
+        LOGE("Cannot open audience_a1026 device (%d)\n", fd_a1026);
+        goto return_error;
+    }
+
+    rc = write(fd_a1026, smooth_mute_cmd, I2C_CMD_SMOOTH_MUTE_SIZE);
+    if (rc != I2C_CMD_SMOOTH_MUTE_SIZE) {
+        LOGE("Audience write error \n");
+        goto return_error;
+    }
+    usleep(ES305B_TIME_FOR_ACK_IN_US);
+    private_discard_ack(fd_a1026, I2C_CMD_SMOOTH_MUTE_SIZE);
+
+    close(fd_a1026);
+    a1026_lock.unlock();
+    return 0;
+
+return_error:
+    LOGE("Audience set smooth mute failed.\n");
+    if (fd_a1026 >= 0)
+        close(fd_a1026);
+    a1026_lock.unlock();
+    return -1;
 }
 
 /*---------------------------------------------------------------------------*/

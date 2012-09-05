@@ -20,6 +20,9 @@
 
 #include <sys/types.h>
 
+// 'Smooth Mute' command size in bytes
+#define I2C_CMD_SMOOTH_MUTE_SIZE    4
+
 namespace android_audio_legacy
 {
 
@@ -28,6 +31,7 @@ class acoustic
 public :
     static int process_init();
     static void set_hac(vpc_hac_set_t state);
+    static int set_smooth_mute(bool enable);
     static int process_profile(uint32_t device, uint32_t mode, vpc_band_t band);
     static int process_wake();
     static int process_suspend();
@@ -79,6 +83,8 @@ private :
     static unsigned char *i2c_cmd_profile[profile_number];
 
     static const char    *profile_name[profile_number];
+    static const char     i2c_cmd_smooth_mute_set[I2C_CMD_SMOOTH_MUTE_SIZE];
+    static const char     i2c_cmd_smooth_mute_unset[I2C_CMD_SMOOTH_MUTE_SIZE];
 };
 
 }

@@ -71,6 +71,9 @@ static const AMC_TTY_STATE translate_vpc_to_amc_tty[] = {
 const uint32_t DEFAULT_IS21_CLOCK_SELECTION = IFX_CLK1;
 const uint32_t DEFAULT_IS22_CLOCK_SELECTION = IFX_CLK0;
 
+/* Delay in ms to wait after es305b wakeup before to send a command */
+#define ES305B_WAKEUP_DELAY     20000
+
 /*---------------------------------------------------------------------------*/
 /* Global variables                                                          */
 /*---------------------------------------------------------------------------*/
@@ -325,6 +328,10 @@ static int vpc_wakeup_audience()
 
     audience_awake = true;
 
+    // Disable smooth mute
+    usleep(ES305B_WAKEUP_DELAY);
+    acoustic::set_smooth_mute(false);
+
     return NO_ERROR;
 }
 #endif
@@ -409,9 +416,7 @@ static int vpc_route(vpc_route_t route)
 
                             /* If VPC was not routed previously, avoid uncessary steps!!! */
                             if (vpc_get_audio_routed()) {
-
                                 amc_mute();
-
                                 msic::pcm_disable();
                                 /* Disable SCO path if a MSIC device is in use  */
                                 bt::pcm_disable();
@@ -422,6 +427,7 @@ static int vpc_route(vpc_route_t route)
                             device_profile = (current_tty_call == AMC_TTY_OFF) ? current_device : device_out_defaut;
                             ret = acoustic::process_profile(device_profile, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
                             if (ret) goto return_error;
+
                             mode_source = IFX_USER_DEFINED_15_S;
                             mode_dest = IFX_USER_DEFINED_15_D;
 #else
@@ -453,10 +459,9 @@ static int vpc_route(vpc_route_t route)
 
                             /* If VPC was not routed previously, avoid uncessary steps!!! */
                             if (vpc_get_audio_routed()) {
-
                                 amc_mute();
-
                                 msic::pcm_disable();
+                                amc_off();
                             }
 
                             // If is_acoustic_in_bt_device is true, bypass phone embedded algorithms
@@ -464,35 +469,15 @@ static int vpc_route(vpc_route_t route)
                             device_profile = (is_acoustic_in_bt_device == true) ? device_out_defaut : current_device;
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
-                            /*
-                             * Audience requirement: the previous mode clock must be running
-                             * while the BT preset is selected, during 50ms at least.
-                             */
-                            if(!vpc_get_audio_routed())
-                            {
-                                // mute modem I2S ports
-                                amc_mute();
-                                // configure modem I2S1
-                                amc_conf_i2s1(current_tty_call, IFX_USER_DEFINED_15_S, IFX_USER_DEFINED_15_D);
-                                // Configure modem I2S2 and do the modem routing
-                                amc_conf_i2s2_route();
-                                amc_on();
-                            }
-
-
                             ret = acoustic::process_profile(device_profile, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
                             if (ret) goto return_error;
-                            usleep(50000);
 
                             mode_source = IFX_USER_DEFINED_15_S;
                             mode_dest = IFX_USER_DEFINED_15_D;
-
 #else
                             // No Audience, Acoustics in modem
                             translate_to_amc_device(device_profile, &mode_source, &mode_dest);
 #endif
-                            amc_off();
-
                             // Do the modem config for BT devices
                             amc_modem_conf_bt_dev(mode_source, mode_dest);
 
@@ -560,63 +545,16 @@ static int vpc_route(vpc_route_t route)
                     case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO:
                     case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_HEADSET:
                     case AudioSystem::DEVICE_OUT_BLUETOOTH_SCO_CARKIT:
-                        if (prev_mode == AudioSystem::MODE_IN_CALL)
-                        {
-                            amc_off();
+                        if (vpc_get_audio_routed()) {
+                            msic::pcm_disable();
                         }
-
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
-                        /*
-                         * Audience requirement / workaround:
-                         * The previous mode clock must be running
-                         * if a profile @8k has to be set (ie BT without acoustic),
-                         * during 50ms at least.
-                         * Note: BT with acoustic only require a pass-through, that can be
-                         * set without clock constraints.
-                         */
-                        if(is_acoustic_in_bt_device == false)
-                        {
-#ifdef CUSTOM_BOARD_WITH_VOICE_CODEC_SLAVE
-                            /*
-                             * If the voice port of the audio codec is slave:
-                             * Need to use the modem clock
-                             *
-                             * configure modem I2S1
-                             */
-                            amc_conf_i2s1(current_tty_call, IFX_USER_DEFINED_15_S, IFX_USER_DEFINED_15_D);
-                            /* Configure modem I2S2 and do the modem routing */
-                            amc_conf_i2s2_route();
-                            amc_on();
-#else
-                            /*
-                             * If the voice port of the audio codec is master: use audio codec clock.
-                             * Since MSIC clock is already disabled, we have to enable it back.
-                             */
-                            msic::pcm_enable(AudioSystem::MODE_IN_COMMUNICATION, AudioSystem::DEVICE_OUT_SPEAKER, current_hac_setting);
-#endif
-                        }
-
                         // If is_acoustic_in_bt_device is true, bypass phone embedded algorithms
                         // and use acoustic alogrithms from Bluetooth headset.
                         device_profile = (is_acoustic_in_bt_device == true) ? device_out_defaut : current_device;
-
                         ret = acoustic::process_profile(device_profile, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
                         if (ret) goto return_error;
-                        usleep(50000);
-
-#ifdef CUSTOM_BOARD_WITH_VOICE_CODEC_SLAVE
-                        /*
-                         * Audience Ugly WA: stop the modem clock once audience profile is set.
-                         * only in case of BT without acoustic.
-                         */
-                        if (is_acoustic_in_bt_device == false) {
-
-                            amc_off();
-                        }
 #endif
-#endif
-                        msic::pcm_disable();
-
                         bt::pcm_enable();
                         break;
                     default:
@@ -992,14 +930,10 @@ static int vpc_set_hac(vpc_hac_set_t set_hac)
 
 static void vpc_set_band(vpc_band_t band, int for_mode)
 {
-    vpc_band_t current_band_for_mode;
-
     vpc_lock.lock();
 
-    // What is the current band for that mode ?
-    current_band_for_mode = CURRENT_BAND_FOR_MODE(for_mode);
     // Is it really a band change request ?
-    if (band == current_band_for_mode)
+    if (band == CURRENT_BAND_FOR_MODE(for_mode))
         goto unlock;
     // Is it a correct band ?
     if (band >= VPC_BAND_INVALID) {
@@ -1015,10 +949,14 @@ static void vpc_set_band(vpc_band_t band, int for_mode)
     // Request the band-specific Audience profile only if the path is already established
     if (vpc_get_audio_routed() && (current_mode == for_mode)) {
 
+        // Enable Audience smooth mute feature for a smooth preset transition
+        acoustic::set_smooth_mute(true);
         // Reconfigure Audience only if we are not using it in passthrough for TTY or
         // because the BT device in-use includes its own acoustic processings
         if (current_tty_call == AMC_TTY_OFF && is_acoustic_in_bt_device == false)
             acoustic::process_profile(current_device, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
+        // Disable Audience smooth mute feature
+        acoustic::set_smooth_mute(false);
     }
 #endif
 

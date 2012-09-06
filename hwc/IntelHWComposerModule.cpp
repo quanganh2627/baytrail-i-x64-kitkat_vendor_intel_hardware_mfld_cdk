@@ -155,7 +155,7 @@ static int hwc_get_cfg(hwc_cfg *cfg)
     fp = fopen(HWC_CFG_PATH, "r");
     if (fp != NULL) {
         memset(cfg_string, '\0', CFG_STRING_LEN);
-        fread(cfg_string, 1, CFG_STRING_LEN, fp);
+        fread(cfg_string, 1, CFG_STRING_LEN-1, fp);
 
         LOGD("%s: read config line %s!\n", __func__, cfg_string);
 

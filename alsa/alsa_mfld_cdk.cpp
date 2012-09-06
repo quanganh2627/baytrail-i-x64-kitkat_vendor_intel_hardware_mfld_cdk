@@ -68,7 +68,6 @@
 #define NOT_SET -1
 
 
-int voice_activated = 0;
 namespace android_audio_legacy
 {
 
@@ -77,7 +76,7 @@ static int s_device_open(const hw_module_t*, const char*, hw_device_t**);
 static int s_device_close(hw_device_t*);
 static status_t s_init(alsa_device_t *, uint32_t, uint32_t);
 static status_t s_open(alsa_handle_t *, uint32_t, int, int);
-static status_t s_init_stream(alsa_handle_t *handle, uint32_t devices, int mode);
+static status_t s_init_stream(alsa_handle_t *handle, uint32_t devices, int mode, int fmrx_mode);
 static status_t s_standby(alsa_handle_t *);
 static status_t s_close(alsa_handle_t *);
 static status_t s_config(alsa_handle_t *, int);
@@ -483,9 +482,9 @@ static status_t s_init(alsa_device_t *module, uint32_t defaultInputSampleRate, u
     return NO_ERROR;
 }
 
-static status_t s_init_stream(alsa_handle_t *handle, uint32_t devices, int mode)
+static status_t s_init_stream(alsa_handle_t *handle, uint32_t devices, int mode, int fmrx_mode)
 {
-    LOGD("s_init_stream called for devices %08x in mode %d...", devices, mode);
+    LOGD("s_init_stream called for devices %08x in mode %d and FM RX mode %d...", devices, mode, fmrx_mode);
 
     if (devices & AudioSystem::DEVICE_IN_ALL) {
 
@@ -498,6 +497,7 @@ static status_t s_init_stream(alsa_handle_t *handle, uint32_t devices, int mode)
     handle->handle = NULL;
     handle->curDev = devices;
     handle->curMode = mode;
+    handle->curFmRxMode = fmrx_mode;
     handle->openFlag = 0;
     return NO_ERROR;
 }
@@ -649,6 +649,7 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode, int fm
 
     handle->curDev = devices;
     handle->curMode = mode;
+    handle->curFmRxMode = fmrx_mode;
 
         err = setHardwareParams(handle);
 
@@ -665,7 +666,13 @@ static status_t s_standby(alsa_handle_t *handle)
     status_t err = NO_ERROR;
     snd_pcm_t *h = handle->handle;
     if (h) {
-        if(handle->curMode == AudioSystem::MODE_IN_CALL || handle->curMode == AudioSystem::MODE_IN_COMMUNICATION) {
+        if((handle->curMode == AudioSystem::MODE_IN_CALL)
+           || (handle->curMode == AudioSystem::MODE_IN_COMMUNICATION)
+#ifdef FM_RX_ANALOG
+           || (handle->curFmRxMode == AudioSystem::MODE_FM_ON)
+#endif
+          )
+        {
             snd_pcm_drop(h);
         } else {
             snd_pcm_drain(h);
@@ -685,6 +692,7 @@ static status_t s_close(alsa_handle_t *handle)
     handle->handle = 0;
     handle->curDev = 0;
     handle->curMode = 0;
+    handle->curFmRxMode = 0;
     handle->openFlag = 0;
     if (h) {
         snd_pcm_drain(h);

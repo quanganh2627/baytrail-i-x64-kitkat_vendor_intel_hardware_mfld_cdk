@@ -34,5 +34,7 @@ CPeriodicATCommand::CPeriodicATCommand(const string& strCommand, const string& s
 // Inherited from CATCommand
 void CPeriodicATCommand::setAnswerOK(bool bIsOK)
 {
+    (void) bIsOK;
+
     LOGD("%s", __FUNCTION__);
 }

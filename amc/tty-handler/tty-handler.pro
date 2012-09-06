@@ -14,9 +14,9 @@ SOURCES += TtyHandler.cpp
 HEADERS += TtyHandler.h
 
 CONFIG(debug, debug|release) {
-    DESTDIR = ../build/debug
+    DESTDIR = ../../build/debug
 } else {
-    DESTDIR = ../build/release
+    DESTDIR = ../../build/release
 }
 
 LIBS += -L$$DESTDIR

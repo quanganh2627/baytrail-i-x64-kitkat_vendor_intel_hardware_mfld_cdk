@@ -18,7 +18,7 @@
 #ifndef AT_MODEM_CONTROL_H
 #define AT_MODEM_CONTROL_H
 
-
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C"

@@ -15,25 +15,23 @@ QMAKE_CXXFLAGS += -Wno-unused-result
 
 SOURCES += AudioModemControl_IFX_XMM6160.c \
     AmcConfDev.c \
-    ATModemControl.cpp \
-    ../simulation/cutils/sockets.c
+    ATModemControl.cpp
 
 HEADERS += ../simulation/utils/Log.h \
-    ../simulation/cutils/log.h \
-    ../simulation/stmd.h \
     AudioModemControl.h \
     ATmodemControl.h \
     ../simulation/cutils/sockets.h
 
-INCLUDEPATH += ../simulation  ../event-listener  ../at-manager
+INCLUDEPATH += ../../simulation  ../event-listener  ../at-manager ../../utility/event-listener
+DEPENDPATH += ../../simulation  ../event-listener  ../at-manager ../../utility/event-listener
 
 CONFIG(debug, debug|release) {
-    DESTDIR = ../build/debug
+    DESTDIR = ../../build/debug
 } else {
-    DESTDIR = ../build/release
+    DESTDIR = ../../build/release
 }
 
-LIBS += -L$$DESTDIR -lat-manager -levent-listener
+LIBS += -L$$DESTDIR -lat-manager -levent-listener -lsimulation
 OTHER_FILES += \
     Android.mk \
     ATmodemControl.old

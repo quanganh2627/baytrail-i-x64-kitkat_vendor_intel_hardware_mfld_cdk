@@ -6,38 +6,37 @@
 
 QT       -= core gui
 
-TARGET = at-manager
+TARGET = audio-at-manager
 TEMPLATE = lib
 
 DEFINES += ATMANAGER_LIBRARY
 
 QMAKE_CXXFLAGS += -Wno-unused-result
 
-SOURCES += ATCommand.cpp \
-    ATManager.cpp \
-    PeriodicATCommand.cpp \
-    UnsollicitedATCommand.cpp \
-    ../simulation/cutils/sockets.c
+SOURCES += AudioATManager.cpp \
+    ProgressUnsollicitedATCommand.cpp \
+    XDRVIUnsollicitedATCommand.cpp \
+    CallStatUnsollicitedATCommand.cpp \
+    Tokenizer.cpp
 
-HEADERS += ATManager.h \
-    ../simulation/utils/Log.h \
-    ../simulation/cutils/log.h \
-    ../simulation/stmd.h \
-    PeriodicATCommand.h \
-    UnsollicitedATCommand.h \
-    ../simulation/cutils/sockets.h \
-    ATCommand.h \
-    EventNotifier.h
+HEADERS += AudioATManager.h \
+    CallStatUnsollicitedATCommand.h \
+    ProgressUnsollicitedATCommand.h \
+    XDRVIUnsollicitedATCommand.h \
+    AudioATModemTypes.h \
+    ModemAudioEvent.h \
+    Tokenizer.h
 
-INCLUDEPATH += ../simulation ../../utility/event-listener ../at-parser ../tty-handler
+INCLUDEPATH += ../../simulation ../../utility/event-listener ../at-parser ../tty-handler ../at-manager
+DEPENDPATH += ../../simulation ../../utility/event-listener ../at-parser ../tty-handler ../at-manager
 
 CONFIG(debug, debug|release) {
-    DESTDIR = ../build/debug
+    DESTDIR = ../../build/debug
 } else {
-    DESTDIR = ../build/release
+    DESTDIR = ../../build/release
 }
 
-LIBS += -L$$DESTDIR -levent-listener -lat-parser -ltty-handler -lrt
+LIBS += -L$$DESTDIR -levent-listener -lat-parser -ltty-handler -lrt -lsimulation
 OTHER_FILES += \
     Android.mk \
 

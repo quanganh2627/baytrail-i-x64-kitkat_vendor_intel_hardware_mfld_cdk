@@ -13,12 +13,13 @@ TEMPLATE = app
 SOURCES += \
     main.cpp
 
-INCLUDEPATH += ../libamc ../event-listener ../at-manager
+INCLUDEPATH += ../libamc ../../utility/event-listener ../at-manager ../../simulation
+DEPENDPATH += ../libamc ../../utility/event-listener ../at-manager ../../simulation
 
 CONFIG(debug, debug|release) {
-    DESTDIR = ../build/debug
+    DESTDIR = ../../build/debug
 } else {
-    DESTDIR = ../build/release
+    DESTDIR = ../../build/release
 }
 
-LIBS += -L$$DESTDIR -llibamc -lrt -levent-listener -lat-parser -ltty-handler -lat-manager
+LIBS += -L$$DESTDIR -llibamc -lrt -levent-listener -lat-parser -ltty-handler -lat-manager -lproperty -lsimulation

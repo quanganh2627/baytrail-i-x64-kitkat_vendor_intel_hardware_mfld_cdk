@@ -63,7 +63,7 @@ void CXDRVIUnsollicitedATCommand::doProcessNotification()
 			        "24kHz","32kHz", "44.1kHz", "48kHz", "INVALID"};
     string str = getAnswer();
 
-    LOGD("%s: ans=(%s) %d", __FUNCTION__, str.c_str(), str.find(getPrefix()));
+    LOGD("%s: ans=(%s) %d", __FUNCTION__, str.c_str(), (int) str.find(getPrefix()));
 
     // Assert the answer has the XDRVI prefix...
     assert((str.find(getNotificationPrefix()) != string::npos));

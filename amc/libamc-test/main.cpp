@@ -1,3 +1,20 @@
+/*
+ **
+ ** Copyright 2012 Intel Corporation
+ **
+ ** Licensed under the Apache License, Version 2.0 (the "License");
+ ** you may not use this file except in compliance with the License.
+ ** You may obtain a copy of the License at
+ **
+ ** http://www.apache.org/licenses/LICENSE-2.0
+ **
+ ** Unless required by applicable law or agreed to in writing, software
+ ** distributed under the License is distributed on an "AS IS" BASIS,
+ ** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ ** See the License for the specific language governing permissions and
+ ** limitations under the License.
+ */
+
 #include "ATCommand.h"
 #include "ATManager.h"
 #include <iostream>
@@ -19,15 +36,15 @@ main(int argc, char **argv)
     (void)argv;
 
     // Send AT command
-    CATCommand atCommand("AT");
+    CATCommand atCommand("AT", "");
 
     cout << "Starting AMC..." << endl;
 
-    AT_CMD_STATUS eStatus = getInstance()->start("/tmp/tty1", 1);
+    AT_STATUS eStatus = getInstance()->start("/tmp/tty1");
 
     cout << "Result: " << eStatus << endl;
 
-    if (eStatus != AT_CMD_OK) {
+    if (eStatus != AT_OK) {
 
         return -1;
     }

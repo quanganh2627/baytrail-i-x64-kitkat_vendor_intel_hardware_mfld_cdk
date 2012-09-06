@@ -15,26 +15,23 @@ DEFINES +=
 
 SOURCES += \
     PropertyBase.cpp \
-    Property.cpp \
-    simulation/cutils/properties.cpp
+    Property.cpp
 
 HEADERS += \
     PropertyBase.h \
     Property.h \
-    simulation/cutils/properties.h \
-    simulation/utils/Log.h \
     PropertyTemplateInstanciations.h
 
-INCLUDEPATH += simulation
-DEPENDPATH += simulation
+INCLUDEPATH += ../../simulation
+DEPENDPATH += ../../simulation
 
 CONFIG(debug, debug|release) {
-    DESTDIR = ../property-build/debug
+    DESTDIR = ../../build/debug
 } else {
-    DESTDIR = ../property-build/release
+    DESTDIR = .../../build/release 
 }
 
-LIBS += -L$$DESTDIR
+LIBS += -L$$DESTDIR -lsimulation
 
 OTHER_FILES += \
     Android.mk \

@@ -18,15 +18,15 @@ TEMPLATE = app
 SOURCES += main.cpp \
     ModemSimulator.cpp
 
-INCLUDEPATH += ../libamc ../../utility/event-listener ../simulation ../at-parser ../tty-handler
+INCLUDEPATH += ../libamc ../../utility/event-listener ../../simulation ../at-parser ../tty-handler
 
 CONFIG(debug, debug|release) {
-    DESTDIR = ../build/debug
+    DESTDIR = ../../build/debug
 } else {
-    DESTDIR = ../build/release
+    DESTDIR = ../../build/release
 }
 
-LIBS += -L$$DESTDIR -levent-listener -lat-parser -ltty-handler
+LIBS += -L$$DESTDIR -levent-listener -lat-parser -ltty-handler -lsimulation
 
 
 HEADERS += \

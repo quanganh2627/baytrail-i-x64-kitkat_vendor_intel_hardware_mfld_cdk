@@ -19,7 +19,7 @@
 
 #include <utils/Log.h>
 #include <assert.h>
-#include <qemu.h>
+
 #include "EventThread.h"
 #include "ParameterMgrPlatformConnector.h"
 #include "SelectionCriterionTypeInterface.h"
@@ -118,12 +118,6 @@ CVibrator::~CVibrator()
 // Check if vibrator is present
 bool CVibrator::isPresent()
 {
-
-#ifdef QEMU_HARDWARE
-    if (qemu_check()) {
-        return true;
-    }
-#endif
     return _parameterMgrPlatformConnector->isStarted();
 }
 
@@ -152,12 +146,6 @@ bool CVibrator::switchOn(int32_t iDurationMs)
         LOGW("%s : Unable to switch on (negative duration required)", __FUNCTION__);
         return false;
     }
-
-#ifdef QEMU_HARDWARE
-    if (qemu_check()) {
-        return qemu_control_command( "vibrator:%d", iDurationMs );
-    }
-#endif
 
     if (iDurationMs == 0) {
         LOGD("%s : Switch off vibrator as requested vibration duration is 0 ms)", __FUNCTION__);

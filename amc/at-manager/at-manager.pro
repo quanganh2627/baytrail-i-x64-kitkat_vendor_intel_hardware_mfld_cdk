@@ -9,35 +9,32 @@ QT       -= core gui
 TARGET = at-manager
 TEMPLATE = lib
 
-DEFINES += ATMANAGER_LIBRARY
+DEFINES +=  ATMANAGER_LIBRARY \
+            REQUEST_CLEANUP=0x10
 
 QMAKE_CXXFLAGS += -Wno-unused-result
 
 SOURCES += ATCommand.cpp \
     ATManager.cpp \
     PeriodicATCommand.cpp \
-    UnsollicitedATCommand.cpp \
-    ../simulation/cutils/sockets.c
+    UnsollicitedATCommand.cpp
 
 HEADERS += ATManager.h \
-    ../simulation/utils/Log.h \
-    ../simulation/cutils/log.h \
-    ../simulation/stmd.h \
     PeriodicATCommand.h \
     UnsollicitedATCommand.h \
-    ../simulation/cutils/sockets.h \
     ATCommand.h \
     EventNotifier.h
 
-INCLUDEPATH += ../simulation ../../utility/event-listener ../at-parser ../tty-handler ../../../mfld_cdk/utility/property
+INCLUDEPATH += ../../simulation ../../utility/event-listener ../at-parser ../tty-handler ../../../mfld_cdk/utility/property
+DEPENDPATH += ../../simulation ../../utility/event-listener ../at-parser ../tty-handler ../../../mfld_cdk/utility/property
 
 CONFIG(debug, debug|release) {
-    DESTDIR = ../build/debug
+    DESTDIR = ../../build/debug
 } else {
-    DESTDIR = ../build/release
+    DESTDIR = ../../build/release
 }
 
-LIBS += -L$$DESTDIR -levent-listener -lat-parser -ltty-handler -lrt
+LIBS += -L$$DESTDIR -levent-listener -lat-parser -ltty-handler -lrt -lproperty -lsimulation
 OTHER_FILES += \
     Android.mk \
 

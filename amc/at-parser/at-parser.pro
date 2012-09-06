@@ -13,15 +13,16 @@ SOURCES += ATParser.cpp
 
 HEADERS += ATParser.h
 
-INCLUDEPATH += ../simulation
+INCLUDEPATH += ../../simulation
+DEPENDPATH += ../../simulation
 
 CONFIG(debug, debug|release) {
-    DESTDIR = ../build/debug
+    DESTDIR = ../../build/debug
 } else {
-    DESTDIR = ../build/release
+    DESTDIR = ../../build/release
 }
 
-LIBS += -L$$DESTDIR
+LIBS += -L$$DESTDIR -lsimulation
 
 OTHER_FILES += \
     Android.mk

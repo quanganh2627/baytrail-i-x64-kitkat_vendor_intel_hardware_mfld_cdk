@@ -30,7 +30,7 @@
 
 #include <IntelBufferManager.h>
 #include <IntelHWCUEventObserver.h>
-#include <linux/psb_drm.h>
+#include <psb_drm.h>
 #include <pthread.h>
 #include <pvr2d.h>
 #include <IntelExternalDisplayMonitor.h>

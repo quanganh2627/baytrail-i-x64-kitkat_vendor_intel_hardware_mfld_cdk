@@ -1196,6 +1196,17 @@ void IntelHWComposer::onUEvent(const char *msg, int msgLen, int msgType)
     } while (*msg);
 }
 
+void IntelHWComposer::vsync(int64_t timestamp, int pipe)
+{
+    if (mProcs && mProcs->vsync) {
+        LOGV("%s: report vsync timestamp %llu, pipe %d, active 0x%x", __func__,
+             timestamp, pipe, mActiveVsyncs);
+        if ((1 << pipe) & mActiveVsyncs)
+	    mProcs->vsync(const_cast<hwc_procs_t*>(mProcs), 0, timestamp);
+    }
+    mLastVsync = timestamp;
+}
+
 bool IntelHWComposer::flipFramebufferContexts(void *contexts)
 {
     LOGD_IF(ALLOW_HWC_PRINT, "flipFrameBufferContexts");
@@ -1525,6 +1536,151 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
     return true;
 }
 
+uint32_t IntelHWComposer::disableUnusedVsyncs(uint32_t target)
+{
+    uint32_t unusedVsyncs = mActiveVsyncs & (~target);
+    struct drm_psb_register_rw_arg arg;
+    uint32_t vsync;
+    int i, ret;
+
+    LOGV("disableVsync: unusedVsyncs 0x%x\n", unusedVsyncs);
+
+    if (!unusedVsyncs)
+        goto disable_out;
+
+    /*disable unused vsyncs*/
+    for (i = 0; i < VSYNC_SRC_NUM; i++) {
+        vsync = (1 << i);
+        if (!(vsync & unusedVsyncs))
+            continue;
+
+        /*disable vsync*/
+        if (i == VSYNC_SRC_FAKE)
+            mFakeVsync->setEnabled(false, mLastVsync);
+        else {
+            memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
+            arg.vsync_operation_mask = VSYNC_DISABLE;
+
+            // pipe select
+            if (i == VSYNC_SRC_HDMI)
+                arg.vsync.pipe = 1;
+            else
+                arg.vsync.pipe = 0;
+
+            ret = drmCommandWriteRead(mDrm->getDrmFd(), DRM_PSB_REGISTER_RW,
+                                      &arg, sizeof(arg));
+            if (ret) {
+                LOGW("%s: failed to enable/disable vsync %d\n", __func__, ret);
+                continue;
+            }
+        }
+
+        /*disabled successfully, remove it from unused vsyncs*/
+        unusedVsyncs &= ~vsync;
+    }
+disable_out:
+    return unusedVsyncs;
+}
+
+uint32_t IntelHWComposer::enableVsyncs(uint32_t target)
+{
+    uint32_t enabledVsyncs = 0;
+    struct drm_psb_register_rw_arg arg;
+    uint32_t vsync;
+    int i, ret;
+
+    LOGV("enableVsyn: enable vsyncs 0x%x\n", target);
+
+    if (!target) {
+        enabledVsyncs = 0;
+        goto enable_out;
+    }
+
+    // remove all active vsyncs from target
+    target &= ~mActiveVsyncs;
+    if (!target) {
+        enabledVsyncs = mActiveVsyncs;
+        goto enable_out;
+    }
+
+    // enable vsyncs which is currently inactive
+    for (i = 0; i < VSYNC_SRC_NUM; i++) {
+        vsync = (1 << i);
+        if (!(vsync & target))
+            continue;
+
+        /*enable vsync*/
+        if (i == VSYNC_SRC_FAKE)
+            mFakeVsync->setEnabled(true, mLastVsync);
+        else {
+            memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
+            arg.vsync_operation_mask = VSYNC_ENABLE;
+
+            // pipe select
+            if (i == VSYNC_SRC_HDMI)
+                arg.vsync.pipe = 1;
+            else
+                arg.vsync.pipe = 0;
+
+            ret = drmCommandWriteRead(mDrm->getDrmFd(), DRM_PSB_REGISTER_RW,
+                                      &arg, sizeof(arg));
+            if (ret) {
+                LOGW("%s: failed to enable vsync %d\n", __func__, ret);
+                continue;
+            }
+        }
+
+        /*enabled successfully*/
+        enabledVsyncs |= vsync;
+    }
+enable_out:
+    return enabledVsyncs;
+}
+
+bool IntelHWComposer::vsyncControl(int enabled)
+{
+    uint32_t targetVsyncs = 0;
+    uint32_t activeVsyncs = 0;
+    uint32_t enabledVsyncs = 0;
+    IntelWidiPlane* widiPlane = 0;
+
+    LOGV("vsyncControl, enabled %d\n", enabled);
+
+    if (enabled != 0 && enabled != 1)
+        return false;
+
+    android::Mutex::Autolock _l(mLock);
+
+    // for disable vsync request, disable all active vsyncs
+    if (!enabled) {
+        targetVsyncs = 0;
+        goto disable_vsyncs;
+    }
+
+    // use fake vsync for widi extend video mode
+    widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
+    if (widiPlane && widiPlane->isActive() &&
+        widiPlane->isExtVideoAllowed() &&
+        widiPlane->isPlayerOn()) {
+        targetVsyncs |= (1 << VSYNC_SRC_FAKE);
+    } else if (OVERLAY_EXTEND == mDrm->getDisplayMode()) {
+        targetVsyncs |= (1 << VSYNC_SRC_HDMI);
+    } else
+        targetVsyncs |= (1 << VSYNC_SRC_MIPI);
+
+    // enable selected vsyncs
+    enabledVsyncs = enableVsyncs(targetVsyncs);
+
+disable_vsyncs:
+    // disable unused vsyncs
+    activeVsyncs = disableUnusedVsyncs(targetVsyncs);
+
+    // update active vsyncs
+    mActiveVsyncs = enabledVsyncs | activeVsyncs;
+    LOGV("vsyncControl: activeVsyncs 0x%x\n", mActiveVsyncs);
+    return true;
+}
+
 bool IntelHWComposer::release()
 {
     LOGD("release");
@@ -1627,6 +1783,10 @@ bool IntelHWComposer::initialize()
             goto drm_err;
         }
     }
+
+    mVsync = new IntelVsyncEventHandler(this);
+
+    mFakeVsync = new IntelFakeVsyncEvent(this);
 
     //create new buffer manager and initialize it
     if (!mBufferManager) {

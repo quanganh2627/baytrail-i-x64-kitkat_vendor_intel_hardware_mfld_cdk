@@ -35,8 +35,17 @@
 #include <IntelBufferManager.h>
 #include <IntelHWComposerLayer.h>
 #include <IntelHWComposerDump.h>
+#include <IntelVsyncEventHandler.h>
+#include <IntelFakeVsyncEvent.h>
 
 class IntelHWComposer : public hwc_composer_device_t, public IntelHWCUEventObserver, public IntelHWComposerDump  {
+public:
+    enum {
+        VSYNC_SRC_MIPI = 0,
+        VSYNC_SRC_HDMI,
+        VSYNC_SRC_FAKE,
+        VSYNC_SRC_NUM,
+    };
 private:
     IntelHWComposerDrm *mDrm;
     IntelBufferManager *mBufferManager;
@@ -44,12 +53,16 @@ private:
     IntelDisplayPlaneManager *mPlaneManager;
     IntelHWComposerLayerList *mLayerList;
     hwc_procs_t const *mProcs;
+    android::sp<IntelVsyncEventHandler> mVsync;
+    android::sp<IntelFakeVsyncEvent> mFakeVsync;
+    nsecs_t mLastVsync;
     int mMonitoringMethod;
     bool mForceSwapBuffer;
     bool mHotplugEvent;
     android::Mutex mLock;
     IMG_framebuffer_device_public_t *mFBDev;
     bool mInitialized;
+    uint32_t mActiveVsyncs;
 private:
     void dumpLayerList(hwc_layer_list_t *list);
     void onGeometryChanged(hwc_layer_list_t *list);
@@ -83,14 +96,18 @@ private:
     bool isForceOverlay(hwc_layer_t *layer);
     bool areLayersIntersecting(hwc_layer_t *top, hwc_layer_t* bottom);
     void handleHotplugEvent();
+    uint32_t disableUnusedVsyncs(uint32_t target);
+    uint32_t enableVsyncs(uint32_t target);
 public:
     void onUEvent(const char *msg, int msgLen, int msgType);
     bool flipFramebufferContexts(void *contexts);
+    void vsync(int64_t timestamp, int pipe);
 public:
     bool initCheck() { return mInitialized; }
     bool initialize();
     bool prepare(hwc_layer_list_t *list);
     bool commit(hwc_display_t dpy, hwc_surface_t sur, hwc_layer_list_t *list);
+    bool vsyncControl(int enabled);
     bool release();
     bool dump(char *buff, int buff_len, int *cur_len);
     void registerProcs(hwc_procs_t const *procs) { mProcs = procs; }
@@ -98,8 +115,9 @@ public:
     IntelHWComposer()
         : IntelHWCUEventObserver(), IntelHWComposerDump(),
           mDrm(0), mBufferManager(0), mGrallocBufferManager(0),
-          mPlaneManager(0), mLayerList(0), mProcs(0), mMonitoringMethod(0),
-          mForceSwapBuffer(false), mHotplugEvent(false), mInitialized(false) {}
+          mPlaneManager(0), mLayerList(0), mProcs(0), mVsync(0), mFakeVsync(0),
+          mLastVsync(0), mMonitoringMethod(0), mForceSwapBuffer(false),
+          mHotplugEvent(false), mInitialized(false), mActiveVsyncs(0) {}
     ~IntelHWComposer();
 };
 

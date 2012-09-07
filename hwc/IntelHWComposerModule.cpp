@@ -180,6 +180,48 @@ static int hwc_get_cfg(hwc_cfg *cfg)
     return 0;
 }
 
+static int hwc_query(struct hwc_composer_device* dev,
+                       int what,
+                       int* value)
+{
+    LOGD("%s: what %d\n", __func__, what);
+    return -EINVAL;
+}
+
+static int hwc_event_control(struct hwc_composer_device *dev,
+                                int event,
+                                int enabled)
+{
+    int err = 0;
+    bool ret;
+
+    LOGV("%s: event %d, enabled %d\n", __func__, event, enabled);
+    IntelHWComposer *hwc = static_cast<IntelHWComposer*>(dev);
+
+    if (!hwc) {
+        LOGE("%s: Invalid HWC device\n", __func__);
+        return -EINVAL;
+    }
+
+    switch (event) {
+    case HWC_EVENT_VSYNC:
+        ret = hwc->vsyncControl(enabled);
+        if (ret == false) {
+            LOGE("%s: failed to enable/disable vsync\n", __func__);
+            err = -EINVAL;
+        }
+        break;
+    default:
+        LOGE("%s: unsupported event %d\n", __func__, event);
+    }
+
+    return err;
+}
+
+struct hwc_methods hwc_event_methods = {
+    eventControl: hwc_event_control
+};
+
 /*****************************************************************************/
 
 static int hwc_device_open(const struct hw_module_t* module, const char* name,
@@ -213,7 +255,7 @@ static int hwc_device_open(const struct hw_module_t* module, const char* name,
 
         /* initialize the procs */
         hwc->hwc_composer_device_t::common.tag = HARDWARE_DEVICE_TAG;
-        hwc->hwc_composer_device_t::common.version = 1;
+        hwc->hwc_composer_device_t::common.version = HWC_DEVICE_API_VERSION_0_3;
         hwc->hwc_composer_device_t::common.module =
             const_cast<hw_module_t*>(module);
         hwc->hwc_composer_device_t::common.close = hwc_device_close;
@@ -222,6 +264,8 @@ static int hwc_device_open(const struct hw_module_t* module, const char* name,
         hwc->hwc_composer_device_t::set = hwc_set;
         hwc->hwc_composer_device_t::dump = hwc_dump;
         hwc->hwc_composer_device_t::registerProcs = hwc_registerProcs;
+        hwc->hwc_composer_device_t::query = hwc_query;
+        hwc->hwc_composer_device_t::methods = &hwc_event_methods;
 
         *device = &hwc->hwc_composer_device_t::common;
         status = 0;

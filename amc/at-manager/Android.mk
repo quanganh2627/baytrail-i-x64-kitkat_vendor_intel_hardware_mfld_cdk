@@ -36,13 +36,8 @@ LOCAL_C_INCLUDES += \
         bionic/libstdc++ \
         bionic/
 
-ifeq ($(BOARD_HAVE_MODEM),true)
 LOCAL_C_INCLUDES += \
         $(TARGET_OUT_HEADERS)/IFX-modem
-else
-LOCAL_C_INCLUDES += \
-        hardware/intel/IFX-modem
-endif
 
 LOCAL_SHARED_LIBRARIES := libstlport libcutils libtty-handler libat-parser libevent-listener libproperty
 

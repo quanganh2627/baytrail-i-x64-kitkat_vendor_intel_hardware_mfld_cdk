@@ -26,7 +26,7 @@ LOCAL_C_INCLUDES += \
         $(TARGET_OUT_HEADERS)/event-listener \
         $(TARGET_OUT_HEADERS)/at-manager \
         system/core/include/cutils \
-        hardware/intel/IFX-modem
+        $(TARGET_OUT_HEADERS)/IFX-modem
 
 LOCAL_C_INCLUDES += \
         external/stlport/stlport/ \

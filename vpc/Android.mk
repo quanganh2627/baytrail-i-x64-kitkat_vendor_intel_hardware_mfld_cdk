@@ -58,10 +58,6 @@ ifeq ($(BOARD_HAVE_AUDIENCE),true)
         libproperty
 endif
 
-ifneq ($(BOARD_HAVE_MODEM),true)
-    LOCAL_CFLAGS += -DCUSTOM_BOARD_WITHOUT_MODEM
-endif
-
 ifeq ($(CUSTOM_BOARD),ctp_pr0)
      LOCAL_CFLAGS += -DCUSTOM_BOARD_WITH_VOICE_CODEC_SLAVE
 endif
@@ -87,20 +83,14 @@ LOCAL_C_INCLUDES += \
      system/core/include/cutils \
      hardware/intel/mfld_cdk/MediaBTService
 
-ifeq ($(BOARD_HAVE_MODEM),true)
 LOCAL_C_INCLUDES += \
      $(TARGET_OUT_HEADERS)/IFX-modem
-else
-LOCAL_C_INCLUDES += \
-     hardware/intel/IFX-modem
-endif
 
 ifeq ($(BOARD_HAVE_BLUETOOTH),true)
 LOCAL_C_INCLUDES += \
      external/bluetooth/bluez/lib/bluetooth \
      $(TARGET_OUT_HEADERS)/libbluetooth_vs
 endif
-
 
 LOCAL_MODULE:= vpc.$(TARGET_DEVICE)
 LOCAL_MODULE_TAGS := optional

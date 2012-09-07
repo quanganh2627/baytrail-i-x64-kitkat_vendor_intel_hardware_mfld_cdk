@@ -39,7 +39,7 @@ typedef enum { VPC_BAND_NARROW, VPC_BAND_WIDE, VPC_BAND_INVALID} vpc_band_t;
 typedef struct vpc_device_t {
     hw_device_t common;
 
-    int (*init)(uint32_t uiIfxI2s1ClkSelect, uint32_t uiIfxI2s2ClkSelect);
+    int (*init)(uint32_t ifx_i2s1_clk_select, uint32_t ifx_i2s2_clk_select, bool have_modem);
     int (*params)(int mode, uint32_t device);
     void (*set_mode)(int mode);
     void (*set_call_status)(bool isConnected);

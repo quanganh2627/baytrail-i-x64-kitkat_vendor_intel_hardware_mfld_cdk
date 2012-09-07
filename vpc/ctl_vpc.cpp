@@ -36,7 +36,7 @@ namespace android_audio_legacy
 /* API                                                                       */
 /*===========================================================================*/
 
-static int vpc_init(uint32_t uiIfxI2s1ClkSelect, uint32_t uiIfxI2s2ClkSelect);
+static int vpc_init(uint32_t ifx_i2s1_clk_select, uint32_t ifx_i2s2_clk_select, bool have_modem);
 static int vpc_params(int mode, uint32_t device);
 static void vpc_set_mode(int mode);
 static void vpc_set_modem_state(int state);
@@ -125,31 +125,30 @@ static const char * BAND_NAME[] = {"NB", "WB"};
 /*---------------------------------------------------------------------------*/
 /* Initialization                                                            */
 /*---------------------------------------------------------------------------*/
-static int vpc_init(uint32_t uiIfxI2s1ClkSelect, uint32_t uiIfxI2s2ClkSelect)
+static int vpc_init(uint32_t ifx_i2s1_clk_select, uint32_t ifx_i2s2_clk_select, bool have_modem)
 {
     vpc_lock.lock();
     LOGD("Initialize VPC\n");
 
-#ifndef CUSTOM_BOARD_WITHOUT_MODEM
-    if (uiIfxI2s1ClkSelect == (uint32_t) -1) {
-                // Not provided: use default
-                uiIfxI2s1ClkSelect = DEFAULT_IS21_CLOCK_SELECTION;
+    if(have_modem){
+        if (ifx_i2s1_clk_select == (uint32_t) -1) {
+            // Not provided: use default
+            ifx_i2s1_clk_select = DEFAULT_IS21_CLOCK_SELECTION;
+        }
+        if (ifx_i2s2_clk_select == (uint32_t) -1) {
+            // Not provided: use default
+            ifx_i2s2_clk_select = DEFAULT_IS22_CLOCK_SELECTION;
+        }
+        if (at_thread_init == false)
+        {
+            AT_STATUS cmd_status = at_start(AUDIO_AT_CHANNEL_NAME, ifx_i2s1_clk_select, ifx_i2s2_clk_select);
+            if (cmd_status != AT_OK) goto return_error;
+            LOGD("AT thread started\n");
+            at_thread_init = true;
+        }
+    }else{
+        LOGD("VPC with no Modem\n");
     }
-    if (uiIfxI2s2ClkSelect == (uint32_t) -1) {
-                // Not provided: use default
-                uiIfxI2s2ClkSelect = DEFAULT_IS22_CLOCK_SELECTION;
-    }
-
-    if (at_thread_init == false)
-    {
-        AT_STATUS cmd_status = at_start(AUDIO_AT_CHANNEL_NAME, uiIfxI2s1ClkSelect, uiIfxI2s2ClkSelect);
-        if (cmd_status != AT_OK) goto return_error;
-        LOGD("AT thread started\n");
-        at_thread_init = true;
-    }
-#else
-    LOGD("VPC with no Modem\n");
-#endif
 
     msic::pcm_init();
 

@@ -20,7 +20,7 @@ LOCAL_SRC_FILES := \
 LOCAL_C_INCLUDES += \
         hardware/intel/rapid_ril/CORE \
         system/core/include/cutils \
-        hardware/intel/IFX-modem
+        $(TARGET_OUT_HEADERS)/IFX-modem
 
 LOCAL_C_INCLUDES += \
         $(TARGET_OUT_HEADERS)/audio-at-manager \

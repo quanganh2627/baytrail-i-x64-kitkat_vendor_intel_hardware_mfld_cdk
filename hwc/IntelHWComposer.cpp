@@ -1280,24 +1280,26 @@ bool IntelHWComposer::prepare(hwc_layer_list_t *list)
     // clear force swap buffer flag
     mForceSwapBuffer = false;
 
-    if(mPlaneManager->isWidiStatusChanged()) {
-        if(mDrm) {
-            if(mPlaneManager->isWidiActive()) {
-                mDrm->notifyWidi(true);
-            } else {
-                mDrm->notifyWidi(false);
-            }
-        }
-    }
+    bool widiStatusChanged = mPlaneManager->isWidiStatusChanged();
 
     // handle geometry changing. attach display planes to layers
     // which can be handled by HWC.
     // plane control information (e.g. position) will be set here
     if (!list || (list->flags & HWC_GEOMETRY_CHANGED) || mHotplugEvent
-        || mPlaneManager->isWidiStatusChanged()) {
+        || widiStatusChanged) {
         onGeometryChanged(list);
 
         IntelWidiPlane* widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
+        if (widiStatusChanged && mDrm) {
+            if(mPlaneManager->isWidiActive()) {
+                mDrm->notifyWidi(true);
+                mDrm->notifyMipi(!widiPlane->isStreaming());
+            }
+            else
+            {
+                mDrm->notifyWidi(false);
+            }
+        }
 
         if(mHotplugEvent) {
             if(mPlaneManager->isWidiActive()) {

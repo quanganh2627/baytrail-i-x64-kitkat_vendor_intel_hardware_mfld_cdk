@@ -435,7 +435,7 @@ IntelWidiPlane::sendInitMode(int mode, uint32_t width, uint32_t height) {
         mUseRotateHandle = false;
         mExtWidth = 0;
         mExtHeight = 0;
-
+        mWidiStatusChanged = true;
     } else if(mode == IWirelessDisplay::WIDI_MODE_EXTENDED_VIDEO) {
 
        ret = wd->initMode(&mExtVideoBufferMeta,
@@ -444,6 +444,7 @@ IntelWidiPlane::sendInitMode(int mode, uint32_t width, uint32_t height) {
 
        if (ret == NO_ERROR ) {
            mState = WIDI_PLANE_STATE_STREAMING;
+           mWidiStatusChanged = true;
        } else {
 
            clearExtVideoModeContext();

@@ -122,13 +122,14 @@ bool IntelExternalDisplayMonitor::notifyWidi(bool on)
     return false;
 }
 
+
 bool IntelExternalDisplayMonitor::notifyMipi(bool on)
 {
     LOGD_IF(ALLOW_MONITOR_PRINT,
             "Exteranal display notify the MDS that Mipi should be turned on/off");
     if ((mMDClient != NULL) &&
         ((mActiveDisplayMode & MDS_HDMI_VIDEO_EXT) ||
-         (mWidiOn && mActiveDisplayMode & MDS_VIDEO_PLAYING))) {
+         (mWidiOn))) {
         return mMDClient->notifyMipi(on);
     }
     return false;

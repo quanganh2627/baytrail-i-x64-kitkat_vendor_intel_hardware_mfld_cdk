@@ -948,15 +948,18 @@ static void vpc_set_band(vpc_band_t band, int for_mode)
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
     // Request the band-specific Audience profile only if the path is already established
     if (vpc_get_audio_routed() && (current_mode == for_mode)) {
-
-        // Enable Audience smooth mute feature for a smooth preset transition
-        acoustic::set_smooth_mute(true);
-        // Reconfigure Audience only if we are not using it in passthrough for TTY or
-        // because the BT device in-use includes its own acoustic processings
-        if (current_tty_call == AMC_TTY_OFF && is_acoustic_in_bt_device == false)
+        // Do not request a preset if we are in bypass because of:
+        // - BT device with embedded acoustics
+        // - TTY device in-use
+        if (!((current_device & DEVICE_OUT_BLUETOOTH_SCO_ALL) && is_acoustic_in_bt_device == true) &&
+            !(current_tty_call != AMC_TTY_OFF) ) {
+            // Enable Audience smooth mute feature for a smooth preset transition
+            acoustic::set_smooth_mute(true);
+            // Request new band-specific preset
             acoustic::process_profile(current_device, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
-        // Disable Audience smooth mute feature
-        acoustic::set_smooth_mute(false);
+            // Disable Audience smooth mute feature
+            acoustic::set_smooth_mute(false);
+        }
     }
 #endif
 

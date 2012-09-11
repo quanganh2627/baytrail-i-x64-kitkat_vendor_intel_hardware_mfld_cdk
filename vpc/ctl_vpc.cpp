@@ -363,6 +363,34 @@ static inline bool vpc_route_conditions_changed()
 
 }
 
+static void* profile_thread_func(void* pData)
+{
+    uint32_t device_profile;
+    pthread_setname_np(pthread_self(), "AudienceProfile");
+    // Computing the profile
+    // In case of TTY call, use pass-through profile
+    if ((current_device & AudioSystem::DEVICE_OUT_WIRED_HEADSET) && current_tty_call != AMC_TTY_OFF)
+        device_profile = device_out_defaut;
+    else
+        device_profile = current_device;
+    // Sendind the profile to audience
+    return (void*)acoustic::process_profile(device_profile, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
+}
+
+static int process_profile(long* session)
+{
+    // Create the thread for Audience profile setting
+    return pthread_create(session, NULL, profile_thread_func, NULL);
+}
+
+static int wait_end_of_session(long session)
+{
+    int ret;
+    // Joining with Audience profile thread
+    pthread_join(session, (void**)&ret);
+    return ret;
+}
+
 /*---------------------------------------------------------------------------*/
 /* Platform voice paths control                                              */
 /*---------------------------------------------------------------------------*/
@@ -371,6 +399,9 @@ static int vpc_route(vpc_route_t route)
     vpc_lock.lock();
 
     int ret;
+#ifdef CUSTOM_BOARD_WITH_AUDIENCE
+    long session = 0;
+#endif
     uint32_t device_profile;
 
     /* -------------------------------------------------------------- */
@@ -426,14 +457,9 @@ static int vpc_route(vpc_route_t route)
                                 bt::pcm_disable();
                                 amc_off();
                             }
-
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
-                            if ((current_device & AudioSystem::DEVICE_OUT_WIRED_HEADSET) && current_tty_call != AMC_TTY_OFF)
-                                device_profile = device_out_defaut;
-                            else
-                                device_profile = current_device;
-                            ret = acoustic::process_profile(device_profile, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
-                            if (ret) goto return_error;
+                            // Apply audience profile in separated thread
+                            process_profile(&session);
 
                             mode_source = IFX_USER_DEFINED_15_S;
                             mode_dest = IFX_USER_DEFINED_15_D;
@@ -454,7 +480,10 @@ static int vpc_route(vpc_route_t route)
 
                             msic::pcm_enable(current_mode, current_device, current_hac_setting);
                             mixing_enable = true;
-
+#ifdef CUSTOM_BOARD_WITH_AUDIENCE
+                            // Join with Audience thread
+                            wait_end_of_session(session);
+#endif
                             amc_unmute(modem_gain_dl, modem_gain_ul);
                             break;
                         /* ------------------------------------ */

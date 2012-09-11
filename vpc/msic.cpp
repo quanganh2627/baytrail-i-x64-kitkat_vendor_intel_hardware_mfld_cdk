@@ -174,6 +174,7 @@ int msic::pcm_enable(int mode, uint32_t device, vpc_hac_set_t hac_setting)
         pcm_disable();
     }
 
+    usleep(40000); // Time to have MSIC in a "stable" state...
     LOGD("Enable MSIC voice path ~~~ Exit\n");
 
     return err;

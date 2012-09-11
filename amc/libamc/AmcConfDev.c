@@ -213,7 +213,6 @@ int amc_mute()
 
 int amc_unmute(int gainDL, int gainUL)
 {
-    usleep(40000); // Time to have MSIC in a "stable" state...
     amc_setGaindest(AMC_I2S1_TX, gainDL);
     amc_setGaindest(AMC_RADIO_TX, gainUL);
     return 0;

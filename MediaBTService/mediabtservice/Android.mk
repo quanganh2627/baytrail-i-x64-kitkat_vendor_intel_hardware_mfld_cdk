@@ -1,5 +1,8 @@
 LOCAL_PATH:= $(call my-dir)
 
+# Build only when BOARD_USES_ALSA_AUDIO is set
+ifeq ($(BOARD_USES_ALSA_AUDIO), true)
+
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= MediaBTService.cpp main_MediaBTService.cpp
@@ -19,3 +22,4 @@ LOCAL_SHARED_LIBRARIES := \
 LOCAL_MODULE:= mediabtservice
 
 include $(BUILD_EXECUTABLE)
+endif

@@ -14,6 +14,9 @@
 
 LOCAL_PATH := $(call my-dir)
 
+# Build only when BOARD_USES_ALSA_AUDIO is set
+ifeq ($(BOARD_USES_ALSA_AUDIO), true)
+
 include $(CLEAR_VARS)
 
 LOCAL_PRELINK_MODULE := false
@@ -32,3 +35,4 @@ LOCAL_MODULE := audio.hdmi.$(TARGET_DEVICE)
 LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_SHARED_LIBRARY)
+endif

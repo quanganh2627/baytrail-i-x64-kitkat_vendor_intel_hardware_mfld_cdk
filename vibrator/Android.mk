@@ -2,6 +2,9 @@
 
 LOCAL_PATH := $(call my-dir)
 
+# Build only when BOARD_USE_VIBRATOR_ALSA is set
+ifeq ($(BOARD_USES_ALSA_AUDIO), true)
+
 include $(CLEAR_VARS)
 
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
@@ -41,3 +44,4 @@ LOCAL_MODULE:= vibrator.$(TARGET_DEVICE)
 LOCAL_MODULE_TAGS:= optional
 
 include $(BUILD_SHARED_LIBRARY)
+endif

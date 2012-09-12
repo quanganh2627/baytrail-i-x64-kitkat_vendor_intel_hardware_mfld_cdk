@@ -1,6 +1,6 @@
 /*
  **
- ** Copyright 2011 Intel Corporation
+ ** Copyright 2012 Intel Corporation
  **
  ** Licensed under the Apache License, Version 2.0 (the "License");
  ** you may not use this file except in compliance with the License.
@@ -14,29 +14,16 @@
  ** See the License for the specific language governing permissions and
  ** limitations under the License.
  */
+#pragma once
 
-#define LOG_TAG "VPC_BT"
-#include <utils/Log.h>
+namespace android {
 
-#include "bluetooth-audio/BluetoothAudio.h"
+class CBluetoothAudio {
+public:
+    CBluetoothAudio();
 
-#include "bt.h"
+    // Enable
+    static bool enablePort(bool bEnabled);
+};
 
-
-namespace android_audio_legacy
-{
-
-using namespace android;
-
-int bt::pcm_enable()
-{
-    return CBluetoothAudio::enablePort(true);
-}
-
-int bt::pcm_disable()
-{
-    return CBluetoothAudio::enablePort(false);
-}
-
-} // namespace android_audio_legacy
-
+}; // namespace android

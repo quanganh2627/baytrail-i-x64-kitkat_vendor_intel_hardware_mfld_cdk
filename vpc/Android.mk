@@ -32,7 +32,7 @@ LOCAL_SHARED_LIBRARIES := \
      libamc \
      libbinder \
      libutils \
-     libmediabtproxy \
+     libbluetooth-audio \
      libstlport \
      libproperty
 
@@ -80,7 +80,8 @@ LOCAL_C_INCLUDES += \
      $(TARGET_OUT_HEADERS)/at-manager \
      $(TARGET_OUT_HEADERS)/libmediabtproxy \
      $(TARGET_OUT_HEADERS)/property \
-     $(TARGET_OUT_HEADERS)/IFX-modem
+     $(TARGET_OUT_HEADERS)/IFX-modem \
+     hardware/intel/mfld_cdk
 
 ifeq ($(BOARD_HAVE_BLUETOOTH),true)
 LOCAL_C_INCLUDES += \

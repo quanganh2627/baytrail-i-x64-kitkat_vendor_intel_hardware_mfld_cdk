@@ -423,7 +423,10 @@ static int vpc_route(vpc_route_t route)
                             }
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
-                            device_profile = (current_tty_call == AMC_TTY_OFF) ? current_device : device_out_defaut;
+                            if ((current_device & AudioSystem::DEVICE_OUT_WIRED_HEADSET) && current_tty_call != AMC_TTY_OFF)
+                                device_profile = device_out_defaut;
+                            else
+                                device_profile = current_device;
                             ret = acoustic::process_profile(device_profile, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
                             if (ret) goto return_error;
 
@@ -531,7 +534,10 @@ static int vpc_route(vpc_route_t route)
                         }
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
-                        device_profile = (current_tty_call == AMC_TTY_OFF) ? current_device : device_out_defaut;
+                        if ((current_device & AudioSystem::DEVICE_OUT_WIRED_HEADSET) && current_tty_call != AMC_TTY_OFF)
+                            device_profile = device_out_defaut;
+                        else
+                            device_profile = current_device;
                         ret = acoustic::process_profile(device_profile, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
                         if (ret) goto return_error;
 #endif
@@ -951,7 +957,7 @@ static void vpc_set_band(vpc_band_t band, int for_mode)
         // - BT device with embedded acoustics
         // - TTY device in-use
         if (!((current_device & DEVICE_OUT_BLUETOOTH_SCO_ALL) && is_acoustic_in_bt_device == true) &&
-            !(current_tty_call != AMC_TTY_OFF) ) {
+            !((current_device & AudioSystem::DEVICE_OUT_WIRED_HEADSET) && current_tty_call != AMC_TTY_OFF) ) {
             // Enable Audience smooth mute feature for a smooth preset transition
             acoustic::set_smooth_mute(true);
             // Request new band-specific preset

@@ -125,6 +125,8 @@ static int close_device(struct hdmi_stream_out *stream)
     ALOGD("%s: Entered", __func__);
 
     if (out->handle) {
+       err = snd_pcm_drain(out->handle);
+       ALOGV("%s: Drain the samples and stop the stream %s",__func__,snd_strerror(err));
        err = snd_pcm_close(out->handle);
        ALOGD("%s: PCM output device closed", __func__);
        out->handle = NULL;
@@ -456,14 +458,14 @@ static int out_standby(struct audio_stream *stream)
     ALOGV("%s Entered: channel_mask : %d", __func__, out->channel_mask);
 
     pthread_mutex_lock(&out->dev->lock);
-//    pthread_mutex_lock(&out->lock);
+    pthread_mutex_lock(&out->lock);
 
     if (!out->standby) {
         close_device(out);
         out->standby = true;
     }
 
-//    pthread_mutex_unlock(&out->lock);
+    pthread_mutex_unlock(&out->lock);
     pthread_mutex_unlock(&out->dev->lock);
 
     ALOGV("%s Exit", __func__);
@@ -494,11 +496,13 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_STREAM_ROUTING, value, sizeof(value));
     if (ret >= 0) {
        val = atoi(value);
-// FIXME - CHECK THE ROUTING
        if (val & AUDIO_DEVICE_OUT_AUX_DIGITAL){
-          pthread_mutex_unlock(&out->dev->lock);
-          out_standby(stream);
-          pthread_mutex_lock(&out->dev->lock);
+          //pthread_mutex_unlock(&out->dev->lock);
+          /*we don't do anything here, so no need of standby. It will be needed
+          if we want to change the configuration parameters
+          CHECK - for scenarios where parameter setting is needed*/
+          //out_standby(stream);
+          //pthread_mutex_lock(&out->dev->lock);
        }
     }
 
@@ -546,17 +550,18 @@ static ssize_t out_write(struct audio_stream_out *stream, const void* buffer,
     int it = 0;
     unsigned int totalSleepTime;
 
-    ALOGV("%s", __func__);
+    ALOGV("%s out->standy = %d", __func__,out->standby);
 
     pthread_mutex_lock(&out->dev->lock);
-//    pthread_mutex_lock(&out->lock);
+    pthread_mutex_lock(&out->lock);
 
     if (out->standby) {
         ret = start_output_stream(out);
         if (ret != 0) {
-           pthread_mutex_unlock(&out->dev->lock);
+           //pthread_mutex_unlock(&out->lock);
+           //pthread_mutex_unlock(&out->dev->lock);
             ALOGE("%s: stream start failed", __func__);
-            goto err_start;
+            goto err_write;
         }
         ALOGV("%s: standby is set to false", __func__);
         out->standby = false;
@@ -567,6 +572,7 @@ static ssize_t out_write(struct audio_stream_out *stream, const void* buffer,
 // return silence. Audio policy must be changed to stop the
 // already running stream
     if (out->handle == NULL) {
+        pthread_mutex_unlock(&out->lock);
         pthread_mutex_unlock(&out->dev->lock);
         goto silence_write;
     }
@@ -638,21 +644,19 @@ static ssize_t out_write(struct audio_stream_out *stream, const void* buffer,
         sent_bytes);
 
 err_write:
+    pthread_mutex_unlock(&out->lock);
     pthread_mutex_unlock(&out->dev->lock);
 
     return ret == 0 ? (ssize_t) sent_bytes : ret;
 
-err_start:
-//    pthread_mutex_unlock(&out->lock);
-
 silence_write:
-
+   if(ret !=0){
+    uint64_t duration_ms = ((ip_bytes * 1000)/
+                            (audio_stream_frame_size(&stream->common)) /
+                            (out_get_sample_rate(&stream->common)));
     ALOGV("%s : silence written", __func__);
-    if (ret != 0) {
-        usleep((ip_bytes * 1000000) / (audio_stream_frame_size(&stream->common) /
-               out_get_sample_rate(&stream->common)));
-    }
-
+    usleep(duration_ms * 1000);
+   }
     return ip_bytes;
 }
 

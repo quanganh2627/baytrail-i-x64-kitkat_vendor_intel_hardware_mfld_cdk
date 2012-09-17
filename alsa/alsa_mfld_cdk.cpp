@@ -633,7 +633,10 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode, int fm
             LOGD("Setting sample rate to %d (IN_CALL)", VOICE_CODEC_DEFAULT_SAMPLE_RATE);
             handle->sampleRate = VOICE_CODEC_DEFAULT_SAMPLE_RATE;
         }
-        else if (devices & DEVICE_OUT_BLUETOOTH_SCO_ALL) {
+        // when using BT SCO + speaker output, no resampling is necessary
+        //  because the output is only speaker (check asound.conf)
+        else if ( (devices & DEVICE_OUT_BLUETOOTH_SCO_ALL)
+                  && ( !(devices & AudioSystem::DEVICE_OUT_SPEAKER) ) ) {
             LOGD("Setting sample rate to %d (BT_SCO_ALL)", VOICE_BT_DEFAULT_SAMPLE_RATE);
             handle->sampleRate = VOICE_BT_DEFAULT_SAMPLE_RATE;
             handle->channels = 1;

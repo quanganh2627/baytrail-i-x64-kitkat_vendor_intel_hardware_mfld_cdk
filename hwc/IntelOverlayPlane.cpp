@@ -329,6 +329,8 @@ bool IntelOverlayContext::waitForFlip()
 
     memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
     arg.overlay_write_mask = OV_REGRWBITS_WAIT_FLIP;
+    // pipe select
+    arg.overlay.OVADD |= mContext->pipe;
 
     int ret = drmCommandWriteRead(mDrmFd,
                                   DRM_PSB_REGISTER_RW,

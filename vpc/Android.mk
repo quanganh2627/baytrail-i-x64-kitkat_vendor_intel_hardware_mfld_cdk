@@ -77,13 +77,11 @@ endif
 LOCAL_C_INCLUDES += \
      external/alsa-lib/include \
      hardware/intel/include \
+     system/core/include/cutils \
      $(TARGET_OUT_HEADERS)/vpc \
      $(TARGET_OUT_HEADERS)/libamc \
      $(TARGET_OUT_HEADERS)/at-manager \
-     system/core/include/cutils \
-     hardware/intel/mfld_cdk/MediaBTService
-
-LOCAL_C_INCLUDES += \
+     $(TARGET_OUT_HEADERS)/libmediabtproxy \
      $(TARGET_OUT_HEADERS)/IFX-modem
 
 ifeq ($(BOARD_HAVE_BLUETOOTH),true)

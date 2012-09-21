@@ -32,7 +32,9 @@ LOCAL_SHARED_LIBRARIES := \
      libamc \
      libbinder \
      libutils \
-     libmediabtproxy
+     libmediabtproxy \
+     libstlport \
+     libproperty
 
 ifeq ($(BOARD_HAVE_BLUETOOTH),true)
 LOCAL_SHARED_LIBRARIES += \
@@ -48,14 +50,6 @@ endif
 ifeq ($(BOARD_HAVE_AUDIENCE),true)
     LOCAL_CFLAGS += -DCUSTOM_BOARD_WITH_AUDIENCE
     LOCAL_SRC_FILES += acoustic.cpp
-    LOCAL_C_INCLUDES += \
-        $(TARGET_OUT_HEADERS)/property \
-        external/stlport/stlport/ \
-        bionic/libstdc++ \
-        bionic
-    LOCAL_SHARED_LIBRARIES += \
-        libstlport \
-        libproperty
 endif
 
 ifeq ($(CUSTOM_BOARD),ctp_pr0)
@@ -78,10 +72,14 @@ LOCAL_C_INCLUDES += \
      external/alsa-lib/include \
      hardware/intel/include \
      system/core/include/cutils \
+     external/stlport/stlport/ \
+     bionic/libstdc++ \
+     bionic \
      $(TARGET_OUT_HEADERS)/vpc \
      $(TARGET_OUT_HEADERS)/libamc \
      $(TARGET_OUT_HEADERS)/at-manager \
      $(TARGET_OUT_HEADERS)/libmediabtproxy \
+     $(TARGET_OUT_HEADERS)/property \
      $(TARGET_OUT_HEADERS)/IFX-modem
 
 ifeq ($(BOARD_HAVE_BLUETOOTH),true)

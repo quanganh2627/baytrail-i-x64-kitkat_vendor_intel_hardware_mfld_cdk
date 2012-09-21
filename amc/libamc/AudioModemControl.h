@@ -30,7 +30,7 @@ extern "C"
 #define AMC_MAX_CMD_LENGTH   AT_MAX_CMD_LENGTH
 #define AMC_MAX_RESP_LENGTH  AT_MAX_RESP_LENGTH
 #define MODEM_TTY_RETRY 60
-#define AUDIO_AT_CHANNEL_NAME "/dev/gsmtty13"
+#define AUDIO_AT_CONTROL_CHANNEL_PROPERTY_NAME "audiocomms.atm.controlChannel"
 #define GET_USE_CASE_SRC  "AT+XDRV=40,0,"
 #define GET_USE_CASE_DEST  "AT+XDRV=40,1,"
 #define EN_SRC  "AT+XDRV=40,2,%i"

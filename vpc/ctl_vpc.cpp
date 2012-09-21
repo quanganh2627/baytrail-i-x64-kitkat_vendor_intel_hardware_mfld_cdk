@@ -20,6 +20,8 @@
 
 #include <utils/threads.h>
 #include <hardware_legacy/AudioSystemLegacy.h>
+#include <property/Property.h>
+#include <string>
 
 #include "AudioModemControl.h"
 #include "bt.h"
@@ -141,7 +143,10 @@ static int vpc_init(uint32_t ifx_i2s1_clk_select, uint32_t ifx_i2s2_clk_select, 
         }
         if (at_thread_init == false)
         {
-            AT_STATUS cmd_status = at_start(AUDIO_AT_CHANNEL_NAME, ifx_i2s1_clk_select, ifx_i2s2_clk_select);
+            TProperty<std::string> audioAtControlChannelProperty(AUDIO_AT_CONTROL_CHANNEL_PROPERTY_NAME);
+            std::string audioAtControlChannelPropertyValue = audioAtControlChannelProperty.getValue();
+            if (audioAtControlChannelPropertyValue == "") goto return_error;
+            AT_STATUS cmd_status = at_start(audioAtControlChannelPropertyValue.c_str(), ifx_i2s1_clk_select, ifx_i2s2_clk_select);
             if (cmd_status != AT_OK) goto return_error;
             LOGD("AT thread started\n");
             at_thread_init = true;

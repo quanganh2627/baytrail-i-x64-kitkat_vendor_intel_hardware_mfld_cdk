@@ -958,12 +958,8 @@ static void vpc_set_band(vpc_band_t band, int for_mode)
         // - TTY device in-use
         if (!((current_device & DEVICE_OUT_BLUETOOTH_SCO_ALL) && is_acoustic_in_bt_device == true) &&
             !((current_device & AudioSystem::DEVICE_OUT_WIRED_HEADSET) && current_tty_call != AMC_TTY_OFF) ) {
-            // Enable Audience smooth mute feature for a smooth preset transition
-            acoustic::set_smooth_mute(true);
             // Request new band-specific preset
             acoustic::process_profile(current_device, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
-            // Disable Audience smooth mute feature
-            acoustic::set_smooth_mute(false);
         }
     }
 #endif

@@ -756,7 +756,7 @@ static int hdmi_dev_open_output_stream(struct audio_hw_device *dev,
 //if one more request to open the pcm device comes, close
 // the already opened device. Audio Policy update needed
 // to support a single stream being fed to renderer
-    if (active_stream_out != NULL) {
+    if (active_stream_out != NULL && active_stream_out->handle != NULL) {
        ALOGV("%s: Closing already opened stream %x",__func__,active_stream_out->handle);
        snd_pcm_close(active_stream_out->handle);
        active_stream_out->handle = NULL;

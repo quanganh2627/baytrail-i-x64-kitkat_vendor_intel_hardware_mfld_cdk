@@ -32,13 +32,13 @@
 #undef DISABLE_HARWARE_RESAMPLING
 
 #define ALSA_NAME_MAX (128)
-#define PERIOD_TIME   (23220*2)     //microseconds, aligned to LPE FW
-#define CAPTURE_PERIOD_TIME (20000) //microseconds
+
 #define MAX_RETRY (6)
 
 #define NB_RING_BUFFER_NORMAL   2
 #define NB_RING_BUFFER_INCALL   4
 #define TIMEOUT_MULTIPLICATION_FACTOR (4) // Empiric choice
+#define CTP_SAMPLE_RATE 48000
 
 #define USEC_PER_SEC        (1000000)
 
@@ -122,9 +122,10 @@ static alsa_handle_t _defaultsOut = {
     format             : SND_PCM_FORMAT_S16_LE, // AudioSystem::PCM_16_BIT
     channels           : 2,
     sampleRate         : NOT_SET,
-    latency            : PERIOD_TIME * NB_RING_BUFFER_NORMAL, // Desired Delay in usec. Do not initialize to NOT_SET as it could be called from AudioStreamOutALSA::latency().
-    wait_timeoutMs     : (PERIOD_TIME * TIMEOUT_MULTIPLICATION_FACTOR)/1000, // Proportional to the hw period
+    latency            : NOT_SET,
+    wait_timeoutMs     : NOT_SET, // Proportional to the hw period
     bufferSize         : NOT_SET, // Desired Number of samples
+    periodTime         : 46440,   // Period time for playback = 23220 * 2; 23220 is 1024 frames at 44,1 Khz
     modPrivate         : 0,
     openFlag           : 0,
 };
@@ -138,9 +139,10 @@ static alsa_handle_t _defaultsIn = {
     format             : SND_PCM_FORMAT_S16_LE, // AudioSystem::PCM_16_BIT
     channels           : 2,
     sampleRate         : NOT_SET,
-    latency            : CAPTURE_PERIOD_TIME * 4, // Desired Delay in usec
-    wait_timeoutMs     : (CAPTURE_PERIOD_TIME * TIMEOUT_MULTIPLICATION_FACTOR)/1000, // Proportional to the hw period
+    latency            : NOT_SET, // Desired Delay in usec
+    wait_timeoutMs     : NOT_SET, // Proportional to the hw period
     bufferSize         : 2048, // Desired Number of samples
+    periodTime         : 40000,   // Period time for capture = 20000 * 2
     modPrivate         : 0,
     openFlag           : 0,
 };
@@ -236,8 +238,7 @@ static status_t setHardwareParams(alsa_handle_t *handle)
     unsigned int rate = handle->sampleRate;
     unsigned int latency = handle->latency;
     unsigned int channels = handle->channels;
-    unsigned int periodTime = (direction(handle) == SND_PCM_STREAM_PLAYBACK) ?
-                                 PERIOD_TIME : CAPTURE_PERIOD_TIME; //us
+    unsigned int periodTime = handle->periodTime; // in µs
 
     // snd_pcm_format_description() and snd_pcm_format_name() do not perform
     // proper bounds checking.
@@ -369,8 +370,14 @@ static status_t setHardwareParams(alsa_handle_t *handle)
             return err;
         }
 
-        if (handle->curMode == AudioSystem::MODE_NORMAL)
-            periodTime = latency/NB_RING_BUFFER_NORMAL;
+        if (handle->curMode == AudioSystem::MODE_NORMAL) {
+            if ((handle->curDev & AudioSystem::DEVICE_OUT_WIDI) && (handle->sampleRate == CTP_SAMPLE_RATE)) {
+                periodTime = latency / 4;
+                LOGI("Setting period time for Widi playback to %d", periodTime);
+            } else {
+                periodTime = latency/NB_RING_BUFFER_NORMAL;
+            }
+        }
         else
             periodTime = latency/NB_RING_BUFFER_INCALL;
 
@@ -484,8 +491,22 @@ static status_t s_init(alsa_device_t *module, uint32_t defaultInputSampleRate, u
     _defaultsIn.sampleRate = defaultInputSampleRate;
     _defaultsOut.sampleRate = defaultOutputSampleRate;
 
-    _defaultsOut.module = module;
+    // Workaround : set a period time aligned on a 16-frames boundary for the 48 Khz clock.
+    // Final patch shall have one defined period time defined from the platform sample
+    // rate and aligned on the frame format. Latency values may also be aligned.
+    // 24000 = 1152 / 48000 * 1000000 . 1152 is a multiple of 64
+    if (_defaultsOut.sampleRate == CTP_SAMPLE_RATE) {
+        _defaultsOut.periodTime = 24000 * 2;
+    }
 
+    _defaultsOut.latency = _defaultsOut.periodTime * NB_RING_BUFFER_NORMAL;
+    _defaultsIn.latency = _defaultsIn.periodTime * NB_RING_BUFFER_NORMAL;
+
+    // Proportional to the hw period
+    _defaultsOut.wait_timeoutMs = (_defaultsOut.periodTime * TIMEOUT_MULTIPLICATION_FACTOR) / 1000;
+    _defaultsIn.wait_timeoutMs = (_defaultsIn.periodTime / 2 * TIMEOUT_MULTIPLICATION_FACTOR) / 1000;
+
+    _defaultsOut.module = module;
     _defaultsIn.module = module;
 
     return NO_ERROR;
@@ -605,7 +626,6 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode, int fm
     if (devices & AudioSystem::DEVICE_OUT_ALL) {
         // reset the initial value for playback
         handle->sampleRate = _defaultsOut.sampleRate;
-        handle->latency = PERIOD_TIME * NB_RING_BUFFER_NORMAL;
         handle->wait_timeoutMs = _defaultsOut.wait_timeoutMs;
         handle->channels = _defaultsOut.channels;
 
@@ -617,15 +637,16 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode, int fm
             LOGD("Setting sample rate to %d (BT_SCO_ALL)", VOICE_BT_DEFAULT_SAMPLE_RATE);
             handle->sampleRate = VOICE_BT_DEFAULT_SAMPLE_RATE;
             handle->channels = 1;
-            /* We use 4 buffers of period time, see set_hardware_params function */
-            handle->latency = CAPTURE_PERIOD_TIME * 4;
+            /* We use 4 buffers of 20ms period time, see set_hardware_params function */
+            handle->latency = _defaultsIn.latency;
         }
         else if (mode == AudioSystem::MODE_IN_COMMUNICATION) {
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
             LOGD("Setting expected sample rate to %d (IN_COMM)", VOICE_CODEC_DEFAULT_SAMPLE_RATE);
             handle->sampleRate = VOICE_CODEC_DEFAULT_SAMPLE_RATE;
 #endif
-            handle->latency = CAPTURE_PERIOD_TIME * 4;
+            /* We use 4 buffers of 20ms period time, see set_hardware_params function */
+            handle->latency = _defaultsIn.latency;
         }
     }
 

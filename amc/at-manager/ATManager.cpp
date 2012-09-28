@@ -988,6 +988,8 @@ bool CATManager::sendModemColdResetAck()
 //
 bool CATManager::startModemTtyListeners()
 {
+    int ret = 0;
+
     if (!_bTtyListenersStarted) {
 
         // Create file descriptors
@@ -995,19 +997,26 @@ bool CATManager::startModemTtyListeners()
         LOGD("opening read tty %s...", _strModemTty.c_str());
 
         // FdFromModem
-        iFd = CTtyHandler::openTty(_strModemTty.c_str(), O_RDONLY | O_NOCTTY | O_NONBLOCK);
+        iFd = CTtyHandler::openTty(_strModemTty.c_str(), O_RDONLY | O_NOCTTY);
         if (iFd < 0) {
 
             LOGE("Unable to open device for reading: %s, error: %s", _strModemTty.c_str(), strerror(errno));
 
             return false;
         }
+
+        ret = CTtyHandler::setNonBlockingMode(iFd);
+        if (ret < 0) {
+            LOGE("Unable to change (read) device's blocking mode: %s, error: %s", _strModemTty.c_str(), strerror(errno));
+            return false;
+        }
+
         // Add & Listen
         _pEventThread->addOpenedFd(FdFromModem, iFd, true);
 
         LOGD("opening write tty %s...", _strModemTty.c_str());
         // FdToModem
-        iFd = CTtyHandler::openTty(_strModemTty.c_str(), O_WRONLY | O_NOCTTY | O_NONBLOCK);
+        iFd = CTtyHandler::openTty(_strModemTty.c_str(), O_WRONLY | O_NOCTTY);
         if (iFd < 0) {
 
             LOGE("Unable to open device for writing: %s, error: %s", _strModemTty.c_str(), strerror(errno));
@@ -1017,6 +1026,13 @@ bool CATManager::startModemTtyListeners()
 
             return false;
         }
+
+        ret = CTtyHandler::setNonBlockingMode(iFd);
+        if (ret < 0) {
+            LOGE("Unable to change (write) device's blocking mode: %s, error: %s", _strModemTty.c_str(), strerror(errno));
+            return false;
+        }
+
         // Add & Listen
         _pEventThread->addOpenedFd(FdToModem, iFd);
 

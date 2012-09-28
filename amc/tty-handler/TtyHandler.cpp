@@ -1,5 +1,7 @@
 #include "TtyHandler.h"
 #include <termios.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
 
@@ -54,4 +56,34 @@ int CTtyHandler::openTty(const char* pcTty, int iFlags)
     }
 
     return iFd;
+}
+
+int  CTtyHandler::setNonBlockingMode(const int fd_handler)
+{
+    struct stat buf;
+    int ret = 0;
+    unsigned int flag = 0;
+
+
+    // verify that file handler is valid
+    ret = fstat(fd_handler, &buf);
+    if (ret == -1) {
+        return ret;
+    }
+
+    // now you can proceed to set file handler to non-blocking mode
+    // switch TTY to NON BLOCKING mode for Rd/Wr modem operations
+    flag = fcntl(fd_handler, F_GETFL, 0);
+    if (flag == -1) {
+        return flag;
+    }
+
+    flag |= O_NONBLOCK;
+
+    ret = fcntl(fd_handler, F_SETFL, flag);
+    if (ret == -1) {
+        return ret;
+    }
+
+    return 0;
 }

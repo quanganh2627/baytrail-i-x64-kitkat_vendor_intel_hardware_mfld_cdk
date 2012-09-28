@@ -9,8 +9,6 @@ QT       -= core gui
 TARGET = at-parser
 TEMPLATE = lib
 
-DEFINES += ATPARSER_LIBRARY
-
 SOURCES += ATParser.cpp
 
 HEADERS += ATParser.h

@@ -31,14 +31,8 @@ class CPeriodicATCommand : public CATCommand
 public:
     CPeriodicATCommand(const string& strCommand, const string& strRespPrefix = "");
 
-    // Set Send Deadline
-    bool setSendDeadLine(struct timespec tsDeadLine);
-
     // Inherited from CATCommand
     virtual void setAnswerOK(bool bIsOK);
-
-    // Deadline reached
-    bool deadlineReached();
 
 private:
     // Period time in seconds

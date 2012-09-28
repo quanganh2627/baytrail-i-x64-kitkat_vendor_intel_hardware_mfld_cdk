@@ -17,12 +17,8 @@
 #include "ATParser.h"
 #include <ctype.h>
 #include <unistd.h>
-#include <fcntl.h>
 #include <assert.h>
 #include <string.h>
-#define LOG_TAG "AMC"
-#include <utils/Log.h>
-#include <errno.h>
 
 CATParser::CATParser() : _uiCurrentBufferIndex(0), _uiStartSentenceIndex(0), _bWaitForSentenceBegin(true)
 {

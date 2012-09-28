@@ -23,8 +23,6 @@
 
 using namespace std;
 
-class CATManager;
-
 class CATCommand
 {
 
@@ -43,9 +41,6 @@ public:
 
     // Command
     const string& getCommand() const;
-
-    // Send
-    bool send(CATCommand* pATCommand, bool bSynchronous);
 
     // Answer fragment
     virtual void addAnswerFragment(const string& strAnswerFragment);
@@ -70,14 +65,6 @@ public:
 
     // Has prefix
     bool hasPrefix() const;
-
-    // Receive timeout reached
-    bool receiveTimeoutReached();
-
-protected:
-    // Set the timeout
-    void setTimeout(uint32_t uiTimeout);
-
 
 private:
     // AT Command

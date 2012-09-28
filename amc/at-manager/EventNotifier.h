@@ -16,9 +16,6 @@
  */
 #pragma once
 
-class CUnsollicitedATCommand;
-class CATcommand;
-
 class IEventNotifier
 {
 public:

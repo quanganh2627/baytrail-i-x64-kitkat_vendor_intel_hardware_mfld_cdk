@@ -23,8 +23,6 @@
 
 #include "ModemAudioManager.h"
 
-class ModemStatusNotifier;
-
 using namespace std;
 
 class CDualSimModemAudioManager : public CModemAudioManager {

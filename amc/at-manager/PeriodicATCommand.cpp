@@ -31,22 +31,8 @@ CPeriodicATCommand::CPeriodicATCommand(const string& strCommand, const string& s
     LOGD("%s", __FUNCTION__);
 }
 
-// Clear
-bool CPeriodicATCommand::setSendDeadLine(struct timespec tsDeadLine)
-{
-    LOGD("%s", __FUNCTION__);
-    return true;
-}
-
 // Inherited from CATCommand
 void CPeriodicATCommand::setAnswerOK(bool bIsOK)
 {
     LOGD("%s", __FUNCTION__);
-}
-
-// Deadline reached
-bool CPeriodicATCommand::deadlineReached()
-{
-    LOGD("%s", __FUNCTION__);
-    return true;
 }

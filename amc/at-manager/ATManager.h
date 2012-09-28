@@ -84,9 +84,6 @@ public:
     // Send - asynchronous or synchronous
     AT_STATUS sendCommand(CATCommand* pATCommand, bool bSynchronous);
 
-    // Cancel
-    void cancelCommand();
-
     // Get the modem status (from STMD definition)
     int getModemStatus() const;
 

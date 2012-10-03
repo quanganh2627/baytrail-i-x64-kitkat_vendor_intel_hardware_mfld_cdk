@@ -779,6 +779,7 @@ static int hdmi_dev_open_output_stream(struct audio_hw_device *dev,
 
 err_open:
     ALOGE("%s: Failed", __func__);
+    pthread_mutex_unlock(&out->dev->lock);
     free(out);
     *stream_out = NULL;
     return ret;

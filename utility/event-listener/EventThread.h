@@ -48,9 +48,8 @@ class CEventThread
 
 public:
     // Construction
-    CEventThread(IEventListener* pEventListener);
+    CEventThread(IEventListener* pEventListener, bool bLogsOn = true);
     ~CEventThread();
-
     // Add open FDs
     void addOpenedFd(uint32_t uiFdClientId, int iFd, bool bToListenTo = false);
 
@@ -77,6 +76,10 @@ public:
     // Context check
     bool inThreadContext() const;
 
+    // Logs activation
+    void setLogsState(bool bLogsOn);
+    bool isLogsOn() const;
+
 private:
     // Thread
     static void* thread_func(void* pData);
@@ -88,7 +91,6 @@ private:
     void removeListenedFd(int iFd);
     // Poll FD computation
     void buildPollFds(struct pollfd* paPollFds) const;
-
     // Listener
     IEventListener* _pEventListener;
     // State
@@ -105,5 +107,7 @@ private:
     uint32_t _uiTimeoutMs;
     // Thread context
     bool _bThreadContext;
+    // EventThread logs enabled
+    bool _bLogsOn;
 };
 

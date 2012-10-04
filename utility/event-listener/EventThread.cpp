@@ -25,8 +25,8 @@
 
 #include "EventThread.h"
 
-CEventThread::CEventThread(IEventListener* pEventListener) :
-    _pEventListener(pEventListener), _bIsStarted(false), _ulThreadId(0), _uiNbPollFds(0), _uiTimeoutMs(-1), _bThreadContext(false)
+CEventThread::CEventThread(IEventListener* pEventListener, bool bLogsOn) :
+    _pEventListener(pEventListener), _bIsStarted(false), _ulThreadId(0), _uiNbPollFds(0), _uiTimeoutMs(-1), _bThreadContext(false), _bLogsOn(bLogsOn)
 {
     assert(pEventListener);
 
@@ -107,7 +107,10 @@ int CEventThread::getFd(uint32_t uiClientFdId) const
         }
     }
 
-    LOGD("%s: Could not find File descriptor from List", __func__);
+    if (_bLogsOn) {
+
+        LOGD("%s: Could not find File descriptor from List", __func__);
+    }
 
     return -1;
 }
@@ -160,14 +163,20 @@ void CEventThread::stop()
 // Trigger
 void CEventThread::trig()
 {
-    LOGD("%s: in", __func__);
+    if (_bLogsOn) {
+
+        LOGD("%s: in", __func__);
+    }
 
     assert(_bIsStarted);
 
     uint8_t ucData = EProcess;
     ::write(_aiInbandPipe[1], &ucData, sizeof(ucData));
 
-    LOGD("%s: out", __func__);
+    if (_bLogsOn) {
+
+        LOGD("%s: out", __func__);
+    }
 }
 
 // Context check
@@ -224,7 +233,11 @@ void CEventThread::run()
                 continue;
             } else {
                 assert(ucData == EExit);
-                LOGD("%s exit", __func__);
+
+                if (_bLogsOn) {
+
+                    LOGD("%s exit", __func__);
+                }
                 // Exit
                 return ;
             }
@@ -239,7 +252,10 @@ void CEventThread::run()
 
                 // Check for errors first
                 if (astPollFds[uiIndex].revents & POLLERR) {
-                    LOGD("%s POLLERR event on Fd (%d)", __func__, uiIndex);
+                    if (_bLogsOn) {
+
+                        LOGD("%s POLLERR event on Fd (%d)", __func__, uiIndex);
+                    }
 
                     // Process
                     if (_pEventListener->onError(astPollFds[uiIndex].fd)) {
@@ -250,7 +266,10 @@ void CEventThread::run()
                 }
                 // Check for hang ups
                 if (astPollFds[uiIndex].revents & POLLHUP) {
-                    LOGD("%s POLLHUP event on Fd (%d)", __func__, uiIndex);
+                    if (_bLogsOn) {
+
+                        LOGD("%s POLLHUP event on Fd (%d)", __func__, uiIndex);
+                    }
 
                     if (_pEventListener->onHangup(astPollFds[uiIndex].fd)) {
 
@@ -260,7 +279,10 @@ void CEventThread::run()
                 }
                 // Check for read events
                 if (astPollFds[uiIndex].revents & POLLIN) {
-                    LOGD("%s POLLIN event on Fd (%d)", __func__, uiIndex);
+                    if (_bLogsOn) {
+
+                        LOGD("%s POLLIN event on Fd (%d)", __func__, uiIndex);
+                    }
                     // Process
                     if (_pEventListener->onEvent(astPollFds[uiIndex].fd)) {
 
@@ -295,4 +317,15 @@ void CEventThread::buildPollFds(struct pollfd* paPollFds) const
     }
     // Consistency
     assert(uiFdIndex == _uiNbPollFds);
+}
+
+// Logs Activation
+void CEventThread::setLogsState(bool bLogsOn)
+{
+    _bLogsOn = bLogsOn;
+}
+
+bool CEventThread::isLogsOn() const
+{
+    return _bLogsOn;
 }

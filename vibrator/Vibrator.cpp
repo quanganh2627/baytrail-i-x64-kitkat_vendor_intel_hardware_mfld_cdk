@@ -57,13 +57,17 @@ CVibrator::CVibrator() :
     _parameterMgrPlatformConnectorLogger(new CParameterMgrPlatformConnectorLogger),
     _bOnRequested(false),
     _uiRequestedDurationMs(-1),
-    _pEventThread(new CEventThread(this)),
     _bOn(false),
     _bLogsOn(false)
 {
     LOGD("New CVibrator object");
 
-    // Start thread
+    /// Check if logs should be activated
+    _bLogsOn = TProperty<bool>(_acLogsOnPropName, false);
+    LOGD("Vibrator logs status: %s", _bLogsOn ? "on" : "off");
+
+    /// Start thread
+    _pEventThread =  new CEventThread(this, _bLogsOn);
     _bThreadStarted = _pEventThread->start();
 
     if (!_bThreadStarted) {
@@ -72,8 +76,6 @@ CVibrator::CVibrator() :
     }
 
     /// Attach a Logger if the corresponding Android Property is turned on
-    _bLogsOn = TProperty<bool>(_acLogsOnPropName, false);
-    LOGD("Vibrator logs status: %s", _bLogsOn ? "on" : "off");
     if (_bLogsOn) {
         _parameterMgrPlatformConnector->setLogger(_parameterMgrPlatformConnectorLogger);
     }

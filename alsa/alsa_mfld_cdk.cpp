@@ -21,7 +21,7 @@
  */
 
 #define LOG_TAG "ALSAModuleCDK"
-#define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 
 #include <utils/Log.h>
 #include <AudioHardwareALSACommon.h>
@@ -35,10 +35,11 @@
 
 #define MAX_RETRY (6)
 
+#define REFERENCE_PLAYBACK_PERIOD_TIME (23220*2) // Reference is= 23220 * 2; 23220 is 1024 frames at 44,1 Khz
 #define NB_RING_BUFFER_NORMAL   2
 #define NB_RING_BUFFER_INCALL   4
 #define TIMEOUT_MULTIPLICATION_FACTOR (4) // Empiric choice
-#define CTP_SAMPLE_RATE 48000
+#define FRAME_ALIGNMENT_ON_16(frames) ((frames + (16 - 1)) & ~(16 - 1))
 
 #define USEC_PER_SEC        (1000000)
 
@@ -81,6 +82,7 @@ static status_t s_config(alsa_handle_t *, int);
 static status_t s_volume(alsa_handle_t *, uint32_t, float);
 static int s_wait_pcm(alsa_handle_t *);
 static void s_drain(alsa_handle_t* handle);
+static uint32_t calculatePeriodTime(uint32_t);
 
 static hw_module_methods_t s_module_methods = {
     open : s_device_open
@@ -126,7 +128,7 @@ static alsa_handle_t _defaultsOut = {
     latency            : NOT_SET,
     wait_timeoutMs     : NOT_SET, // Proportional to the hw period
     bufferSize         : NOT_SET, // Desired Number of samples
-    periodTime         : 46440,   // Period time for playback = 23220 * 2; 23220 is 1024 frames at 44,1 Khz
+    periodTime         : NOT_SET, // Period time for playback
     modPrivate         : 0,
     openFlag           : 0,
 };
@@ -372,12 +374,7 @@ static status_t setHardwareParams(alsa_handle_t *handle)
         }
 
         if (handle->curMode == AudioSystem::MODE_NORMAL) {
-            if ((handle->curDev & AudioSystem::DEVICE_OUT_WIDI) && (handle->sampleRate == CTP_SAMPLE_RATE)) {
-                periodTime = latency / 4;
-                LOGI("Setting period time for Widi playback to %d", periodTime);
-            } else {
-                periodTime = latency/NB_RING_BUFFER_NORMAL;
-            }
+            periodTime = latency/NB_RING_BUFFER_NORMAL;
         }
         else
             periodTime = latency/NB_RING_BUFFER_INCALL;
@@ -484,21 +481,38 @@ static status_t setSoftwareParams(alsa_handle_t *handle)
     return err;
 }
 
-// ----------------------------------------------------------------------------
 
+static uint32_t calculatePeriodTime (uint32_t sampleRate)
+{
+    snd_pcm_uframes_t nFrames;
+
+    uint32_t periodTime = REFERENCE_PLAYBACK_PERIOD_TIME / 2;
+
+    nFrames = periodTime * sampleRate / USEC_PER_SEC;
+
+    // Align the number of frames on a 16-frames boundary, based on
+    // one period time and calculate the period time from the platform
+    // sample rate, immediatly greater to the reference period time.
+    if ((nFrames % 16) > 0) {
+        nFrames = FRAME_ALIGNMENT_ON_16(nFrames);
+        periodTime = nFrames * USEC_PER_SEC / sampleRate;
+    }
+
+    LOGI("Calculated period time = %d (Frames nb aligned on 16)", periodTime);
+
+    return periodTime * 2;
+}
+
+// ----------------------------------------------------------------------------
 static status_t s_init(alsa_device_t *module, uint32_t defaultInputSampleRate, uint32_t defaultOutputSampleRate)
 {
+    assert(defaultOutputSampleRate);
+
     // Configuration
     _defaultsIn.sampleRate = defaultInputSampleRate;
     _defaultsOut.sampleRate = defaultOutputSampleRate;
 
-    // Workaround : set a period time aligned on a 16-frames boundary for the 48 Khz clock.
-    // Final patch shall have one defined period time defined from the platform sample
-    // rate and aligned on the frame format. Latency values may also be aligned.
-    // 24000 = 1152 / 48000 * 1000000 . 1152 is a multiple of 64
-    if (_defaultsOut.sampleRate == CTP_SAMPLE_RATE) {
-        _defaultsOut.periodTime = 24000 * 2;
-    }
+    _defaultsOut.periodTime = calculatePeriodTime(_defaultsOut.sampleRate);
 
     _defaultsOut.latency = _defaultsOut.periodTime * NB_RING_BUFFER_NORMAL;
     _defaultsIn.latency = _defaultsIn.periodTime * NB_RING_BUFFER_NORMAL;
@@ -629,9 +643,11 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode, int fm
         handle->wait_timeoutMs = _defaultsOut.wait_timeoutMs;
         handle->channels = _defaultsOut.channels;
 
+        //  For voice in call or communication, We use 1 buffer of 20ms period time
         if (mode == AudioSystem::MODE_IN_CALL) {
             LOGD("Setting sample rate to %d (IN_CALL)", VOICE_CODEC_DEFAULT_SAMPLE_RATE);
             handle->sampleRate = VOICE_CODEC_DEFAULT_SAMPLE_RATE;
+            handle->periodTime = handle->latency / NB_RING_BUFFER_INCALL;
         }
         // when using BT SCO + speaker output, no resampling is necessary
         //  because the output is only speaker (check asound.conf)
@@ -640,8 +656,8 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode, int fm
             LOGD("Setting sample rate to %d (BT_SCO_ALL)", VOICE_BT_DEFAULT_SAMPLE_RATE);
             handle->sampleRate = VOICE_BT_DEFAULT_SAMPLE_RATE;
             handle->channels = 1;
-            /* We use 4 buffers of 20ms period time, see set_hardware_params function */
             handle->latency = _defaultsIn.latency;
+            handle->periodTime = handle->latency / NB_RING_BUFFER_INCALL;
         }
         else if (mode == AudioSystem::MODE_IN_COMMUNICATION) {
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
@@ -650,6 +666,7 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode, int fm
 #endif
             /* We use 4 buffers of 20ms period time, see set_hardware_params function */
             handle->latency = _defaultsIn.latency;
+            handle->periodTime = handle->latency / NB_RING_BUFFER_INCALL;
         }
     }
 

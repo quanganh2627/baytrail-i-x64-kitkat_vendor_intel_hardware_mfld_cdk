@@ -255,7 +255,7 @@ static int hwc_device_open(const struct hw_module_t* module, const char* name,
 
         /* initialize the procs */
         hwc->hwc_composer_device_t::common.tag = HARDWARE_DEVICE_TAG;
-        hwc->hwc_composer_device_t::common.version = HWC_DEVICE_API_VERSION_0_3;
+        hwc->hwc_composer_device_t::common.version = 1;
         hwc->hwc_composer_device_t::common.module =
             const_cast<hw_module_t*>(module);
         hwc->hwc_composer_device_t::common.close = hwc_device_close;

@@ -494,9 +494,7 @@ void IntelHWComposer::revisitLayerList(hwc_layer_list_t *list, bool isGeometryCh
         // if overlay plane was used for a YUV layer, force overlay layer to
         // be the bottom layer.
         if (mLayerList->getLayerType(i) != IntelHWComposerLayer::LAYER_TYPE_RGB) {
-            if (list->hwLayers[i].compositionType == HWC_OVERLAY) {
-                    zOrderConfig = IntelDisplayPlaneManager::ZORDER_POcOa;
-            }
+            zOrderConfig = IntelDisplayPlaneManager::ZORDER_POcOa;
             continue;
         }
 

@@ -728,7 +728,8 @@ bool IntelHWComposer::useOverlayRotation(hwc_layer_t *layer,
         }
 
         if (transform != payload->client_transform) {
-            LOGV("%s: rotation buffer was not prepared by client!\n", __func__);
+            LOGD_IF(ALLOW_HWC_PRINT,
+                    "%s: rotation buffer was not prepared by client! ui64Stamp = %llu\n", __func__, grallocHandle->ui64Stamp);
             return false;
         }
 

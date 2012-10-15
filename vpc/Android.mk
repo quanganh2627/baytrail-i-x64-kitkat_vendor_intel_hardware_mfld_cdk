@@ -14,7 +14,7 @@ LOCAL_COPY_HEADERS := \
 
 LOCAL_CFLAGS := -D_POSIX_SOURCE -Wno-multichar
 
-ifeq ($(CUSTOM_BOARD),mfld_pr2)
+ifeq ($(TARGET_DEVICE),mfld_pr2)
 	LOCAL_CFLAGS += \
 		-DHAL_VPC_PLUS_6DB_MODEM_UL
 endif
@@ -52,15 +52,15 @@ ifeq ($(BOARD_HAVE_AUDIENCE),true)
     LOCAL_SRC_FILES += acoustic.cpp
 endif
 
-ifeq ($(CUSTOM_BOARD),ctp_pr0)
+ifeq ($(TARGET_DEVICE),ctp_pr0)
      LOCAL_CFLAGS += -DCUSTOM_BOARD_WITH_VOICE_CODEC_SLAVE
 endif
 
-ifeq ($(CUSTOM_BOARD),ctp_pr1)
+ifeq ($(TARGET_DEVICE),ctp_pr1)
      LOCAL_CFLAGS += -DCUSTOM_BOARD_WITH_VOICE_CODEC_SLAVE
 endif
 
-ifeq ($(CUSTOM_BOARD),ctp_pr2)
+ifeq ($(TARGET_DEVICE),ctp_pr2)
      LOCAL_CFLAGS += -DCUSTOM_BOARD_WITH_VOICE_CODEC_SLAVE
 endif
 

@@ -1501,6 +1501,8 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
                 continue;
             if (list->hwLayers[i].compositionType != HWC_OVERLAY)
                 continue;
+            if (mPlaneManager->isWidiActive())
+                continue;
 
             plane->waitForFlipCompletion();
         }

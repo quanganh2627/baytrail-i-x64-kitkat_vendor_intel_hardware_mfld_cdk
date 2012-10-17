@@ -31,11 +31,11 @@ class msic
 {
 public :
     static int pcm_init();
-    static int pcm_enable(int mode, uint32_t device, vpc_hac_set_t hac_setting);
+    static int pcm_enable(int mode, uint32_t device, vpc_hac_set_t hac_setting, vpc_tty_t tty_setting);
     static int pcm_disable();
 
 private :
-    static const char *deviceNamePlayback(int mode, uint32_t device, vpc_hac_set_t hac_setting);
+    static const char *deviceNamePlayback(int mode, uint32_t device, vpc_hac_set_t hac_setting, vpc_tty_t tty_setting);
     static const char *deviceNameCapture(int mode, uint32_t device);
 
     static snd_pcm_t *handle_playback;

@@ -41,6 +41,7 @@ Mutex a1026_lock;
 
 bool           acoustic::is_a1026_init = false;
 vpc_hac_set_t  acoustic::hac_state = VPC_HAC_OFF;
+vpc_tty_t      acoustic::tty_state = VPC_TTY_OFF;
 bool           acoustic::vp_bypass_on = false;
 bool           acoustic::vp_tuning_on = false;
 int            acoustic::profile_size[profile_number];
@@ -60,8 +61,12 @@ const char *acoustic::profile_name[profile_number] = {
     /* CSV NB */
     "close_talk_csv_nb.bin",                // EP in CSV NB
     "close_talk_hac_csv_nb.bin",            // EP+HAC in CSV NB
+    "close_talk_tty_vco_csv_nb.bin",        // TTY VCO in CSV NB
+    "close_talk_tty_hco_csv_nb.bin",        // TTY HCO in CSV NB
+    "close_talk_tty_hco_hac_csv_nb.bin",    // TTY HCO + HAC in CSV NB
     "speaker_far_talk_csv_nb.bin",          // IHF in CSV NB
     "headset_close_talk_csv_nb.bin",        // Headset in CSV NB
+    "headset_tty_full_csv_nb.bin",          // TTY FULL in CSV NB
     "headphone_close_talk_csv_nb.bin",      // Headphone in CSV NB
     "bt_hsp_csv_nb.bin",                    // BT HSP in CSV NB
     "bt_carkit_csv_nb.bin",                 // BT Car Kit in CSV NB
@@ -69,8 +74,12 @@ const char *acoustic::profile_name[profile_number] = {
     /* CSV WB */
     "close_talk_csv_wb.bin",                // EP in CSV WB
     "close_talk_hac_csv_wb.bin",            // EP+HAC in CSV WB
+    "close_talk_tty_vco_csv_wb.bin",        // TTY VCO in CSV WB
+    "close_talk_tty_hco_csv_wb.bin",        // TTY HCO in CSV WB
+    "close_talk_tty_hco_hac_csv_wb.bin",    // TTY HCO + HAC in CSV WB
     "speaker_far_talk_csv_wb.bin",          // IHF in CSV WB
     "headset_close_talk_csv_wb.bin",        // Headset in CSV WB
+    "headset_tty_full_csv_wb.bin",          // TTY FULL in CSV WB
     "headphone_close_talk_csv_wb.bin",      // Headphone in CSV WB
     "bt_hsp_csv_wb.bin",                    // BT HSP in CSV WB
     "bt_carkit_csv_wb.bin",                 // BT Car Kit in CSV WB
@@ -78,8 +87,12 @@ const char *acoustic::profile_name[profile_number] = {
     /* VOIP NB */
     "close_talk_voip_nb.bin",               // EP in VOIP NB
     "close_talk_hac_voip_nb.bin",           // EP+HAC in VOIP NB
+    NULL,                                   // TTY VCO (NA in VoIP)
+    NULL,                                   // TTY HCO (NA in VoIP)
+    NULL,                                   // TTY HCO + HAC (NA in VoIP)
     "speaker_far_talk_voip_nb.bin",         // IHF in VOIP NB
     "headset_close_talk_voip_nb.bin",       // Headset in VOIP NB
+    NULL,                                   // TTY FULL (NA in VoIP)
     "headphone_close_talk_voip_nb.bin",     // Headphone in VOIP NB
     "bt_hsp_voip_nb.bin",                   // BT HSP in VOIP NB
     "bt_carkit_voip_nb.bin",                // BT Car Kit in VOIP NB
@@ -87,8 +100,12 @@ const char *acoustic::profile_name[profile_number] = {
     /* VOIP WB */
     "close_talk_voip_wb.bin",               // EP in VOIP WB
     "close_talk_hac_voip_wb.bin",           // EP+HAC in VOIP WB
+    NULL,                                   // TTY VCO (NA in VoIP)
+    NULL,                                   // TTY HCO (NA in VoIP)
+    NULL,                                   // TTY HCO + HAC (NA in VoIP)
     "speaker_far_talk_voip_wb.bin",         // IHF in VOIP WB
     "headset_close_talk_voip_wb.bin",       // Headset in VOIP WB
+    NULL,                                   // TTY FULL (NA in VoIP)
     "headphone_close_talk_voip_wb.bin",     // Headphone in VOIP WB
     "bt_hsp_voip_wb.bin",                   // BT HSP in VOIP WB
     "bt_carkit_voip_wb.bin",                // BT Car Kit in VOIP WB
@@ -107,13 +124,20 @@ int acoustic::private_cache_profiles()
 
     for (int i = 0; i < profile_number; i++)
     {
+        if (profile_name[i] == NULL) {
+            // Means that this profile is not supported
+            i2c_cmd_profile[i] = NULL;
+            continue;
+        }
         string strProfilePath = vp_profile_prefix;
         strProfilePath += string(profile_name[i]);
 
         FILE *fd = fopen(strProfilePath.c_str(), "r");
         if (fd == NULL) {
-            LOGE("Cannot open %s\n", strProfilePath.c_str());
-            goto return_error;
+            LOGW("Cannot open %s\n", strProfilePath.c_str());
+            // This profile won't be selectable
+            i2c_cmd_profile[i] = NULL;
+            continue;
         }
 
         fseek(fd, 0, SEEK_END);
@@ -142,6 +166,11 @@ int acoustic::private_cache_profiles()
             goto return_error;
         }
         fclose(fd);
+    }
+    // Check that default profile has been loaded
+    if (i2c_cmd_profile[PROFILE_DEFAULT] == NULL) {
+        LOGE("Audience default profile not found.\n");
+        goto return_error;
     }
 
     LOGD("Audience A1026 profiles cache OK\n");
@@ -173,8 +202,37 @@ int acoustic::private_get_profile_id(uint32_t device, profile_mode_t mode)
         LOGD("Speaker device detected, => force use of Speaker device profile\n");
         profile_id = PROFILE_SPEAKER;
     } else if (device & AudioSystem::DEVICE_OUT_WIRED_HEADSET) {
-        LOGD("Headset device detected, => force use of Headset device profile\n");
-        profile_id = PROFILE_WIRED_HEADSET;
+        if (mode == PROFILE_MODE_IN_COMM_NB || mode == PROFILE_MODE_IN_COMM_WB) {
+            // In VoIP, TTY is not supported
+            LOGD("Headset device detected, => force use of Headset device profile\n");
+            profile_id = PROFILE_WIRED_HEADSET;
+        } else {
+            switch (tty_state) {
+                default:
+                    // Intended fall through:
+                case VPC_TTY_OFF:
+                    LOGD("Headset device detected, => force use of Headset device profile\n");
+                    profile_id = PROFILE_WIRED_HEADSET;
+                    break;
+                case VPC_TTY_FULL:
+                    LOGD("Headset device detected with TTY_FULL, => force use of TTY_FULL device profile\n");
+                    profile_id = PROFILE_WIRED_HEADSET_TTY_FULL;
+                    break;
+                case VPC_TTY_HCO:
+                    if (hac_state == VPC_HAC_OFF) {
+                        LOGD("Headset device detected with TTY_HCO, => force use of close talk TTY_HCO device profile\n");
+                        profile_id = PROFILE_EARPIECE_TTY_HCO;
+                    } else {
+                        LOGD("Headset device detected with TTY_HCO + HAC mode, => force use of close talk TTY_HCO_HAC device profile\n");
+                        profile_id = PROFILE_EARPIECE_TTY_HCO_HAC;
+                    }
+                    break;
+                case VPC_TTY_VCO:
+                    LOGD("Headset device detected with TTY_VCO, => force use of close talk TTY_VCO device profile\n");
+                    profile_id = PROFILE_EARPIECE_TTY_VCO;
+                    break;
+            }
+        }
     } else if (device & AudioSystem::DEVICE_OUT_WIRED_HEADPHONE) {
         LOGD("Headphone device detected, => force use of Headphone device profile\n");
         profile_id = PROFILE_WIRED_HEADPHONE;
@@ -412,6 +470,14 @@ void acoustic::set_hac(vpc_hac_set_t state)
 }
 
 /*---------------------------------------------------------------------------*/
+/* Public TTY set method                                                     */
+/*---------------------------------------------------------------------------*/
+void acoustic::set_tty(vpc_tty_t state)
+{
+    tty_state = state;
+}
+
+/*---------------------------------------------------------------------------*/
 /* Public smooth mute feature set method                                     */
 /*---------------------------------------------------------------------------*/
 int acoustic::set_smooth_mute(bool enable)
@@ -606,6 +672,11 @@ int acoustic::process_profile(uint32_t device, uint32_t mode, vpc_band_t band)
     } else {
         profile_id = PROFILE_DEFAULT;
         LOGW("%s: %s is set: force Audience in digital hardware pass through\n", __FUNCTION__, vp_bypass_prop_name);
+    }
+    // Check that the selected profile is valid
+    if (i2c_cmd_profile[profile_id] == NULL) {
+        LOGE("%s: Unsupported profile selected (%d): force DEFAULT profile\n", __FUNCTION__, profile_id);
+        profile_id = PROFILE_DEFAULT;
     }
 
     rc = write(fd_a1026, &i2c_cmd_profile[profile_id][0], profile_size[profile_id]);

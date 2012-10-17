@@ -64,6 +64,9 @@ static void vpc_set_band(vpc_band_t band, int for_mode);
 
 #define CURRENT_BAND_FOR_MODE(mode) ((mode) == AudioSystem::MODE_IN_CALL ? current_csv_band:current_voip_band)
 
+#define MODEM_GAIN_0dB     88
+#define MODEM_GAIN_6dB     100
+
 static const AMC_TTY_STATE translate_vpc_to_amc_tty[] = {
     AMC_TTY_OFF, /*[VPC_TTY_OFF] */
     AMC_TTY_FULL, /*[VPC_TTY_FULL] */
@@ -91,8 +94,8 @@ static uint32_t  prev_device           = 0x0000;
 static uint32_t  current_device        = 0x0000;
 static uint32_t  device_out_defaut     = 0x8000;
 static bool      at_thread_init        = false;
-static AMC_TTY_STATE current_tty_call  = AMC_TTY_OFF;
-static AMC_TTY_STATE previous_tty_call = AMC_TTY_OFF;
+static vpc_tty_t current_tty_call      = VPC_TTY_OFF;
+static vpc_tty_t previous_tty_call     = VPC_TTY_OFF;
 static bool      mixing_enable         = false;
 static bool      voice_call_record_requested  = false;
 // If the audio gateway does not support HFP profile (HSP only),
@@ -105,9 +108,9 @@ static int       modem_gain_dl            = 0;
 #ifdef HAL_VPC_PLUS_6DB_MODEM_UL
 /* +6dB on Modem UL path was applied on MFLD and we must keep this setting
  * because all tuning has been done with it */
-static int       modem_gain_ul            = 100; // +6 dB
+static int       modem_gain_ul            = MODEM_GAIN_6dB;
 #else
-static int       modem_gain_ul            = 88; // 0 dB
+static int       modem_gain_ul            = MODEM_GAIN_0dB;
 #endif
 static vpc_band_t current_csv_band        = VPC_BAND_NARROW;
 static vpc_band_t current_voip_band       = VPC_BAND_NARROW;
@@ -382,16 +385,9 @@ static inline bool vpc_route_conditions_changed()
 
 static void* profile_thread_func(void* pData)
 {
-    uint32_t device_profile;
     pthread_setname_np(pthread_self(), "AudienceProfile");
-    // Computing the profile
-    // In case of TTY call, use pass-through profile
-    if ((current_device & AudioSystem::DEVICE_OUT_WIRED_HEADSET) && current_tty_call != AMC_TTY_OFF)
-        device_profile = device_out_defaut;
-    else
-        device_profile = current_device;
     // Sendind the profile to audience
-    return (void*)acoustic::process_profile(device_profile, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
+    return (void*)acoustic::process_profile(current_device, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
 }
 
 static int process_profile(long* session)
@@ -485,7 +481,7 @@ static int vpc_route(vpc_route_t route)
                             translate_to_amc_device(current_device, &mode_source, &mode_dest);
 #endif
                             // Configure modem I2S1
-                            amc_conf_i2s1(current_tty_call, mode_source, mode_dest);
+                            amc_conf_i2s1(translate_vpc_to_amc_tty[current_tty_call], mode_source, mode_dest);
 
                             if ((prev_mode != AudioSystem::MODE_IN_CALL) || (prev_device & DEVICE_OUT_BLUETOOTH_SCO_ALL) || (!vpc_get_audio_routed()))
                             {
@@ -495,13 +491,21 @@ static int vpc_route(vpc_route_t route)
 
                             amc_on();
 
-                            msic::pcm_enable(current_mode, current_device, current_hac_setting);
+                            msic::pcm_enable(current_mode, current_device, current_hac_setting, current_tty_call);
                             mixing_enable = true;
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
                             // Join with Audience thread
                             wait_end_of_session(session);
 #endif
-                            amc_unmute(modem_gain_dl, modem_gain_ul);
+#ifdef HAL_VPC_PLUS_6DB_MODEM_UL
+                            // TTY does not support the +6dB set on modem side. They must
+                            // be removed when TTY is used in FULL or HCO modes
+                            if (current_device == AudioSystem::DEVICE_OUT_WIRED_HEADSET &&
+                                (current_tty_call == VPC_TTY_FULL || current_tty_call == VPC_TTY_HCO))
+                                amc_unmute(modem_gain_dl, MODEM_GAIN_0dB);
+                            else
+#endif
+                                amc_unmute(modem_gain_dl, modem_gain_ul);
                             break;
                         /* ------------------------------------ */
                         /* Voice paths control for BT devices   */
@@ -585,15 +589,11 @@ static int vpc_route(vpc_route_t route)
                         }
 
 #ifdef CUSTOM_BOARD_WITH_AUDIENCE
-                        if ((current_device & AudioSystem::DEVICE_OUT_WIRED_HEADSET) && current_tty_call != AMC_TTY_OFF)
-                            device_profile = device_out_defaut;
-                        else
-                            device_profile = current_device;
-                        ret = acoustic::process_profile(device_profile, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
+                        ret = acoustic::process_profile(current_device, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
                         if (ret) goto return_error;
 #endif
 
-                        msic::pcm_enable(current_mode, current_device, current_hac_setting);
+                        msic::pcm_enable(current_mode, current_device, current_hac_setting, current_tty_call);
                         break;
                     /* ------------------------------------ */
                     /* Voice paths control for BT devices   */
@@ -856,9 +856,22 @@ static int vpc_mixing_enable(bool isOut, uint32_t device)
 static int vpc_set_tty(vpc_tty_t tty)
 {
     vpc_lock.lock();
-    current_tty_call = translate_vpc_to_amc_tty[tty];
-    vpc_lock.unlock();
 
+    if (tty >= VPC_TTY_INVALID) {
+        LOGE("%s: Invalid tty mode set (%d): force TTY OFF\n", __FUNCTION__, tty);
+        tty = VPC_TTY_OFF;
+    }
+    current_tty_call = tty;
+
+    LOGD("TTY set for audio route (%d)", current_tty_call);
+
+#ifdef CUSTOM_BOARD_WITH_AUDIENCE
+    acoustic::set_tty(current_tty_call);
+    // Audience profile switch is not needed since in-call TTY switch triggers a
+    // rerouting sequence in which the correct Audience profile will be applied.
+#endif
+
+    vpc_lock.unlock();
     return NO_ERROR;
 }
 
@@ -1009,9 +1022,7 @@ static void vpc_set_band(vpc_band_t band, int for_mode)
     if (vpc_get_audio_routed() && (current_mode == for_mode)) {
         // Do not request a preset if we are in bypass because of:
         // - BT device with embedded acoustics
-        // - TTY device in-use
-        if (!((current_device & DEVICE_OUT_BLUETOOTH_SCO_ALL) && is_acoustic_in_bt_device == true) &&
-            !((current_device & AudioSystem::DEVICE_OUT_WIRED_HEADSET) && current_tty_call != AMC_TTY_OFF) ) {
+        if (!((current_device & DEVICE_OUT_BLUETOOTH_SCO_ALL) && is_acoustic_in_bt_device == true)) {
             // Request new band-specific preset
             acoustic::process_profile(current_device, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
         }

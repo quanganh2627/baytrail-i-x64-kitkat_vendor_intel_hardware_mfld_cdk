@@ -49,9 +49,24 @@
 static const string gpcRecoveryEnabledProperty = "persist.audiocomms.atm.recov";
 
 CATManager::CATManager() :
-    _pAwaitedTransactionEndATCommand(NULL), _bStarted(false), _bModemAlive(false), _bClientWaiting(false), _pCurrentATCommand(NULL), _pPendingClientATCommand(NULL),
-    _pEventThread(new CEventThread(this)), _bFirstModemStatusReceivedSemaphoreCreated(false),
-    _pATParser(new CATParser), _bTtyListenersStarted(false), _iRetryCount(0), _bWriteOnTtyFailed(false)
+    _periodicATList(),
+    _unsollicitedATList(),
+    _toSendATList(),
+    _eventNotiferList(),
+    _pAwaitedTransactionEndATCommand(NULL),
+    _bStarted(false),
+    _bModemAlive(false),
+    _bClientWaiting(false),
+    _pCurrentATCommand(NULL),
+    _pPendingClientATCommand(NULL),
+    _pEventThread(new CEventThread(this)),
+    _bFirstModemStatusReceivedSemaphoreCreated(false),
+    _pATParser(new CATParser),
+    _strModemTty(),
+    _bTtyListenersStarted(false),
+    _uiModemStatus(MODEM_DOWN),
+    _iRetryCount(0),
+    _bWriteOnTtyFailed(false)
 {
     // Client Mutex
     bzero(&_clientMutex, sizeof(_clientMutex));

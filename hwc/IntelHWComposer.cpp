@@ -1669,6 +1669,7 @@ bool IntelHWComposer::release()
         if (plane) {
             // disable all attached planes
             plane->disable();
+            plane->waitForFlipCompletion();
 
             // release all data buffers
             plane->invalidateDataBuffer();

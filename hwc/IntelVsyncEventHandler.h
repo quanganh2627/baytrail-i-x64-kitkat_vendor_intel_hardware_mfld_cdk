@@ -41,9 +41,16 @@ class IntelVsyncEventHandler : public android::Thread
     enum {
         UEVENT_MSG_LEN = 4096,
     };
+    enum {
+	    VSYNC_SRC_MIPI = 0,
+	    VSYNC_SRC_HDMI,
+	    VSYNC_SRC_FAKE,
+	    VSYNC_SRC_NUM,
+    };
 public:
-    IntelVsyncEventHandler(IntelHWComposer *hwc);
+    IntelVsyncEventHandler(IntelHWComposer *hwc, int fd);
     virtual ~IntelVsyncEventHandler();
+    void setActiveVsyncs(uint32_t activeVsyncs);
 private:
     virtual bool threadLoop();
     virtual android::status_t readyToRun();
@@ -51,11 +58,15 @@ private:
 private:
     virtual void handleVsyncEvent(const char *msg, int msgLen);
 private:
+    mutable Mutex mLock;
+    Condition mCondition;
     IntelHWComposer *mComposer;
+    int mDrmFd;
     mutable nsecs_t mNextFakeVSync;
     nsecs_t mRefreshPeriod;
     char mUeventMessage[UEVENT_MSG_LEN];
     int mUeventFd;
+    uint32_t mActiveVsyncs;
 };
 
 #endif /*__INTEL_VSYNC_EVENT_HANDLER_H__*/

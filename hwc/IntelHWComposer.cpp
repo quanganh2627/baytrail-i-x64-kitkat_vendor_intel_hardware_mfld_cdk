@@ -1663,6 +1663,8 @@ disable_vsyncs:
 
     // update active vsyncs
     mActiveVsyncs = enabledVsyncs | activeVsyncs;
+    mVsync->setActiveVsyncs(mActiveVsyncs);
+
     LOGV("vsyncControl: activeVsyncs 0x%x\n", mActiveVsyncs);
     return true;
 }
@@ -1772,7 +1774,7 @@ bool IntelHWComposer::initialize()
         }
     }
 
-    mVsync = new IntelVsyncEventHandler(this);
+    mVsync = new IntelVsyncEventHandler(this, mDrm->getDrmFd());
 
     mFakeVsync = new IntelFakeVsyncEvent(this);
 

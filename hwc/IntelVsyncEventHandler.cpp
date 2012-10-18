@@ -33,8 +33,8 @@
 #include "IntelHWComposer.h"
 #include "IntelVsyncEventHandler.h"
 
-IntelVsyncEventHandler::IntelVsyncEventHandler(IntelHWComposer *hwc) :
-    mComposer(hwc), mNextFakeVSync(0)
+IntelVsyncEventHandler::IntelVsyncEventHandler(IntelHWComposer *hwc, int fd) :
+    mComposer(hwc), mDrmFd(fd), mNextFakeVSync(0), mActiveVsyncs(0)
 {
     LOGV("Vsync Event Handler created");
     mRefreshPeriod = nsecs_t(1e9 / 60);
@@ -77,20 +77,45 @@ void IntelVsyncEventHandler::handleVsyncEvent(const char *msg, int msgLen)
     }
 }
 
+void IntelVsyncEventHandler::setActiveVsyncs(uint32_t activeVsyncs)
+{
+    Mutex::Autolock _l(mLock);
+    mActiveVsyncs = activeVsyncs;
+    mCondition.signal();
+}
+
 bool IntelVsyncEventHandler::threadLoop()
 {
-    struct pollfd fds;
-    int nr;
+    struct drm_psb_register_rw_arg arg;
+    int i = 0;
+    int ret = 0;
 
-    fds.fd = mUeventFd;
-    fds.events = POLLIN;
-    fds.revents = 0;
-    nr = poll(&fds, 1, -1);
+    { // scope for lock
+        Mutex::Autolock _l(mLock);
+        while (!mActiveVsyncs) {
+            mCondition.wait(mLock);
+        }
+    }
 
-    if(nr > 0 && fds.revents == POLLIN) {
-        int count = recv(mUeventFd, mUeventMessage, UEVENT_MSG_LEN - 2, 0);
-        if (count > 0)
-            handleVsyncEvent(mUeventMessage, UEVENT_MSG_LEN - 2);
+    memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
+    arg.vsync_operation_mask = VSYNC_WAIT;
+
+    for (i = 0; i <= VSYNC_SRC_HDMI; i++) {
+	    if ((1 << i) & mActiveVsyncs) {
+		    // pipe select
+		    if (i == VSYNC_SRC_HDMI)
+			    arg.vsync.pipe = 1;
+		    else
+			    arg.vsync.pipe = 0;
+
+		    ret = drmCommandWriteRead(mDrmFd, DRM_PSB_REGISTER_RW, &arg, sizeof(arg));
+		    if (ret) {
+			    LOGW("%s: failed to wait vsync, error = %d\n", __func__, ret);
+			    return false;
+		    }
+
+		    mComposer->vsync((uint64_t)arg.vsync.timestamp, arg.vsync.pipe);
+	    }
     }
 
     return true;
@@ -98,28 +123,6 @@ bool IntelVsyncEventHandler::threadLoop()
 
 status_t IntelVsyncEventHandler::readyToRun()
 {
-    struct sockaddr_nl addr;
-    int sz = 64*1024;
-
-    memset(&addr, 0, sizeof(addr));
-    addr.nl_family = AF_NETLINK;
-    addr.nl_pid =  pthread_self() | getpid();
-    addr.nl_groups = 0xffffffff;
-
-    mUeventFd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_KOBJECT_UEVENT);
-    if(mUeventFd < 0) {
-        LOGD("%s: failed to open uevent socket\n", __func__);
-        return TIMED_OUT;
-    }
-
-    setsockopt(mUeventFd, SOL_SOCKET, SO_RCVBUFFORCE, &sz, sizeof(sz));
-
-    if(bind(mUeventFd, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
-        close(mUeventFd);
-        return TIMED_OUT;
-    }
-
-    memset(mUeventMessage, 0, UEVENT_MSG_LEN);
     return NO_ERROR;
 }
 

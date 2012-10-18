@@ -65,6 +65,8 @@ const char *acoustic::profile_name[profile_number] = {
     "close_talk_tty_hco_csv_nb.bin",        // TTY HCO in CSV NB
     "close_talk_tty_hco_hac_csv_nb.bin",    // TTY HCO + HAC in CSV NB
     "speaker_far_talk_csv_nb.bin",          // IHF in CSV NB
+    "speaker_far_talk_tty_vco_csv_nb.bin",  // TTY VCO far talk in CSV NB
+    "speaker_far_talk_tty_hco_csv_nb.bin",  // TTY HCO far talk in CSV NB
     "headset_close_talk_csv_nb.bin",        // Headset in CSV NB
     "headset_tty_full_csv_nb.bin",          // TTY FULL in CSV NB
     "headphone_close_talk_csv_nb.bin",      // Headphone in CSV NB
@@ -78,6 +80,8 @@ const char *acoustic::profile_name[profile_number] = {
     "close_talk_tty_hco_csv_wb.bin",        // TTY HCO in CSV WB
     "close_talk_tty_hco_hac_csv_wb.bin",    // TTY HCO + HAC in CSV WB
     "speaker_far_talk_csv_wb.bin",          // IHF in CSV WB
+    "speaker_far_talk_tty_vco_csv_wb.bin",  // TTY VCO far talk in CSV WB
+    "speaker_far_talk_tty_hco_csv_wb.bin",  // TTY HCO far talk in CSV WB
     "headset_close_talk_csv_wb.bin",        // Headset in CSV WB
     "headset_tty_full_csv_wb.bin",          // TTY FULL in CSV WB
     "headphone_close_talk_csv_wb.bin",      // Headphone in CSV WB
@@ -91,6 +95,8 @@ const char *acoustic::profile_name[profile_number] = {
     NULL,                                   // TTY HCO (NA in VoIP)
     NULL,                                   // TTY HCO + HAC (NA in VoIP)
     "speaker_far_talk_voip_nb.bin",         // IHF in VOIP NB
+    NULL,                                   // TTY VCO far talk (NA in VoIP)
+    NULL,                                   // TTY HCO far talk (NA in VoIP)
     "headset_close_talk_voip_nb.bin",       // Headset in VOIP NB
     NULL,                                   // TTY FULL (NA in VoIP)
     "headphone_close_talk_voip_nb.bin",     // Headphone in VOIP NB
@@ -104,6 +110,8 @@ const char *acoustic::profile_name[profile_number] = {
     NULL,                                   // TTY HCO (NA in VoIP)
     NULL,                                   // TTY HCO + HAC (NA in VoIP)
     "speaker_far_talk_voip_wb.bin",         // IHF in VOIP WB
+    NULL,                                   // TTY VCO far talk (NA in VoIP)
+    NULL,                                   // TTY HCO far talk (NA in VoIP)
     "headset_close_talk_voip_wb.bin",       // Headset in VOIP WB
     NULL,                                   // TTY FULL (NA in VoIP)
     "headphone_close_talk_voip_wb.bin",     // Headphone in VOIP WB
@@ -199,8 +207,32 @@ int acoustic::private_get_profile_id(uint32_t device, profile_mode_t mode)
             profile_id = PROFILE_EARPIECE_HAC;
         }
     } else if (device & AudioSystem::DEVICE_OUT_SPEAKER) {
-        LOGD("Speaker device detected, => force use of Speaker device profile\n");
-        profile_id = PROFILE_SPEAKER;
+        if (mode == PROFILE_MODE_IN_COMM_NB || mode == PROFILE_MODE_IN_COMM_WB) {
+            // In VoIP, TTY is not supported
+            LOGD("Speaker device detected, => force use of Speaker device profile\n");
+            profile_id = PROFILE_SPEAKER;
+        } else {
+            switch (tty_state) {
+                default:
+                    // Intended fall through:
+                case VPC_TTY_OFF:
+                    LOGD("Speaker device detected, => force use of Speaker device profile\n");
+                    profile_id = PROFILE_SPEAKER;
+                    break;
+                case VPC_TTY_FULL:
+                    LOGD("Speaker device detected with TTY_FULL, => force use of TTY_FULL device profile\n");
+                    profile_id = PROFILE_WIRED_HEADSET_TTY_FULL;
+                    break;
+                case VPC_TTY_HCO:
+                    LOGD("Speaker device detected with TTY_HCO, => force use of far talk TTY_HCO_HAC device profile\n");
+                    profile_id = PROFILE_SPEAKER_TTY_HCO;
+                    break;
+                case VPC_TTY_VCO:
+                    LOGD("Speaker device detected with TTY_VCO, => force use of far talk TTY_VCO device profile\n");
+                    profile_id = PROFILE_SPEAKER_TTY_VCO;
+                    break;
+            }
+        }
     } else if (device & AudioSystem::DEVICE_OUT_WIRED_HEADSET) {
         if (mode == PROFILE_MODE_IN_COMM_NB || mode == PROFILE_MODE_IN_COMM_WB) {
             // In VoIP, TTY is not supported

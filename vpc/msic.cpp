@@ -48,7 +48,22 @@ const char *msic::deviceNamePlayback(int mode, uint32_t device, vpc_hac_set_t ha
             }
             break;
         case AudioSystem::DEVICE_OUT_SPEAKER :
-            devName = "VoicePlayback_Speaker_incall";
+            switch (tty_setting) {
+                default:
+                // Intended fall through
+                case VPC_TTY_OFF:
+                    devName = "VoicePlayback_Speaker_incall";
+                    break;
+                case VPC_TTY_FULL:
+                    devName = "VoicePlayback_Headset_incall";
+                    break;
+                case VPC_TTY_VCO:
+                    devName = "VoicePlayback_Speaker_tty_vco_incall";
+                    break;
+                case VPC_TTY_HCO:
+                    devName = "VoicePlayback_Speaker_tty_hco_incall";
+                    break;
+            }
             break;
         case AudioSystem::DEVICE_OUT_WIRED_HEADSET :
             switch (tty_setting) {

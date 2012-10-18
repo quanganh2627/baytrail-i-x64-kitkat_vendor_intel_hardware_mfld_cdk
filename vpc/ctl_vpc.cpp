@@ -500,8 +500,7 @@ static int vpc_route(vpc_route_t route)
 #ifdef HAL_VPC_PLUS_6DB_MODEM_UL
                             // TTY does not support the +6dB set on modem side. They must
                             // be removed when TTY is used in FULL or HCO modes
-                            if (current_device == AudioSystem::DEVICE_OUT_WIRED_HEADSET &&
-                                (current_tty_call == VPC_TTY_FULL || current_tty_call == VPC_TTY_HCO))
+                            if (current_tty_call == VPC_TTY_FULL || current_tty_call == VPC_TTY_HCO)
                                 amc_unmute(modem_gain_dl, MODEM_GAIN_0dB);
                             else
 #endif

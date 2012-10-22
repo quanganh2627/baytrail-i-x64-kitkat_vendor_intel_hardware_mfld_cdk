@@ -266,6 +266,17 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
         goto out_check;
     }
 
+    // fall back if YUV Layer is in the middle of
+    // other layers and covers the layers under it.
+    if (!forceOverlay && index > 0 && index < list->numHwLayers) {
+        for (size_t i = index - 1; i >= 0; i--) {
+            if (areLayersIntersecting(layer, &list->hwLayers[i])) {
+                useOverlay = false;
+                goto out_check;
+            }
+        }
+    }
+
     // check whether layer are covered by layers above it
     // if layer is covered by a layer which needs blending,
     // clear corresponding region in frame buffer

@@ -66,6 +66,7 @@ private:
     IMG_framebuffer_device_public_t *mFBDev;
     bool mInitialized;
     uint32_t mActiveVsyncs;
+    uint32_t mVsyncsEnabled;
 #ifdef INTEL_RGB_OVERLAY
     IntelHWCWrapper mWrapper;
 #endif

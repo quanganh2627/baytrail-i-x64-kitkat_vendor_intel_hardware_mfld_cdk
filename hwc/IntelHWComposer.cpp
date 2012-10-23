@@ -1557,6 +1557,7 @@ uint32_t IntelHWComposer::disableUnusedVsyncs(uint32_t target)
                 LOGW("%s: failed to enable/disable vsync %d\n", __func__, ret);
                 continue;
             }
+            mVsyncsEnabled = 0;
         }
 
         /*disabled successfully, remove it from unused vsyncs*/
@@ -1612,6 +1613,7 @@ uint32_t IntelHWComposer::enableVsyncs(uint32_t target)
                 LOGW("%s: failed to enable vsync %d\n", __func__, ret);
                 continue;
             }
+            mVsyncsEnabled = 1;
         }
 
         /*enabled successfully*/
@@ -1723,6 +1725,7 @@ bool IntelHWComposer::dump(char *buff,
        dumpPrintf("  + isHdmiConnected: %d \n",
         (mDrm->getOutputConnection(OUTPUT_HDMI) == DRM_MODE_CONNECTED) ? 1 : 0);
        dumpPrintf("  + isWidiActive: %d \n", (widiPlane->isActive()) ? 1 : 0);
+       dumpPrintf("  + mActiveVsyncs: 0x%x, mVsyncsEnabled: %d \n", mActiveVsyncs, mVsyncsEnabled);
     }
 
     mPlaneManager->dump(mDumpBuf,  mDumpBuflen, &mDumpLen);

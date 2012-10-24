@@ -23,11 +23,11 @@ ifeq ($(USE_INTEL_HDMI), true)
 endif
 
   LOCAL_C_INCLUDES += \
-    	external/alsa-lib/include \
-    	hardware/alsa_sound \
-    	$(TARGET_OUT_HEADERS)/hw \
-    	$(TARGET_OUT_HEADERS)/alsa \
-    	$(TARGET_OUT_HEADERS)/vpc
+        external/alsa-lib/include \
+        hardware/alsa_sound/audio_hw_legacy \
+        $(TARGET_OUT_HEADERS)/hw \
+        $(TARGET_OUT_HEADERS)/alsa \
+        $(TARGET_OUT_HEADERS)/vpc
 
 ifeq ($(BOARD_HAVE_AUDIENCE),true)
     LOCAL_CFLAGS += -DCUSTOM_BOARD_WITH_AUDIENCE

@@ -43,8 +43,6 @@ extern "C"
 #define FM_CHANNEL_NB                   2
 #define FM_SND_PCM_SOFT_RESAMPLE        0
 
-static snd_pcm_t *fm_handle;
-
 typedef struct fm_device_t {
     hw_device_t common;
 

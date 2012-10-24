@@ -32,6 +32,8 @@
 namespace android_audio_legacy
 {
 
+static snd_pcm_t *fm_handle;
+
 static int fm_configure_codec(int mode);
 
 /*---------------------------------------------------------------------------*/

@@ -280,14 +280,14 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
     // check whether layer are covered by layers above it
     // if layer is covered by a layer which needs blending,
     // clear corresponding region in frame buffer
-    // for (size_t i = index + 1; i < list->numHwLayers; i++) {
-    //     if (areLayersIntersecting(&list->hwLayers[i], layer)) {
-    //         LOGD_IF(ALLOW_HWC_PRINT,
-    //             "%s: overlay %d is covered by layer %d\n", __func__, index, i);
-    //             if (list->hwLayers[i].blending !=  HWC_BLENDING_NONE)
-    //                 mLayerList->setNeedClearup(index, true);
-    //     }
-    // }
+    for (size_t i = index + 1; i < list->numHwLayers; i++) {
+        if (areLayersIntersecting(&list->hwLayers[i], layer)) {
+            LOGD_IF(ALLOW_HWC_PRINT,
+                "%s: overlay %d is covered by layer %d\n", __func__, index, i);
+                if (list->hwLayers[i].blending !=  HWC_BLENDING_NONE)
+                    mLayerList->setNeedClearup(index, true);
+        }
+    }
 
     useOverlay = true;
     needClearFb = true;
@@ -576,6 +576,11 @@ bool IntelHWComposer::isScreenshotActive(hwc_layer_list_t *list)
 
     if (!(topLayer->flags & HWC_SKIP_LAYER))
         return false;
+
+    for (size_t i = 0; i < list->numHwLayers; i++) {
+        if (mLayerList->isProtectedLayer(i))
+            return false;
+    }
 
     int x = topLayer->displayFrame.left;
     int y = topLayer->displayFrame.top;
@@ -888,13 +893,12 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
 
         // clear layer's visible region if need clear up flag was set
         // and sprite plane was used as primary plane (point to FB)
-        // if (mLayerList->getNeedClearup(i) &&
-        //     mPlaneManager->primaryAvailable(0)) {
-        //    LOGD_IF(ALLOW_HWC_PRINT,
-        //           "updateLayersData: clear visible region of layer %d", i);
-        //     LOGV("updateLayersData: clear visible region of layer %d", i);
-        //     list->hwLayers[i].hints |= HWC_HINT_CLEAR_FB;
-        // }
+        if (mLayerList->getNeedClearup(i) &&
+            mPlaneManager->primaryAvailable(0)) {
+            LOGD_IF(ALLOW_HWC_PRINT,
+                  "updateLayersData: clear visible region of layer %d", i);
+            list->hwLayers[i].hints |= HWC_HINT_CLEAR_FB;
+        }
 
         int bobDeinterlace;
         int srcX = layer->sourceCrop.left;

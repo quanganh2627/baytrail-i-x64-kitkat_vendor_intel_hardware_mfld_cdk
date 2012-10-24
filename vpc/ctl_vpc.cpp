@@ -769,6 +769,7 @@ static void handle_voice_call_record()
     default:
         LOGE("%s: Unknown Input Source.", __FUNCTION__);
         input_source = AMC_VOICE_INVALID_SOURCE;
+        return;
     }
 
     LOGD("%s: %s recording for input source %d", __FUNCTION__, (voice_call_record_requested) ? "enable" : "disable", input_source);

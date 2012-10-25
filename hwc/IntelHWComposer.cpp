@@ -1473,13 +1473,12 @@ bool IntelHWComposer::commit(hwc_display_t dpy,
                 __func__, i, flags);
 
             bool ret = plane->flip(context, flags);
-            if (!ret) {
-                LOGW("%s: failed to flip plane %d\n", __func__, i);
-                continue;
-            }
+            if (!ret)
+                LOGW("%s: failed to flip plane %d context !\n", __func__, i);
+            else
+                bufferHandles[numBuffers++] =
+                (buffer_handle_t)plane->getDataBufferHandle();
 
-            bufferHandles[numBuffers++] =
-            (buffer_handle_t)plane->getDataBufferHandle();
             // clear flip flags, except for DELAY_DISABLE
             mLayerList->setFlags(i, flags & IntelDisplayPlane::DELAY_DISABLE);
 

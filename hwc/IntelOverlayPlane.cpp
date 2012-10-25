@@ -1629,6 +1629,8 @@ bool IntelOverlayPlane::flip(void *contexts, uint32_t flags)
             ret = disable();
             if (ret == false)
                 LOGE("%s: failed to disable overlay\n", __func__);
+            // return false as overlay context flip below is bypassed.
+            ret = false;
         } else {
             flags |= IntelDisplayPlane::UPDATE_COEF;
 

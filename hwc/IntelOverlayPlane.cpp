@@ -1225,6 +1225,10 @@ IntelOverlayContext::onDrmModeChange()
     /*disable overlay*/
     setPipeByMode(oldDisplayMode);
     disable();
+    /* Wait for flip in order to make sure the
+     * previous operation on overaly HW is done*/
+    waitForFlip();
+
     /*switch pipe*/
     setPipeByMode(newDisplayMode);
 mode_change_done:

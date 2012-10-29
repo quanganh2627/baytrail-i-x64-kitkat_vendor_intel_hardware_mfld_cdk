@@ -80,6 +80,7 @@ static status_t s_close(alsa_handle_t *);
 static status_t s_config(alsa_handle_t *, int);
 static status_t s_volume(alsa_handle_t *, uint32_t, float);
 static int s_wait_pcm(alsa_handle_t *);
+static void s_drain(alsa_handle_t* handle);
 
 static hw_module_methods_t s_module_methods = {
     open : s_device_open
@@ -583,11 +584,10 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode, int fm
     int err;
     int attempt = 0;
     for (;;) {
-        // The PCM stream is opened in blocking mode, per ALSA defaults.  The
-        // AudioFlinger seems to assume blocking mode too, so asynchronous mode
-        // should not be used.
-        err = snd_pcm_open(&handle->handle, devName, direction(handle),
-                           (direction(handle) == SND_PCM_STREAM_CAPTURE) ? SND_PCM_NONBLOCK : SND_PCM_ASYNC);
+        // Audio chain is not fully controlled by Audio HAL.
+        // Master clock can be out of control like FM, BT cases.
+        // NONBLOCKIN mode gives security to recover from loss of master clock.
+        err = snd_pcm_open(&handle->handle, devName, direction(handle), SND_PCM_NONBLOCK);
         if (err == 0) break;
 
         if ((err == -EBUSY) && (attempt < MAX_RETRY)) {
@@ -706,21 +706,23 @@ static status_t s_standby(alsa_handle_t *handle)
     LOGD("%s in \n", __func__);
     status_t err = NO_ERROR;
     snd_pcm_t *h = handle->handle;
+
+    s_drain(handle);
+
     if (h) {
-        if((handle->curMode == AudioSystem::MODE_IN_CALL)
-           || (handle->curMode == AudioSystem::MODE_IN_COMMUNICATION)
 #ifdef FM_RX_ANALOG
-           || (handle->curFmRxMode == AudioSystem::MODE_FM_ON)
-#endif
-          )
-        {
+        if(handle->curFmRxMode == AudioSystem::MODE_FM_ON){
             snd_pcm_drop(h);
-        } else {
-            snd_pcm_drain(h);
+        }else{
             err = snd_pcm_close(h);
             handle->handle = NULL;
         }
+#else //FM_RX_ANALOG
+        err = snd_pcm_close(h);
+        handle->handle = NULL;
+#endif //FM_RX_ANALOG
     }
+
     LOGD("%s out \n", __func__);
     return err;
 }
@@ -730,15 +732,20 @@ static status_t s_close(alsa_handle_t *handle)
     LOGD("%s in \n", __func__);
     status_t err = NO_ERROR;
     snd_pcm_t *h = handle->handle;
+
+    s_drain(handle);
+
     handle->handle = 0;
     handle->curDev = 0;
     handle->curMode = 0;
     handle->curFmRxMode = 0;
     handle->openFlag = 0;
+
     if (h) {
         snd_pcm_drain(h);
         err = snd_pcm_close(h);
     }
+
     LOGD("%s out \n", __func__);
     return err;
 }
@@ -751,6 +758,31 @@ static status_t s_volume(alsa_handle_t *handle, uint32_t devices, float volume)
 static status_t s_config(alsa_handle_t *handle, int mode)
 {
     return NO_ERROR;
+}
+
+static void s_drain(alsa_handle_t *handle)
+{
+    LOGD("%s in \n", __func__);
+    snd_pcm_t *h = handle->handle;
+
+    if (!h) {
+        return;
+    }
+
+    //
+    // If blocking mode, returns 0
+    //  otherwise, sleep enough time to consume the remaining audio data
+    //
+    status_t status = snd_pcm_drain(h);
+
+    if (status != 0) {
+        snd_pcm_sframes_t delayFrames;
+        status = snd_pcm_delay(h, &delayFrames);
+        if (status == NO_ERROR) {
+            LOGD("%s: sleeping %lu", __FUNCTION__, delayFrames / handle->sampleRate);
+            usleep(delayFrames * USEC_PER_SEC / handle->sampleRate);
+        }
+    }
 }
 
 }; // namespace android_audio_legacy

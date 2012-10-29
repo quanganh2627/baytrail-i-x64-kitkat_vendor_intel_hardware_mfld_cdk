@@ -244,7 +244,7 @@ void CVibrator::onPollError()
 //
 // Worker thread context
 //
-void CVibrator::onProcess()
+bool CVibrator::onProcess(uint16_t)
 {
     if (_bLogsOn) {
 
@@ -256,6 +256,9 @@ void CVibrator::onProcess()
 
     // Timeout
     _pEventThread->setTimeoutMs(_bOnRequested ? _uiRequestedDurationMs : -1);
+
+    // Fd to poll did not change, return false
+    return false;
 }
 
 // Switch implementation

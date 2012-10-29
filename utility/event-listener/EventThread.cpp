@@ -161,7 +161,7 @@ void CEventThread::stop()
 }
 
 // Trigger
-void CEventThread::trig()
+void CEventThread::trig(uint16_t uiEventId)
 {
     if (_bLogsOn) {
 
@@ -170,8 +170,8 @@ void CEventThread::trig()
 
     assert(_bIsStarted);
 
-    uint8_t ucData = EProcess;
-    ::write(_aiInbandPipe[1], &ucData, sizeof(ucData));
+    uint32_t ulData = (((uint32_t)uiEventId) << 16) | EProcess;
+    ::write(_aiInbandPipe[1], &ulData, sizeof(ulData));
 
     if (_bLogsOn) {
 
@@ -224,13 +224,15 @@ void CEventThread::run()
         if (astPollFds[0].revents & POLLIN) {
 
             // Consume request
-            uint8_t ucData;
+            uint32_t ucData;
             ::read(_aiInbandPipe[0], &ucData, sizeof(ucData));
 
-            if (ucData == EProcess) {
-                _pEventListener->onProcess();
+            if ((uint16_t)ucData == EProcess) {
 
-                continue;
+                if (_pEventListener->onProcess((uint16_t)(ucData >> 16))) {
+
+                    continue;
+                }
             } else {
                 assert(ucData == EExit);
 

@@ -52,7 +52,7 @@ private:
     virtual bool onHangup(int iFd);
     virtual void onTimeout();
     virtual void onPollError();
-    virtual void onProcess();
+    virtual bool onProcess(uint16_t uiEvent);
 
     // Common request processing
     bool processSwitchRequest(bool bOn, uint32_t uiDurationMs = -1);

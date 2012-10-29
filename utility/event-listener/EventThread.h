@@ -71,7 +71,7 @@ public:
     // Thread stop
     void stop();
     // trigger
-    void trig();
+    void trig(uint16_t uiClientRequest = 0);
 
     // Context check
     bool inThreadContext() const;

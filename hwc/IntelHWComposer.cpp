@@ -214,6 +214,13 @@ bool IntelHWComposer::isOverlayLayer(hwc_layer_list_t *list,
         int srcWidth = layer->sourceCrop.right - layer->sourceCrop.left;
         int srcHeight = layer->sourceCrop.bottom - layer->sourceCrop.top;
 
+        if(widiPlane->isBackgroundVideoMode() && widiPlane->isStreaming() && (mWidiNativeWindow != NULL)) {
+            if(!(widiPlane->isSurfaceMatching(grallocHandle))) {
+                useOverlay = false;
+                goto out_check;
+            }
+        }
+
         if(!(widiPlane->isExtVideoAllowed()) || (srcWidth < 176 || srcHeight < 144)
             || (grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12)) {
            /* if extended video mode is not allowed or the resolution of video less than
@@ -940,8 +947,29 @@ bool IntelHWComposer::updateLayersData(hwc_layer_list_t *list)
 
         if (planeType == IntelDisplayPlane::DISPLAY_PLANE_OVERLAY) {
             if (widiplane) {
-               widiplane->setOverlayData(grallocHandle, srcWidth, srcHeight);
-               continue;
+                widiplane->setOverlayData(grallocHandle, srcWidth, srcHeight);
+                if(widiplane->isBackgroundVideoMode()) {
+                    if((mWidiNativeWindow == NULL) &&  widiplane->isStreaming()) {
+                        widiplane->getNativeWindow(mWidiNativeWindow);
+                        if(mWidiNativeWindow != NULL) {
+                            if(mDrm->isMdsSurface(mWidiNativeWindow)) {
+                                 widiplane->setNativeWindow(mWidiNativeWindow);
+                                 LOGD_IF(ALLOW_HWC_PRINT,
+                                        "Native window is from MDS for widi at composer = 0x%x ", mWidiNativeWindow);
+                            }
+                            else {
+                                mWidiNativeWindow = NULL;
+                                LOGD_IF(ALLOW_HWC_PRINT,"Native window is not from MDS");
+                            }
+                        }
+                    }
+                }
+                else {
+                    mWidiNativeWindow = NULL;
+                    LOGD_IF(ALLOW_HWC_PRINT,
+                           "Native window from widiplane for background  = %d", mWidiNativeWindow);
+                }
+                continue;
             }
 
             IntelOverlayContext *overlayContext =
@@ -1320,7 +1348,10 @@ bool IntelHWComposer::prepare(hwc_layer_list_t *list)
         if (widiStatusChanged && mDrm) {
             if(mPlaneManager->isWidiActive()) {
                 mDrm->notifyWidi(true);
-                mDrm->notifyMipi(!widiPlane->isStreaming());
+                if(widiPlane->isBackgroundVideoMode())
+                    mDrm->notifyMipi(true);
+                else
+                    mDrm->notifyMipi(!widiPlane->isStreaming());
             }
             else
             {

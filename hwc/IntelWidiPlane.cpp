@@ -76,6 +76,8 @@ IntelWidiPlane::WidiInitThread::threadLoop() {
 IntelWidiPlane::IntelWidiPlane(int fd, int index, IntelBufferManager *bm)
     : IntelDisplayPlane(fd, IntelDisplayPlane::DISPLAY_PLANE_OVERLAY, index, bm),
       mAllowExtVideoMode(true),
+      mSetBackgroudVideoMode(false),
+      mBackgroundWidiNw(NULL),
       mState(WIDI_PLANE_STATE_UNINIT),
       mWidiStatusChanged(false),
       mPlayerStatus(false),
@@ -235,19 +237,78 @@ IntelWidiPlane::allowExtVideoMode(bool allow) {
 }
 
 void
+IntelWidiPlane::setBackgroundVideoMode(bool value) {
+
+    LOGD_IF(ALLOW_WIDI_PRINT, "Set Background video mode = %d", value);
+    mSetBackgroudVideoMode = value;
+}
+
+bool
+IntelWidiPlane::isBackgroundVideoMode() {
+    return mSetBackgroudVideoMode;
+}
+
+void
+IntelWidiPlane::getNativeWindow(int*& nativeWindow) {
+    if(mState == WIDI_PLANE_STATE_STREAMING) {
+        nativeWindow = (int *)(mCurrExtFramePayload.p->native_window);
+        LOGD_IF(ALLOW_WIDI_PRINT,"getNativeWindow nativeWindow = 0x%x", nativeWindow);
+    }
+    else {
+        nativeWindow = NULL;
+        LOGD_IF(ALLOW_WIDI_PRINT, "Widi not streaming nativeWindow is Null");
+    }
+}
+
+void
+IntelWidiPlane::setNativeWindow(int *nw) {
+   if(isBackgroundVideoMode())
+       mBackgroundWidiNw = nw;
+   else
+       mBackgroundWidiNw = NULL;
+}
+
+bool
+IntelWidiPlane::isSurfaceMatching(intel_gralloc_buffer_handle_t* nHandle) {
+    if(!mSetBackgroudVideoMode || (mBackgroundWidiNw == NULL))
+        return true;
+
+    widiPayloadBuffer_t payload;
+    ssize_t index = mExtVideoBuffersMapping.indexOfKey(nHandle);
+    if (index == NAME_NOT_FOUND) {
+        mapPayloadBuffer(nHandle, &payload);
+    }
+    else {
+        payload = mExtVideoBuffersMapping.valueAt(index);
+    }
+    int *nativeWindow = (int *)(payload.p->native_window);
+
+    if (index == NAME_NOT_FOUND)
+        unmapPayloadBuffer(&payload);
+
+    return(mBackgroundWidiNw == nativeWindow ? true:false);
+}
+
+
+void
 IntelWidiPlane::setPlayerStatus(bool status, int fps) {
 
     LOGI("%s(), status = %d fps = %d", __func__, status, fps);
     Mutex::Autolock _l(mLock);
 
-    mExtFrameRate = fps;
-    if(mPlayerStatus == status) {
-        return;
+    if(isBackgroundVideoMode() && (mPlayerStatus == true)) {
+        LOGD_IF(ALLOW_WIDI_PRINT,
+               "Widi is in Extended Background Video mode, second playback at device");
     }
-
-    mPlayerStatus = status;
-    if ( (mState == WIDI_PLANE_STATE_STREAMING) && status == false) {
-        sendInitMode(IWirelessDisplay::WIDI_MODE_CLONE,0,0);
+    else {
+        mExtFrameRate = fps;
+        if(mPlayerStatus == status) {
+            return;
+        }
+        mPlayerStatus = status;
+        if ( (mState == WIDI_PLANE_STATE_STREAMING) && status == false) {
+            sendInitMode(IWirelessDisplay::WIDI_MODE_CLONE,0,0);
+        }
     }
 }
 
@@ -292,6 +353,9 @@ IntelWidiPlane::setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t 
     bool isResolutionChanged = false;
 
     Mutex::Autolock _l(mExtBufferMapLock);
+
+    if(!isSurfaceMatching(nHandle))
+        return;
 
     // If the resolution is changed, reset
     if(mExtWidth != width || mExtHeight != height) {
@@ -436,6 +500,7 @@ IntelWidiPlane::sendInitMode(int mode, uint32_t width, uint32_t height) {
         mExtWidth = 0;
         mExtHeight = 0;
         mWidiStatusChanged = true;
+        mBackgroundWidiNw = NULL;
     } else if(mode == IWirelessDisplay::WIDI_MODE_EXTENDED_VIDEO) {
 
        ret = wd->initMode(&mExtVideoBufferMeta,

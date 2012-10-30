@@ -189,6 +189,15 @@ bool IntelHWComposerDrm::notifyMipi(bool on)
     return false;
 }
 
+bool IntelHWComposerDrm::isMdsSurface(int *nativeWindow)
+{
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+    if (mMonitor != NULL)
+        return mMonitor->isMdsSurface(nativeWindow);
+#endif
+    return false;
+}
+
 bool IntelHWComposerDrm::getVideoInfo(int *displayW, int *displayH, int *fps, int *isinterlace)
 {
 #ifdef TARGET_HAS_MULTIPLE_DISPLAY

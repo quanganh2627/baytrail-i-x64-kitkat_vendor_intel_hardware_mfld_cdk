@@ -62,6 +62,7 @@ private:
     int mMonitoringMethod;
     bool mForceSwapBuffer;
     bool mHotplugEvent;
+    int* mWidiNativeWindow;
     android::Mutex mLock;
     IMG_framebuffer_device_public_t *mFBDev;
     bool mInitialized;
@@ -130,7 +131,7 @@ public:
           mDrm(0), mBufferManager(0), mGrallocBufferManager(0),
           mPlaneManager(0), mLayerList(0), mProcs(0), mVsync(0), mFakeVsync(0),
           mLastVsync(0), mMonitoringMethod(0), mForceSwapBuffer(false),
-          mHotplugEvent(false), mInitialized(false), mActiveVsyncs(0) {}
+          mHotplugEvent(false), mWidiNativeWindow(NULL), mInitialized(false), mActiveVsyncs(0) {}
     ~IntelHWComposer();
 };
 

@@ -135,6 +135,15 @@ bool IntelExternalDisplayMonitor::notifyMipi(bool on)
     return false;
 }
 
+bool IntelExternalDisplayMonitor::isMdsSurface(int *nativeWindow)
+{
+    if (mMDClient != NULL) {
+        return mMDClient->isMdsSurface(nativeWindow);
+
+    }
+    return false;
+}
+
 bool IntelExternalDisplayMonitor::getVideoInfo(int *displayW, int *displayH, int *fps, int *isinterlace)
 {
     if (mMDClient != NULL) {

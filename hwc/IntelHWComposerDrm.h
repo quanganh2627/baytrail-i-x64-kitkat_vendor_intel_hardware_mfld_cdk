@@ -138,6 +138,7 @@ public:
     bool isVideoPlaying();
     bool isOverlayOff();
     bool notifyMipi(bool);
+    bool isMdsSurface(int *nativeWindow);
     bool notifyWidi(bool);
     bool getVideoInfo(int *displayW, int *displayH, int *fps, int *isinterlace);
 };

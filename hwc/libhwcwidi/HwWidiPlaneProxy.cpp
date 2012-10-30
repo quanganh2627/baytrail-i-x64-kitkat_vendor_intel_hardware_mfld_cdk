@@ -42,6 +42,7 @@ enum {
     DISABLE_HW_WIDI_PLANE,
     REGISTER_FLIP_LISTENER,
     ALLOW_EXT_VIDEO_MODE,
+    SET_BACKGROUND_VIDEO_MODE,
     RETURN_BUFFER
 };
 
@@ -82,6 +83,13 @@ public:
         data.writeInterfaceToken(IHwWidiPlane::getInterfaceDescriptor());
         data.writeInt32(((int32_t) allow));
         remote()->transact(ALLOW_EXT_VIDEO_MODE, data, &reply);
+        return;
+    }
+    virtual void setBackgroundVideoMode(bool value) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IHwWidiPlane::getInterfaceDescriptor());
+        data.writeInt32(((int32_t) value));
+        remote()->transact(SET_BACKGROUND_VIDEO_MODE, data, &reply);
         return;
     }
     virtual void returnBuffer(int index) {
@@ -128,6 +136,12 @@ status_t BnHwWidiPlane::onTransact(
             int32_t allow = data.readInt32();
             allowExtVideoMode(allow);
             reply->writeInt32(NO_ERROR);
+            return NO_ERROR;
+        } break;
+        case SET_BACKGROUND_VIDEO_MODE: {
+            CHECK_INTERFACE(IHwWidiPlane, data, reply);
+            int32_t value = data.readInt32();
+            setBackgroundVideoMode(value);
             return NO_ERROR;
         } break;
         case RETURN_BUFFER: {

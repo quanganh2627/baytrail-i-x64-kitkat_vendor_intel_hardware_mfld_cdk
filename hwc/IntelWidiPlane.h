@@ -56,6 +56,11 @@ public:
     android::status_t  registerFlipListener(android::sp<IPageFlipListener> listener);
     void allowExtVideoMode(bool allow);
     bool isExtVideoAllowed() {return mAllowExtVideoMode;};
+    void setBackgroundVideoMode(bool value);
+    bool isBackgroundVideoMode();
+    void setNativeWindow(int *nw);
+    void getNativeWindow(int*& nativeWindow);
+    bool isSurfaceMatching(intel_gralloc_buffer_handle_t* nHandle);
     void setPlayerStatus(bool status, int fps);
     void setOrientation(uint32_t orientation);
     void setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t width, uint32_t height);
@@ -104,6 +109,7 @@ protected:
     };
 
     int32_t                         mAllowExtVideoMode;
+    int32_t                         mSetBackgroudVideoMode;
     WidiPlaneState                  mState;
     bool                            mWidiStatusChanged;
     bool                            mPlayerStatus;
@@ -126,6 +132,7 @@ protected:
     bool                            mUseRotateHandle;
     uint32_t                        mExtWidth;
     uint32_t                        mExtHeight;
+    int32_t *                       mBackgroundWidiNw;
 };
 
 #else  // Stub implementation in case of widi module is not compiled
@@ -141,6 +148,11 @@ public:
 
     void allowExtVideoMode(bool allow){return;};
     bool isExtVideoAllowed() {return true;};
+    void setBackgroundVideoMode(bool value){return;};
+    bool isBackgroundVideoMode() {return false;};
+    void setNativeWindow(int *nw){};
+    void getNativeWindow(int*& nativeWindow){};
+    bool isSurfaceMatching(intel_gralloc_buffer_handle_t* nHandle){};
     void setPlayerStatus(bool status, int fps) {return;};
     void setOrientation(uint32_t orientation){return;};
 

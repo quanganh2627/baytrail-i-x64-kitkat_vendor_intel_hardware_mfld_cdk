@@ -429,7 +429,7 @@ static status_t setSoftwareParams(alsa_handle_t *handle)
     snd_pcm_get_params(handle->handle, &bufferSize, &periodSize);
 
     if (handle->devices & AudioSystem::DEVICE_OUT_ALL) {
-        if (handle->curMode == AudioSystem::MODE_NORMAL) {
+        if (handle->curMode == AudioSystem::MODE_NORMAL || handle->curMode == AudioSystem::MODE_RINGTONE) {
             // For playback, configure ALSA to start the transfer when the buffer is full
             startThreshold = bufferSize - 1;
         } else {

@@ -1,4 +1,4 @@
-/*
+ /*
  * Copyright (C) 2012 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,15 +33,15 @@
 
 #include <alsa/asoundlib.h>
 
-/*Silence bytes are written to the hardware to keep the HDMI audio
-sink active until valid data is obtained for MFLD/CTP */
-#define WRITE_SILENCE
+/*default sampling rate will be defined in respective board configs*/
+#ifndef DEFAULT_SAMPLING_RATE
+  #define DEFAULT_SAMPLING_RATE  44100
+#endif
 
 #define DEFAULT_PERIOD_TIME      23220 //in us
 #define DEFAULT_PERIOD_SIZE      1024
 #define DEFAULT_PERIOD_COUNT     4
 #define DEFAULT_NUM_CHANNEL      2
-#define DEFAULT_SAMPLING_RATE    44100
 #define DEFAULT_PCM_FORMAT       SND_PCM_FORMAT_S16_LE
 
 #define MAX_AGAIN_RETRY          2
@@ -62,11 +62,9 @@ struct pcm_config {
      *
      * start_threshold   : period_count * period_size
      * stop_threshold    : period_count * period_size
-     * silence_threshold : 0
      */
     unsigned int start_threshold;
     unsigned int stop_threshold;
-    unsigned int silence_threshold;
 
     /* Minimum number of frames available before pcm_mmap_write() will actually
      * write into the kernel buffer. Only used if the stream is opened in mmap mode
@@ -114,8 +112,6 @@ struct hdmi_stream_out {
 /*These global variables are used to keep track of the
 opened pcm device.*/
 /*Fix me: move the global variables to any structure*/
-static int hdmi_device_opened = 0;
-
 struct hdmi_stream_out *active_stream_out = NULL;
 
 static int close_device(struct hdmi_stream_out *stream)
@@ -185,8 +181,9 @@ static int set_hardware_params(struct hdmi_stream_out *out)
                         snd_strerror(err));
         out->sample_rate = requested_rate;
     }
-    // Setup buffers for latency
+    ALOGV("sampling rate : %d\n", requested_rate);
 
+    // Setup buffers for latency
     buffer_size = out->pcm_config.period_size * out->pcm_config.period_count;
 
     //Ensure that the driver and ALSA lib allocates the requested buffer and period size.
@@ -242,9 +239,6 @@ static int set_software_params(struct hdmi_stream_out *out)
     snd_pcm_uframes_t period_size       = 0;
     snd_pcm_uframes_t start_threshold   = 0,
                       stop_threshold    = 0;
-#ifdef WRITE_SILENCE
-    snd_pcm_uframes_t silence_threshold = 0;
-#endif //WRITE_SILENCE
 
     if (snd_pcm_sw_params_malloc(&software_params) < 0) {
         ALOGE("Failed to allocate ALSA software parameters!");
@@ -261,9 +255,8 @@ static int set_software_params(struct hdmi_stream_out *out)
     // Configure ALSA to start the transfer when the buffer is almost full.
     snd_pcm_get_params(out->handle, &buffer_size, &period_size);
 
-    start_threshold   = period_size - 1;
+    start_threshold   = buffer_size - 1;
     stop_threshold    = buffer_size;
-    silence_threshold = period_size;
 
     err = snd_pcm_sw_params_set_start_threshold(out->handle, software_params,
             start_threshold);
@@ -280,15 +273,6 @@ static int set_software_params(struct hdmi_stream_out *out)
              stop_threshold, snd_strerror(err));
         goto error_exit;
     }
-
-    err = snd_pcm_sw_params_set_silence_threshold(out->handle, software_params,
-            silence_threshold);
-    if (err < 0) {
-        ALOGE("Unable to set silence threshold to %lu frames: %s",
-             silence_threshold, snd_strerror(err));
-        goto error_exit;
-    }
-    ALOGV("Set silence threshold = %d",(int)silence_threshold);
 
     //Allow the transfer to start when at least period_size samples can be
     //processed.
@@ -327,9 +311,12 @@ static int open_device(struct hdmi_stream_out *out)
     // AudioFlinger seems to assume blocking mode too, so asynchronous mode
     // should not be used.
     if (out->handle != NULL) {
-        ALOGE("%s: Closing ALSA device:", __func__);
+        ALOGV("%s: Closing ALSA device:", __func__);
+        err = snd_pcm_drain(out->handle);
+        ALOGV("%s: Drain the samples and stop the stream %s",__func__,snd_strerror(err));
         snd_pcm_close(out->handle);
         out->handle = NULL;
+        active_stream_out = NULL;
     }
 
     err = snd_pcm_open(&out->handle, "AndroidPlayback_HDMI", SND_PCM_STREAM_PLAYBACK,
@@ -395,7 +382,7 @@ static uint32_t out_get_sample_rate(const struct audio_stream *stream)
 {
     struct hdmi_stream_out *out = (struct hdmi_stream_out *)stream;
 
-    ALOGV("%s : smaple_rate: %d", __func__, out->pcm_config.rate);
+    ALOGV("%s : sample_rate: %d", __func__, out->pcm_config.rate);
 
     return out->pcm_config.rate;
 }
@@ -411,10 +398,6 @@ static size_t out_get_buffer_size(const struct audio_stream *stream)
 {
     struct hdmi_stream_out *out = (struct hdmi_stream_out *)stream;
     size_t buf_size;
-
-//    buf_size = out->pcm_config.period_size *
-  //         audio_stream_frame_size((struct audio_stream *)stream);
-
 
     buf_size = out->pcm_config.period_size *
                out->pcm_config.period_count *
@@ -550,7 +533,12 @@ static ssize_t out_write(struct audio_stream_out *stream, const void* buffer,
     int it = 0;
     unsigned int totalSleepTime;
 
-    ALOGV("%s out->standy = %d", __func__,out->standby);
+    if(active_stream_out == NULL){
+       ALOGV("%s: previous stream closed- open again",__func__);
+       out->standby = true;
+    }
+
+    ALOGV("%s out->standby = %d", __func__,out->standby);
 
     pthread_mutex_lock(&out->dev->lock);
     pthread_mutex_lock(&out->lock);
@@ -558,15 +546,12 @@ static ssize_t out_write(struct audio_stream_out *stream, const void* buffer,
     if (out->standby) {
         ret = start_output_stream(out);
         if (ret != 0) {
-           //pthread_mutex_unlock(&out->lock);
-           //pthread_mutex_unlock(&out->dev->lock);
             ALOGE("%s: stream start failed", __func__);
             goto err_write;
         }
         ALOGV("%s: standby is set to false", __func__);
         out->standby = false;
     }
-//    pthread_mutex_unlock(&out->dev->lock);
 
 //if the pcm device is closed before the write can complete
 // return silence. Audio policy must be changed to stop the
@@ -752,26 +737,30 @@ static int hdmi_dev_open_output_stream(struct audio_hw_device *dev,
     out->standby  = true;
 
     pthread_mutex_lock(&out->dev->lock);
+    pthread_mutex_lock(&out->lock);
 
-//if one more request to open the pcm device comes, close
-// the already opened device. Audio Policy update needed
-// to support a single stream being fed to renderer
+    // if one more request to open the pcm device comes, close
+    // the already opened device. Audio Policy update needed
+    // to support a single stream being fed to renderer
     if (active_stream_out != NULL && active_stream_out->handle != NULL) {
        ALOGV("%s: Closing already opened stream %x",__func__,active_stream_out->handle);
+       ret = snd_pcm_drain(active_stream_out->handle);
+       ALOGV("%s: Drain the samples and stop the stream %s",__func__,snd_strerror(ret));
        snd_pcm_close(active_stream_out->handle);
        active_stream_out->handle = NULL;
     }
 
     ret = start_output_stream(out);
     if (ret != 0) {
-            ALOGV("%s: stream start failed", __func__);
-            goto err_open;
+        ALOGV("%s: stream start failed", __func__);
+        goto err_open;
     }
 
     out->standby = false;
 
     *stream_out = &out->stream;
 
+    pthread_mutex_unlock(&out->lock);
     pthread_mutex_unlock(&out->dev->lock);
 
     ALOGV("%s: Successful", __func__);
@@ -779,6 +768,7 @@ static int hdmi_dev_open_output_stream(struct audio_hw_device *dev,
 
 err_open:
     ALOGE("%s: Failed", __func__);
+    pthread_mutex_unlock(&out->lock);
     pthread_mutex_unlock(&out->dev->lock);
     free(out);
     *stream_out = NULL;
@@ -790,7 +780,6 @@ static void hdmi_dev_close_output_stream(struct audio_hw_device *dev,
 {
     struct hdmi_stream_out *out = (struct hdmi_stream_out *)(&stream->common);
     ALOGV("%s Entered %0x",__func__,(unsigned)out);
-
 
     out->standby = false;
     out_standby(&stream->common);

@@ -185,6 +185,7 @@ static const device_suffix_t inputDeviceSuffix[] = {
     { AudioSystem::DEVICE_IN_BLUETOOTH_SCO_HEADSET,  "_BluetoothScoHeadset" },
     { AudioSystem::DEVICE_IN_WIRED_HEADSET,          "_Headset" },
     { AudioSystem::DEVICE_IN_VOICE_CALL,             "_VoiceCall" },
+    { AudioSystem::DEVICE_IN_FM_RECORD,              "_FmRecord" },
     { AudioSystem::DEVICE_IN_DEFAULT,                "_Null" },
 };
 

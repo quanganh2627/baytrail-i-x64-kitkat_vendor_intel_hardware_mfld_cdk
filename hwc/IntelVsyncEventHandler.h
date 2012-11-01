@@ -30,6 +30,8 @@
 
 #include <utils/threads.h>
 
+using namespace android;
+
 extern "C" int clock_nanosleep(clockid_t clock_id, int flags,
                            const struct timespec *request,
                            struct timespec *remain);

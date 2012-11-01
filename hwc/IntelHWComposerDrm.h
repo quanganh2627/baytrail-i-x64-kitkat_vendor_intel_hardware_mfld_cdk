@@ -33,7 +33,10 @@
 #include <psb_drm.h>
 #include <pthread.h>
 #include <pvr2d.h>
+
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
 #include <IntelExternalDisplayMonitor.h>
+#endif
 
 extern "C" {
 #include "xf86drm.h"
@@ -79,6 +82,7 @@ typedef struct {
 } intel_drm_output_state_t;
 
 
+class IntelHWComposer;
 /**
  * Class: Overlay HAL implementation
  * This is a singleton implementation of hardware overlay.
@@ -91,10 +95,16 @@ private:
     int mDrmFd;
     intel_drm_output_state_t mDrmOutputsState;
     static IntelHWComposerDrm *mInstance;
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
     android::sp<IntelExternalDisplayMonitor> mMonitor;
+#endif
 private:
     IntelHWComposerDrm()
-        : mDrmFd(-1), mMonitor(0) {
+        : mDrmFd(-1)
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+        , mMonitor(0)
+#endif
+    {
         memset(&mDrmOutputsState, 0, sizeof(intel_drm_output_state_t));
     }
     IntelHWComposerDrm(const IntelHWComposerDrm&);

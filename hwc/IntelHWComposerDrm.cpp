@@ -337,9 +337,9 @@ bool IntelHWComposerDrm::detectDrmModeInfo()
     drmModeConnection mipi1 = getOutputConnection(OUTPUT_MIPI1);
     drmModeConnection hdmi = getOutputConnection(OUTPUT_HDMI);
 
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
     int mdsMode = 0;
     if (mMonitor != 0) {
-#ifdef TARGET_HAS_MULTIPLE_DISPLAY
         mdsMode = mMonitor->getDisplayMode();
         LOGD("%s: getDisplayMode %d", __func__, mdsMode);
         //TODO: overlay only support OVERLAY_EXTEND and OVERLAY_MIPI0
@@ -349,8 +349,9 @@ bool IntelHWComposerDrm::detectDrmModeInfo()
             setDisplayMode(OVERLAY_CLONE_MIPI0);
         else
             setDisplayMode(OVERLAY_MIPI0);
+    } else
 #endif
-    } else {
+    {
         setDisplayMode(OVERLAY_MIPI0);
     }
 

@@ -96,7 +96,7 @@ void get_route_id(AMC_ROUTE_ID route, destForSourceRoute *pdestForSource)
         pdestForSource->dests[1] = AMC_I2S2_TX;
         break;
     case ROUTE_RECORD_I2S1:
-#ifdef CUSTOM_BOARD_WITH_AUDIENCE
+#ifdef CUSTOM_BOARD_WITH_IFX6360
         // Record uplink before modem voice processing
         pdestForSource->nbrDest = 2;
         pdestForSource->source = AMC_I2S1_RX;
@@ -146,7 +146,7 @@ int amc_conf_i2s1(AMC_TTY_STATE tty, IFX_TRANSDUCER_MODE_SOURCE modeSource, IFX_
     amc_configure_source(AMC_I2S1_RX, guiIfxI2s1ClkSelect, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, modeSource);
     amc_configure_dest(AMC_I2S1_TX, guiIfxI2s1ClkSelect, IFX_MASTER, IFX_SR_48KHZ, IFX_SW_16, IFX_NORMAL, I2S_SETTING_NORMAL, IFX_STEREO, IFX_UPDATE_ALL, modeDest);
 
-#ifndef CUSTOM_BOARD_WITH_AUDIENCE
+#ifndef CUSTOM_BOARD_WITH_IFX6360
     amc_configure_source_probe(AMC_PROBE_IN_A, PROBING_POINT_SPEECH_ENCODER_IN);
 #endif
 
@@ -223,7 +223,8 @@ int amc_unmute(int gainDL, int gainUL)
 int amc_voice_record_source_enable(AMC_VOICE_RECORD_SOURCE source, bool enable)
 {
     int route_index;
-#ifndef CUSTOM_BOARD_WITH_AUDIENCE
+#ifndef CUSTOM_BOARD_WITH_IFX6360
+    LOGD("amc_voice_record_source_enable: source:%d enable:%d",source, enable);
     if( (source != AMC_VOICE_DOWNLINK_SOURCE)) {
         if(enable){
             amc_enable(AMC_PROBE_IN);
@@ -233,8 +234,7 @@ int amc_voice_record_source_enable(AMC_VOICE_RECORD_SOURCE source, bool enable)
             amc_disable(AMC_PROBE_IN_A);
         }
     }
-#endif /* CUSTOM_BOARD_WITH_AUDIENCE */
-
+#endif /* CUSTOM_BOARD_WITH_IFX6360 */
     if (source == AMC_VOICE_DOWNLINK_SOURCE || source == AMC_VOICE_CALL_SOURCE) {
         route_index = ( (enable) ? ROUTE_RECORD_RADIO : ROUTE_RADIO);
         amc_route(&pdestForSource[route_index][0]);

@@ -37,8 +37,8 @@ LOCAL_C_INCLUDES += \
         bionic/libstdc++ \
         bionic/
 
-ifeq ($(BOARD_HAVE_AUDIENCE),true)
-    LOCAL_CFLAGS += -DCUSTOM_BOARD_WITH_AUDIENCE
+ifeq ($(strip $(BOARD_HAVE_IFX6360)),true)
+    LOCAL_CFLAGS += -DCUSTOM_BOARD_WITH_IFX6360
 endif
 
 LOCAL_SHARED_LIBRARIES := libstlport libcutils libat-manager

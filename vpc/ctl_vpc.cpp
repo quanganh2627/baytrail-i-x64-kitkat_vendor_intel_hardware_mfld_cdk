@@ -80,6 +80,7 @@ const uint32_t DEFAULT_IS22_CLOCK_SELECTION = IFX_CLK0;
 /* Delay in ms to wait after es305b wakeup before to send a command */
 #define ES305B_WAKEUP_DELAY     20000
 
+#define AUDIENCE_PRESENT_PROPERTY_NAME "Audiocomms.Audience.IsPresent"
 /*---------------------------------------------------------------------------*/
 /* Global variables                                                          */
 /*---------------------------------------------------------------------------*/
@@ -121,9 +122,9 @@ static bool      vpc_audio_routed      = false;
 // ref counter used only to handle BT route in "NORMAL" mode
 static int       vpc_bt_enabled_ref_count = 0;
 
-#ifdef CUSTOM_BOARD_WITH_AUDIENCE
+static bool      have_audience         = false;
 static bool      audience_awake        = false;
-#endif
+
 /* Forward declaration */
 static void handle_voice_call_record();
 
@@ -162,12 +163,13 @@ static int vpc_init(uint32_t ifx_i2s1_clk_select, uint32_t ifx_i2s2_clk_select, 
 
     msic::pcm_init();
 
-#ifdef CUSTOM_BOARD_WITH_AUDIENCE
-    LOGD("Initialize Audience\n");
-    int rc;
-    rc = acoustic::process_init();
-    if (rc) goto return_error;
-#endif
+    have_audience = TProperty<bool>(AUDIENCE_PRESENT_PROPERTY_NAME, false);
+    if (have_audience) {
+        LOGD("Initialize Audience\n");
+        int rc;
+        rc = acoustic::process_init();
+        if (rc) goto return_error;
+    }
 
     LOGD("VPC Init OK\n");
     vpc_lock.unlock();
@@ -341,7 +343,6 @@ static int vpc_unroute_csvcall()
     return ret;
 }
 
-#ifdef CUSTOM_BOARD_WITH_AUDIENCE
 static int vpc_wakeup_audience()
 {
     if (audience_awake)
@@ -358,18 +359,16 @@ static int vpc_wakeup_audience()
 
     return NO_ERROR;
 }
-#endif
 
 static void vpc_suspend()
 {
-#ifdef CUSTOM_BOARD_WITH_AUDIENCE
-    if (!audience_awake)
-        return ;
+    if (have_audience) {
+        if (!audience_awake)
+            return ;
 
-    acoustic::process_suspend();
-    audience_awake = false;
-#endif
-
+        acoustic::process_suspend();
+        audience_awake = false;
+    }
 }
 
 static inline bool vpc_route_conditions_changed()
@@ -412,9 +411,8 @@ static int vpc_route(vpc_route_t route)
     vpc_lock.lock();
 
     int ret;
-#ifdef CUSTOM_BOARD_WITH_AUDIENCE
     long session = 0;
-#endif
+
     uint32_t device_profile;
 
     /* -------------------------------------------------------------- */
@@ -431,10 +429,10 @@ static int vpc_route(vpc_route_t route)
         {
             LOGD("VPC_ROUTE_OPEN request\n");
 
-#ifdef CUSTOM_BOARD_WITH_AUDIENCE
-            if (vpc_wakeup_audience())
-                goto return_error;
-#endif
+            if (have_audience) {
+                if (vpc_wakeup_audience())
+                    goto return_error;
+            }
 
             /* --------------------------------------------- */
             /* Voice paths control for MODE_IN_CALL          */
@@ -470,16 +468,18 @@ static int vpc_route(vpc_route_t route)
                                 bt::pcm_disable();
                                 amc_off();
                             }
-#ifdef CUSTOM_BOARD_WITH_AUDIENCE
-                            // Apply audience profile in separated thread
-                            process_profile(&session);
 
-                            mode_source = IFX_USER_DEFINED_15_S;
-                            mode_dest = IFX_USER_DEFINED_15_D;
-#else
-                            // No Audience, Acoustics in modem
-                            translate_to_amc_device(current_device, &mode_source, &mode_dest);
-#endif
+                            if (have_audience) {
+                                // Apply audience profile in separated thread
+                                process_profile(&session);
+
+                                mode_source = IFX_USER_DEFINED_15_S;
+                                mode_dest = IFX_USER_DEFINED_15_D;
+                            } else {
+                                // No Audience, Acoustics in modem
+                                translate_to_amc_device(current_device, &mode_source, &mode_dest);
+                            }
+
                             // Configure modem I2S1
                             amc_conf_i2s1(translate_vpc_to_amc_tty[current_tty_call], mode_source, mode_dest);
 
@@ -493,10 +493,12 @@ static int vpc_route(vpc_route_t route)
 
                             msic::pcm_enable(current_mode, current_device, current_hac_setting, current_tty_call);
                             mixing_enable = true;
-#ifdef CUSTOM_BOARD_WITH_AUDIENCE
-                            // Join with Audience thread
-                            wait_end_of_session(session);
-#endif
+
+                            if (have_audience) {
+                                // Join with Audience thread
+                                wait_end_of_session(session);
+                            }
+
 #ifdef HAL_VPC_PLUS_6DB_MODEM_UL
                             // TTY does not support the +6dB set on modem side. They must
                             // be removed when TTY is used in FULL or HCO modes
@@ -524,16 +526,17 @@ static int vpc_route(vpc_route_t route)
                             // and use acoustic alogrithms from Bluetooth headset.
                             device_profile = (is_acoustic_in_bt_device == true) ? device_out_defaut : current_device;
 
-#ifdef CUSTOM_BOARD_WITH_AUDIENCE
-                            ret = acoustic::process_profile(device_profile, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
-                            if (ret) goto return_error;
+                            if (have_audience) {
+                                ret = acoustic::process_profile(device_profile, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
+                                if (ret) goto return_error;
 
-                            mode_source = IFX_USER_DEFINED_15_S;
-                            mode_dest = IFX_USER_DEFINED_15_D;
-#else
-                            // No Audience, Acoustics in modem
-                            translate_to_amc_device(device_profile, &mode_source, &mode_dest);
-#endif
+                                mode_source = IFX_USER_DEFINED_15_S;
+                                mode_dest = IFX_USER_DEFINED_15_D;
+                            } else {
+                                // No Audience, Acoustics in modem
+                                translate_to_amc_device(device_profile, &mode_source, &mode_dest);
+                            }
+
                             // Do the modem config for BT devices
                             amc_modem_conf_bt_dev(mode_source, mode_dest);
 
@@ -587,10 +590,10 @@ static int vpc_route(vpc_route_t route)
                             bt::pcm_disable();
                         }
 
-#ifdef CUSTOM_BOARD_WITH_AUDIENCE
-                        ret = acoustic::process_profile(current_device, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
-                        if (ret) goto return_error;
-#endif
+                        if (have_audience) {
+                            ret = acoustic::process_profile(current_device, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
+                            if (ret) goto return_error;
+                        }
 
                         msic::pcm_enable(current_mode, current_device, current_hac_setting, current_tty_call);
                         break;
@@ -603,13 +606,15 @@ static int vpc_route(vpc_route_t route)
                         if (vpc_get_audio_routed()) {
                             msic::pcm_disable();
                         }
-#ifdef CUSTOM_BOARD_WITH_AUDIENCE
-                        // If is_acoustic_in_bt_device is true, bypass phone embedded algorithms
-                        // and use acoustic alogrithms from Bluetooth headset.
-                        device_profile = (is_acoustic_in_bt_device == true) ? device_out_defaut : current_device;
-                        ret = acoustic::process_profile(device_profile, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
-                        if (ret) goto return_error;
-#endif
+
+                        if (have_audience) {
+                            // If is_acoustic_in_bt_device is true, bypass phone embedded algorithms
+                            // and use acoustic alogrithms from Bluetooth headset.
+                            device_profile = (is_acoustic_in_bt_device == true) ? device_out_defaut : current_device;
+                            ret = acoustic::process_profile(device_profile, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
+                            if (ret) goto return_error;
+                        }
+
                         bt::pcm_enable();
                         break;
                     default:
@@ -864,11 +869,11 @@ static int vpc_set_tty(vpc_tty_t tty)
 
     LOGD("TTY set for audio route (%d)", current_tty_call);
 
-#ifdef CUSTOM_BOARD_WITH_AUDIENCE
-    acoustic::set_tty(current_tty_call);
-    // Audience profile switch is not needed since in-call TTY switch triggers a
-    // rerouting sequence in which the correct Audience profile will be applied.
-#endif
+    if (have_audience) {
+        acoustic::set_tty(current_tty_call);
+        // Audience profile switch is not needed since in-call TTY switch triggers a
+        // rerouting sequence in which the correct Audience profile will be applied.
+    }
 
     vpc_lock.unlock();
     return NO_ERROR;
@@ -985,11 +990,11 @@ static int vpc_set_hac(vpc_hac_set_t set_hac)
 
     LOGD("HAC set for audio route (%d)", current_hac_setting);
 
-#ifdef CUSTOM_BOARD_WITH_AUDIENCE
-    acoustic::set_hac(current_hac_setting);
-    // Audience profile switch is not needed since in-call HAC switch triggers a
-    // rerouting sequence in which the correct Audience profile will be applied.
-#endif
+    if (have_audience) {
+        acoustic::set_hac(current_hac_setting);
+        // Audience profile switch is not needed since in-call HAC switch triggers a
+        // rerouting sequence in which the correct Audience profile will be applied.
+    }
 
     vpc_lock.unlock();
     return NO_ERROR;
@@ -1016,17 +1021,17 @@ static void vpc_set_band(vpc_band_t band, int for_mode)
 
     CURRENT_BAND_FOR_MODE(for_mode) = band;
 
-#ifdef CUSTOM_BOARD_WITH_AUDIENCE
-    // Request the band-specific Audience profile only if the path is already established
-    if (vpc_get_audio_routed() && (current_mode == for_mode)) {
-        // Do not request a preset if we are in bypass because of:
-        // - BT device with embedded acoustics
-        if (!((current_device & DEVICE_OUT_BLUETOOTH_SCO_ALL) && is_acoustic_in_bt_device == true)) {
-            // Request new band-specific preset
-            acoustic::process_profile(current_device, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
+    if (have_audience) {
+        // Request the band-specific Audience profile only if the path is already established
+        if (vpc_get_audio_routed() && (current_mode == for_mode)) {
+            // Do not request a preset if we are in bypass because of:
+            // - BT device with embedded acoustics
+            if (!((current_device & DEVICE_OUT_BLUETOOTH_SCO_ALL) && is_acoustic_in_bt_device == true)) {
+                // Request new band-specific preset
+                acoustic::process_profile(current_device, current_mode, CURRENT_BAND_FOR_MODE(current_mode));
+            }
         }
     }
-#endif
 
 unlock:
     vpc_lock.unlock();

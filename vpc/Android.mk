@@ -23,7 +23,8 @@ LOCAL_SRC_FILES:= \
      ctl_vpc.cpp \
      bt.cpp \
      msic.cpp \
-     volume_keys.cpp
+     volume_keys.cpp \
+     acoustic.cpp
 
 LOCAL_SHARED_LIBRARIES := \
      libasound \
@@ -45,11 +46,6 @@ endif
 
 ifeq ($(BOARD_HAVE_BLUETOOTH),false)
 LOCAL_CFLAGS += -DBTDISABLED
-endif
-
-ifeq ($(BOARD_HAVE_AUDIENCE),true)
-    LOCAL_CFLAGS += -DCUSTOM_BOARD_WITH_AUDIENCE
-    LOCAL_SRC_FILES += acoustic.cpp
 endif
 
 ifeq ($(TARGET_DEVICE),ctp_pr0)

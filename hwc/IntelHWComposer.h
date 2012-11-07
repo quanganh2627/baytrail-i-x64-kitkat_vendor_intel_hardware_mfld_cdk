@@ -67,6 +67,8 @@ private:
     bool mInitialized;
     uint32_t mActiveVsyncs;
     uint32_t mVsyncsEnabled;
+    uint32_t mVsyncsCount;
+    nsecs_t mVsyncsTimestamp;
 #ifdef INTEL_RGB_OVERLAY
     IntelHWCWrapper mWrapper;
 #endif
@@ -117,6 +119,7 @@ public:
     bool vsyncControl(int enabled);
     bool release();
     bool dump(char *buff, int buff_len, int *cur_len);
+    bool dumpDisplayStat();
     void registerProcs(hwc_procs_t const *procs) { mProcs = procs; }
 #ifdef INTEL_RGB_OVERLAY
     IntelHWCWrapper* getWrapper() { return &mWrapper; }

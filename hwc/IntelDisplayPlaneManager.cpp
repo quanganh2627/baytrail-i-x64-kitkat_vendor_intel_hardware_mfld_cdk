@@ -561,9 +561,9 @@ bool IntelDisplayPlaneManager::dump(char *buff,
     dumpPrintf("     sprite plane count: %d\n", mSpritePlaneCount);
     dumpPrintf("     primary plane count: %d\n", mPrimaryPlaneCount);
     dumpPrintf("     overlay plane count: %d\n", mOverlayPlaneCount);
-    dumpPrintf("     free sprite plane count: %d\n", mFreeSpritePlanes);
-    dumpPrintf("     free primary plane count: %d\n", mFreePrimaryPlanes);
-    dumpPrintf("     free overlay count count: %d\n", mFreeOverlayPlanes);
+    dumpPrintf("     free sprite plane : 0x%x\n", mFreeSpritePlanes);
+    dumpPrintf("     free primary plane : 0x%x\n", mFreePrimaryPlanes);
+    dumpPrintf("     free overlay count : 0x%x\n", mFreeOverlayPlanes);
     dumpPrintf("     plane zOrder: %d\n", mZOrderConfigs[0]);
     dumpPrintf("-------------End of Plane Infos-----------\n");
 

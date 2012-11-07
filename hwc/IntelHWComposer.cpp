@@ -1547,7 +1547,7 @@ uint32_t IntelHWComposer::disableUnusedVsyncs(uint32_t target)
             mFakeVsync->setEnabled(false, mLastVsync);
         else {
             memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
-            arg.vsync_operation_mask = VSYNC_DISABLE;
+            arg.vsync_operation_mask = VSYNC_DISABLE | GET_VSYNC_COUNT;
 
             // pipe select
             if (i == VSYNC_SRC_HDMI)
@@ -1562,6 +1562,8 @@ uint32_t IntelHWComposer::disableUnusedVsyncs(uint32_t target)
                 continue;
             }
             mVsyncsEnabled = 0;
+            mVsyncsCount = arg.vsync.vsync_count;
+            mVsyncsTimestamp = arg.vsync.timestamp;
         }
 
         /*disabled successfully, remove it from unused vsyncs*/
@@ -1603,7 +1605,7 @@ uint32_t IntelHWComposer::enableVsyncs(uint32_t target)
             mFakeVsync->setEnabled(true, mLastVsync);
         else {
             memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
-            arg.vsync_operation_mask = VSYNC_ENABLE;
+            arg.vsync_operation_mask = VSYNC_ENABLE | GET_VSYNC_COUNT;
 
             // pipe select
             if (i == VSYNC_SRC_HDMI)
@@ -1618,6 +1620,8 @@ uint32_t IntelHWComposer::enableVsyncs(uint32_t target)
                 continue;
             }
             mVsyncsEnabled = 1;
+            mVsyncsCount = arg.vsync.vsync_count;
+            mVsyncsTimestamp = arg.vsync.timestamp;
         }
 
         /*enabled successfully*/
@@ -1697,6 +1701,86 @@ bool IntelHWComposer::release()
     return true;
 }
 
+bool IntelHWComposer::dumpDisplayStat()
+{
+    struct drm_psb_register_rw_arg arg;
+    int ret;
+
+    // dump vsync info
+    memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
+    arg.vsync_operation_mask = GET_VSYNC_COUNT;
+    arg.vsync.pipe = 0;
+
+    ret = drmCommandWriteRead(mDrm->getDrmFd(), DRM_PSB_REGISTER_RW,
+                               &arg, sizeof(arg));
+    if (ret) {
+        LOGW("%s: failed to dump vsync info %d\n", __func__, ret);
+        goto out;
+    }
+
+    dumpPrintf("-------------Display Stat -------------------\n");
+    dumpPrintf("  + last vsync count: %d, timestamp %d ms \n",
+                     mVsyncsCount, mVsyncsTimestamp/1000000);
+    dumpPrintf("  + current vsync count: %d, timestamp %d ms \n",
+                     arg.vsync.vsync_count, arg.vsync.timestamp/1000000);
+
+    // Read pipe stat register
+    memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
+    arg.display_read_mask = REGRWBITS_PIPEASTAT;
+
+    ret = drmCommandWriteRead(mDrm->getDrmFd(), DRM_PSB_REGISTER_RW,
+                              &arg, sizeof(arg));
+    if (ret) {
+        LOGW("%s: failed to dump display registers %d\n", __func__, ret);
+        goto out;
+    }
+
+    dumpPrintf("  + PIPEA STAT: 0x%x \n", arg.display.pipestat_a);
+
+    // Read interrupt mask register
+    memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
+    arg.display_read_mask = REGRWBITS_INT_MASK;
+
+    ret = drmCommandWriteRead(mDrm->getDrmFd(), DRM_PSB_REGISTER_RW,
+                              &arg, sizeof(arg));
+    if (ret) {
+        LOGW("%s: failed to dump display registers %d\n", __func__, ret);
+        goto out;
+    }
+
+    dumpPrintf("  + INT_MASK_REG: 0x%x \n", arg.display.int_mask);
+
+    // Read interrupt enable register
+    memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
+    arg.display_read_mask = REGRWBITS_INT_ENABLE;
+
+    ret = drmCommandWriteRead(mDrm->getDrmFd(), DRM_PSB_REGISTER_RW,
+                              &arg, sizeof(arg));
+    if (ret) {
+        LOGW("%s: failed to dump display registers %d\n", __func__, ret);
+        goto out;
+    }
+
+    dumpPrintf("  + INT_ENABLE_REG: 0x%x \n", arg.display.int_enable);
+
+    // open this if need to dump all display registers.
+#if 0
+    // dump all display regs in driver
+    memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
+    arg.display_read_mask = REGRWBITS_DISPLAY_ALL;
+
+    ret = drmCommandWriteRead(mDrm->getDrmFd(), DRM_PSB_REGISTER_RW,
+                              &arg, sizeof(arg));
+    if (ret) {
+        LOGW("%s: failed to dump display registers %d\n", __func__, ret);
+        goto out;
+    }
+#endif
+
+out:
+    return (ret == 0) ? true : false;
+}
+
 bool IntelHWComposer::dump(char *buff,
                            int buff_len, int *cur_len)
 {
@@ -1733,6 +1817,8 @@ bool IntelHWComposer::dump(char *buff,
        dumpPrintf("  + isWidiActive: %d \n", (widiPlane->isActive()) ? 1 : 0);
        dumpPrintf("  + mActiveVsyncs: 0x%x, mVsyncsEnabled: %d \n", mActiveVsyncs, mVsyncsEnabled);
     }
+
+    dumpDisplayStat();
 
     mPlaneManager->dump(mDumpBuf,  mDumpBuflen, &mDumpLen);
 

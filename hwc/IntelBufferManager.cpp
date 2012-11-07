@@ -1276,3 +1276,24 @@ bool IntelGraphicBufferManager::dealloc(uint32_t um_handle)
     }
     return true;
 }
+
+IntelPayloadBuffer::IntelPayloadBuffer(IntelBufferManager* bufferManager, int bufferFd)
+        : mBufferManager(bufferManager), mBuffer(0), mPayload(0)
+{
+    if (bufferFd <= 0 || !bufferManager)
+        return;
+
+    mBuffer = mBufferManager->map(bufferFd);
+    if (!mBuffer) {
+        LOGE("%s: failed to map payload buffer.\n", __func__);
+        return;
+    }
+    mPayload = mBuffer->getCpuAddr();
+}
+
+IntelPayloadBuffer::~IntelPayloadBuffer()
+{
+    if (mBufferManager && mBuffer) {
+        mBufferManager->unmap(mBuffer);
+    }
+}

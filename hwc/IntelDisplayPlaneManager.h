@@ -118,9 +118,6 @@ public:
         mPosition.right = right;
         mPosition.bottom = bottom;
     }
-    virtual bool getBuffPayload(int fd, intel_gralloc_payload_t* &payload) {
-        return false;
-    }
     virtual bool setDataBuffer(uint32_t handle, uint32_t flags, intel_gralloc_buffer_handle_t* nHandle) { return true; }
     virtual bool setDataBuffer(IntelDisplayBuffer& buffer) {
         mDataBuffer = &buffer;
@@ -316,8 +313,6 @@ private:
         int grallocBuffFd;
     } mDataBuffers[OVERLAY_DATA_BUFFER_NUM_MAX];
     int mNextBuffer;
-    int mRenderBuffer;
-    int mRenderingBuffer;
     IntelWidiPlane* mWidiPlane;
 
 public:
@@ -326,7 +321,6 @@ public:
     virtual void setPosition(int left, int top, int right, int bottom);
     virtual bool setDataBuffer(uint32_t handle, uint32_t flags, intel_gralloc_buffer_handle_t* nHandle);
     virtual bool setDataBuffer(IntelDisplayBuffer& buffer);
-    virtual bool getBuffPayload(int fd, intel_gralloc_payload_t* &payload);
 
     virtual bool invalidateDataBuffer();
     virtual bool flip(void *context, uint32_t flags);

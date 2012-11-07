@@ -318,4 +318,17 @@ public:
     bool alloc(uint32_t size, uint32_t* um_handle, uint32_t* km_handle);
     bool dealloc(uint32_t um_handle);
 };
+
+class IntelPayloadBuffer
+{
+private:
+    IntelBufferManager* mBufferManager;
+    IntelDisplayBuffer* mBuffer;
+    void* mPayload;
+public:
+    IntelPayloadBuffer(IntelBufferManager* bufferManager, int bufferFd);
+    ~IntelPayloadBuffer();
+    void* getCpuAddr(){return mPayload;}
+};
+
 #endif /*__INTEL_PVR_BUFFER_MANAGER_H__*/

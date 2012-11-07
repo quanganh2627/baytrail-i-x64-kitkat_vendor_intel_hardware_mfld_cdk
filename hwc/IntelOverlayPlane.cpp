@@ -1358,8 +1358,6 @@ IntelOverlayPlane::IntelOverlayPlane(int fd, int index, IntelBufferManager *bm)
     // clear up overlay buffers
     memset(mDataBuffers, 0, sizeof(mDataBuffers));
     mNextBuffer = 0;
-    mRenderBuffer = 0;
-    mRenderingBuffer = -1;
 
     // initialized successfully
     mDataBuffer = dataBuffer;
@@ -1405,23 +1403,6 @@ void IntelOverlayPlane::setPosition(int left, int top, int right, int bottom)
             reinterpret_cast<IntelOverlayContext*>(mContext);
         overlayContext->setPosition(left, top, (right - left), (bottom - top));
     }
-}
-
-bool IntelOverlayPlane::getBuffPayload(int fd, intel_gralloc_payload_t* &payload)
-{
-    if (fd <= 0)
-        return false;
-
-    // map payload buffer
-    IntelDisplayBuffer *buffer = mBufferManager->map(fd);
-    if (!buffer)
-        return false;
-
-    payload = (intel_gralloc_payload_t *)buffer->getCpuAddr();
-
-    // unmap payload buffer
-    mBufferManager->unmap(buffer);
-    return payload ? true : false;
 }
 
 bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
@@ -1512,7 +1493,6 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
             mDataBuffers[i].handle == handle &&
             mDataBuffers[i].bufferType == bufferType) {
             buffer = mDataBuffers[i].buffer;
-            mRenderBuffer = i;
             mNextBuffer = (i + 1) % OVERLAY_DATA_BUFFER_NUM_MAX;
             break;
         }
@@ -1566,7 +1546,6 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
         mDataBuffers[mNextBuffer].bufferType = bufferType;
         mDataBuffers[mNextBuffer].grallocBuffFd = grallocBuffFd;
 
-        mRenderBuffer = mNextBuffer;
         // move mNextBuffer pointer
         mNextBuffer = (mNextBuffer + 1) % OVERLAY_DATA_BUFFER_NUM_MAX;
     }
@@ -1615,7 +1594,6 @@ bool IntelOverlayPlane::invalidateDataBuffer()
     memset(mDataBuffers, 0, sizeof(mDataBuffers));
     memset(mDataBuffer, 0, sizeof(*mDataBuffer));
     mNextBuffer = 0;
-    mRenderBuffer = 0;
     return true;
 }
 
@@ -1705,18 +1683,7 @@ bool IntelOverlayPlane::disable()
             reinterpret_cast<IntelOverlayContext*>(mContext);
         ret = overlayContext->disable();
         if (ret == false)
-            ALOGE("%s: failed to disable overlay\n", __func__);
-
-        if (mRenderingBuffer >= 0 &&
-                mDataBuffers[mRenderingBuffer].grallocBuffFd > 0) {
-            intel_gralloc_payload_t *payload = NULL;
-            bool ret = getBuffPayload(
-                    mDataBuffers[mRenderingBuffer].grallocBuffFd,
-                    payload);
-
-            if (ret) payload->renderStatus = 0;
-        }
-        mRenderingBuffer = -1;
+            LOGE("%s: failed to disable overlay\n", __func__);
     }
 
     return ret;

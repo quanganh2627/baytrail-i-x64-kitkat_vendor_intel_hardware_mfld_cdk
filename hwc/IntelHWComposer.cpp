@@ -148,29 +148,21 @@ bool IntelHWComposer::isForceOverlay(hwc_layer_1_t *layer)
     if (!grallocHandle)
         return false;
 
-    if (grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12) {
-        // map payload buffer
-        IntelDisplayBuffer *buffer =
-            mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
-        if (!buffer) {
-            ALOGE("%s: failed to map payload buffer.\n", __func__);
-            return false;
-        }
+    if (grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12)
+        return false;
 
-        intel_gralloc_payload_t *payload =
-            (intel_gralloc_payload_t*)buffer->getCpuAddr();
-        if (!payload) {
-            ALOGE("%s: invalid address\n", __func__);
-            mGrallocBufferManager->unmap(buffer);
-            return false;
-        }
-        mGrallocBufferManager->unmap(buffer);
+    // map payload buffer
+    IntelPayloadBuffer buffer(mGrallocBufferManager, grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
 
-        if (payload->force_output_method == OUTPUT_FORCE_OVERLAY)
-            return true;
+    intel_gralloc_payload_t *payload =
+        (intel_gralloc_payload_t*)buffer.getCpuAddr();
+    if (!payload) {
+        LOGE("%s: invalid address\n", __func__);
+        return false;
     }
 
-    return false;
+    bool ret = (payload->force_output_method == OUTPUT_FORCE_OVERLAY) ? true : false;
+    return ret;
 }
 
 // TODO: re-implement this function after video interface
@@ -728,18 +720,8 @@ bool IntelHWComposer::useOverlayRotation(hwc_layer_1_t *layer,
 
     if (grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12) {
         // map payload buffer
-        IntelDisplayBuffer *buffer =
-            mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
-        if (!buffer) {
-            ALOGE("%s: failed to map payload buffer.\n", __func__);
-            return false;
-        }
-
-        intel_gralloc_payload_t *payload =
-            (intel_gralloc_payload_t*)buffer->getCpuAddr();
-
-        // unmap payload buffer
-        mGrallocBufferManager->unmap(buffer);
+        IntelPayloadBuffer buffer(mGrallocBufferManager, grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
+        intel_gralloc_payload_t *payload = (intel_gralloc_payload_t*)buffer.getCpuAddr();
         if (!payload) {
             ALOGE("%s: invalid address\n", __func__);
             return false;
@@ -843,16 +825,9 @@ bool IntelHWComposer::isBobDeinterlace(hwc_layer_1_t *layer)
         return bobDeinterlace;
 
     // map payload buffer
-    IntelDisplayBuffer *buffer =
-        mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
-    if (!buffer) {
-        ALOGE("%s: failed to map payload buffer.\n", __func__);
-        return false;
-    }
+    IntelPayloadBuffer buffer(mGrallocBufferManager, grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
 
-    intel_gralloc_payload_t *payload =
-        (intel_gralloc_payload_t*)buffer->getCpuAddr();
-    mGrallocBufferManager->unmap(buffer);
+    intel_gralloc_payload_t *payload = (intel_gralloc_payload_t*)buffer.getCpuAddr();
     if (!payload) {
         ALOGE("%s: invalid address\n", __func__);
         return bobDeinterlace;
@@ -887,18 +862,10 @@ bool IntelHWComposer::updateLayersData(hwc_display_contents_1_t *list)
         if (grallocHandle &&
             grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12) {
             // map payload buffer
-            IntelDisplayBuffer *buffer =
-                mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
-            if (!buffer) {
-                ALOGE("%s: failed to map payload buffer.\n", __func__);
-                return false;
-            }
+            IntelPayloadBuffer buffer(mGrallocBufferManager, grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
 
-            intel_gralloc_payload_t *payload =
-                (intel_gralloc_payload_t*)buffer->getCpuAddr();
+            intel_gralloc_payload_t *payload = (intel_gralloc_payload_t*)buffer.getCpuAddr();
 
-            // unmap payload buffer
-            mGrallocBufferManager->unmap(buffer);
             if (!payload) {
                 ALOGE("%s: invalid address\n", __func__);
                 return false;

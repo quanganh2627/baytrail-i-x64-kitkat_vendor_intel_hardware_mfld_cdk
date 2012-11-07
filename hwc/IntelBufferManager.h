@@ -92,6 +92,7 @@ enum {
     HAL_PIXEL_FORMAT_INTEL_HWC_YUY2 = HAL_PIXEL_FORMAT_YUY2,
     HAL_PIXEL_FORMAT_INTEL_HWC_UYVY = HAL_PIXEL_FORMAT_UYVY,
     HAL_PIXEL_FORMAT_INTEL_HWC_I420 = HAL_PIXEL_FORMAT_I420,
+    HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE = OMX_INTEL_COLOR_FormatYUV420PackedSemiPlanar_Tiled,
 };
 
 class IntelDisplayDataBuffer : public IntelDisplayBuffer
@@ -242,6 +243,7 @@ typedef struct {
     uint32_t renderStatus;
     unsigned int used_by_widi;
     int bob_deinterlace;
+    int tiling;
     uint32_t width;
     uint32_t height;
     uint32_t luma_stride;

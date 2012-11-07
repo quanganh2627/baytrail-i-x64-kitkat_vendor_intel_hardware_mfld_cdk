@@ -166,7 +166,8 @@ void IntelHWComposerLayerList::updateLayerList(hwc_display_contents_1_t *layerLi
             grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12 ||
             grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_YUY2 ||
             grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_UYVY ||
-            grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_I420) {
+            grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_I420 ||
+            grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) {
             mLayerList[i].mLayerType = IntelHWComposerLayer::LAYER_TYPE_YUV;
             numYUVLayers++;
         } else if (grallocHandle->format == HAL_PIXEL_FORMAT_RGB_565 ||

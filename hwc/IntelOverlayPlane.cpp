@@ -407,8 +407,10 @@ bool IntelOverlayContext::bufferOffsetSetup(IntelDisplayDataBuffer &buf)
     uint32_t srcX= buf.getSrcX();
     uint32_t srcY= buf.getSrcY();
 
+    LOGV("%s: yStride is %d and uvStride is %d\n", __func__, yStride, uvStride);
     // clear original format setting
     mOverlayBackBuffer->OCMD &= ~(0xf << 10);
+    mOverlayBackBuffer->OCMD &= ~OVERLAY_MEMORY_LAYOUT_TILED;
 
     // Y/U/V plane must be 4k bytes aligned.
     mOverlayBackBuffer->OSTART_0Y = gttOffsetInBytes;
@@ -445,6 +447,26 @@ bool IntelOverlayContext::bufferOffsetSetup(IntelDisplayDataBuffer &buf)
         mOverlayBackBuffer->OBUF_0U = yStride * align_to(h, 32);
         mOverlayBackBuffer->OBUF_0V = 0;
         mOverlayBackBuffer->OCMD |= OVERLAY_FORMAT_PLANAR_NV12_2;
+        break;
+    case HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE:    /*NV12_TILE*/
+        /* Tiling memory is supported for NV12 only */
+        LOGD_IF(ALLOW_OVERLAY_PRINT,
+                "%s: setting up tiling buffer offset...\n", __func__);
+        mOverlayBackBuffer->OBUF_0Y = 0;
+        mOverlayBackBuffer->OBUF_0U = yStride * align_to(h, 32);
+        mOverlayBackBuffer->OBUF_0V = 0;
+        mOverlayBackBuffer->OSTART_0U += yStride * align_to(h, 32);
+        mOverlayBackBuffer->OSTART_0V += yStride * align_to(h, 32);
+        mOverlayBackBuffer->OSTART_1U = mOverlayBackBuffer->OSTART_0U;
+        mOverlayBackBuffer->OSTART_1V = mOverlayBackBuffer->OSTART_0V;
+        mOverlayBackBuffer->OTILEOFF_0Y = srcX + (srcY << 16);
+        mOverlayBackBuffer->OTILEOFF_1Y = mOverlayBackBuffer->OTILEOFF_0Y;
+        mOverlayBackBuffer->OTILEOFF_0U = srcX + ((srcY / 2) << 16);
+        mOverlayBackBuffer->OTILEOFF_1U = mOverlayBackBuffer->OTILEOFF_0U;
+        mOverlayBackBuffer->OTILEOFF_0V = mOverlayBackBuffer->OTILEOFF_0U;
+        mOverlayBackBuffer->OTILEOFF_1V = mOverlayBackBuffer->OTILEOFF_0U;
+        mOverlayBackBuffer->OCMD |= OVERLAY_FORMAT_PLANAR_NV12_2;
+        mOverlayBackBuffer->OCMD |= OVERLAY_MEMORY_LAYOUT_TILED;
         break;
     case HAL_PIXEL_FORMAT_INTEL_HWC_YUY2:    /*YUY2*/
         mOverlayBackBuffer->OBUF_0Y = 0;
@@ -516,6 +538,7 @@ bool IntelOverlayContext::coordinateSetup(IntelDisplayDataBuffer& buf)
     case HAL_PIXEL_FORMAT_YV12:              /*YV12*/
     case HAL_PIXEL_FORMAT_INTEL_HWC_I420:    /*I420*/
     case HAL_PIXEL_FORMAT_INTEL_HWC_NV12:    /*NV12*/
+    case HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE:    /*NV12_TILE*/
         break;
     case HAL_PIXEL_FORMAT_INTEL_HWC_YUY2:    /*YUY2*/
     case HAL_PIXEL_FORMAT_INTEL_HWC_UYVY:    /*UYVY*/
@@ -1460,6 +1483,7 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
         uvStride = align_to(yStride >> 1, 64);
         break;
     case HAL_PIXEL_FORMAT_INTEL_HWC_NV12:
+    case HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE:
         yStride = align_to(grallocStride, 64);
         uvStride = yStride;
         break;
@@ -1497,8 +1521,9 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
     // update data buffer's yuv strides and continue
     overlayDataBuffer->setStride(yStride, uvStride);
 
-    int grallocBuffFd = nHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12 ?
-        nHandle->fd[GRALLOC_SUB_BUFFER1] : 0;
+    int grallocBuffFd = (nHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12 ||
+                     nHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) ?
+                     nHandle->fd[GRALLOC_SUB_BUFFER1] : 0;
 
     if (flags)
         bufferType = IntelBufferManager::TTM_BUFFER;

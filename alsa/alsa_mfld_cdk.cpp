@@ -28,6 +28,8 @@
 #include <media/AudioRecord.h>
 #include <hardware_legacy/AudioSystemLegacy.h>
 #include <signal.h>
+#include <property/Property.h>
+#include <string>
 
 #undef DISABLE_HARWARE_RESAMPLING
 
@@ -66,6 +68,7 @@
 
 #define NOT_SET -1
 
+#define FM_IS_ANALOG_PROPERTY_NAME "Audiocomms.FM.IsAnalog"
 
 namespace android_audio_legacy
 {
@@ -102,6 +105,8 @@ hw_module_t HAL_MODULE_INFO_SYM =
     dso           : 0,
     reserved      : { 0, },
 };
+
+static bool mFmIsAnalog;
 
 static int s_device_close(hw_device_t* device)
 {
@@ -541,6 +546,8 @@ static status_t s_init(alsa_device_t *module, uint32_t defaultInputSampleRate, u
     _defaultsOut.module = module;
     _defaultsIn.module = module;
 
+    mFmIsAnalog = TProperty<bool>(FM_IS_ANALOG_PROPERTY_NAME, false);
+
     return NO_ERROR;
 }
 
@@ -744,17 +751,12 @@ static status_t s_standby(alsa_handle_t *handle)
     s_drain(handle);
 
     if (h) {
-#ifdef FM_RX_ANALOG
-        if(handle->curFmRxMode == AudioSystem::MODE_FM_ON){
+        if (mFmIsAnalog && handle->curFmRxMode == AudioSystem::MODE_FM_ON) {
             snd_pcm_drop(h);
-        }else{
+        } else {
             err = snd_pcm_close(h);
             handle->handle = NULL;
         }
-#else //FM_RX_ANALOG
-        err = snd_pcm_close(h);
-        handle->handle = NULL;
-#endif //FM_RX_ANALOG
     }
 
     LOGD("%s out \n", __func__);

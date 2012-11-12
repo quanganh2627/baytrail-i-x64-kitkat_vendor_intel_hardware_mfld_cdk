@@ -1756,7 +1756,7 @@ bool IntelHWComposer::commit(int disp, hwc_display_contents_1_t *list)
 uint32_t IntelHWComposer::disableUnusedVsyncs(uint32_t target)
 {
     uint32_t unusedVsyncs = mActiveVsyncs & (~target);
-    struct drm_psb_register_rw_arg arg;
+    struct drm_psb_vsync_set_arg arg;
     uint32_t vsync;
     int i, ret;
 
@@ -1775,7 +1775,7 @@ uint32_t IntelHWComposer::disableUnusedVsyncs(uint32_t target)
         if (i == VSYNC_SRC_FAKE)
             mFakeVsync->setEnabled(false, mLastVsync);
         else {
-            memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
+            memset(&arg, 0, sizeof(struct drm_psb_vsync_set_arg));
             arg.vsync_operation_mask = VSYNC_DISABLE | GET_VSYNC_COUNT;
 
             // pipe select
@@ -1784,7 +1784,7 @@ uint32_t IntelHWComposer::disableUnusedVsyncs(uint32_t target)
             else
                 arg.vsync.pipe = 0;
 
-            ret = drmCommandWriteRead(mDrm->getDrmFd(), DRM_PSB_REGISTER_RW,
+            ret = drmCommandWriteRead(mDrm->getDrmFd(), DRM_PSB_VSYNC_SET,
                                       &arg, sizeof(arg));
             if (ret) {
                 ALOGW("%s: failed to enable/disable vsync %d\n", __func__, ret);
@@ -1805,7 +1805,7 @@ disable_out:
 uint32_t IntelHWComposer::enableVsyncs(uint32_t target)
 {
     uint32_t enabledVsyncs = 0;
-    struct drm_psb_register_rw_arg arg;
+    struct drm_psb_vsync_set_arg arg;
     uint32_t vsync;
     int i, ret;
 
@@ -1833,7 +1833,7 @@ uint32_t IntelHWComposer::enableVsyncs(uint32_t target)
         if (i == VSYNC_SRC_FAKE)
             mFakeVsync->setEnabled(true, mLastVsync);
         else {
-            memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
+            memset(&arg, 0, sizeof(struct drm_psb_vsync_set_arg));
             arg.vsync_operation_mask = VSYNC_ENABLE | GET_VSYNC_COUNT;
 
             // pipe select
@@ -1842,7 +1842,7 @@ uint32_t IntelHWComposer::enableVsyncs(uint32_t target)
             else
                 arg.vsync.pipe = 0;
 
-            ret = drmCommandWriteRead(mDrm->getDrmFd(), DRM_PSB_REGISTER_RW,
+            ret = drmCommandWriteRead(mDrm->getDrmFd(), DRM_PSB_VSYNC_SET,
                                       &arg, sizeof(arg));
             if (ret) {
                 ALOGW("%s: failed to enable vsync %d\n", __func__, ret);
@@ -1933,15 +1933,16 @@ bool IntelHWComposer::release()
 bool IntelHWComposer::dumpDisplayStat()
 {
     struct drm_psb_register_rw_arg arg;
+    struct drm_psb_vsync_set_arg vsync_arg;
     int ret;
 
     // dump vsync info
-    memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
-    arg.vsync_operation_mask = GET_VSYNC_COUNT;
-    arg.vsync.pipe = 0;
+    memset(&vsync_arg, 0, sizeof(struct drm_psb_vsync_set_arg));
+    vsync_arg.vsync_operation_mask = GET_VSYNC_COUNT;
+    vsync_arg.vsync.pipe = 0;
 
-    ret = drmCommandWriteRead(mDrm->getDrmFd(), DRM_PSB_REGISTER_RW,
-                               &arg, sizeof(arg));
+    ret = drmCommandWriteRead(mDrm->getDrmFd(), DRM_PSB_VSYNC_SET,
+                               &vsync_arg, sizeof(vsync_arg));
     if (ret) {
         ALOGW("%s: failed to dump vsync info %d\n", __func__, ret);
         goto out;
@@ -1951,7 +1952,8 @@ bool IntelHWComposer::dumpDisplayStat()
     dumpPrintf("  + last vsync count: %d, timestamp %d ms \n",
                      mVsyncsCount, mVsyncsTimestamp/1000000);
     dumpPrintf("  + current vsync count: %d, timestamp %d ms \n",
-                     arg.vsync.vsync_count, arg.vsync.timestamp/1000000);
+                     vsync_arg.vsync.vsync_count,
+                     vsync_arg.vsync.timestamp/1000000);
 
     // Read pipe stat register
     memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));

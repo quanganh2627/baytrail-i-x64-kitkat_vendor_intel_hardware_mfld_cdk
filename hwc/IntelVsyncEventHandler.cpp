@@ -86,7 +86,7 @@ void IntelVsyncEventHandler::setActiveVsyncs(uint32_t activeVsyncs)
 
 bool IntelVsyncEventHandler::threadLoop()
 {
-    struct drm_psb_register_rw_arg arg;
+    struct drm_psb_vsync_set_arg arg;
     int i = 0;
     int ret = 0;
 
@@ -97,7 +97,7 @@ bool IntelVsyncEventHandler::threadLoop()
         }
     }
 
-    memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
+    memset(&arg, 0, sizeof(struct drm_psb_vsync_set_arg));
     arg.vsync_operation_mask = VSYNC_WAIT;
 
     for (i = 0; i <= VSYNC_SRC_HDMI; i++) {
@@ -108,7 +108,7 @@ bool IntelVsyncEventHandler::threadLoop()
 		    else
 			    arg.vsync.pipe = 0;
 
-		    ret = drmCommandWriteRead(mDrmFd, DRM_PSB_REGISTER_RW, &arg, sizeof(arg));
+		    ret = drmCommandWriteRead(mDrmFd, DRM_PSB_VSYNC_SET, &arg, sizeof(arg));
 		    if (ret) {
 			    ALOGW("%s: failed to wait vsync, error = %d\n", __func__, ret);
 			    return false;

@@ -39,12 +39,13 @@
 #define MAX_TIME_MODEM_STATUS_CHECK_SECONDS 60
 #define MAX_WAIT_FOR_STMD_CONNECTION_SECONDS 5
 #define STMD_CONNECTION_RETRY_TIME_MS 200
-#define AT_ANSWER_TIMEOUT_MS 10000
+#define AT_ANSWER_TIMEOUT_MS 5000
 #define AT_WRITE_FAILED_RETRY_MS 1000
 #define INFINITE_TIMEOUT (-1)
 #define TTY_OPEN_DELAY_US 200000
 #define RECOVER_TIMEOUT_MS 2000
 #define MAX_RETRY 5
+#define MAX_NO_ACK_RETRY 2
 
 static const string gpcRecoveryEnabledProperty = "persist.audiocomms.atm.recov";
 
@@ -598,10 +599,25 @@ void CATManager::onTimeout()
             _iRetryCount += 1;
 
             if (_iRetryCount < MAX_RETRY) {
-                LOGE("%s: retry #%d -> try again", __FUNCTION__, _iRetryCount);
+                LOGE("%s: send error : send retry #%d -> try again", __FUNCTION__, _iRetryCount);
                 // Retry to send the command
                 if (!sendCurrentCommand()) {
 
+                    LOGE("%s: send failed", __FUNCTION__);
+                }
+                goto finish;
+            }
+        }
+        else {
+            // No acknowledgement received, retry sending command once
+
+            // Increment timeout counter
+            _iRetryCount += 1;
+
+           if (_iRetryCount < MAX_NO_ACK_RETRY) {
+                LOGE("%s: No ack : send retry #%d -> try again", __FUNCTION__, _iRetryCount);
+                // Retry to send the command
+                if (!sendCurrentCommand()) {
                     LOGE("%s: send failed", __FUNCTION__);
                 }
                 goto finish;
@@ -614,8 +630,8 @@ void CATManager::onTimeout()
         // Stop the listeners on modem TTYs
         stopModemTtyListeners();
 
-        // Modem is alive but cannot get answer for AT command after 5 retries.
-        LOGE("%s: %d retries failed, trying to RECOVER ", __FUNCTION__, MAX_RETRY);
+        // Modem is alive but cannot get answer for AT command after a certain number of retries
+        LOGE("%s: %d retries failed, trying to RECOVER ", __FUNCTION__, _iRetryCount);
         sendRequestCleanup();
 
         goto finish;

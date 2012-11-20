@@ -122,7 +122,7 @@ bool MedfieldSpritePlane::setDataBuffer(IntelDisplayBuffer& buffer)
             bpp = 2;
             break;
         default:
-            LOGE("%s: unsupported format 0x%x\n", __func__, format);
+            ALOGE("%s: unsupported format 0x%x\n", __func__, format);
             return false;
         }
 
@@ -139,7 +139,7 @@ bool MedfieldSpritePlane::setDataBuffer(IntelDisplayBuffer& buffer)
 
         // unlikely happen, but still we need make sure linoff is valid
         if (linoff > (stride * bpp * bufferHeight)) {
-            LOGE("%s: invalid source crop\n", __func__);
+            ALOGE("%s: invalid source crop\n", __func__);
             return false;
         }
 
@@ -157,18 +157,18 @@ bool MedfieldSpritePlane::setDataBuffer(IntelDisplayBuffer& buffer)
         // if (mForceBottom)
         //    context->cntr |= INTEL_SPRITE_FORCE_BOTTOM;
 
-        LOGD_IF(ALLOW_SPRITE_PRINT,
+        ALOGD_IF(ALLOW_SPRITE_PRINT,
              "%s: srcX 0x%x, srcY 0x%x, bufWidth 0x%x, bufHeight 0x%x\n",
              __func__, srcX, srcY, bufferWidth, bufferHeight);
-        LOGD_IF(ALLOW_SPRITE_PRINT, "%s: format 0x%x, bpp  0x%x, linoff 0x%x\n",
+        ALOGD_IF(ALLOW_SPRITE_PRINT, "%s: format 0x%x, bpp  0x%x, linoff 0x%x\n",
              __func__, spriteFormat, bpp, context->linoff);
-        LOGD_IF(ALLOW_SPRITE_PRINT, "%s: cntr 0x%x, stride 0x%x, surf 0x%x\n",
+        ALOGD_IF(ALLOW_SPRITE_PRINT, "%s: cntr 0x%x, stride 0x%x, surf 0x%x\n",
              __func__, context->cntr, context->stride, context->surf);
 
         return true;
     }
 
-    LOGE("%s: sprite plane was not initialized\n", __func__);
+    ALOGE("%s: sprite plane was not initialized\n", __func__);
     return false;
 }
 
@@ -179,11 +179,11 @@ bool MedfieldSpritePlane::setDataBuffer(uint32_t handle, uint32_t flags, intel_g
     int i;
 
     if (!initCheck()) {
-        LOGE("%s: overlay plane wasn't initialized\n", __func__);
+        ALOGE("%s: overlay plane wasn't initialized\n", __func__);
         return false;
     }
 
-    LOGD_IF(ALLOW_SPRITE_PRINT, "%s: next buffer %d\n", __func__, mNextBuffer);
+    ALOGD_IF(ALLOW_SPRITE_PRINT, "%s: next buffer %d\n", __func__, mNextBuffer);
 
     // Notice!!! Maybe handle can be reused, it will cause problem.
     for (i = 0; i < SPRITE_DATA_BUFFER_NUM_MAX; i++) {
@@ -197,7 +197,7 @@ bool MedfieldSpritePlane::setDataBuffer(uint32_t handle, uint32_t flags, intel_g
             // release the buffer in the next slot
             if (mDataBuffers[mNextBuffer].ui64Stamp ||
                             mDataBuffers[mNextBuffer].buffer) {
-                    LOGD_IF(ALLOW_SPRITE_PRINT,
+                    ALOGD_IF(ALLOW_SPRITE_PRINT,
                             "%s: releasing buffer %d...\n", __func__, mNextBuffer);
                     mBufferManager->unmap(mDataBuffers[mNextBuffer].buffer);
                     mDataBuffers[mNextBuffer].ui64Stamp = 0;
@@ -207,7 +207,7 @@ bool MedfieldSpritePlane::setDataBuffer(uint32_t handle, uint32_t flags, intel_g
 
             buffer = mBufferManager->map(handle);
             if (!buffer) {
-                    LOGE("%s: failed to map handle %d\n", __func__, handle);
+                    ALOGE("%s: failed to map handle %d\n", __func__, handle);
                     disable();
                     return false;
             }
@@ -238,12 +238,12 @@ bool MedfieldSpritePlane::flip(void *contexts, uint32_t flags)
     bool ret = true;
 
     if (!initCheck()) {
-        LOGE("%s: overlay plane wasn't initialized\n", __func__);
+        ALOGE("%s: overlay plane wasn't initialized\n", __func__);
         return false;
     }
 
     if (!contexts) {
-        LOGE("%s: Invalid plane contexts\n", __func__);
+        ALOGE("%s: Invalid plane contexts\n", __func__);
         return false;
     }
 
@@ -253,7 +253,7 @@ bool MedfieldSpritePlane::flip(void *contexts, uint32_t flags)
     if (!context->update_mask)
         return true;
 
-    LOGD_IF(ALLOW_SPRITE_PRINT,
+    ALOGD_IF(ALLOW_SPRITE_PRINT,
            "%s: flip to surface 0x%x\n", __func__, context->surf);
 
     // update context
@@ -262,7 +262,7 @@ bool MedfieldSpritePlane::flip(void *contexts, uint32_t flags)
             IntelHWComposerDrm::getInstance().getOutputConnection(output);
 
         if (connection != DRM_MODE_CONNECTED) {
-            LOGD_IF(ALLOW_SPRITE_PRINT,
+            ALOGD_IF(ALLOW_SPRITE_PRINT,
                    "%s: output %d not connected\n", __func__, output);
             continue;
         }
@@ -294,7 +294,7 @@ bool MedfieldSpritePlane::disable()
 
 bool MedfieldSpritePlane::invalidateDataBuffer()
 {
-    LOGD_IF(ALLOW_SPRITE_PRINT, "%s\n", __func__);
+    ALOGD_IF(ALLOW_SPRITE_PRINT, "%s\n", __func__);
 
     // keep the mapping of sprite data buffers till HWC was unload
     // if we unmap them dynamically, post2 may be failed.

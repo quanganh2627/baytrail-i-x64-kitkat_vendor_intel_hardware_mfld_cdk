@@ -41,7 +41,7 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
 {
     int i = 0;
 
-    LOGD_IF(ALLOW_PLANE_PRINT, "%s\n", __func__);
+    ALOGD_IF(ALLOW_PLANE_PRINT, "%s\n", __func__);
 
     // detect display plane usage. Hopefully throw DRM ioctl
     detect();
@@ -51,7 +51,7 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
 
     mPlaneContexts = malloc(mContextLength);
     if (!mPlaneContexts) {
-        LOGE("%s: failed to allocate plane contexts\n", __func__);
+        ALOGE("%s: failed to allocate plane contexts\n", __func__);
         return;
     }
 
@@ -62,7 +62,7 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
         mPrimaryPlanes =
             (IntelDisplayPlane**)malloc(mPrimaryPlaneCount *sizeof(IntelDisplayPlane*));
         if (!mPrimaryPlanes) {
-            LOGE("%s: failed to allocate primary plane pool\n", __func__);
+            ALOGE("%s: failed to allocate primary plane pool\n", __func__);
             goto primary_alloc_err;
         }
 
@@ -70,7 +70,7 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
             mPrimaryPlanes[i] =
                 new MedfieldSpritePlane(mDrmFd, i, mGrallocBufferManager);
             if (!mPrimaryPlanes[i]) {
-                LOGE("%s: failed to allocate sprite plane %d\n", __func__, i);
+                ALOGE("%s: failed to allocate sprite plane %d\n", __func__, i);
                 goto primary_init_err;
             }
             // set as primary plane
@@ -85,7 +85,7 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
         mSpritePlanes =
             (IntelDisplayPlane**)malloc(mSpritePlaneCount * sizeof(IntelDisplayPlane*));
         if (!mSpritePlanes) {
-            LOGE("%s: failed to allocate sprite plane pool\n", __func__);
+            ALOGE("%s: failed to allocate sprite plane pool\n", __func__);
             goto primary_init_err;
         }
 
@@ -93,7 +93,7 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
             mSpritePlanes[i] =
                 new MedfieldSpritePlane(mDrmFd, i, mGrallocBufferManager);
             if (!mSpritePlanes[i]) {
-                LOGE("%s: failed to allocate sprite plane %d\n", __func__, i);
+                ALOGE("%s: failed to allocate sprite plane %d\n", __func__, i);
                 goto sprite_init_err;
             }
             // reset overlay plane
@@ -106,7 +106,7 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
         mOverlayPlanes =
             (IntelDisplayPlane**)malloc(mOverlayPlaneCount *sizeof(IntelDisplayPlane*));
         if (!mOverlayPlanes) {
-            LOGE("%s: failed to allocate overlay plane pool\n", __func__);
+            ALOGE("%s: failed to allocate overlay plane pool\n", __func__);
             goto sprite_init_err;
         }
 
@@ -114,7 +114,7 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
             mOverlayPlanes[i] =
                 new IntelOverlayPlane(mDrmFd, i, mGrallocBufferManager);
             if (!mOverlayPlanes[i]) {
-                LOGE("%s: failed to allocate overlay plane %d\n", __func__, i);
+                ALOGE("%s: failed to allocate overlay plane %d\n", __func__, i);
                 goto overlay_alloc_err;
             }
             // reset overlay plane
@@ -125,7 +125,7 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
     // allocate zorder configs
     mZOrderConfigs = (int *)malloc(mPrimaryPlaneCount * sizeof(int));
     if (!mZOrderConfigs) {
-        LOGE("%s: failed to allocated ZOrderConfigs\n", __func__);
+        ALOGE("%s: failed to allocated ZOrderConfigs\n", __func__);
         goto overlay_alloc_err;
     }
 
@@ -134,7 +134,7 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
     // allocate Widi plane
     mWidiPlane = new IntelWidiPlane(mDrmFd,mOverlayPlaneCount, mGrallocBufferManager);
     if (!mWidiPlane) {
-        LOGE("%s: failed to allocate widi plane %d\n", __func__, i);
+        ALOGE("%s: failed to allocate widi plane %d\n", __func__, i);
         goto zorder_config_err;
     }
 
@@ -253,7 +253,7 @@ void IntelDisplayPlaneManager::putPlane(int index, uint32_t& mask)
     int bit = (1 << index);
 
     if (bit & mask) {
-        LOGW("%s: bit %d was set\n", __func__, index);
+        ALOGW("%s: bit %d was set\n", __func__, index);
         return;
     }
 
@@ -277,7 +277,7 @@ int IntelDisplayPlaneManager::getPlane(uint32_t& mask, int index)
 IntelDisplayPlane* IntelDisplayPlaneManager::getSpritePlane()
 {
     if (!initCheck()) {
-        LOGE("%s: plane manager was not initialized\n", __func__);
+        ALOGE("%s: plane manager was not initialized\n", __func__);
         return 0;
     }
 
@@ -292,14 +292,14 @@ IntelDisplayPlane* IntelDisplayPlaneManager::getSpritePlane()
     freePlaneIndex = getPlane(mFreeSpritePlanes);
     if (freePlaneIndex >= 0)
         return mSpritePlanes[freePlaneIndex];
-    LOGE("%s: failed to get a sprite plane\n", __func__);
+    ALOGE("%s: failed to get a sprite plane\n", __func__);
     return 0;
 }
 
 IntelDisplayPlane* IntelDisplayPlaneManager::getPrimaryPlane(int pipe)
 {
     if (!initCheck()) {
-        LOGE("%s: plane manager was not initialized\n", __func__);
+        ALOGE("%s: plane manager was not initialized\n", __func__);
         return 0;
     }
 
@@ -314,14 +314,14 @@ IntelDisplayPlane* IntelDisplayPlaneManager::getPrimaryPlane(int pipe)
     freePlaneIndex = getPlane(mFreePrimaryPlanes, pipe);
     if (freePlaneIndex >= 0)
         return mPrimaryPlanes[freePlaneIndex];
-    LOGE("%s: failed to get a primary plane\n", __func__);
+    ALOGE("%s: failed to get a primary plane\n", __func__);
     return 0;
 }
 
 IntelDisplayPlane* IntelDisplayPlaneManager::getOverlayPlane()
 {
     if (!initCheck()) {
-        LOGE("%s: plane manager was not initialized\n", __func__);
+        ALOGE("%s: plane manager was not initialized\n", __func__);
         return 0;
     }
 
@@ -335,7 +335,7 @@ IntelDisplayPlane* IntelDisplayPlaneManager::getOverlayPlane()
     }
 
     if (freePlaneIndex < 0) {
-       LOGE("%s: failed to get a overlay plane\n", __func__);
+       ALOGE("%s: failed to get a overlay plane\n", __func__);
        return 0;
     }
 
@@ -385,13 +385,13 @@ void IntelDisplayPlaneManager::reclaimPlane(IntelDisplayPlane *plane)
         return;
 
     if (!initCheck()) {
-        LOGE("%s: plane manager is not initialized\n", __func__);
+        ALOGE("%s: plane manager is not initialized\n", __func__);
         return;
     }
 
     int index = plane->mIndex;
 
-    LOGD_IF(ALLOW_PLANE_PRINT, "%s: reclaimPlane %d\n", __func__, index);
+    ALOGD_IF(ALLOW_PLANE_PRINT, "%s: reclaimPlane %d\n", __func__, index);
 
     if (plane->mType == IntelDisplayPlane::DISPLAY_PLANE_OVERLAY)
         putPlane(index, mReclaimedOverlayPlanes);
@@ -400,13 +400,13 @@ void IntelDisplayPlaneManager::reclaimPlane(IntelDisplayPlane *plane)
     else if (plane->mType == IntelDisplayPlane::DISPLAY_PLANE_PRIMARY)
 	putPlane(index, mReclaimedPrimaryPlanes);
     else
-        LOGE("%s: invalid plane type %d\n", __func__, plane->mType);
+        ALOGE("%s: invalid plane type %d\n", __func__, plane->mType);
 }
 
 void IntelDisplayPlaneManager::disableReclaimedPlanes(int type)
 {
     if (!initCheck()) {
-        LOGE("%s: plane manager is not initialized\n", __func__);
+        ALOGE("%s: plane manager is not initialized\n", __func__);
         return;
     }
 
@@ -480,10 +480,10 @@ int IntelDisplayPlaneManager::getContextLength() const
 
 int IntelDisplayPlaneManager::setZOrderConfig(int config, int pipe)
 {
-    LOGD_IF(ALLOW_PLANE_PRINT, "%s: %d", __func__, config);
+    ALOGD_IF(ALLOW_PLANE_PRINT, "%s: %d", __func__, config);
 
     if (!initCheck()) {
-        LOGE("%s: plane manager is not initialized\n", __func__);
+        ALOGE("%s: plane manager is not initialized\n", __func__);
         return -1;
     }
 
@@ -513,7 +513,7 @@ int IntelDisplayPlaneManager::setZOrderConfig(int config, int pipe)
         mOverlayPlanes[0]->forceBottom(false);
     }
 
-    LOGD("%s: set zorder: %d\n", __func__, config);
+    ALOGD("%s: set zorder: %d\n", __func__, config);
     mZOrderConfigs[pipe] = config;
     return 0;
 }
@@ -521,7 +521,7 @@ int IntelDisplayPlaneManager::setZOrderConfig(int config, int pipe)
 int IntelDisplayPlaneManager::getZOrderConfig(int pipe)
 {
     if (!initCheck()) {
-        LOGE("%s: plane manager is not initialized\n", __func__);
+        ALOGE("%s: plane manager is not initialized\n", __func__);
         return ZORDER_POaOc;
     }
 

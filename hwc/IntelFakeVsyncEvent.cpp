@@ -36,7 +36,7 @@
 IntelFakeVsyncEvent::IntelFakeVsyncEvent(IntelHWComposer *hwc) :
     mEnabled(false), mComposer(hwc), mNextFakeVSync(0)
 {
-    LOGV("Fake vsync event created");
+    ALOGV("Fake vsync event created");
     mRefreshPeriod = nsecs_t(1e9 / 60);
 }
 

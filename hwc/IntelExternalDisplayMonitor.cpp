@@ -25,7 +25,7 @@
  *    Jackie Li <yaodong.li@intel.com>
  *
  */
-//#define LOG_NDEBUG 0
+//#define ALOG_NDEBUG 0
 #include <IntelHWComposerCfg.h>
 #include <binder/IServiceManager.h>
 #include <poll.h>
@@ -49,28 +49,28 @@ IntelExternalDisplayMonitor::IntelExternalDisplayMonitor(IntelHWComposer *hwc) :
     mInitialized(false),
     mComposer(hwc)
 {
-    LOGD_IF(ALLOW_MONITOR_PRINT, "External display monitor created");
+    ALOGD_IF(ALLOW_MONITOR_PRINT, "External display monitor created");
     initialize();
 }
 
 IntelExternalDisplayMonitor::~IntelExternalDisplayMonitor()
 {
-    LOGD_IF(ALLOW_MONITOR_PRINT, "External display monitor Destroyed");
+    ALOGD_IF(ALLOW_MONITOR_PRINT, "External display monitor Destroyed");
     mInitialized = false;
     mComposer = 0;
 }
 
 void IntelExternalDisplayMonitor::initialize()
 {
-    LOGD_IF(ALLOW_MONITOR_PRINT, "External display monitor initialized");
+    ALOGD_IF(ALLOW_MONITOR_PRINT, "External display monitor initialized");
     mInitialized = true;
 }
 
 void IntelExternalDisplayMonitor::onMdsMessage(int msg, int data)
 {
-    LOGI("onMdsMessage: External display monitor onMdsMessage, %d, 0x%x", msg, data);
+    ALOGI("onMdsMessage: External display monitor onMdsMessage, %d, 0x%x", msg, data);
     if (msg == MDS_ORIENTATION_CHANGE) {
-        LOGV("onMdsMessage: MDS_ORIENTATION_CHANGE received");
+        ALOGV("onMdsMessage: MDS_ORIENTATION_CHANGE received");
         if (mWidiOn)
             mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2, MSG_TYPE_MDS_ORIENTATION_CHANGE);
     } else {
@@ -81,7 +81,7 @@ void IntelExternalDisplayMonitor::onMdsMessage(int msg, int data)
 
 int IntelExternalDisplayMonitor::getDisplayMode()
 {
-    LOGD_IF(ALLOW_MONITOR_PRINT, "Get display mode %d", mActiveDisplayMode);
+    ALOGD_IF(ALLOW_MONITOR_PRINT, "Get display mode %d", mActiveDisplayMode);
     if (mActiveDisplayMode & MDS_HDMI_VIDEO_EXT)
         return OVERLAY_EXTEND;
     else if (mActiveDisplayMode & MDS_HDMI_CLONE)
@@ -100,7 +100,7 @@ bool IntelExternalDisplayMonitor::isVideoPlaying()
 bool IntelExternalDisplayMonitor::isOverlayOff()
 {
     if (mActiveDisplayMode & MDS_OVERLAY_OFF) {
-       LOGW("Overlay is off.");
+       ALOGW("Overlay is off.");
        return true;
     }
     return false;
@@ -108,12 +108,12 @@ bool IntelExternalDisplayMonitor::isOverlayOff()
 
 void IntelExternalDisplayMonitor::binderDied(const wp<IBinder>& who)
 {
-    LOGD_IF(ALLOW_MONITOR_PRINT, "External display monitor binderDied");
+    ALOGD_IF(ALLOW_MONITOR_PRINT, "External display monitor binderDied");
 }
 
 bool IntelExternalDisplayMonitor::notifyWidi(bool on)
 {
-    LOGD_IF(ALLOW_MONITOR_PRINT, "Exteranal display notify the MDS widi's state");
+    ALOGD_IF(ALLOW_MONITOR_PRINT, "Exteranal display notify the MDS widi's state");
     // TODO: remove mWideOn. MultiDisplay Service maintains the state machine.
     if ((mMDClient != NULL) && (mWidiOn != on)) {
         mWidiOn = on;
@@ -125,7 +125,7 @@ bool IntelExternalDisplayMonitor::notifyWidi(bool on)
 
 bool IntelExternalDisplayMonitor::notifyMipi(bool on)
 {
-    LOGD_IF(ALLOW_MONITOR_PRINT,
+    ALOGD_IF(ALLOW_MONITOR_PRINT,
             "Exteranal display notify the MDS that Mipi should be turned on/off");
     if ((mMDClient != NULL) &&
         ((mActiveDisplayMode & MDS_HDMI_VIDEO_EXT) ||
@@ -155,10 +155,10 @@ bool IntelExternalDisplayMonitor::getVideoInfo(int *displayW, int *displayH, int
 
 bool IntelExternalDisplayMonitor::threadLoop()
 {
-    //LOGD_IF(ALLOW_MONITOR_PRINT, "External display monitor thread loop");
+    //ALOGD_IF(ALLOW_MONITOR_PRINT, "External display monitor thread loop");
 
     if (mMDClient !=  0) {
-        LOGD_IF(ALLOW_MONITOR_PRINT, "threadLoop: found MDS, threadLoop will exit.");
+        ALOGD_IF(ALLOW_MONITOR_PRINT, "threadLoop: found MDS, threadLoop will exit.");
         requestExit();
         return true;
     }
@@ -185,7 +185,7 @@ bool IntelExternalDisplayMonitor::threadLoop()
 
 status_t IntelExternalDisplayMonitor::readyToRun()
 {
-    LOGD_IF(ALLOW_MONITOR_PRINT, "External display monitor ready to run");
+    ALOGD_IF(ALLOW_MONITOR_PRINT, "External display monitor ready to run");
 
     // get multi-display manager service, retry 10 seconds
     int retry = 2;
@@ -197,16 +197,16 @@ status_t IntelExternalDisplayMonitor::readyToRun()
         if (service != 0) {
             mMDClient = new MultiDisplayClient();
             if (mMDClient == NULL) {
-                LOGE("Fail to create a multidisplay client");
+                ALOGE("Fail to create a multidisplay client");
             } else {
-                LOGI("Create a MultiDisplay client at HWC");
+                ALOGI("Create a MultiDisplay client at HWC");
                 bool bWait = true;
                 mActiveDisplayMode = mMDClient->getMode(bWait);
                 if (getDisplayMode() == OVERLAY_CLONE_MIPI0)
                     IntelHWComposerDrm::getInstance().setDisplayMode(OVERLAY_CLONE_MIPI0);
                 else if (getDisplayMode() == OVERLAY_EXTEND) {
                     IntelHWComposerDrm::getInstance().setDisplayMode(OVERLAY_EXTEND);
-                    LOGE("Impossible be here. Only clone mode or single mode is valid initialized state.");
+                    ALOGE("Impossible be here. Only clone mode or single mode is valid initialized state.");
                 }
                 else
                     IntelHWComposerDrm::getInstance().setDisplayMode(OVERLAY_MIPI0);
@@ -214,11 +214,11 @@ status_t IntelExternalDisplayMonitor::readyToRun()
             service->linkToDeath(this);
             break;
         }
-        LOGW("Failed to get MDS service.try again...\n");
+        ALOGW("Failed to get MDS service.try again...\n");
     } while(--retry);
 
     if (!retry && mMDClient == NULL) {
-        LOGW("Failed to get mds service, fall back uevent\n");
+        ALOGW("Failed to get mds service, fall back uevent\n");
         struct sockaddr_nl addr;
         int sz = 64*1024;
 
@@ -229,7 +229,7 @@ status_t IntelExternalDisplayMonitor::readyToRun()
 
         mUeventFd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_KOBJECT_UEVENT);
         if(mUeventFd < 0) {
-            LOGD("%s: failed to open uevent socket\n", __func__);
+            ALOGD("%s: failed to open uevent socket\n", __func__);
             return TIMED_OUT;
         }
 
@@ -242,7 +242,7 @@ status_t IntelExternalDisplayMonitor::readyToRun()
 
         memset(mUeventMessage, 0, UEVENT_MSG_LEN);
     } else {
-        LOGI("Got MultiDisplay Service\n");
+        ALOGI("Got MultiDisplay Service\n");
         if (mMDClient != NULL)
             mMDClient->registerModeChangeListener(this);
     }
@@ -252,6 +252,6 @@ status_t IntelExternalDisplayMonitor::readyToRun()
 
 void IntelExternalDisplayMonitor::onFirstRef()
 {
-    LOGD_IF(ALLOW_MONITOR_PRINT, "External display monitor onFirstRef");
+    ALOGD_IF(ALLOW_MONITOR_PRINT, "External display monitor onFirstRef");
     run("HWC external display monitor", PRIORITY_URGENT_DISPLAY);
 }

@@ -36,7 +36,7 @@ IntelHWComposerLayer::IntelHWComposerLayer()
 
 }
 
-IntelHWComposerLayer::IntelHWComposerLayer(hwc_layer_t *layer,
+IntelHWComposerLayer::IntelHWComposerLayer(hwc_layer_1_t *layer,
                                            IntelDisplayPlane *plane,
                                            int flags)
     : mHWCLayer(layer), mPlane(plane), mFlags(flags), mForceOverlay(false),
@@ -82,7 +82,7 @@ IntelHWComposerLayerList::~IntelHWComposerLayerList()
     mInitialized = false;
 }
 
-void IntelHWComposerLayerList::updateLayerList(hwc_layer_list_t *layerList)
+void IntelHWComposerLayerList::updateLayerList(hwc_display_contents_1_t *layerList)
 {
     int numLayers;
     int numRGBLayers = 0;
@@ -110,7 +110,7 @@ void IntelHWComposerLayerList::updateLayerList(hwc_layer_list_t *layerList)
         delete [] mLayerList;
         mLayerList = new IntelHWComposerLayer[numLayers];
         if (!mLayerList) {
-            LOGE("%s: failed to create layer list\n", __func__);
+            ALOGE("%s: failed to create layer list\n", __func__);
             return;
         }
     }
@@ -149,7 +149,7 @@ void IntelHWComposerLayerList::updateLayerList(hwc_layer_list_t *layerList)
             mLayerList[i].mLayerType = IntelHWComposerLayer::LAYER_TYPE_RGB;
             numRGBLayers++;
         } else
-            LOGW("updateLayerList: unknown format 0x%x", grallocHandle->format);
+            ALOGW("updateLayerList: unknown format 0x%x", grallocHandle->format);
 
         // check if a protected layer
         if (grallocHandle->usage & GRALLOC_USAGE_PROTECTED)
@@ -185,7 +185,7 @@ void IntelHWComposerLayerList::attachPlane(int index,
                                            int flags)
 {
     if (index < 0 || index >= mNumLayers || !plane) {
-        LOGE("%s: Invalid parameters\n", __func__);
+        ALOGE("%s: Invalid parameters\n", __func__);
         return;
     }
 
@@ -203,7 +203,7 @@ void IntelHWComposerLayerList::attachPlane(int index,
 void IntelHWComposerLayerList::detachPlane(int index, IntelDisplayPlane *plane)
 {
     if (index < 0 || index >= mNumLayers || !plane) {
-        LOGE("%s: Invalid parameters\n", __func__);
+        ALOGE("%s: Invalid parameters\n", __func__);
         return;
     }
 
@@ -222,7 +222,7 @@ void IntelHWComposerLayerList::detachPlane(int index, IntelDisplayPlane *plane)
 IntelDisplayPlane* IntelHWComposerLayerList::getPlane(int index)
 {
     if (index < 0 || index >= mNumLayers) {
-        LOGE("%s: Invalid parameters\n", __func__);
+        ALOGE("%s: Invalid parameters\n", __func__);
         return 0;
     }
 
@@ -235,7 +235,7 @@ IntelDisplayPlane* IntelHWComposerLayerList::getPlane(int index)
 void IntelHWComposerLayerList::setFlags(int index, int flags)
 {
     if (index < 0 || index >= mNumLayers) {
-        LOGE("%s: Invalid parameters\n", __func__);
+        ALOGE("%s: Invalid parameters\n", __func__);
         return;
     }
 
@@ -246,7 +246,7 @@ void IntelHWComposerLayerList::setFlags(int index, int flags)
 int IntelHWComposerLayerList::getFlags(int index)
 {
     if (index < 0 || index >= mNumLayers) {
-        LOGE("%s: Invalid parameters\n", __func__);
+        ALOGE("%s: Invalid parameters\n", __func__);
         return 0;
     }
 
@@ -259,7 +259,7 @@ int IntelHWComposerLayerList::getFlags(int index)
 void IntelHWComposerLayerList::setForceOverlay(int index, bool isForceOverlay)
 {
     if (index < 0 || index >= mNumLayers) {
-        LOGE("%s: Invalid parameters\n", __func__);
+        ALOGE("%s: Invalid parameters\n", __func__);
         return;
     }
 
@@ -270,7 +270,7 @@ void IntelHWComposerLayerList::setForceOverlay(int index, bool isForceOverlay)
 bool IntelHWComposerLayerList::getForceOverlay(int index)
 {
     if (index < 0 || index >= mNumLayers) {
-        LOGE("%s: Invalid parameters\n", __func__);
+        ALOGE("%s: Invalid parameters\n", __func__);
         return false;
     }
 
@@ -283,7 +283,7 @@ bool IntelHWComposerLayerList::getForceOverlay(int index)
 void IntelHWComposerLayerList::setNeedClearup(int index, bool needClearup)
 {
     if (index < 0 || index >= mNumLayers) {
-        LOGE("%s: Invalid parameters\n", __func__);
+        ALOGE("%s: Invalid parameters\n", __func__);
         return;
     }
 
@@ -294,7 +294,7 @@ void IntelHWComposerLayerList::setNeedClearup(int index, bool needClearup)
 bool IntelHWComposerLayerList::getNeedClearup(int index)
 {
     if (index < 0 || index >= mNumLayers) {
-        LOGE("%s: Invalid parameters\n", __func__);
+        ALOGE("%s: Invalid parameters\n", __func__);
         return false;
     }
 
@@ -307,7 +307,7 @@ bool IntelHWComposerLayerList::getNeedClearup(int index)
 int IntelHWComposerLayerList::getLayerType(int index) const
 {
     if (!initCheck() || index < 0 || index >= mNumLayers) {
-        LOGE("%s: Invalid parameters\n", __func__);
+        ALOGE("%s: Invalid parameters\n", __func__);
         return IntelHWComposerLayer::LAYER_TYPE_INVALID;
     }
 
@@ -317,7 +317,7 @@ int IntelHWComposerLayerList::getLayerType(int index) const
 int IntelHWComposerLayerList::getLayerFormat(int index) const
 {
     if (!initCheck() || index < 0 || index >= mNumLayers) {
-        LOGE("%s: Invalid parameters\n", __func__);
+        ALOGE("%s: Invalid parameters\n", __func__);
         return 0;
     }
 
@@ -327,7 +327,7 @@ int IntelHWComposerLayerList::getLayerFormat(int index) const
 bool IntelHWComposerLayerList::isProtectedLayer(int index) const
 {
     if (!initCheck() || index < 0 || index >= mNumLayers) {
-        LOGE("%s: Invalid parameters\n", __func__);
+        ALOGE("%s: Invalid parameters\n", __func__);
         return false;
     }
 
@@ -337,7 +337,7 @@ bool IntelHWComposerLayerList::isProtectedLayer(int index) const
 int IntelHWComposerLayerList::getRGBLayerCount() const
 {
     if (!initCheck()) {
-        LOGE("%s: Invalid parameters\n", __func__);
+        ALOGE("%s: Invalid parameters\n", __func__);
         return 0;
     }
 
@@ -347,7 +347,7 @@ int IntelHWComposerLayerList::getRGBLayerCount() const
 int IntelHWComposerLayerList::getYUVLayerCount() const
 {
     if (!initCheck()) {
-        LOGE("%s: Invalid parameters\n", __func__);
+        ALOGE("%s: Invalid parameters\n", __func__);
         return 0;
     }
 
@@ -360,11 +360,11 @@ void IntelHWComposerLayerList::clearWithOpenGL() const
     mode = IntelHWComposerDrm::getInstance().getOutputMode(OUTPUT_MIPI0);
 
     if (!mode || !mode->hdisplay || !mode->vdisplay) {
-        LOGE("%s: failed to detect mode of output OUTPUT_MIPI0\n", __func__);
+        ALOGE("%s: failed to detect mode of output OUTPUT_MIPI0\n", __func__);
         return;
     }
 
-    LOGD("%s: clear fb here, size %d x %d", __func__, mode->hdisplay, mode->vdisplay);
+    ALOGD("%s: clear fb here, size %d x %d", __func__, mode->hdisplay, mode->vdisplay);
     GLfloat vertices[][2] = {
         { 0,  mode->vdisplay },
         { 0,  0 },

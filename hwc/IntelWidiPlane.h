@@ -82,8 +82,8 @@ protected:
 
     class WidiInitThread: public android::Thread {
     public:
-        WidiInitThread(IntelWidiPlane* me): android::Thread(false), mSelf(me) {LOGV("Widi Plane Init thread created");};
-        ~WidiInitThread(){LOGV("Widi Plane Init thread destroyed");};
+        WidiInitThread(IntelWidiPlane* me): android::Thread(false), mSelf(me) {ALOGV("Widi Plane Init thread created");};
+        ~WidiInitThread(){ALOGV("Widi Plane Init thread destroyed");};
 
     private:
         bool  threadLoop();
@@ -152,7 +152,7 @@ public:
     bool isBackgroundVideoMode() {return false;};
     void setNativeWindow(int *nw){};
     void getNativeWindow(int*& nativeWindow){};
-    bool isSurfaceMatching(intel_gralloc_buffer_handle_t* nHandle){};
+    bool isSurfaceMatching(intel_gralloc_buffer_handle_t* nHandle){return false;};
     void setPlayerStatus(bool status, int fps) {return;};
     void setOrientation(uint32_t orientation){return;};
 
@@ -161,7 +161,7 @@ public:
     bool isStreaming() { return false; };
     bool isPlayerOn() { return false; };
     bool isWidiStatusChanged(){return false;};
-    android::status_t setOrientationChanged() {return NO_ERROR;};
+    android::status_t setOrientationChanged() {return android::NO_ERROR;};
 
 
 };

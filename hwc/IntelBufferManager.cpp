@@ -43,7 +43,7 @@ IntelDisplayDataBuffer::IntelDisplayDataBuffer(uint32_t format,
                                                uint32_t h)
         : mFormat(format), mWidth(w), mHeight(h), mBuffer(0), mBobDeinterlace(0)
 {
-    LOGD_IF(ALLOW_BUFFER_PRINT, "%s: width %d, format 0x%x\n", __func__, w, format);
+    ALOGD_IF(ALLOW_BUFFER_PRINT, "%s: width %d, format 0x%x\n", __func__, w, format);
 
 
     mRawStride = 0;
@@ -133,14 +133,14 @@ bool IntelTTMBufferManager::getVideoBridgeIoctl()
     const char lncExt[] = "lnc_video_getparam";
     int ret = 0;
 
-    LOGD_IF(ALLOW_BUFFER_PRINT, "%s: get video bridge ioctl num...\n", __func__);
+    ALOGD_IF(ALLOW_BUFFER_PRINT, "%s: get video bridge ioctl num...\n", __func__);
 
     if(mDrmFd <= 0) {
-        LOGE("%s: invalid drm fd %d\n", __func__, mDrmFd);
+        ALOGE("%s: invalid drm fd %d\n", __func__, mDrmFd);
         return false;
     }
 
-    LOGD_IF(ALLOW_BUFFER_PRINT,
+    ALOGD_IF(ALLOW_BUFFER_PRINT,
            "%s: DRM_PSB_EXTENSION %d\n", __func__, DRM_PSB_EXTENSION);
 
     /*get devOffset via drm IOCTL*/
@@ -148,12 +148,12 @@ bool IntelTTMBufferManager::getVideoBridgeIoctl()
 
     ret = drmCommandWriteRead(mDrmFd, DRM_PSB_EXTENSION, &arg, sizeof(arg));
     if(ret || !arg.rep.exists) {
-        LOGE("%s: get device offset failed with error code %d\n",
+        ALOGE("%s: get device offset failed with error code %d\n",
                   __func__, ret);
         return false;
     }
 
-    LOGD_IF(ALLOW_BUFFER_PRINT, "%s: video ioctl offset 0x%x\n",
+    ALOGD_IF(ALLOW_BUFFER_PRINT, "%s: video ioctl offset 0x%x\n",
               __func__,
               arg.rep.driver_ioctl_offset + 1);
 
@@ -173,7 +173,7 @@ bool IntelTTMBufferManager::initialize()
     bool ret;
 
     if (mDrmFd <= 0) {
-        LOGE("%s: invalid drm FD\n", __func__);
+        ALOGE("%s: invalid drm FD\n", __func__);
         return false;
     }
 
@@ -181,27 +181,27 @@ bool IntelTTMBufferManager::initialize()
     if (!mVideoBridgeIoctl) {
         ret = getVideoBridgeIoctl();
         if (ret == false) {
-            LOGE("%s: failed to video bridge ioctl\n", __func__);
+            ALOGE("%s: failed to video bridge ioctl\n", __func__);
             return ret;
         }
     }
 
     IntelWsbm *wsbm = new IntelWsbm(mDrmFd);
     if (!wsbm) {
-        LOGE("%s: failed to create wsbm object\n", __func__);
+        ALOGE("%s: failed to create wsbm object\n", __func__);
         return false;
     }
 
     ret = wsbm->initialize();
     if (ret == false) {
-        LOGE("%s: failed to initialize wsbm\n", __func__);
+        ALOGE("%s: failed to initialize wsbm\n", __func__);
         delete wsbm;
         return false;
     }
 
     mWsbm = wsbm;
 
-    LOGD_IF(ALLOW_BUFFER_PRINT, "%s: done\n", __func__);
+    ALOGD_IF(ALLOW_BUFFER_PRINT, "%s: done\n", __func__);
     return true;
 }
 
@@ -209,14 +209,14 @@ bool IntelTTMBufferManager::initialize()
 IntelDisplayBuffer* IntelTTMBufferManager::map(uint32_t handle)
 {
     if (!mWsbm) {
-        LOGE("%s: no wsbm found\n", __func__);
+        ALOGE("%s: no wsbm found\n", __func__);
         return 0;
     }
 
     void *wsbmBufferObject;
     bool ret = mWsbm->wrapTTMBuffer(handle, &wsbmBufferObject);
     if (ret == false) {
-        LOGE("%s: wrap ttm buffer failed\n", __func__);
+        ALOGE("%s: wrap ttm buffer failed\n", __func__);
         return 0;
     }
 
@@ -230,7 +230,7 @@ IntelDisplayBuffer* IntelTTMBufferManager::map(uint32_t handle)
                                                      gttOffsetInPage,
                                                      size);
 
-    LOGD_IF(ALLOW_BUFFER_PRINT,
+    ALOGD_IF(ALLOW_BUFFER_PRINT,
            "%s: mapped TTM overlay buffer. cpu %p, gtt %d\n",
          __func__, virtAddr, gttOffsetInPage);
 
@@ -240,7 +240,7 @@ IntelDisplayBuffer* IntelTTMBufferManager::map(uint32_t handle)
 void IntelTTMBufferManager::unmap(IntelDisplayBuffer *buffer)
 {
     if (!mWsbm) {
-        LOGE("%s: no wsbm found\n", __func__);
+        ALOGE("%s: no wsbm found\n", __func__);
         return;
     }
     mWsbm->unreferenceTTMBuffer(buffer->getBufferObject());
@@ -251,14 +251,14 @@ void IntelTTMBufferManager::unmap(IntelDisplayBuffer *buffer)
 IntelDisplayBuffer* IntelTTMBufferManager::get(int size, int alignment)
 {
     if (!mWsbm) {
-        LOGE("%s: no wsbm found\n", __func__);
+        ALOGE("%s: no wsbm found\n", __func__);
         return NULL;
     }
 
     void *wsbmBufferObject = NULL;
     bool ret = mWsbm->allocateTTMBuffer(size, alignment, &wsbmBufferObject);
     if (ret == false) {
-        LOGE("%s: failed to allocate buffer. size %d, alignment %d\n",
+        ALOGE("%s: failed to allocate buffer. size %d, alignment %d\n",
             __func__, size, alignment);
         return NULL;
     }
@@ -272,7 +272,7 @@ IntelDisplayBuffer* IntelTTMBufferManager::get(int size, int alignment)
                                                         gttOffsetInPage,
                                                         size,
                                                         handle);
-    LOGD_IF(ALLOW_BUFFER_PRINT,
+    ALOGD_IF(ALLOW_BUFFER_PRINT,
            "%s: created TTM overlay buffer. cpu %p, gtt %d\n",
          __func__, virtAddr, gttOffsetInPage);
     return buffer;
@@ -281,14 +281,14 @@ IntelDisplayBuffer* IntelTTMBufferManager::get(int size, int alignment)
 void IntelTTMBufferManager::put(IntelDisplayBuffer* buf)
 {
     if (!buf || !mWsbm) {
-        LOGE("%s: Invalid parameter\n", __func__);
+        ALOGE("%s: Invalid parameter\n", __func__);
         return;
     }
 
     void *wsbmBufferObject = buf->getBufferObject();
     bool ret = mWsbm->destroyTTMBuffer(wsbmBufferObject);
     if (ret == false)
-        LOGW("%s: failed to free wsbmBO\n", __func__);
+        ALOGW("%s: failed to free wsbmBO\n", __func__);
 
     // free overlay buffer
     delete buf;
@@ -303,10 +303,10 @@ bool IntelPVRBufferManager::initialize()
 {
     bool ret = pvr2DInit();
     if (ret == false) {
-        LOGE("%s: failed to init PVR2D\n", __func__);
+        ALOGE("%s: failed to init PVR2D\n", __func__);
         return false;
     }
-    LOGD_IF(ALLOW_BUFFER_PRINT, "%s: done\n", __func__);
+    ALOGD_IF(ALLOW_BUFFER_PRINT, "%s: done\n", __func__);
     return true;
 }
 
@@ -319,7 +319,7 @@ bool IntelPVRBufferManager::pvr2DInit()
     PVR2DERROR eResult = PVR2D_OK;
 
     if (mPVR2DHandle) {
-        LOGW("%s: overlay HAL already has PVR2D handle %p\n",
+        ALOGW("%s: overlay HAL already has PVR2D handle %p\n",
               __func__, mPVR2DHandle);
         return true;
     }
@@ -327,23 +327,23 @@ bool IntelPVRBufferManager::pvr2DInit()
     pvrDevices = PVR2DEnumerateDevices(0);
     if (pvrDevices <= 0) {
         if (pvrDevices == PVR2DERROR_DEVICE_UNAVAILABLE) {
-            LOGE("%s: Cannot connect to PVR services\n", __func__);
+            ALOGE("%s: Cannot connect to PVR services\n", __func__);
             /*FIXME: should I wait here?*/
         }
 
-        LOGE("%s: device not found\n", __FUNCTION__);
+        ALOGE("%s: device not found\n", __FUNCTION__);
         goto pvr_init_err;
     }
 
     pvrDevInfo =  (PVR2DDEVICEINFO *)malloc(pvrDevices * sizeof(PVR2DDEVICEINFO));
     if (!pvrDevInfo) {
-        LOGE("%s: no memory\n", __FUNCTION__);
+        ALOGE("%s: no memory\n", __FUNCTION__);
         goto pvr_init_err;
     }
 
     pvrDevices = PVR2DEnumerateDevices(pvrDevInfo);
     if(pvrDevices != PVR2D_OK) {
-        LOGE("%s: Enumerate device failed\n", __func__);
+        ALOGE("%s: Enumerate device failed\n", __func__);
         goto pvr_init_err;
     }
 
@@ -351,11 +351,11 @@ bool IntelPVRBufferManager::pvr2DInit()
     pvrDevID = pvrDevInfo[0].ulDevID;
     eResult = PVR2DCreateDeviceContext(pvrDevID, &mPVR2DHandle, 0);
     if (eResult != PVR2D_OK) {
-        LOGE("%s: Create device context failed\n", __func__);
+        ALOGE("%s: Create device context failed\n", __func__);
         goto pvr_init_err;
     }
 
-    LOGD_IF(ALLOW_BUFFER_PRINT,
+    ALOGD_IF(ALLOW_BUFFER_PRINT,
             "%s: pvr2d context inited. handle %p\n", __func__, mPVR2DHandle);
     ret = true;
 
@@ -369,7 +369,7 @@ pvr_init_err:
 
 void IntelPVRBufferManager::pvr2DDestroy()
 {
-    LOGD_IF(ALLOW_BUFFER_PRINT, "%s: destroying...\n", __func__);
+    ALOGD_IF(ALLOW_BUFFER_PRINT, "%s: destroying...\n", __func__);
 
     if(mPVR2DHandle) {
         PVR2DDestroyDeviceContext(mPVR2DHandle);
@@ -387,21 +387,21 @@ bool IntelPVRBufferManager::gttMap(PVR2DMEMINFO *buf,
     void * hKernelMemInfo = NULL;
 
     if (!buf || !offset) {
-        LOGE("%s: invalid parameters.\n", __func__);
+        ALOGE("%s: invalid parameters.\n", __func__);
         return false;
     }
 
-    LOGD_IF(ALLOW_BUFFER_PRINT, "%s: mapping to gtt. buffer %p, offset %p\n",
+    ALOGD_IF(ALLOW_BUFFER_PRINT, "%s: mapping to gtt. buffer %p, offset %p\n",
          __func__, buf, offset);
 
     if (mDrmFd < 0) {
-        LOGE("%s: drm is not ready\n", __func__);
+        ALOGE("%s: drm is not ready\n", __func__);
         return false;
     }
 
     hKernelMemInfo = (void *)buf->hPrivateMapData;
     if(!hKernelMemInfo) {
-        LOGE("%s: kernel meminfo handle is NULL\n", __func__);
+        ALOGE("%s: kernel meminfo handle is NULL\n", __func__);
         return false;
     }
 
@@ -411,13 +411,13 @@ bool IntelPVRBufferManager::gttMap(PVR2DMEMINFO *buf,
 
     int ret = drmCommandWriteRead(mDrmFd, DRM_PSB_GTT_MAP, &arg, sizeof(arg));
     if (ret) {
-        LOGE("%s: gtt mapping failed\n", __func__);
+        ALOGE("%s: gtt mapping failed\n", __func__);
         return false;
     }
 
     *offset =  arg.offset_pages;
 
-    LOGD_IF(ALLOW_BUFFER_PRINT,
+    ALOGD_IF(ALLOW_BUFFER_PRINT,
            "%s: mapped succussfully, gtt offset %d\n", __func__, *offset);
     return true;
 }
@@ -428,21 +428,21 @@ bool IntelPVRBufferManager::gttUnmap(PVR2DMEMINFO *buf)
     void * hKernelMemInfo = NULL;
 
     if(!buf) {
-        LOGE("%s: invalid parameters.\n", __func__);
+        ALOGE("%s: invalid parameters.\n", __func__);
         return false;
     }
 
-    LOGD_IF(ALLOW_BUFFER_PRINT,
+    ALOGD_IF(ALLOW_BUFFER_PRINT,
            "%s: unmapping from gtt. buffer %p\n", __func__, buf);
 
     if(mDrmFd < 0) {
-        LOGE("%s: drm is not ready\n", __func__);
+        ALOGE("%s: drm is not ready\n", __func__);
         return false;
     }
 
     hKernelMemInfo = (void *)buf->hPrivateMapData;
     if(!hKernelMemInfo) {
-        LOGE("%s: kernel meminfo handle is NULL\n", __func__);
+        ALOGE("%s: kernel meminfo handle is NULL\n", __func__);
         return false;
     }
 
@@ -451,11 +451,11 @@ bool IntelPVRBufferManager::gttUnmap(PVR2DMEMINFO *buf)
 
     int ret = drmCommandWrite(mDrmFd, DRM_PSB_GTT_UNMAP, &arg, sizeof(arg));
     if(ret) {
-        LOGE("%s: gtt unmapping failed\n", __func__);
+        ALOGE("%s: gtt unmapping failed\n", __func__);
         return false;
     }
 
-    LOGD_IF(ALLOW_BUFFER_PRINT, "%s: unmapped successfully.\n", __func__);
+    ALOGD_IF(ALLOW_BUFFER_PRINT, "%s: unmapped successfully.\n", __func__);
     return true;
 }
 
@@ -463,12 +463,12 @@ IntelDisplayBuffer*
 IntelPVRBufferManager::wrap(void *virt, int size)
 {
     if (!virt || size <= 0) {
-        LOGE("%s: invalid parameters\n", __func__);
+        ALOGE("%s: invalid parameters\n", __func__);
         return 0;
     }
 
     if (!mPVR2DHandle) {
-        LOGE("%s: PVR wasn't initialized\n", __func__);
+        ALOGE("%s: PVR wasn't initialized\n", __func__);
         return 0;
     }
 
@@ -478,7 +478,7 @@ IntelPVRBufferManager::wrap(void *virt, int size)
     /*wrap it to a PVR2DMemInfo*/
     eResult = PVR2DMemWrap(mPVR2DHandle, virt, 0, size, NULL, &pvr2dMemInfo);
     if (eResult != PVR2D_OK) {
-        LOGE("%s: failed to wrap memory\n", __func__);
+        ALOGE("%s: failed to wrap memory\n", __func__);
         return 0;
     }
 
@@ -489,7 +489,7 @@ IntelPVRBufferManager::wrap(void *virt, int size)
     bool ret = gttMap(pvr2dMemInfo, &gttOffsetInPage,
                       (uint32_t)virt, (uint32_t)size, gttPageAlignment);
     if (ret == false) {
-        LOGE("%s: Failed to map to GTT\n", __func__);
+        ALOGE("%s: Failed to map to GTT\n", __func__);
         PVR2DMemFree(mPVR2DHandle, pvr2dMemInfo);
         return 0;
     }
@@ -498,14 +498,14 @@ IntelPVRBufferManager::wrap(void *virt, int size)
                                                         virt,
                                                         gttOffsetInPage,
                                                         size);
-    LOGD_IF(ALLOW_BUFFER_PRINT, "%s: done\n", __func__);
+    ALOGD_IF(ALLOW_BUFFER_PRINT, "%s: done\n", __func__);
     return buffer;
 }
 
 void IntelPVRBufferManager::unwrap(IntelDisplayBuffer *buffer)
 {
     if (!mPVR2DHandle) {
-        LOGE("%s: PVR wasn't initialized\n", __func__);
+        ALOGE("%s: PVR wasn't initialized\n", __func__);
         return;
     }
 
@@ -514,7 +514,7 @@ void IntelPVRBufferManager::unwrap(IntelDisplayBuffer *buffer)
     /*unmap it from GTT*/
     bool ret = gttUnmap(pvr2dMemInfo);
     if (ret == false)
-        LOGW("%s: failed to unmap %p\n", __func__, pvr2dMemInfo);
+        ALOGW("%s: failed to unmap %p\n", __func__, pvr2dMemInfo);
 
     /*unwrap this meminfo*/
     PVR2DMemFree(mPVR2DHandle, pvr2dMemInfo);
@@ -522,18 +522,18 @@ void IntelPVRBufferManager::unwrap(IntelDisplayBuffer *buffer)
     // destroy overlay buffer
     delete buffer;
 
-    LOGD_IF(ALLOW_BUFFER_PRINT, "%s: done\n", __func__);
+    ALOGD_IF(ALLOW_BUFFER_PRINT, "%s: done\n", __func__);
 }
 
 IntelDisplayBuffer* IntelPVRBufferManager::map(uint32_t handle)
 {
     if (!mPVR2DHandle) {
-        LOGE("%s: PVR wasn't initialized\n", __func__);
+        ALOGE("%s: PVR wasn't initialized\n", __func__);
         return 0;
     }
 
     if (!handle) {
-        LOGE("%s: invalid buffer handle\n", __func__);
+        ALOGE("%s: invalid buffer handle\n", __func__);
         return 0;
     }
 
@@ -541,26 +541,26 @@ IntelDisplayBuffer* IntelPVRBufferManager::map(uint32_t handle)
 
     PVR2DERROR err = PVR2DMemMap(mPVR2DHandle, 0, (void*)handle, &pvr2dMemInfo);
     if (err != PVR2D_OK) {
-        LOGE("%s: failed to map handle 0x%x\n", __func__, handle);
+        ALOGE("%s: failed to map handle 0x%x\n", __func__, handle);
         return 0;
     }
     void *virtAddr = pvr2dMemInfo->pBase;
     uint32_t size = pvr2dMemInfo->ui32MemSize;
     int gttOffsetInPage = 0;
 
-    LOGD_IF(ALLOW_BUFFER_PRINT,
+    ALOGD_IF(ALLOW_BUFFER_PRINT,
            "%s: virt %p, size %dB\n", __func__, virtAddr, size);
 
     // map it into gtt
     bool ret = gttMap(pvr2dMemInfo, &gttOffsetInPage,
                       (uint32_t)virtAddr, size, 1);
     if (!ret) {
-        LOGE("%s: failed to map 0x%x to GTT\n", __func__, handle);
+        ALOGE("%s: failed to map 0x%x to GTT\n", __func__, handle);
         PVR2DMemFree(mPVR2DHandle, pvr2dMemInfo);
         return 0;
     }
 
-    LOGD_IF(ALLOW_BUFFER_PRINT,
+    ALOGD_IF(ALLOW_BUFFER_PRINT,
            "%s: mapped handle 0x%x, gtt %d\n", __func__, handle,
          gttOffsetInPage);
 
@@ -575,12 +575,12 @@ IntelDisplayBuffer* IntelPVRBufferManager::map(uint32_t handle)
 void IntelPVRBufferManager::unmap(IntelDisplayBuffer *buffer)
 {
     if (!mPVR2DHandle) {
-       LOGE("%s: PVR wasn't initialized\n", __func__);
+       ALOGE("%s: PVR wasn't initialized\n", __func__);
         return;
     }
 
     if (!buffer) {
-        LOGE("%s: invalid buffer\n", __func__);
+        ALOGE("%s: invalid buffer\n", __func__);
         return;
     }
 
@@ -615,12 +615,12 @@ bool IntelBCDBufferManager::gttMap(uint32_t devId, uint32_t bufferId,
     struct psb_gtt_mapping_arg arg;
 
     if (!offset) {
-        LOGE("%s: invalid parameters.\n", __func__);
+        ALOGE("%s: invalid parameters.\n", __func__);
         return false;
     }
 
     if (mDrmFd < 0) {
-        LOGE("%s: drm is not ready\n", __func__);
+        ALOGE("%s: drm is not ready\n", __func__);
         return false;
     }
 
@@ -631,7 +631,7 @@ bool IntelBCDBufferManager::gttMap(uint32_t devId, uint32_t bufferId,
 
     int ret = drmCommandWriteRead(mDrmFd, DRM_PSB_GTT_MAP, &arg, sizeof(arg));
     if (ret) {
-        LOGE("%s: gtt mapping failed\n", __func__);
+        ALOGE("%s: gtt mapping failed\n", __func__);
         return false;
     }
 
@@ -643,11 +643,11 @@ bool IntelBCDBufferManager::gttUnmap(uint32_t devId, uint32_t bufferId)
 {
     struct psb_gtt_mapping_arg arg;
 
-    LOGD_IF(ALLOW_BUFFER_PRINT,
+    ALOGD_IF(ALLOW_BUFFER_PRINT,
            "%s: unmapping from gtt. buffer %p\n", __func__, bufferId);
 
     if(mDrmFd < 0) {
-        LOGE("%s: drm is not ready\n", __func__);
+        ALOGE("%s: drm is not ready\n", __func__);
         return false;
     }
 
@@ -657,7 +657,7 @@ bool IntelBCDBufferManager::gttUnmap(uint32_t devId, uint32_t bufferId)
 
     int ret = drmCommandWrite(mDrmFd, DRM_PSB_GTT_UNMAP, &arg, sizeof(arg));
     if(ret) {
-        LOGE("%s: gtt unmapping failed\n", __func__);
+        ALOGE("%s: gtt unmapping failed\n", __func__);
         return false;
     }
 
@@ -671,12 +671,12 @@ bool IntelBCDBufferManager::getBCDInfo(uint32_t devId,
     struct psb_gtt_mapping_arg arg;
 
     if (!count || !stride) {
-        LOGE("%s: invalid parameters.\n", __func__);
+        ALOGE("%s: invalid parameters.\n", __func__);
         return false;
     }
 
     if (mDrmFd < 0) {
-        LOGE("%s: drm is not ready\n", __func__);
+        ALOGE("%s: drm is not ready\n", __func__);
         return false;
     }
 
@@ -685,7 +685,7 @@ bool IntelBCDBufferManager::getBCDInfo(uint32_t devId,
 
     int ret = drmCommandWriteRead(mDrmFd, DRM_PSB_GTT_MAP, &arg, sizeof(arg));
     if (ret) {
-        LOGE("%s: gtt mapping failed\n", __func__);
+        ALOGE("%s: gtt mapping failed\n", __func__);
         return false;
     }
 
@@ -699,12 +699,12 @@ bool IntelBCDBufferManager::initialize()
      // FIXME: remove wsbm later
     IntelWsbm *wsbm = new IntelWsbm(mDrmFd);
     if (!wsbm) {
-        LOGE("%s: failed to create wsbm object\n", __func__);
+        ALOGE("%s: failed to create wsbm object\n", __func__);
         goto open_dev_err;
     }
 
     if (!(wsbm->initialize())) {
-        LOGE("%s: failed to initialize wsbm\n", __func__);
+        ALOGE("%s: failed to initialize wsbm\n", __func__);
         goto wsbm_err;
     }
 
@@ -736,12 +736,12 @@ IntelDisplayBuffer** IntelBCDBufferManager::map(uint32_t device,
     bool ret;
 
     if (device >= INTEL_BCD_DEVICE_NUM_MAX || !count) {
-        LOGE("%s: invalid parameters\n", __func__);
+        ALOGE("%s: invalid parameters\n", __func__);
         return 0;
     }
 
     if (!initCheck()) {
-        LOGE("%s: BCD buffer manager wasn't initialized\n", __func__);
+        ALOGE("%s: BCD buffer manager wasn't initialized\n", __func__);
         return 0;
     }
 
@@ -751,19 +751,19 @@ IntelDisplayBuffer** IntelBCDBufferManager::map(uint32_t device,
 
     ret = getBCDInfo(device, &bufferCount, &bufferStride);
     if (!ret) {
-        LOGE("%s: failed to get BCD info for device %d\n", __func__, device);
+        ALOGE("%s: failed to get BCD info for device %d\n", __func__, device);
         return 0;
     }
 
     if (!bufferCount || !bufferStride) {
-        LOGE("%s: no buffer exists in BCD device %d\n", __func__, device);
+        ALOGE("%s: no buffer exists in BCD device %d\n", __func__, device);
         return 0;
     }
 
     IntelDisplayBuffer **bufferList =
        (IntelDisplayBuffer**)malloc(bufferCount * sizeof(IntelDisplayBuffer*));
     if (!bufferList) {
-        LOGE("%s: failed to allocate buffer list\n", __func__);
+        ALOGE("%s: failed to allocate buffer list\n", __func__);
         return 0;
     }
 
@@ -778,11 +778,11 @@ IntelDisplayBuffer** IntelBCDBufferManager::map(uint32_t device,
         // map into gtt
         ret = gttMap(device, i, 0, &gttOffsetInPage);
         if (!ret) {
-            LOGE("%s: failed to map to GTT\n", __func__);
+            ALOGE("%s: failed to map to GTT\n", __func__);
             goto gtt_map_err;
         }
 
-        LOGD_IF(ALLOW_BUFFER_PRINT,
+        ALOGD_IF(ALLOW_BUFFER_PRINT,
                "%s: creating buffer, dev %d buffer %d, gtt %d\n",
              __func__, device, i, gttOffsetInPage);
 
@@ -792,7 +792,7 @@ IntelDisplayBuffer** IntelBCDBufferManager::map(uint32_t device,
                                                size,
                                                (uint32_t)device);
         if (!bufferList[i]) {
-            LOGE("%s: failed to create new buffer\n", __func__);
+            ALOGE("%s: failed to create new buffer\n", __func__);
             goto buf_err;
         }
 
@@ -831,7 +831,7 @@ void IntelBCDBufferManager::unmap(IntelDisplayBuffer **buffers, uint32_t count)
         // unmap from gtt
         gttUnmap(device, i);
 
-        LOGD_IF(ALLOW_BUFFER_PRINT,
+        ALOGD_IF(ALLOW_BUFFER_PRINT,
                 "%s: dev %d, buffer %d\n", __func__, device, i);
 
         // delete
@@ -845,14 +845,14 @@ void IntelBCDBufferManager::unmap(IntelDisplayBuffer **buffers, uint32_t count)
 IntelDisplayBuffer* IntelBCDBufferManager::get(int size, int alignment)
 {
     if (!initCheck()) {
-        LOGE("%s: BCD Buffer Manager wasn't initialized\n", __func__);
+        ALOGE("%s: BCD Buffer Manager wasn't initialized\n", __func__);
         return 0;
     }
 
     void *wsbmBufferObject = NULL;
     bool ret = mWsbm->allocateTTMBuffer(size, alignment, &wsbmBufferObject);
     if (ret == false) {
-        LOGE("%s: failed to allocate buffer. size %d, alignment %d\n",
+        ALOGE("%s: failed to allocate buffer. size %d, alignment %d\n",
             __func__, size, alignment);
         return NULL;
     }
@@ -866,7 +866,7 @@ IntelDisplayBuffer* IntelBCDBufferManager::get(int size, int alignment)
                                                         gttOffsetInPage,
                                                         size,
                                                         handle);
-    LOGD_IF(ALLOW_BUFFER_PRINT,
+    ALOGD_IF(ALLOW_BUFFER_PRINT,
            "%s: created TTM overlay buffer. cpu %p, gtt %d\n",
          __func__, virtAddr, gttOffsetInPage);
     return buffer;
@@ -875,14 +875,14 @@ IntelDisplayBuffer* IntelBCDBufferManager::get(int size, int alignment)
 void IntelBCDBufferManager::put(IntelDisplayBuffer* buf)
 {
     if (!buf || !mWsbm) {
-        LOGE("%s: Invalid parameter\n", __func__);
+        ALOGE("%s: Invalid parameter\n", __func__);
         return;
     }
 
     void *wsbmBufferObject = buf->getBufferObject();
     bool ret = mWsbm->destroyTTMBuffer(wsbmBufferObject);
     if (ret == false)
-        LOGW("%s: failed to free wsbmBO\n", __func__);
+        ALOGW("%s: failed to free wsbmBO\n", __func__);
 
     // free overlay buffer
     delete buf;
@@ -909,12 +909,12 @@ bool IntelGraphicBufferManager::gttMap(PVRSRV_CLIENT_MEM_INFO *memInfo,
     struct psb_gtt_mapping_arg arg;
 
     if (!memInfo || !offset) {
-        LOGE("%s: invalid parameters.\n", __func__);
+        ALOGE("%s: invalid parameters.\n", __func__);
         return false;
     }
 
     if (mDrmFd < 0) {
-        LOGE("%s: drm is not ready\n", __func__);
+        ALOGE("%s: drm is not ready\n", __func__);
         return false;
     }
 
@@ -924,7 +924,7 @@ bool IntelGraphicBufferManager::gttMap(PVRSRV_CLIENT_MEM_INFO *memInfo,
 
     int ret = drmCommandWriteRead(mDrmFd, DRM_PSB_GTT_MAP, &arg, sizeof(arg));
     if (ret) {
-        LOGE("%s: gtt mapping failed\n", __func__);
+        ALOGE("%s: gtt mapping failed\n", __func__);
         return false;
     }
 
@@ -937,12 +937,12 @@ bool IntelGraphicBufferManager::gttUnmap(PVRSRV_CLIENT_MEM_INFO *memInfo)
     struct psb_gtt_mapping_arg arg;
 
     if (!memInfo) {
-        LOGE("%s: invalid parameter\n", __func__);
+        ALOGE("%s: invalid parameter\n", __func__);
         return false;
     }
 
     if(mDrmFd < 0) {
-        LOGE("%s: drm is not ready\n", __func__);
+        ALOGE("%s: drm is not ready\n", __func__);
         return false;
     }
 
@@ -951,7 +951,7 @@ bool IntelGraphicBufferManager::gttUnmap(PVRSRV_CLIENT_MEM_INFO *memInfo)
 
     int ret = drmCommandWrite(mDrmFd, DRM_PSB_GTT_UNMAP, &arg, sizeof(arg));
     if(ret) {
-        LOGE("%s: gtt unmapping failed\n", __func__);
+        ALOGE("%s: gtt unmapping failed\n", __func__);
         return false;
     }
 
@@ -970,12 +970,12 @@ bool IntelGraphicBufferManager::initialize()
 
     IntelWsbm *wsbm = new IntelWsbm(mDrmFd);
     if (!wsbm) {
-        LOGE("%s: failed to create wsbm object\n", __func__);
+        ALOGE("%s: failed to create wsbm object\n", __func__);
         return false;
     }
 
     if (!(wsbm->initialize())) {
-        LOGE("%s: failed to initialize wsbm\n", __func__);
+        ALOGE("%s: failed to initialize wsbm\n", __func__);
         delete wsbm;
         return false;
     }
@@ -985,14 +985,14 @@ bool IntelGraphicBufferManager::initialize()
     // connect to PVR Service
     res = PVRSRVConnect(&pvrConnection, 0);
     if (res != PVRSRV_OK) {
-        LOGE("%s: failed to connection with PVR services\n", __func__);
+        ALOGE("%s: failed to connection with PVR services\n", __func__);
         goto srv_err;
     }
 
     // get device data
     res = PVRSRVEnumerateDevices(pvrConnection, &devNum, devIDs);
     if (res != PVRSRV_OK) {
-        LOGE("%s: failed to enumerate devices\n", __func__);
+        ALOGE("%s: failed to enumerate devices\n", __func__);
         goto dev_err;
     }
 
@@ -1003,7 +1003,7 @@ bool IntelGraphicBufferManager::initialize()
                                          pvr3DDevData,
                                          PVRSRV_DEVICE_TYPE_UNKNOWN);
             if (res != PVRSRV_OK) {
-                LOGE("%s: failed to acquire device data\n", __func__);
+                ALOGE("%s: failed to acquire device data\n", __func__);
                 goto dev_err;
             }
 
@@ -1018,7 +1018,7 @@ bool IntelGraphicBufferManager::initialize()
                                        &heapCount,
                                        heapInfos);
     if (res != PVRSRV_OK) {
-        LOGE("%s: failed to create device memory context\n", __func__);
+        ALOGE("%s: failed to create device memory context\n", __func__);
         goto dev_err;
     }
 
@@ -1057,7 +1057,7 @@ IntelDisplayBuffer* IntelGraphicBufferManager::map(uint32_t handle)
                                 PVRSRV_MEM_NO_GPU_ADDR,
                                 &memInfo);
     if (res != PVRSRV_OK) {
-        LOGE("%s: failed to map meminfo with handle 0x%x, err = %d",
+        ALOGE("%s: failed to map meminfo with handle 0x%x, err = %d",
              __func__, handle, res);
         return 0;
     }
@@ -1069,7 +1069,7 @@ IntelDisplayBuffer* IntelGraphicBufferManager::map(uint32_t handle)
     // map to gtt
     ret = gttMap(memInfo, 0, &gttOffsetInPage);
     if (!ret) {
-        LOGE("%s: failed to map gtt\n", __func__);
+        ALOGE("%s: failed to map gtt\n", __func__);
         goto gtt_err;
     }
 
@@ -1112,14 +1112,14 @@ void IntelGraphicBufferManager::unmap(IntelDisplayBuffer *buffer)
 IntelDisplayBuffer* IntelGraphicBufferManager::get(int size, int alignment)
 {
     if (!mWsbm) {
-        LOGE("%s: no wsbm found\n", __func__);
+        ALOGE("%s: no wsbm found\n", __func__);
         return NULL;
     }
 
     void *wsbmBufferObject = NULL;
     bool ret = mWsbm->allocateTTMBuffer(size, alignment, &wsbmBufferObject);
     if (ret == false) {
-        LOGE("%s: failed to allocate buffer. size %d, alignment %d\n",
+        ALOGE("%s: failed to allocate buffer. size %d, alignment %d\n",
             __func__, size, alignment);
         return NULL;
     }
@@ -1133,7 +1133,7 @@ IntelDisplayBuffer* IntelGraphicBufferManager::get(int size, int alignment)
                                                         gttOffsetInPage,
                                                         size,
                                                         handle);
-    LOGD_IF(ALLOW_BUFFER_PRINT,
+    ALOGD_IF(ALLOW_BUFFER_PRINT,
             "%s: created TTM overlay buffer. cpu %p, gtt %d\n",
          __func__, virtAddr, gttOffsetInPage);
     return buffer;
@@ -1142,14 +1142,14 @@ IntelDisplayBuffer* IntelGraphicBufferManager::get(int size, int alignment)
 void IntelGraphicBufferManager::put(IntelDisplayBuffer* buf)
 {
     if (!buf || !mWsbm) {
-        LOGE("%s: Invalid parameter\n", __func__);
+        ALOGE("%s: Invalid parameter\n", __func__);
         return;
     }
 
     void *wsbmBufferObject = buf->getBufferObject();
     bool ret = mWsbm->destroyTTMBuffer(wsbmBufferObject);
     if (ret == false)
-        LOGW("%s: failed to free wsbmBO\n", __func__);
+        ALOGW("%s: failed to free wsbmBO\n", __func__);
 
     // free overlay buffer
     delete buf;
@@ -1158,7 +1158,7 @@ void IntelGraphicBufferManager::put(IntelDisplayBuffer* buf)
 IntelDisplayBuffer* IntelGraphicBufferManager::wrap(void *addr, int size)
 {
     if (!mWsbm) {
-        LOGE("%s: no wsbm found\n", __func__);
+        ALOGE("%s: no wsbm found\n", __func__);
         return 0;
     }
 
@@ -1166,13 +1166,13 @@ IntelDisplayBuffer* IntelGraphicBufferManager::wrap(void *addr, int size)
     uint32_t handle = (uint32_t)addr;
     bool ret = mWsbm->wrapTTMBuffer(handle, &wsbmBufferObject);
     if (ret == false) {
-        LOGE("%s: wrap ttm buffer failed\n", __func__);
+        ALOGE("%s: wrap ttm buffer failed\n", __func__);
         return 0;
     }
 
     ret = mWsbm->waitIdleTTMBuffer(wsbmBufferObject);
     if (ret == false) {
-        LOGE("%s: wait ttm buffer idle failed\n", __func__);
+        ALOGE("%s: wait ttm buffer idle failed\n", __func__);
         return 0;
     }
 
@@ -1180,7 +1180,7 @@ IntelDisplayBuffer* IntelGraphicBufferManager::wrap(void *addr, int size)
     uint32_t gttOffsetInPage = mWsbm->getGttOffset(wsbmBufferObject);
 
     if (!gttOffsetInPage || !virtAddr) {
-        LOGW("GTT offset:%x Virtual addr: %p.", gttOffsetInPage, virtAddr);
+        ALOGW("GTT offset:%x Virtual addr: %p.", gttOffsetInPage, virtAddr);
         return 0;
     }
 
@@ -1194,7 +1194,7 @@ IntelDisplayBuffer* IntelGraphicBufferManager::wrap(void *addr, int size)
 void IntelGraphicBufferManager::unwrap(IntelDisplayBuffer *buffer)
 {
     if (!mWsbm) {
-        LOGE("%s: no wsbm found\n", __func__);
+        ALOGE("%s: no wsbm found\n", __func__);
         return;
     }
 
@@ -1209,7 +1209,7 @@ void IntelGraphicBufferManager::unwrap(IntelDisplayBuffer *buffer)
 void IntelGraphicBufferManager::waitIdle(uint32_t khandle)
 {
     if (!mWsbm) {
-        LOGE("%s: no wsbm found\n", __func__);
+        ALOGE("%s: no wsbm found\n", __func__);
         return;
     }
 
@@ -1219,13 +1219,13 @@ void IntelGraphicBufferManager::waitIdle(uint32_t khandle)
     void *wsbmBufferObject;;
     bool ret = mWsbm->wrapTTMBuffer(khandle, &wsbmBufferObject);
     if (ret == false) {
-        LOGE("%s: wrap ttm buffer failed\n", __func__);
+        ALOGE("%s: wrap ttm buffer failed\n", __func__);
         return;
     }
 
     ret = mWsbm->waitIdleTTMBuffer(wsbmBufferObject);
     if (ret == false) {
-        LOGE("%s: wait ttm buffer idle failed\n", __func__);
+        ALOGE("%s: wait ttm buffer idle failed\n", __func__);
         return;
     }
 

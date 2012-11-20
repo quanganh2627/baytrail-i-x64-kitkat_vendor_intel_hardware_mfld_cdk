@@ -25,7 +25,6 @@
  *    Jackie Li <yaodong.li@intel.com>
  *
  */
-#define LOG_TAG	"Overlay_CDK"
 
 #include <wsbm_pool.h>
 #include <wsbm_driver.h>
@@ -47,12 +46,12 @@ struct  _ValidateNode base;
 static struct _ValidateNode * pvrAlloc(struct _WsbmVNodeFuncs * func,
                                        int typeId)
 {
-    LOGV("%s: allocating ...\n", __func__);
+    ALOGV("%s: allocating ...\n", __func__);
 
     if(typeId == 0) {
         struct PVRWsbmValidateNode * vNode = malloc(sizeof(*vNode));
         if(!vNode) {
-            LOGE("%s: allocate memory failed\n", __func__);
+            ALOGE("%s: allocate memory failed\n", __func__);
             return NULL;
         }
 
@@ -62,7 +61,7 @@ static struct _ValidateNode * pvrAlloc(struct _WsbmVNodeFuncs * func,
     } else {
         struct _ValidateNode * node = malloc(sizeof(*node));
         if(!node) {
-            LOGE("%s: allocate node failed\n", __func__);
+            ALOGE("%s: allocate node failed\n", __func__);
             return NULL;
         }
 
@@ -74,7 +73,7 @@ static struct _ValidateNode * pvrAlloc(struct _WsbmVNodeFuncs * func,
 
 static void pvrFree(struct _ValidateNode * node)
 {
-    LOGV("%s: free ...\n", __func__);
+    ALOGV("%s: free ...\n", __func__);
     if(node->type_id == 0) {
         free(containerOf(node, struct PVRWsbmValidateNode, base));
     } else {
@@ -84,7 +83,7 @@ static void pvrFree(struct _ValidateNode * node)
 
 static void pvrClear(struct _ValidateNode * node)
 {
-    LOGV("%s: clearing ...\n", __FUNCTION__);
+    ALOGV("%s: clearing ...\n", __FUNCTION__);
     if(node->type_id == 0) {
         struct PVRWsbmValidateNode * vNode =
             containerOf(node, struct PVRWsbmValidateNode, base);
@@ -104,43 +103,43 @@ int pvrWsbmInitialize(int drmFD)
     const char drmExt[] = "psb_ttm_placement_alphadrop";
     int ret = 0;
 
-    LOGV("%s: wsbm initializing...\n", __func__);
+    ALOGV("%s: wsbm initializing...\n", __func__);
 
     if(drmFD <= 0) {
-        LOGE("%s: invalid drm fd %d\n", __func__, drmFD);
+        ALOGE("%s: invalid drm fd %d\n", __func__, drmFD);
         return drmFD;
     }
 
     /*init wsbm*/
     ret = wsbmInit(wsbmNullThreadFuncs(), &vNodeFuncs);
     if (ret) {
-        LOGE("%s: WSBM init failed with error code %d\n",
+        ALOGE("%s: WSBM init failed with error code %d\n",
              __func__, ret);
         return ret;
     }
 
-    LOGV("%s: DRM_PSB_EXTENSION %d\n", __func__, DRM_PSB_EXTENSION);
+    ALOGV("%s: DRM_PSB_EXTENSION %d\n", __func__, DRM_PSB_EXTENSION);
 
     /*get devOffset via drm IOCTL*/
     strncpy(arg.extension, drmExt, sizeof(drmExt));
 
     ret = drmCommandWriteRead(drmFD, 6/*DRM_PSB_EXTENSION*/, &arg, sizeof(arg));
     if(ret || !arg.rep.exists) {
-        LOGE("%s: get device offset failed with error code %d\n",
+        ALOGE("%s: get device offset failed with error code %d\n",
              __func__, ret);
         goto out;
     }
 
-    LOGV("%s: ioctl offset 0x%x\n", __func__, arg.rep.driver_ioctl_offset);
+    ALOGV("%s: ioctl offset 0x%x\n", __func__, arg.rep.driver_ioctl_offset);
 
     mainPool = wsbmTTMPoolInit(drmFD, arg.rep.driver_ioctl_offset);
     if(!mainPool) {
-        LOGE("%s: TTM Pool init failed\n", __func__);
+        ALOGE("%s: TTM Pool init failed\n", __func__);
         ret = -EINVAL;
         goto out;
     }
 
-    LOGV("%s: PVRWsbm initialized successfully. mainPool %p\n",
+    ALOGV("%s: PVRWsbm initialized successfully. mainPool %p\n",
          __func__, mainPool);
 
     return 0;
@@ -152,7 +151,7 @@ out:
 
 void pvrWsbmTakedown()
 {
-    LOGV("%s: Takedown wsbm...\n", __func__);
+    ALOGV("%s: Takedown wsbm...\n", __func__);
 
     wsbmPoolTakeDown(mainPool);
     wsbmTakedown();
@@ -164,28 +163,28 @@ int pvrWsbmAllocateTTMBuffer(uint32_t size, uint32_t align, void ** buf)
     int ret = 0;
     int offset = 0;
 
-    LOGV("%s: allocating TTM buffer... size %d\n",
+    ALOGV("%s: allocating TTM buffer... size %d\n",
          __func__, align_to(size, 4096));
 
     if(!buf) {
-        LOGE("%s: invalid parameter\n", __func__);
+        ALOGE("%s: invalid parameter\n", __func__);
         return -EINVAL;
     }
 
-    LOGV("%s: mainPool %p\n", __func__, mainPool);
+    ALOGV("%s: mainPool %p\n", __func__, mainPool);
 
     ret = wsbmGenBuffers(mainPool, 1, &wsbmBuf, align,
                         (WSBM_PL_FLAG_VRAM | WSBM_PL_FLAG_TT |
                          WSBM_PL_FLAG_SHARED | WSBM_PL_FLAG_NO_EVICT));
     if(ret) {
-        LOGE("%s: wsbmGenBuffers failed with error code %d\n",
+        ALOGE("%s: wsbmGenBuffers failed with error code %d\n",
              __func__, ret);
         return ret;
     }
 
     ret = wsbmBOData(wsbmBuf, align_to(size, 4096), NULL, NULL, 0);
     if(ret) {
-        LOGE("%s: wsbmBOData failed with error code %d\n",
+        ALOGE("%s: wsbmBOData failed with error code %d\n",
              __func__, ret);
         /*FIXME: should I unreference this buffer here?*/
         return ret;
@@ -195,7 +194,7 @@ int pvrWsbmAllocateTTMBuffer(uint32_t size, uint32_t align, void ** buf)
 
     *buf = wsbmBuf;
 
-    LOGV("%s: ttm buffer allocated. %p\n", __func__, *buf);
+    ALOGV("%s: ttm buffer allocated. %p\n", __func__, *buf);
     return 0;
 }
 
@@ -205,7 +204,7 @@ int pvrWsbmWrapTTMBuffer(uint32_t handle, void **buf)
     struct _WsbmBufferObject *wsbmBuf;
 
     if (!buf) {
-        LOGE("%s: Invalid parameter\n", __func__);
+        ALOGE("%s: Invalid parameter\n", __func__);
         return -EINVAL;
     }
 
@@ -214,14 +213,14 @@ int pvrWsbmWrapTTMBuffer(uint32_t handle, void **buf)
                         /*WSBM_PL_FLAG_NO_EVICT |*/ WSBM_PL_FLAG_SHARED));
 
     if (ret) {
-        LOGE("%s: wsbmGenBuffers failed with error code %d\n",
+        ALOGE("%s: wsbmGenBuffers failed with error code %d\n",
              __func__, ret);
         return ret;
     }
 
     ret = wsbmBOSetReferenced(wsbmBuf, handle);
     if (ret) {
-        LOGE("%s: wsbmBOSetReferenced failed with error code %d\n",
+        ALOGE("%s: wsbmBOSetReferenced failed with error code %d\n",
              __func__, ret);
 
         return ret;
@@ -229,7 +228,7 @@ int pvrWsbmWrapTTMBuffer(uint32_t handle, void **buf)
 
     *buf = (void *)wsbmBuf;
 
-    LOGV("%s: wrap buffer %p for handle 0x%x\n", __func__, wsbmBuf, handle);
+    ALOGV("%s: wrap buffer %p for handle 0x%x\n", __func__, wsbmBuf, handle);
     return 0;
 }
 
@@ -238,7 +237,7 @@ int pvrWsbmUnReference(void *buf)
     struct _WsbmBufferObject *wsbmBuf;
 
     if (!buf) {
-        LOGE("%s: Invalid parameter\n", __func__);
+        ALOGE("%s: Invalid parameter\n", __func__);
         return -EINVAL;
     }
 
@@ -251,10 +250,10 @@ int pvrWsbmUnReference(void *buf)
 
 int pvrWsbmDestroyTTMBuffer(void * buf)
 {
-    LOGV("%s: destroying buffer...\n", __func__);
+    ALOGV("%s: destroying buffer...\n", __func__);
 
     if(!buf) {
-        LOGE("%s: invalid ttm buffer\n", __func__);
+        ALOGE("%s: invalid ttm buffer\n", __func__);
         return -EINVAL;
     }
 
@@ -263,7 +262,7 @@ int pvrWsbmDestroyTTMBuffer(void * buf)
 
     wsbmBOUnreference((struct _WsbmBufferObject **)&buf);
 
-    LOGV("%s: destroyed\n", __func__);
+    ALOGV("%s: destroyed\n", __func__);
 
     return 0;
 }
@@ -271,20 +270,20 @@ int pvrWsbmDestroyTTMBuffer(void * buf)
 void * pvrWsbmGetCPUAddress(void * buf)
 {
     if(!buf) {
-        LOGE("%s: Invalid ttm buffer\n", __func__);
+        ALOGE("%s: Invalid ttm buffer\n", __func__);
         return NULL;
     }
 
-    LOGV("%s: getting cpu address. buffer object %p\n", __func__, buf);
+    ALOGV("%s: getting cpu address. buffer object %p\n", __func__, buf);
 
     void * address = wsbmBOMap((struct _WsbmBufferObject *)buf,
                                 WSBM_ACCESS_READ | WSBM_ACCESS_WRITE);
     if(!address) {
-        LOGE("%s: buffer object mapping failed\n", __func__);
+        ALOGE("%s: buffer object mapping failed\n", __func__);
         return NULL;
     }
 
-    LOGV("%s: mapped successfully. %p, size %ld\n", __func__,
+    ALOGV("%s: mapped successfully. %p, size %ld\n", __func__,
         address, wsbmBOSize((struct _WsbmBufferObject *)buf));
 
     return address;
@@ -293,16 +292,16 @@ void * pvrWsbmGetCPUAddress(void * buf)
 uint32_t pvrWsbmGetGttOffset(void * buf)
 {
     if(!buf) {
-        LOGE("%s: Invalid ttm buffer\n", __func__);
+        ALOGE("%s: Invalid ttm buffer\n", __func__);
         return 0;
     }
 
-    LOGV("%s: getting gtt offset... buffer object %p\n", __func__, buf);
+    ALOGV("%s: getting gtt offset... buffer object %p\n", __func__, buf);
 
     uint32_t offset =
         wsbmBOOffsetHint((struct _WsbmBufferObject *)buf) & 0x0fffffff;
 
-    LOGV("%s: successfully. offset %x\n", __func__, offset >> 12);
+    ALOGV("%s: successfully. offset %x\n", __func__, offset >> 12);
 
     return offset >> 12;
 }
@@ -310,7 +309,7 @@ uint32_t pvrWsbmGetGttOffset(void * buf)
 uint32_t pvrWsbmGetKBufHandle(void *buf)
 {
     if (!buf) {
-        LOGE("%s: Invalid ttm buffer\n", __func__);
+        ALOGE("%s: Invalid ttm buffer\n", __func__);
         return 0;
     }
 
@@ -320,7 +319,7 @@ uint32_t pvrWsbmGetKBufHandle(void *buf)
 uint32_t pvrWsbmWaitIdle(void *buf)
 {
     if (!buf) {
-        LOGE("%s: Invalid ttm buffer\n", __func__);
+        ALOGE("%s: Invalid ttm buffer\n", __func__);
         return -EINVAL;
     }
 

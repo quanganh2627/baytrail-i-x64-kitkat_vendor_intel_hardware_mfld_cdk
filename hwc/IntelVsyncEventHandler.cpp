@@ -36,7 +36,7 @@
 IntelVsyncEventHandler::IntelVsyncEventHandler(IntelHWComposer *hwc, int fd) :
     mComposer(hwc), mDrmFd(fd), mNextFakeVSync(0), mActiveVsyncs(0)
 {
-    LOGV("Vsync Event Handler created");
+    ALOGV("Vsync Event Handler created");
     mRefreshPeriod = nsecs_t(1e9 / 60);
 }
 
@@ -72,7 +72,7 @@ void IntelVsyncEventHandler::handleVsyncEvent(const char *msg, int msgLen)
         ts = strtoull(vsync_msg + strlen("VSYNC="), NULL, 0);
         pipe = strtol(pipe_msg + strlen("PIPE="), NULL, 0);
 
-        LOGV("%s: vsync timestamp %lld, pipe %d\n", __func__, ts, pipe);
+        ALOGV("%s: vsync timestamp %lld, pipe %d\n", __func__, ts, pipe);
         mComposer->vsync(ts, pipe);
     }
 }
@@ -110,7 +110,7 @@ bool IntelVsyncEventHandler::threadLoop()
 
 		    ret = drmCommandWriteRead(mDrmFd, DRM_PSB_REGISTER_RW, &arg, sizeof(arg));
 		    if (ret) {
-			    LOGW("%s: failed to wait vsync, error = %d\n", __func__, ret);
+			    ALOGW("%s: failed to wait vsync, error = %d\n", __func__, ret);
 			    return false;
 		    }
 
@@ -128,6 +128,6 @@ status_t IntelVsyncEventHandler::readyToRun()
 
 void IntelVsyncEventHandler::onFirstRef()
 {
-    LOGV("Vsync Event Handler onFirstRef");
+    ALOGV("Vsync Event Handler onFirstRef");
     run("HWC Vsync Event Handler", PRIORITY_URGENT_DISPLAY);
 }

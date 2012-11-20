@@ -51,13 +51,13 @@ bool IntelHWCUEventObserver::startObserver()
                              IntelHWCUEventObserver::threadLoop,
                              (void *)this);
     if (err) {
-        LOGE("%s: failed to start observer, err %d\n", __func__, err);
+        ALOGE("%s: failed to start observer, err %d\n", __func__, err);
         return false;
     }
 
     mReadyToRun = true;
 
-    LOGD("%s: observer started\n", __func__);
+    ALOGD("%s: observer started\n", __func__);
     return true;
 }
 
@@ -67,10 +67,10 @@ bool IntelHWCUEventObserver::stopObserver()
 
     int err = pthread_join(mThread, NULL);
     if (err) {
-        LOGE("%s: failed to stop observer, err %d\n", __func__, err);
+        ALOGE("%s: failed to stop observer, err %d\n", __func__, err);
         return false;
     }
-    LOGD("%s: observer stopped\n", __func__);
+    ALOGD("%s: observer stopped\n", __func__);
     return true;
 }
 
@@ -88,7 +88,7 @@ void *IntelHWCUEventObserver::threadLoop(void *data)
 
     fd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_KOBJECT_UEVENT);
     if(fd < 0) {
-        LOGD("%s: failed to open uevent socket\n", __func__);
+        ALOGD("%s: failed to open uevent socket\n", __func__);
         return 0;
     }
 
@@ -115,12 +115,12 @@ void *IntelHWCUEventObserver::threadLoop(void *data)
         if(nr > 0 && fds.revents == POLLIN) {
             int count = recv(fd, ueventMessage, UEVENT_MSG_LEN - 2, 0);
             if (count > 0)
-                observer->onUEvent(ueventMessage, UEVENT_MSG_LEN - 2);
+                observer->onUEvent(ueventMessage, UEVENT_MSG_LEN - 2, 0);
         }
     } while (observer->isReadyToRun());
 
 thread_exit:
-    LOGD("%s: observer exited\n", __func__);
+    ALOGD("%s: observer exited\n", __func__);
     return NULL;
 }
 
@@ -128,10 +128,10 @@ void IntelHWCUEventObserver::ueventHandler(void *data, const char *msg, int msgL
 {
     IntelHWCUEventObserver *observer = static_cast<IntelHWCUEventObserver*>(data);
     if (observer)
-        observer->onUEvent(msg, msgLen);
+        observer->onUEvent(msg, msgLen, 0);
 }
 
-void IntelHWCUEventObserver::onUEvent(const char *msg, int msgLen)
+void IntelHWCUEventObserver::onUEvent(const char *msg, int msgLen, int msgType)
 {
 
 }

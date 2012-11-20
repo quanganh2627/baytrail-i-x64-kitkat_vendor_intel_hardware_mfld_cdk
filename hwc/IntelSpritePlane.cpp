@@ -37,19 +37,19 @@ IntelSpritePlane::IntelSpritePlane(int fd, int index, IntelBufferManager *bm)
     : IntelDisplayPlane(fd, IntelDisplayPlane::DISPLAY_PLANE_SPRITE, index, bm)
 {
     bool ret;
-    LOGD_IF(ALLOW_SPRITE_PRINT, "%s\n", __func__);
+    ALOGD_IF(ALLOW_SPRITE_PRINT, "%s\n", __func__);
 
     // create data buffer
     IntelDisplayBuffer *dataBuffer = new IntelDisplayDataBuffer(0, 0, 0);
     if (!dataBuffer) {
-        LOGE("%s: Failed to create sprite data buffer\n", __func__);
+        ALOGE("%s: Failed to create sprite data buffer\n", __func__);
         return;
     }
 
     // create sprite context
     IntelSpriteContext *spriteContext = new IntelSpriteContext();
     if (!spriteContext) {
-        LOGE("%s: Failed to create sprite context\n", __func__);
+        ALOGE("%s: Failed to create sprite context\n", __func__);
         goto sprite_create_err;
     }
 
@@ -130,7 +130,7 @@ bool IntelSpritePlane::setDataBuffer(IntelDisplayBuffer& buffer)
             bpp = 4;
             break;
         default:
-            LOGE("%s: unsupported format 0x%x\n", __func__, format);
+            ALOGE("%s: unsupported format 0x%x\n", __func__, format);
             return false;
         }
 
@@ -154,7 +154,7 @@ bool IntelSpritePlane::setDataBuffer(IntelDisplayBuffer& buffer)
 
         return true;
     }
-    LOGE("%s: sprite plane was not initialized\n", __func__);
+    ALOGE("%s: sprite plane was not initialized\n", __func__);
     return false;
 }
 
@@ -175,7 +175,7 @@ bool IntelSpritePlane::disable()
 
 bool IntelSpritePlane::invalidateDataBuffer()
 {
-    LOGD_IF(ALLOW_SPRITE_PRINT, "%s\n", __func__);
+    ALOGD_IF(ALLOW_SPRITE_PRINT, "%s\n", __func__);
     if (initCheck()) {
 	 mBufferManager->unmap(mDataBuffer);
 	 delete mDataBuffer;

@@ -79,7 +79,7 @@ bool IntelHWCWrapper::initialize()
     return true;
 }
 
-bool IntelHWCWrapper::pre_prepare(hwc_layer_list_t *list)
+bool IntelHWCWrapper::pre_prepare(hwc_display_contents_1_t *list)
 {
     if (!mInitialized || !list)
         return false;
@@ -114,7 +114,7 @@ bool IntelHWCWrapper::pre_prepare(hwc_layer_list_t *list)
     return true;
 }
 
-bool IntelHWCWrapper::post_prepare(hwc_layer_list_t *list)
+bool IntelHWCWrapper::post_prepare(hwc_display_contents_1_t *list)
 {
     if (!mInitialized)
         return false;
@@ -128,7 +128,7 @@ bool IntelHWCWrapper::post_prepare(hwc_layer_list_t *list)
 
 bool IntelHWCWrapper::pre_commit(hwc_display_t dpy,
                                  hwc_surface_t sur,
-                                 hwc_layer_list_t *list)
+                                 hwc_display_contents_1_t *list)
 {
     if (!mInitialized)
         return false;
@@ -142,7 +142,7 @@ bool IntelHWCWrapper::pre_commit(hwc_display_t dpy,
 
 bool IntelHWCWrapper::post_commit(hwc_display_t dpy,
                                   hwc_surface_t sur,
-                                  hwc_layer_list_t *list)
+                                  hwc_display_contents_1_t *list)
 {
     if (!mInitialized)
         return false;
@@ -154,7 +154,7 @@ bool IntelHWCWrapper::post_commit(hwc_display_t dpy,
     return true;
 }
 
-bool IntelHWCWrapper::isYUVLayer(hwc_layer_t* hwcl)
+bool IntelHWCWrapper::isYUVLayer(hwc_layer_1_t* hwcl)
 {
     intel_gralloc_buffer_handle_t* grallocHandle =
         (intel_gralloc_buffer_handle_t*)hwcl->handle;
@@ -175,8 +175,8 @@ bool IntelHWCWrapper::isIntersectRect(hwc_rect_t* r1, hwc_rect_t* r2)
              r1->bottom <= r2->top);
 }
 
-bool IntelHWCWrapper::isOverlappedLayer(hwc_layer_list_t *list,
-                                        hwc_layer_t* hwcl)
+bool IntelHWCWrapper::isOverlappedLayer(hwc_display_contents_1_t *list,
+                                        hwc_layer_1_t* hwcl)
 {
     size_t i;
     hwc_rect_t* rect = &hwcl->displayFrame;
@@ -196,9 +196,9 @@ bool IntelHWCWrapper::isOverlappedLayer(hwc_layer_list_t *list,
     return false;
 }
 
-bool IntelHWCWrapper::checkLayersSupport(hwc_layer_list_t *list)
+bool IntelHWCWrapper::checkLayersSupport(hwc_display_contents_1_t *list)
 {
-    hwc_layer_t* hwcl;
+    hwc_layer_1_t* hwcl;
     int stride;
     size_t i;
 
@@ -243,7 +243,7 @@ bool IntelHWCWrapper::checkLayersSupport(hwc_layer_list_t *list)
                         GRALLOC_USAGE_HW_COMPOSER,
                         &mMergedLayer.yuv[i], &stride))
                     {
-                        ALOGE("checkLayersSupport:Failed to alloc YUV buffer %d", i);
+                        AALOGE("checkLayersSupport:Failed to alloc YUV buffer %d", i);
                         goto ret_false;
                     }
                 }
@@ -263,8 +263,8 @@ ret_false:
 }
 
 bool IntelHWCWrapper::checkSysLayer(sys_layer_t* sl,
-                                    hwc_layer_list_t* list,
-                                    hwc_layer_t* hwcl)
+                                    hwc_display_contents_1_t* list,
+                                    hwc_layer_1_t* hwcl)
 {
     int width, height, stride;
     int i;
@@ -299,7 +299,7 @@ bool IntelHWCWrapper::checkSysLayer(sys_layer_t* sl,
                     GRALLOC_USAGE_HW_COMPOSER,
                     &sl->yuv[i], &stride))
             {
-                ALOGE("checkSysLayer:Failed to alloc YUV buffer %d", i);
+                AALOGE("checkSysLayer:Failed to alloc YUV buffer %d", i);
                 return false;
             }
         }
@@ -312,8 +312,8 @@ bool IntelHWCWrapper::checkSysLayer(sys_layer_t* sl,
 }
 
 bool IntelHWCWrapper::updateSysLayer(sys_layer_t* sl,
-                                     hwc_layer_list_t* list,
-                                     hwc_layer_t* hwcl)
+                                     hwc_display_contents_1_t* list,
+                                     hwc_layer_1_t* hwcl)
 {
     // If the layer is updated, blit the new data to yuv buffer.
     if (sl->rgb != hwcl->handle) {
@@ -326,7 +326,7 @@ bool IntelHWCWrapper::updateSysLayer(sys_layer_t* sl,
                 hwcl->sourceCrop.left,
                 hwcl->sourceCrop.top))
         {
-            ALOGE("updateSysLayer:Failed to blit to YUV buffer");
+            AALOGE("updateSysLayer:Failed to blit to YUV buffer");
             sl->rgb = 0;
             return false;
         }

@@ -43,7 +43,7 @@
 IntelHWComposerDrm *IntelHWComposerDrm::mInstance(0);
 
 IntelHWComposerDrm:: ~IntelHWComposerDrm() {
-    LOGD_IF(ALLOW_MONITOR_PRINT, "%s: destroying overlay HAL...\n", __func__);
+    ALOGD_IF(ALLOW_MONITOR_PRINT, "%s: destroying overlay HAL...\n", __func__);
 
     drmDestroy();
     mInstance = NULL;
@@ -53,18 +53,18 @@ bool IntelHWComposerDrm::drmInit()
 {
     int fd = open("/dev/card0", O_RDWR, 0);
     if (fd < 0) {
-        LOGE("%s: drmOpen failed. %s\n", __func__, strerror(errno));
+        ALOGE("%s: drmOpen failed. %s\n", __func__, strerror(errno));
         return false;
     }
 
     mDrmFd = fd;
-    LOGD("%s: successfully. mDrmFd %d\n", __func__, fd);
+    ALOGD("%s: successfully. mDrmFd %d\n", __func__, fd);
     return true;
 }
 
 void IntelHWComposerDrm::drmDestroy()
 {
-    LOGD_IF(ALLOW_MONITOR_PRINT, "%s: destroying...\n", __func__);
+    ALOGD_IF(ALLOW_MONITOR_PRINT, "%s: destroying...\n", __func__);
 
     if(mDrmFd > 0) {
         drmClose(mDrmFd);
@@ -216,12 +216,12 @@ bool IntelHWComposerDrm::initialize(IntelHWComposer *hwc)
 {
     bool ret = false;
 
-    LOGD_IF(ALLOW_MONITOR_PRINT, "%s: init...\n", __func__);
+    ALOGD_IF(ALLOW_MONITOR_PRINT, "%s: init...\n", __func__);
 
     if (mDrmFd < 0) {
         ret = drmInit();
         if(ret == false) {
-            LOGE("%s: drmInit failed\n", __func__);
+            ALOGE("%s: drmInit failed\n", __func__);
             return ret;
         }
     }
@@ -230,7 +230,7 @@ bool IntelHWComposerDrm::initialize(IntelHWComposer *hwc)
     // create external display monitor
     mMonitor = new IntelExternalDisplayMonitor(hwc);
     if (mMonitor == 0) {
-        LOGE("%s: failed to create external display monitor\n", __func__);
+        ALOGE("%s: failed to create external display monitor\n", __func__);
         drmDestroy();
         return false;
     }
@@ -239,9 +239,9 @@ bool IntelHWComposerDrm::initialize(IntelHWComposer *hwc)
     // detect display mode
     ret = detectDrmModeInfo();
     if (ret == false)
-        LOGW("%s: failed to detect DRM modes\n", __func__);
+        ALOGW("%s: failed to detect DRM modes\n", __func__);
     else
-        LOGD_IF(ALLOW_MONITOR_PRINT, "%s: finish successfully.\n", __func__);
+        ALOGD_IF(ALLOW_MONITOR_PRINT, "%s: finish successfully.\n", __func__);
 
     // set old display mode the same detect mode
     mDrmOutputsState.old_display_mode =  mDrmOutputsState.display_mode;
@@ -249,17 +249,17 @@ bool IntelHWComposerDrm::initialize(IntelHWComposer *hwc)
 }
 bool IntelHWComposerDrm::detectDrmModeInfo()
 {
-    LOGD_IF(ALLOW_MONITOR_PRINT, "%s: detecting drm mode info...\n", __func__);
+    ALOGD_IF(ALLOW_MONITOR_PRINT, "%s: detecting drm mode info...\n", __func__);
 
     if (mDrmFd < 0) {
-        LOGE("%s: invalid drm FD\n", __func__);
+        ALOGE("%s: invalid drm FD\n", __func__);
         return false;
     }
 
     /*try to get drm resources*/
     drmModeResPtr resources = drmModeGetResources(mDrmFd);
     if (!resources) {
-        LOGE("%s: fail to get drm resources. %s\n", __func__, strerror(errno));
+        ALOGE("%s: fail to get drm resources. %s\n", __func__, strerror(errno));
         return false;
     }
 
@@ -274,24 +274,24 @@ bool IntelHWComposerDrm::detectDrmModeInfo()
     for (int i = 0; i < resources->count_connectors; i++) {
         connector = drmModeGetConnector(mDrmFd, resources->connectors[i]);
         if (!connector) {
-            LOGW("%s: fail to get drm connector\n", __func__);
+            ALOGW("%s: fail to get drm connector\n", __func__);
             continue;
         }
 
         int outputIndex = -1;
         if (connector->connector_type == DRM_MODE_CONNECTOR_MIPI ||
             connector->connector_type == DRM_MODE_CONNECTOR_LVDS) {
-            LOGD_IF(ALLOW_MONITOR_PRINT, "%s: got MIPI/LVDS connector\n", __func__);
+            ALOGD_IF(ALLOW_MONITOR_PRINT, "%s: got MIPI/LVDS connector\n", __func__);
             if (connector->connector_type_id == 1)
                 outputIndex = OUTPUT_MIPI0;
             else if (connector->connector_type_id == 2)
                 outputIndex = OUTPUT_MIPI1;
             else {
-                LOGW("%s: unknown connector type\n", __func__);
+                ALOGW("%s: unknown connector type\n", __func__);
                 outputIndex = OUTPUT_MIPI0;
             }
         } else if (connector->connector_type == DRM_MODE_CONNECTOR_DVID) {
-            LOGD_IF(ALLOW_MONITOR_PRINT, "%s: got HDMI connector\n", __func__);
+            ALOGD_IF(ALLOW_MONITOR_PRINT, "%s: got HDMI connector\n", __func__);
             outputIndex = OUTPUT_HDMI;
         }
 
@@ -301,7 +301,7 @@ bool IntelHWComposerDrm::detectDrmModeInfo()
         /*get related encoder*/
         encoder = drmModeGetEncoder(mDrmFd, connector->encoder_id);
         if (!encoder) {
-            LOGD_IF(ALLOW_MONITOR_PRINT, "%s: fail to get drm encoder\n", __func__);
+            ALOGD_IF(ALLOW_MONITOR_PRINT, "%s: fail to get drm encoder\n", __func__);
             drmModeFreeConnector(connector);
             setOutputConnection(outputIndex, DRM_MODE_DISCONNECTED);
             continue;
@@ -310,7 +310,7 @@ bool IntelHWComposerDrm::detectDrmModeInfo()
         /*get related crtc*/
         crtc = drmModeGetCrtc(mDrmFd, encoder->crtc_id);
         if (!crtc) {
-            LOGD_IF(ALLOW_MONITOR_PRINT, "%s: fail to get drm crtc\n", __func__);
+            ALOGD_IF(ALLOW_MONITOR_PRINT, "%s: fail to get drm crtc\n", __func__);
             drmModeFreeEncoder(encoder);
             drmModeFreeConnector(connector);
             setOutputConnection(outputIndex, DRM_MODE_DISCONNECTED);
@@ -323,7 +323,7 @@ bool IntelHWComposerDrm::detectDrmModeInfo()
         // get fb info
         fbInfo = drmModeGetFB(mDrmFd, crtc->buffer_id);
         if (!fbInfo) {
-            LOGD("%s: fail to get fb info\n", __func__);
+            ALOGD("%s: fail to get fb info\n", __func__);
             drmModeFreeCrtc(crtc);
             drmModeFreeEncoder(encoder);
             drmModeFreeConnector(connector);
@@ -350,7 +350,7 @@ bool IntelHWComposerDrm::detectDrmModeInfo()
     int mdsMode = 0;
     if (mMonitor != 0) {
         mdsMode = mMonitor->getDisplayMode();
-        LOGD("%s: getDisplayMode %d", __func__, mdsMode);
+        ALOGD("%s: getDisplayMode %d", __func__, mdsMode);
         //TODO: overlay only support OVERLAY_EXTEND and OVERLAY_MIPI0
         if (mdsMode == OVERLAY_EXTEND && hdmi == DRM_MODE_CONNECTED)
             setDisplayMode(OVERLAY_EXTEND);
@@ -364,7 +364,7 @@ bool IntelHWComposerDrm::detectDrmModeInfo()
         setDisplayMode(OVERLAY_MIPI0);
     }
 
-    LOGD_IF(ALLOW_MONITOR_PRINT,
+    ALOGD_IF(ALLOW_MONITOR_PRINT,
            "%s: mipi/lvds %s, mipi1 %s, hdmi %s, displayMode %d\n",
         __func__,
         ((mipi0 == DRM_MODE_CONNECTED) ? "connected" : "disconnected"),

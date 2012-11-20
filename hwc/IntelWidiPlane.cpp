@@ -41,25 +41,25 @@ IntelWidiPlane::WidiInitThread::threadLoop() {
 
     sp<IBinder> service;
     sp<IServiceManager> sm = defaultServiceManager();
-    LOGD_IF(ALLOW_WIDI_PRINT, "WidiPlane Init thread starting ");
+    ALOGD_IF(ALLOW_WIDI_PRINT, "WidiPlane Init thread starting ");
     do {
         service = (sm->getService(String16("media.widi")));
 
         if (service != 0) {
             break;
          }
-         LOGW("Wireless display service not published, waiting...");
+         ALOGW("Wireless display service not published, waiting...");
          usleep(500000); // 0.5 s
     } while(true);
 
-    LOGD_IF(ALLOW_WIDI_PRINT, "Widi service found = %p", service.get());
+    ALOGD_IF(ALLOW_WIDI_PRINT, "Widi service found = %p", service.get());
 
     mSelf->mWirelesDisplayservice = service;
 
     sp<IWirelessDisplayService> widiService = interface_cast<IWirelessDisplayService>(service);
 
     status_t s = widiService->registerHWPlane(mSelf);
-    LOGD_IF(ALLOW_WIDI_PRINT, "Widi plane registered status = %d", s);
+    ALOGD_IF(ALLOW_WIDI_PRINT, "Widi plane registered status = %d", s);
 
     service->linkToDeath(mSelf->mDeathNotifier);
 
@@ -69,7 +69,7 @@ IntelWidiPlane::WidiInitThread::threadLoop() {
         mSelf->mInitialized = true;
     }
 
-    LOGD_IF(ALLOW_WIDI_PRINT, "WidiPlane Init thread completed ");
+    ALOGD_IF(ALLOW_WIDI_PRINT, "WidiPlane Init thread completed ");
     return false;
 }
 
@@ -92,7 +92,7 @@ IntelWidiPlane::IntelWidiPlane(int fd, int index, IntelBufferManager *bm)
       mExtWidth(0),
       mExtHeight(0)
 {
-    LOGD_IF(ALLOW_WIDI_PRINT, "Intel Widi Plane constructor");
+    ALOGD_IF(ALLOW_WIDI_PRINT, "Intel Widi Plane constructor");
 
     memset(&mCurrExtFramePayload, 0, sizeof(mCurrExtFramePayload));
     mExtVideoBuffersMapping.setCapacity(EXT_VIDEO_MODE_MAX_SURFACE);
@@ -110,14 +110,14 @@ IntelWidiPlane::IntelWidiPlane(int fd, int index, IntelBufferManager *bm)
 
     init(); // defer the rest to the thread;
 
-    LOGD_IF(ALLOW_WIDI_PRINT, "Intel Widi Plane constructor- DONE");
+    ALOGD_IF(ALLOW_WIDI_PRINT, "Intel Widi Plane constructor- DONE");
     return;
 
 }
 
 IntelWidiPlane::~IntelWidiPlane()
 {
-    LOGD_IF(ALLOW_WIDI_PRINT, "Intel Widi Plane destructor");
+    ALOGD_IF(ALLOW_WIDI_PRINT, "Intel Widi Plane destructor");
     if (initCheck()) {
         mInitialized = false;
         if(mInitThread == NULL) {
@@ -140,7 +140,7 @@ IntelWidiPlane::enablePlane(sp<IBinder> display) {
     Mutex::Autolock _l(mLock);
 
     if(mState == WIDI_PLANE_STATE_INITIALIZED) {
-        LOGD_IF(ALLOW_WIDI_PRINT, "Plane Enabled !!");
+        ALOGD_IF(ALLOW_WIDI_PRINT, "Plane Enabled !!");
         mWirelessDisplay = display;
         mState = WIDI_PLANE_STATE_ACTIVE;
         mWidiStatusChanged = true;
@@ -166,7 +166,7 @@ IntelWidiPlane::disablePlane(bool isConnected) {
     }
     else {
        if ((mState == WIDI_PLANE_STATE_ACTIVE) || (mState == WIDI_PLANE_STATE_STREAMING)) {
-           LOGV("Plane Disabled !!");
+           ALOGV("Plane Disabled !!");
            mWirelessDisplay = NULL;
            mState = WIDI_PLANE_STATE_INITIALIZED;
            mWidiStatusChanged = true;
@@ -186,7 +186,7 @@ IntelWidiPlane::registerFlipListener(sp<IPageFlipListener> listener) {
 bool
 IntelWidiPlane::flip(void *context, uint32_t flags) {
 
-    LOGD_IF(ALLOW_HWC_PRINT,
+    ALOGD_IF(ALLOW_HWC_PRINT,
                    "Widi Plane flip, flip listener = %p", mFlipListener.get());
     if (mFlipListener != NULL && mState == WIDI_PLANE_STATE_ACTIVE && mStreamingEnabled) {
         mFlipListener->pageFlipped(systemTime(),mCurrentOrientation);
@@ -232,14 +232,14 @@ switch_to_clone:
 void
 IntelWidiPlane::allowExtVideoMode(bool allow) {
 
-    LOGD_IF(ALLOW_WIDI_PRINT, "Allow Ext video mode = %d", allow);
+    ALOGD_IF(ALLOW_WIDI_PRINT, "Allow Ext video mode = %d", allow);
     mAllowExtVideoMode = allow;
 }
 
 void
 IntelWidiPlane::setBackgroundVideoMode(bool value) {
 
-    LOGD_IF(ALLOW_WIDI_PRINT, "Set Background video mode = %d", value);
+    ALOGD_IF(ALLOW_WIDI_PRINT, "Set Background video mode = %d", value);
     mSetBackgroudVideoMode = value;
 }
 
@@ -252,11 +252,11 @@ void
 IntelWidiPlane::getNativeWindow(int*& nativeWindow) {
     if(mState == WIDI_PLANE_STATE_STREAMING) {
         nativeWindow = (int *)(mCurrExtFramePayload.p->native_window);
-        LOGD_IF(ALLOW_WIDI_PRINT,"getNativeWindow nativeWindow = 0x%x", nativeWindow);
+        ALOGD_IF(ALLOW_WIDI_PRINT,"getNativeWindow nativeWindow = 0x%x", nativeWindow);
     }
     else {
         nativeWindow = NULL;
-        LOGD_IF(ALLOW_WIDI_PRINT, "Widi not streaming nativeWindow is Null");
+        ALOGD_IF(ALLOW_WIDI_PRINT, "Widi not streaming nativeWindow is Null");
     }
 }
 
@@ -293,11 +293,11 @@ IntelWidiPlane::isSurfaceMatching(intel_gralloc_buffer_handle_t* nHandle) {
 void
 IntelWidiPlane::setPlayerStatus(bool status, int fps) {
 
-    LOGI("%s(), status = %d fps = %d", __func__, status, fps);
+    ALOGI("%s(), status = %d fps = %d", __func__, status, fps);
     Mutex::Autolock _l(mLock);
 
     if(isBackgroundVideoMode() && (mPlayerStatus == true)) {
-        LOGD_IF(ALLOW_WIDI_PRINT,
+        ALOGD_IF(ALLOW_WIDI_PRINT,
                "Widi is in Extended Background Video mode, second playback at device");
     }
     else {
@@ -322,13 +322,13 @@ IntelWidiPlane::mapPayloadBuffer(intel_gralloc_buffer_handle_t* gHandle, widiPay
 
     wPayload->pDB =  mBufferManager->map(gHandle->fd[GRALLOC_SUB_BUFFER1]);
     if (!wPayload->pDB) {
-       LOGE("%s: failed to map payload buffer.\n", __func__);
+       ALOGE("%s: failed to map payload buffer.\n", __func__);
        return false;
     }
 
     wPayload->p = (intel_gralloc_payload_t*)wPayload->pDB->getCpuAddr();
     if (wPayload->p == NULL) {
-       LOGE("%s: invalid address\n", __func__);
+       ALOGE("%s: invalid address\n", __func__);
        mBufferManager->unmap(wPayload->pDB);
        return false;
     }
@@ -403,7 +403,7 @@ IntelWidiPlane::setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t 
                     mExtVideoBufferMeta.chroma_v_stride = payload.p->rotate_chroma_v_stride;
                     mExtVideoBufferMeta.format = payload.p->format;
                 }
-                LOGI("width = %d height = %d luma_stride = %d chroma_u_stride = %d chroma_v_stride = %d format = 0x%x",
+                ALOGI("width = %d height = %d luma_stride = %d chroma_u_stride = %d chroma_v_stride = %d format = 0x%x",
                         mExtVideoBufferMeta.width,    mExtVideoBufferMeta.height, mExtVideoBufferMeta.luma_stride,
                         mExtVideoBufferMeta.chroma_u_stride, mExtVideoBufferMeta.chroma_v_stride,    mExtVideoBufferMeta.format);
 
@@ -417,7 +417,7 @@ IntelWidiPlane::setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t 
 
                 ret = sendInitMode(IWirelessDisplay::WIDI_MODE_EXTENDED_VIDEO, widthr, heightr);
                 if (ret != NO_ERROR) {
-                    LOGE("Something went wrong setting the mode, we continue in clone mode");
+                    ALOGE("Something went wrong setting the mode, we continue in clone mode");
                 }
             }
 
@@ -513,7 +513,7 @@ IntelWidiPlane::sendInitMode(int mode, uint32_t width, uint32_t height) {
        } else {
 
            clearExtVideoModeContext();
-           LOGE("Error setting Extended video mode ");
+           ALOGE("Error setting Extended video mode ");
        }
 
     }
@@ -549,7 +549,7 @@ IntelWidiPlane::clearExtVideoModeContext(bool lock) {
 
 void
 IntelWidiPlane::returnBuffer(int khandle) {
-    LOGD_IF(ALLOW_WIDI_PRINT, "Buffer returned, index = %d", index);
+    ALOGD_IF(ALLOW_WIDI_PRINT, "Buffer returned, index = %d", index);
 
     Mutex::Autolock _l(mExtBufferMapLock);
 
@@ -568,7 +568,7 @@ IntelWidiPlane::returnBuffer(int khandle) {
 
 void
 IntelWidiPlane::DeathNotifier::binderDied(const wp<IBinder>& who) {
-    LOGW("widi server died - trying to register again");
+    ALOGW("widi server died - trying to register again");
 
     mSelf->disablePlane(false);
 
@@ -584,12 +584,12 @@ IntelWidiPlane::DeathNotifier::~DeathNotifier() {
 
 status_t
 IntelWidiPlane::setOrientationChanged() {
-   LOGI("%s()", __func__);
+   ALOGI("%s()", __func__);
    status_t ret = NO_ERROR;
    sp<IWirelessDisplay> wd = interface_cast<IWirelessDisplay> (mWirelessDisplay);
    ret = wd->setOrientationChanged();
    if (ret != NO_ERROR)
-       LOGE("IntelWidiPlane::setOrientationChanged binder error");
+       ALOGE("IntelWidiPlane::setOrientationChanged binder error");
 
    return ret;
 }

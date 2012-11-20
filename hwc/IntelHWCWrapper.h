@@ -25,6 +25,8 @@
 #ifndef INTEL_HWC_WRAPPER_H
 #define INTEL_HWC_WRAPPER_H
 
+#define HWC_REMOVE_DEPRECATED_VERSIONS 1
+
 #include <hardware/hwcomposer.h>
 #include <hardware/hardware.h>
 #include <system/graphics.h>
@@ -78,31 +80,31 @@ private:
     bool mUseMergedLayer;
     sys_layer_t mMergedLayer;
 
-    bool isYUVLayer(hwc_layer_t* hwcl);
+    bool isYUVLayer(hwc_layer_1_t* hwcl);
     bool isIntersectRect(hwc_rect_t* r1, hwc_rect_t* r2);
-    bool isOverlappedLayer(hwc_layer_list_t *list,
-                           hwc_layer_t* hwcl);
+    bool isOverlappedLayer(hwc_display_contents_1_t *list,
+                           hwc_layer_1_t* hwcl);
 
-    bool checkLayersSupport(hwc_layer_list_t *list);
+    bool checkLayersSupport(hwc_display_contents_1_t *list);
     bool checkSysLayer(sys_layer_t* sl,
-                       hwc_layer_list_t* list,
-                       hwc_layer_t* hwcl);
+                       hwc_display_contents_1_t* list,
+                       hwc_layer_1_t* hwcl);
     bool updateSysLayer(sys_layer_t* sl,
-                        hwc_layer_list_t* list,
-                        hwc_layer_t* hwcl);
+                        hwc_display_contents_1_t* list,
+                        hwc_layer_1_t* hwcl);
 public:
     IntelHWCWrapper();
     ~IntelHWCWrapper();
 
     bool initialize();
-    bool pre_prepare(hwc_layer_list_t *list);
-    bool post_prepare(hwc_layer_list_t *list);
+    bool pre_prepare(hwc_display_contents_1_t *list);
+    bool post_prepare(hwc_display_contents_1_t *list);
     bool pre_commit(hwc_display_t dpy,
                     hwc_surface_t sur,
-                    hwc_layer_list_t *list);
+                    hwc_display_contents_1_t *list);
     bool post_commit(hwc_display_t dpy,
                      hwc_surface_t sur,
-                     hwc_layer_list_t *list);
+                     hwc_display_contents_1_t *list);
 
 };
 

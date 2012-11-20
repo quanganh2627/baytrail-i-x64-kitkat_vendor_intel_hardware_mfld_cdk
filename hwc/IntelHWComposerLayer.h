@@ -28,6 +28,8 @@
 #ifndef __INTEL_HWCOMPOSER_LAYER_H__
 #define __INTEL_HWCOMPOSER_LAYER_H__
 
+#define HWC_REMOVE_DEPRECATED_VERSIONS 1
+
 #include <string.h>
 #include <hardware/hwcomposer.h>
 #include <IntelDisplayPlaneManager.h>
@@ -41,7 +43,7 @@ public:
     };
 
 private:
-    hwc_layer_t *mHWCLayer;
+    hwc_layer_1_t *mHWCLayer;
     IntelDisplayPlane *mPlane;
     int mFlags;
     bool mForceOverlay;
@@ -53,7 +55,7 @@ private:
     bool mIsProtected;
 public:
     IntelHWComposerLayer();
-    IntelHWComposerLayer(hwc_layer_t *layer,
+    IntelHWComposerLayer(hwc_layer_1_t *layer,
                          IntelDisplayPlane *plane,
                          int flags);
     ~IntelHWComposerLayer();
@@ -76,7 +78,7 @@ public:
     IntelHWComposerLayerList(IntelDisplayPlaneManager *pm);
     ~IntelHWComposerLayerList();
     bool initCheck() const { return mInitialized; }
-    void updateLayerList(hwc_layer_list_t *layerList);
+    void updateLayerList(hwc_display_contents_1_t *layerList);
     bool invalidatePlanes();
     void attachPlane(int index, IntelDisplayPlane *plane, int flags);
     void detachPlane(int index, IntelDisplayPlane *plane);

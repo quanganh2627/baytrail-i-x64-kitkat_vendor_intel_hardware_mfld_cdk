@@ -47,13 +47,13 @@ bool IntelOverlayContext::create()
     int ret;
 
     if (!mBufferManager) {
-        LOGE("%s: no buffer manager found\n", __func__);
+        ALOGE("%s: no buffer manager found\n", __func__);
         return false;
     }
 
     mHandle = ashmem_create_region("intel_overlay_context", size);
     if (mHandle < 0) {
-        LOGE("%s: create share memory failed\n", __func__);
+        ALOGE("%s: create share memory failed\n", __func__);
         return false;
     }
 
@@ -61,7 +61,7 @@ bool IntelOverlayContext::create()
                                               PROT_READ | PROT_WRITE,
                                               MAP_SHARED | MAP_LOCKED, mHandle, 0);
     if (mContext == MAP_FAILED) {
-        LOGE("%s: Map shared Context failed\n", __func__);
+        ALOGE("%s: Map shared Context failed\n", __func__);
         goto mmap_err;
     }
 
@@ -69,19 +69,19 @@ bool IntelOverlayContext::create()
     mContext->refCount = 1;
 
     if (pthread_mutexattr_init(&mContext->attr)) {
-        LOGE("%s: Initialize overlay mutex attr failed\n", __func__);
+        ALOGE("%s: Initialize overlay mutex attr failed\n", __func__);
         goto mutexattr_init_err;
     }
 
     if (pthread_mutexattr_setpshared(&mContext->attr,
                                      PTHREAD_PROCESS_SHARED)) {
-        LOGE("%s: set pshared error\n", __func__);
+        ALOGE("%s: set pshared error\n", __func__);
         goto pshared_err;
     }
 
 
     if (pthread_mutex_init(&mContext->lock, &mContext->attr)) {
-        LOGE("%s: shared block lock init failed\n", __func__);
+        ALOGE("%s: shared block lock init failed\n", __func__);
         goto mutex_init_err;
     }
 
@@ -89,7 +89,7 @@ bool IntelOverlayContext::create()
     backBufferSize = sizeof(intel_overlay_back_buffer_t);
     backBuffer = mBufferManager->get(backBufferSize, 64 * 1024);
     if (!backBuffer) {
-        LOGE("%s: failed to allocate back buffer\n", __func__);
+        ALOGE("%s: failed to allocate back buffer\n", __func__);
         goto mutex_init_err;
     }
 
@@ -100,7 +100,7 @@ bool IntelOverlayContext::create()
     mOverlayBackBuffer = (intel_overlay_back_buffer_t*)backBuffer->getCpuAddr();
     mBackBuffer = backBuffer;
 
-    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: created overlay context!\n", __func__);
+    ALOGD_IF(ALLOW_OVERLAY_PRINT, "%s: created overlay context!\n", __func__);
 
     return true;
 
@@ -116,21 +116,21 @@ mmap_err:
 
 bool IntelOverlayContext::open(int handle, int size)
 {
-    LOGD_IF(ALLOW_OVERLAY_PRINT,
+    ALOGD_IF(ALLOW_OVERLAY_PRINT,
             "%s: fd %d, size %d\n", __func__, handle, size);
 
     if (!mBufferManager) {
-        LOGE("%s: no buffer manager found\n", __func__);
+        ALOGE("%s: no buffer manager found\n", __func__);
         return false;
     }
 
     if (handle <= 0 || size <= 0) {
-        LOGE("%s: Invalid parameter\n", __func__);
+        ALOGE("%s: Invalid parameter\n", __func__);
         return false;
     }
 
     if ((mHandle > 0) || mContext) {
-        LOGE("%s: context exists\n", __func__);
+        ALOGE("%s: context exists\n", __func__);
         return false;
     }
 
@@ -139,7 +139,7 @@ bool IntelOverlayContext::open(int handle, int size)
                                               handle, 0);
 
     if (mContext == MAP_FAILED || !mContext) {
-        LOGE("%s: map shared context failed\n", __func__);
+        ALOGE("%s: map shared context failed\n", __func__);
         return false;
     }
 
@@ -153,7 +153,7 @@ bool IntelOverlayContext::open(int handle, int size)
     IntelDisplayBuffer *backBuffer = mBufferManager->map(backBufferHandle);
     if (!backBuffer ||
         backBuffer->getGttOffsetInPage() != mContext->gtt_offset_in_page) {
-        LOGE("%s: failed to map back buffer with handle 0x%x\n", __func__,
+        ALOGE("%s: failed to map back buffer with handle 0x%x\n", __func__,
             backBufferHandle);
         goto map_err;
     }
@@ -161,7 +161,7 @@ bool IntelOverlayContext::open(int handle, int size)
     mOverlayBackBuffer = (intel_overlay_back_buffer_t*)backBuffer->getCpuAddr();
     mBackBuffer = backBuffer;
 
-    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: opened overlay context\n", __func__);
+    ALOGD_IF(ALLOW_OVERLAY_PRINT, "%s: opened overlay context\n", __func__);
     return true;
 
 map_err:
@@ -174,23 +174,23 @@ bool IntelOverlayContext::destroy()
     bool ret = true;
     bool closeFd = false;
 
-    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s\n", __func__);
+    ALOGD_IF(ALLOW_OVERLAY_PRINT, "%s\n", __func__);
 
     if (!mContext) {
-        LOGE("%s: context doesn't exist\n", __func__);
+        ALOGE("%s: context doesn't exist\n", __func__);
         return false;
     }
 
     if (android_atomic_dec(&mContext->refCount) == 1) {
-        LOGD_IF(ALLOW_OVERLAY_PRINT,
+        ALOGD_IF(ALLOW_OVERLAY_PRINT,
                "%s: refcount = 0, destroy mutex\n", __func__);
         if (pthread_mutex_destroy(&mContext->lock)) {
-            LOGE("%s: destroy share context lock failed\n", __func__);
+            ALOGE("%s: destroy share context lock failed\n", __func__);
             ret = false;
         }
 
         if (pthread_mutexattr_destroy(&mContext->attr)) {
-            LOGE("%s: destroy mutex attr failed\n", __func__);
+            ALOGE("%s: destroy mutex attr failed\n", __func__);
             ret = false;
         }
 
@@ -198,7 +198,7 @@ bool IntelOverlayContext::destroy()
     }
 
     if (munmap(mContext, mSize)) {
-        LOGE("%s: failed to destroy overlay context\n", __func__);
+        ALOGE("%s: failed to destroy overlay context\n", __func__);
         ret = false;
     }
 
@@ -218,13 +218,13 @@ bool IntelOverlayContext::destroy()
         mHandle = -1;
     }
 
-    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: destroyed overlay context\n", __func__);
+    ALOGD_IF(ALLOW_OVERLAY_PRINT, "%s: destroyed overlay context\n", __func__);
     return ret;
 }
 
 void IntelOverlayContext::clean()
 {
-    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s\n", __func__);
+    ALOGD_IF(ALLOW_OVERLAY_PRINT, "%s\n", __func__);
 }
 
 void IntelOverlayContext::lock()
@@ -288,7 +288,7 @@ bool IntelOverlayContext::flush(uint32_t flags)
         return false;
 
     if (!mContext->gtt_offset_in_page) {
-        LOGE("%s: invalid gtt offset\n", __func__);
+        ALOGE("%s: invalid gtt offset\n", __func__);
         return false;
     }
 
@@ -308,12 +308,12 @@ bool IntelOverlayContext::flush(uint32_t flags)
                                   DRM_PSB_REGISTER_RW,
                                   &arg, sizeof(arg));
     if (ret) {
-        LOGW("%s: overlay update failed with error code %d\n",
+        ALOGW("%s: overlay update failed with error code %d\n",
              __func__, ret);
         return false;
     }
 
-    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: done\n", __func__);
+    ALOGD_IF(ALLOW_OVERLAY_PRINT, "%s: done\n", __func__);
     return true;
 }
 
@@ -336,23 +336,23 @@ bool IntelOverlayContext::waitForFlip()
                                   DRM_PSB_REGISTER_RW,
                                   &arg, sizeof(arg));
     if (ret) {
-        LOGW("%s: overlay update failed with error code %d\n",
+        ALOGW("%s: overlay update failed with error code %d\n",
              __func__, ret);
         return false;
     }
 
-    LOGV("%s: done\n", __func__);
+    ALOGV("%s: done\n", __func__);
     return true;
 }
 
 bool IntelOverlayContext::backBufferInit()
 {
     if(!mOverlayBackBuffer) {
-        LOGE("%s: Control Block is NULL\n", __func__);
+        ALOGE("%s: Control Block is NULL\n", __func__);
         return false;
     }
 
-    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: control block init...\n", __func__);
+    ALOGD_IF(ALLOW_OVERLAY_PRINT, "%s: control block init...\n", __func__);
 
     memset(mOverlayBackBuffer, 0, sizeof(intel_overlay_back_buffer_t));
 
@@ -368,16 +368,16 @@ bool IntelOverlayContext::backBufferInit()
     mOverlayBackBuffer->SCHRKEN &= ~(0x7 << 24);
     mOverlayBackBuffer->SCHRKEN |= 0xff;
 
-    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: successfully.\n", __func__);
+    ALOGD_IF(ALLOW_OVERLAY_PRINT, "%s: successfully.\n", __func__);
     return true;
 }
 
 bool IntelOverlayContext::bufferOffsetSetup(IntelDisplayDataBuffer &buf)
 {
-    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: setting up buffer offset...\n", __func__);
+    ALOGD_IF(ALLOW_OVERLAY_PRINT, "%s: setting up buffer offset...\n", __func__);
 
     if(!mOverlayBackBuffer) {
-        LOGE("%s: invalid buf\n", __func__);
+        ALOGE("%s: invalid buf\n", __func__);
         return false;
     }
 
@@ -444,7 +444,7 @@ bool IntelOverlayContext::bufferOffsetSetup(IntelDisplayDataBuffer &buf)
         mOverlayBackBuffer->OCMD |= OVERLAY_PACKED_ORDER_UYVY;
         break;
     default:
-        LOGE("%s: unsupported format %d\n", __func__, format);
+        ALOGE("%s: unsupported format %d\n", __func__, format);
         return false;
     }
 
@@ -455,7 +455,7 @@ bool IntelOverlayContext::bufferOffsetSetup(IntelDisplayDataBuffer &buf)
     mOverlayBackBuffer->OBUF_1U = mOverlayBackBuffer->OBUF_0U;
     mOverlayBackBuffer->OBUF_1V = mOverlayBackBuffer->OBUF_0V;
 
-    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: done. offset (%d, %d, %d)\n", __func__,
+    ALOGD_IF(ALLOW_OVERLAY_PRINT, "%s: done. offset (%d, %d, %d)\n", __func__,
                       mOverlayBackBuffer->OBUF_0Y,
                       mOverlayBackBuffer->OBUF_0U,
                       mOverlayBackBuffer->OBUF_0V);
@@ -464,7 +464,7 @@ bool IntelOverlayContext::bufferOffsetSetup(IntelDisplayDataBuffer &buf)
 
 uint32_t IntelOverlayContext::calculateSWidthSW(uint32_t offset, uint32_t width)
 {
-    LOGD_IF(ALLOW_OVERLAY_PRINT,
+    ALOGD_IF(ALLOW_OVERLAY_PRINT,
             "%s: calculating SWidthSW...offset %d, width %d\n", __func__,
                                                              offset,
                                                              width);
@@ -482,7 +482,7 @@ bool IntelOverlayContext::coordinateSetup(IntelDisplayDataBuffer& buf)
     uint32_t swidthy = 0;
     uint32_t swidthuv = 0;
 
-    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: setting up coordinates...\n", __func__);
+    ALOGD_IF(ALLOW_OVERLAY_PRINT, "%s: setting up coordinates...\n", __func__);
 
     if (buf.isFlags(IntelDisplayDataBuffer::SIZE_CHANGE) == false)
         return true;
@@ -505,17 +505,17 @@ bool IntelOverlayContext::coordinateSetup(IntelDisplayDataBuffer& buf)
         width <<= 1;
         break;
     default:
-        LOGE("%s: unsupported format %d\n", __func__, format);
+        ALOGE("%s: unsupported format %d\n", __func__, format);
         return false;
     }
 
     if (width <= 0 || height <= 0) {
-        LOGE("%s: invalid src dim\n", __func__);
+        ALOGE("%s: invalid src dim\n", __func__);
         return false;
     }
 
     if (yStride <=0 && uvStride <= 0) {
-        LOGE("%s: invalid source stride\n", __func__);
+        ALOGE("%s: invalid source stride\n", __func__);
         return false;
     }
 
@@ -527,7 +527,7 @@ bool IntelOverlayContext::coordinateSetup(IntelDisplayDataBuffer& buf)
     mOverlayBackBuffer->OSTRIDE = (yStride & (~0x3f)) |
                                   ((uvStride & (~0x3f)) << 16);
 
-    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: finished\n", __func__);
+    ALOGD_IF(ALLOW_OVERLAY_PRINT, "%s: finished\n", __func__);
 
     return true;
 }
@@ -691,11 +691,11 @@ bool IntelOverlayContext::scalingSetup(IntelDisplayDataBuffer& buffer)
 
     // check position
     checkPosition(x, y, w, h, buffer);
-    LOGD_IF(ALLOW_OVERLAY_PRINT,
+    ALOGD_IF(ALLOW_OVERLAY_PRINT,
            "%s: Final position (%d, %d, %d, %d)", __func__, x, y, w, h);
 
     if ((w <= 0) || (h <= 0)) {
-         LOGE("%s: Invalid dst width/height", __func__);
+         ALOGE("%s: Invalid dst width/height", __func__);
          return false;
     }
 
@@ -708,7 +708,7 @@ bool IntelOverlayContext::scalingSetup(IntelDisplayDataBuffer& buffer)
     uint32_t dstWidth = w;
     uint32_t dstHeight = h;
 
-    LOGD_IF(ALLOW_OVERLAY_PRINT,
+    ALOGD_IF(ALLOW_OVERLAY_PRINT,
             "%s: src (%dx%d) v.s. (%dx%d)\n", __func__,
                                            srcWidth, srcHeight,
                                            dstWidth, dstHeight);
@@ -743,13 +743,13 @@ bool IntelOverlayContext::scalingSetup(IntelDisplayDataBuffer& buffer)
 
     /* Check scaling ratio */
     if (xscaleInt > PVR_OVERLAY_MAX_SCALING_RATIO) {
-        LOGE("%s: xscaleInt > %d\n", __func__, PVR_OVERLAY_MAX_SCALING_RATIO);
+        ALOGE("%s: xscaleInt > %d\n", __func__, PVR_OVERLAY_MAX_SCALING_RATIO);
         return false;
     }
 
     /* shouldn't get here */
     if (xscaleIntUV > PVR_OVERLAY_MAX_SCALING_RATIO) {
-        LOGE("%s: xscaleIntUV > %d\n", __func__, PVR_OVERLAY_MAX_SCALING_RATIO);
+        ALOGE("%s: xscaleIntUV > %d\n", __func__, PVR_OVERLAY_MAX_SCALING_RATIO);
         return false;
     }
 
@@ -817,7 +817,7 @@ bool IntelOverlayContext::scalingSetup(IntelDisplayDataBuffer& buffer)
         }
     }
 
-    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: done\n", __func__);
+    ALOGD_IF(ALLOW_OVERLAY_PRINT, "%s: done\n", __func__);
 
     return true;
 }
@@ -825,7 +825,7 @@ bool IntelOverlayContext::scalingSetup(IntelDisplayDataBuffer& buffer)
 bool IntelOverlayContext::setDataBuffer(IntelDisplayDataBuffer& buffer)
 {
     if (!mContext || !mOverlayBackBuffer) {
-        LOGE("%s: no overlay context\n", __func__);
+        ALOGE("%s: no overlay context\n", __func__);
         return false;
     }
 
@@ -833,21 +833,21 @@ bool IntelOverlayContext::setDataBuffer(IntelDisplayDataBuffer& buffer)
 
     bool ret = bufferOffsetSetup(buffer);
     if (ret == false) {
-        LOGE("%s: failed to set up buffer offsets\n", __func__);
+        ALOGE("%s: failed to set up buffer offsets\n", __func__);
         unlock();
         return false;
     }
 
     ret = coordinateSetup(buffer);
     if (ret == false) {
-        LOGE("%s: failed to set up overlay coordinates\n", __func__);
+        ALOGE("%s: failed to set up overlay coordinates\n", __func__);
         unlock();
         return false;
     }
 
     ret = scalingSetup(buffer);
     if (ret == false) {
-        LOGE("%s: failed to set up scaling parameters\n", __func__);
+        ALOGE("%s: failed to set up scaling parameters\n", __func__);
         unlock();
         return false;
     }
@@ -872,7 +872,7 @@ bool IntelOverlayContext::setDataBuffer(IntelDisplayDataBuffer& buffer)
 
     unlock();
 
-    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: done\n", __func__);
+    ALOGD_IF(ALLOW_OVERLAY_PRINT, "%s: done\n", __func__);
 
     return true;
 }
@@ -964,14 +964,14 @@ void IntelOverlayContext::checkPosition(int& x, int& y, int& w, int& h,
     connection = IntelHWComposerDrm::getInstance().getOutputConnection(output);
 
     if (connection != DRM_MODE_CONNECTED) {
-        LOGE("%s: failed to detect connected state of output %d\n", __func__, output);
+        ALOGE("%s: failed to detect connected state of output %d\n", __func__, output);
         return;
     }
 
     mode = IntelHWComposerDrm::getInstance().getOutputMode(output);
 
     if (!mode || !mode->hdisplay || !mode->vdisplay) {
-        LOGE("%s: failed to detect mode of output %d\n", __func__, output);
+        ALOGE("%s: failed to detect mode of output %d\n", __func__, output);
         return;
     }
 
@@ -1012,7 +1012,7 @@ void IntelOverlayContext::checkPosition(int& x, int& y, int& w, int& h,
 
 void IntelOverlayContext::setPosition(int x, int y, int w, int h)
 {
-    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: %d, %d, %d, %d\n", __func__, x, y, w, h);
+    ALOGD_IF(ALLOW_OVERLAY_PRINT, "%s: %d, %d, %d, %d\n", __func__, x, y, w, h);
 
     if (!mContext)
         return;
@@ -1042,7 +1042,7 @@ bool IntelOverlayContext::enable()
     mOverlayBackBuffer->OCMD |= OVERLAY_ENABLE;
     bool ret = flush(IntelDisplayPlane::FLASH_NEEDED | IntelDisplayPlane::WAIT_VBLANK);
     if (ret == false) {
-        LOGE("%s: failed to enable overlay\n", __func__);
+        ALOGE("%s: failed to enable overlay\n", __func__);
         unlock();
         return false;
     }
@@ -1063,12 +1063,12 @@ bool IntelOverlayContext::disable()
         return true;
     }
 
-    LOGD("%s: disable overlay...\n", __func__);
+    ALOGD("%s: disable overlay...\n", __func__);
     mOverlayBackBuffer->OCMD &= ~OVERLAY_ENABLE;
     bool ret = flush((IntelDisplayPlane::FLASH_NEEDED |
                       IntelDisplayPlane::WAIT_VBLANK));
     if (ret == false) {
-        LOGE("%s: failed to disable overlay\n", __func__);
+        ALOGE("%s: failed to disable overlay\n", __func__);
         unlock();
         return false;
     }
@@ -1085,12 +1085,12 @@ bool IntelOverlayContext::reset()
 
     lock();
 
-    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: reset overlay...\n", __func__);
+    ALOGD_IF(ALLOW_OVERLAY_PRINT, "%s: reset overlay...\n", __func__);
     backBufferInit();
     bool ret = flush((IntelDisplayPlane::FLASH_NEEDED |
                       IntelDisplayPlane::WAIT_VBLANK));
     if (ret == false) {
-        LOGE("%s: failed to reset overlay\n", __func__);
+        ALOGE("%s: failed to reset overlay\n", __func__);
         unlock();
         return false;
     }
@@ -1126,7 +1126,7 @@ void IntelOverlayContext::setPipe(intel_display_pipe_t pipe)
         mOverlayBackBuffer->DCLRKM |= 0xffffff;
         break;
     default:
-	LOGW("%s: invalid display pipe %d\n", __func__, pipe);
+	ALOGW("%s: invalid display pipe %d\n", __func__, pipe);
 	unlock();
 	return;
     }
@@ -1158,7 +1158,7 @@ void IntelOverlayContext::setPipeByMode(intel_overlay_mode_t displayMode)
         break;
     case OVERLAY_CLONE_DUAL:
     default:
-        LOGW("%s: Unsupported display mode %d\n", __func__, displayMode);
+        ALOGW("%s: Unsupported display mode %d\n", __func__, displayMode);
         return;
     }
 
@@ -1215,7 +1215,7 @@ IntelOverlayContext::onDrmModeChange()
     /*get new drm mode*/
     newDisplayMode = IntelHWComposerDrm::getInstance().getDisplayMode();
 
-    LOGD_IF(ALLOW_OVERLAY_PRINT,
+    ALOGD_IF(ALLOW_OVERLAY_PRINT,
            "%s: old %d, new %d\n", __func__, oldDisplayMode, newDisplayMode);
 
     if (oldDisplayMode == newDisplayMode && !IntelHWComposerDrm::getInstance().isOverlayOff()) {
@@ -1245,7 +1245,7 @@ bool IntelOverlayContextMfld::flush_bottom_field(uint32_t flags)
     mOverlayBackBuffer->OBUF_1U = mOverlayBackBuffer->OBUF_1U - uvStride;
     mOverlayBackBuffer->OBUF_1V = mOverlayBackBuffer->OBUF_1V - uvStride;
 
-    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: done. offset (%d, %d, %d)\n", __func__,
+    ALOGD_IF(ALLOW_OVERLAY_PRINT, "%s: done. offset (%d, %d, %d)\n", __func__,
                       mOverlayBackBuffer->OBUF_0Y,
                       mOverlayBackBuffer->OBUF_0U,
                       mOverlayBackBuffer->OBUF_0V);
@@ -1257,7 +1257,7 @@ bool IntelOverlayContextMfld::flush_bottom_field(uint32_t flags)
         return false;
 
     if (!mContext->gtt_offset_in_page) {
-        LOGE("%s: invalid gtt offset\n", __func__);
+        ALOGE("%s: invalid gtt offset\n", __func__);
         return false;
     }
 
@@ -1277,7 +1277,7 @@ bool IntelOverlayContextMfld::flush_bottom_field(uint32_t flags)
                                   DRM_PSB_REGISTER_RW,
                                   &arg, sizeof(arg));
     if (ret) {
-        LOGW("%s: overlay update failed with error code in bottom %d\n",
+        ALOGW("%s: overlay update failed with error code in bottom %d\n",
              __func__, ret);
         return false;
     }
@@ -1294,7 +1294,7 @@ bool IntelOverlayContextMfld::flush_frame_or_top_field(uint32_t flags)
         return false;
 
     if (!mContext->gtt_offset_in_page) {
-        LOGE("%s: invalid gtt offset\n", __func__);
+        ALOGE("%s: invalid gtt offset\n", __func__);
         return false;
     }
 
@@ -1316,13 +1316,13 @@ bool IntelOverlayContextMfld::flush_frame_or_top_field(uint32_t flags)
                                   DRM_PSB_REGISTER_RW,
                                   &arg, sizeof(arg));
     if (ret) {
-        LOGW("%s: overlay update failed with error code %d\n",
+        ALOGW("%s: overlay update failed with error code %d\n",
              __func__, ret);
         return false;
     }
     if (flags & IntelDisplayPlane::BOB_DEINTERLACE)
         flush_bottom_field(flags);
-    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: done\n", __func__);
+    ALOGD_IF(ALLOW_OVERLAY_PRINT, "%s: done\n", __func__);
     return true;
 }
 
@@ -1330,27 +1330,27 @@ IntelOverlayPlane::IntelOverlayPlane(int fd, int index, IntelBufferManager *bm)
     : IntelDisplayPlane(fd, IntelDisplayPlane::DISPLAY_PLANE_OVERLAY, index, bm)
 {
     bool ret;
-    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s\n", __func__);
+    ALOGD_IF(ALLOW_OVERLAY_PRINT, "%s\n", __func__);
 
     // create data buffer, pixel format set to NV12 by default
     IntelDisplayBuffer *dataBuffer =
         new IntelDisplayDataBuffer(HAL_PIXEL_FORMAT_INTEL_HWC_NV12, 0, 0);
     if (!dataBuffer) {
-        LOGE("%s: Failed to create overlay data buffer\n", __func__);
+        ALOGE("%s: Failed to create overlay data buffer\n", __func__);
         return;
     }
 
     // create overlay context
     IntelOverlayContextMfld *overlayContext = new IntelOverlayContextMfld(fd, bm);
     if (!overlayContext) {
-        LOGE("%s: Failed to create overlay context\n", __func__);
+        ALOGE("%s: Failed to create overlay context\n", __func__);
         goto overlay_create_err;
     }
 
     // initialize overlay context
     ret = overlayContext->create();
     if (ret == false) {
-        LOGE("%s: Failed to initialize overlay context\n", __func__);
+        ALOGE("%s: Failed to initialize overlay context\n", __func__);
         goto overlay_init_err;
     }
 
@@ -1431,12 +1431,12 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
     uint32_t bufferType;
 
     if (!initCheck()) {
-        LOGE("%s: overlay plane wasn't initialized\n", __func__);
+        ALOGE("%s: overlay plane wasn't initialized\n", __func__);
         return false;
     }
 
     if (handle == 0 || nHandle == NULL) {
-        LOGE("%s: invalid handle on %d\n", __func__, __LINE__);
+        ALOGE("%s: invalid handle on %d\n", __func__, __LINE__);
         return false;
     }
 
@@ -1471,26 +1471,26 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
         isYUVPacked = true;
         break;
     default:
-        LOGE("%s: unsupported YUV format 0x%x\n", __func__, format);
+        ALOGE("%s: unsupported YUV format 0x%x\n", __func__, format);
         return false;
     }
 
     // check the minimum and maximun stride restriction of HW overlay
     if (yStride < INTEL_OVERLAY_MIN_STRIDE) {
-        LOGW("%s: yStride %d is too small, switch to ST", __func__, yStride);
+        ALOGW("%s: yStride %d is too small, switch to ST", __func__, yStride);
         return false;
     }
 
     if (isYUVPacked && (yStride > INTEL_OVERLAY_MAX_STRIDE_PACKED)) {
-        LOGW("%s: packed YUV stride %d is too big, switch to ST",
+        ALOGW("%s: packed YUV stride %d is too big, switch to ST",
              __func__, yStride);
         return false;
     } else if (!isYUVPacked && (yStride > INTEL_OVERLAY_MAX_STRIDE_LINEAR)) {
-        LOGW("%s: planar YUV stride %d is too big, switch to ST",
+        ALOGW("%s: planar YUV stride %d is too big, switch to ST",
              __func__, yStride);
         return false;
     } else if ((grallocHeight > 2047) || (grallocWidth > 2047)) {
-        LOGW("%s: source width or height (%dx%d) is too big, switch to ST",
+        ALOGW("%s: source width or height (%dx%d) is too big, switch to ST",
              __func__, grallocWidth, grallocHeight);
         return false;
     }
@@ -1517,7 +1517,7 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
         }
     }
 
-    LOGD_IF(ALLOW_OVERLAY_PRINT, "%s: next buffer %d\n", __func__, mNextBuffer);
+    ALOGD_IF(ALLOW_OVERLAY_PRINT, "%s: next buffer %d\n", __func__, mNextBuffer);
 
     /** Map the handle if no buffer found **/
     int tryMapTimes = 0;
@@ -1528,7 +1528,7 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
             mDataBuffers[index].handle ||
             mDataBuffers[index].ui64Stamp)
         {
-            LOGD_IF(ALLOW_OVERLAY_PRINT,
+            ALOGD_IF(ALLOW_OVERLAY_PRINT,
                     "%s: releasing buffer %d...\n", __func__, mNextBuffer);
             if (mDataBuffers[index].bufferType ==
                 IntelBufferManager::TTM_BUFFER)
@@ -1546,18 +1546,18 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
 
         mNextBuffer = index;
         if (++tryMapTimes > 1) {
-            LOGW("%s: Avail memory is low...", __func__);
+            ALOGW("%s: Avail memory is low...", __func__);
             break;
         }
     }
 
     if (buffer == NULL) {
-        LOGE("%s: failed to map handle %x\n", __func__, handle);
+        ALOGE("%s: failed to map handle %x\n", __func__, handle);
         return false;
     }
 
     if (tryMapTimes > 0) {
-        LOGD_IF(ALLOW_OVERLAY_PRINT,
+        ALOGD_IF(ALLOW_OVERLAY_PRINT,
                "%s: mapping buffer at %d...\n", __func__, mNextBuffer);
         mDataBuffers[mNextBuffer].ui64Stamp = ui64Stamp;
         mDataBuffers[mNextBuffer].handle = handle;
@@ -1591,7 +1591,7 @@ bool IntelOverlayPlane::setDataBuffer(IntelDisplayBuffer& buffer)
 
         ret = overlayContext->setDataBuffer(*overlayDataBuffer);
         if (ret == false)
-            LOGE("%s: failed to set overlay data buffer\n", __func__);
+            ALOGE("%s: failed to set overlay data buffer\n", __func__);
     }
 
     return ret;
@@ -1628,11 +1628,11 @@ bool IntelOverlayPlane::flip(void *contexts, uint32_t flags)
         if ((mWidiPlane && mWidiPlane->isActive()) ||
 	    (flags & IntelDisplayPlane::DELAY_DISABLE) ||
             IntelHWComposerDrm::getInstance().isOverlayOff()){
-            LOGD_IF(ALLOW_OVERLAY_PRINT,
+            ALOGD_IF(ALLOW_OVERLAY_PRINT,
                     "%s: disable overlay context!\n", __func__);
             ret = disable();
             if (ret == false)
-                LOGE("%s: failed to disable overlay\n", __func__);
+                ALOGE("%s: failed to disable overlay\n", __func__);
             // return false as overlay context flip below is bypassed.
             ret = false;
         } else {
@@ -1641,7 +1641,7 @@ bool IntelOverlayPlane::flip(void *contexts, uint32_t flags)
             mdfld_plane_contexts_t *planeContexts;
             planeContexts = (mdfld_plane_contexts_t*)contexts;
             if (!planeContexts) {
-                LOGE("%s: invalid plane contexts\n", __func__);
+                ALOGE("%s: invalid plane contexts\n", __func__);
                 return false;
             }
 
@@ -1656,7 +1656,7 @@ bool IntelOverlayPlane::flip(void *contexts, uint32_t flags)
             if (flags & IntelDisplayPlane::UPDATE_COEF)
                 planeContexts->overlay_contexts[mIndex].ovadd |= 0x1;
 
-            LOGD_IF(ALLOW_OVERLAY_PRINT,
+            ALOGD_IF(ALLOW_OVERLAY_PRINT,
                     "%s: overlay context ovadd: 0x%x, pipe:0x%x, index: 0x%x\n",
                         __func__,
                         planeContexts->overlay_contexts[mIndex].ovadd,
@@ -1676,7 +1676,7 @@ void IntelOverlayPlane::waitForFlipCompletion()
             reinterpret_cast<IntelOverlayContextMfld*>(mContext);
             ret = overlayContext->waitForFlip();
             if (ret == false)
-                LOGE("%s: failed to do overlay flip\n", __func__);
+                ALOGE("%s: failed to do overlay flip\n", __func__);
     }
 }
 
@@ -1689,7 +1689,7 @@ bool IntelOverlayPlane::reset()
             reinterpret_cast<IntelOverlayContext*>(mContext);
         ret = overlayContext->reset();
         if (ret == false)
-            LOGE("%s: failed to reset overlay\n", __func__);
+            ALOGE("%s: failed to reset overlay\n", __func__);
     }
 
     return ret;
@@ -1704,7 +1704,7 @@ bool IntelOverlayPlane::disable()
             reinterpret_cast<IntelOverlayContext*>(mContext);
         ret = overlayContext->disable();
         if (ret == false)
-            LOGE("%s: failed to disable overlay\n", __func__);
+            ALOGE("%s: failed to disable overlay\n", __func__);
 
         if (mRenderingBuffer >= 0 &&
                 mDataBuffers[mRenderingBuffer].grallocBuffFd > 0) {

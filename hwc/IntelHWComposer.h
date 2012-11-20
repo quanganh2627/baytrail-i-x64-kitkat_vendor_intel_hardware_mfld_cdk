@@ -28,6 +28,8 @@
 #ifndef __INTEL_HWCOMPOSER_CPP__
 #define __INTEL_HWCOMPOSER_CPP__
 
+#define HWC_REMOVE_DEPRECATED_VERSIONS 1
+
 #include <EGL/egl.h>
 #include <hardware/hwcomposer.h>
 
@@ -41,7 +43,7 @@
 #include <IntelHWCWrapper.h>
 #endif
 
-class IntelHWComposer : public hwc_composer_device_t, public IntelHWCUEventObserver, public IntelHWComposerDump  {
+class IntelHWComposer : public hwc_composer_device_1_t, public IntelHWCUEventObserver, public IntelHWComposerDump  {
 public:
     enum {
         VSYNC_SRC_MIPI = 0,
@@ -74,37 +76,37 @@ private:
     IntelHWCWrapper mWrapper;
 #endif
 private:
-    void dumpLayerList(hwc_layer_list_t *list);
-    void onGeometryChanged(hwc_layer_list_t *list);
-    bool overlayPrepare(int index, hwc_layer_t *layer, int flags);
-    bool spritePrepare(int index, hwc_layer_t *layer, int flags);
-    bool primaryPrepare(int index, hwc_layer_t *layer, int flags);
-    bool isOverlayLayer(hwc_layer_list_t *list,
+    void dumpLayerList(hwc_display_contents_1_t *list);
+    void onGeometryChanged(hwc_display_contents_1_t *list);
+    bool overlayPrepare(int index, hwc_layer_1_t *layer, int flags);
+    bool spritePrepare(int index, hwc_layer_1_t *layer, int flags);
+    bool primaryPrepare(int index, hwc_layer_1_t *layer, int flags);
+    bool isOverlayLayer(hwc_display_contents_1_t *list,
                         int index,
-                        hwc_layer_t *layer,
+                        hwc_layer_1_t *layer,
                         int& flags);
-    bool isSpriteLayer(hwc_layer_list_t *list,
+    bool isSpriteLayer(hwc_display_contents_1_t *list,
                        int index,
-                       hwc_layer_t *layer,
+                       hwc_layer_1_t *layer,
                        int& flags);
-    bool isPrimaryLayer(hwc_layer_list_t *list,
+    bool isPrimaryLayer(hwc_display_contents_1_t *list,
                        int index,
-                       hwc_layer_t *layer,
+                       hwc_layer_1_t *layer,
                        int& flags);
-    bool isScreenshotActive(hwc_layer_list_t *list);
-    void revisitLayerList(hwc_layer_list_t *list, bool isGeometryChanged);
-    bool useOverlayRotation(hwc_layer_t *layer, int index, uint32_t& handle,
+    bool isScreenshotActive(hwc_display_contents_1_t *list);
+    void revisitLayerList(hwc_display_contents_1_t *list, bool isGeometryChanged);
+    bool useOverlayRotation(hwc_layer_1_t *layer, int index, uint32_t& handle,
                            int& w, int& h,
                            int& srcX, int& srcY, int& srcW, int& srcH, uint32_t& transform);
-    bool updateLayersData(hwc_layer_list_t *list);
+    bool updateLayersData(hwc_display_contents_1_t *list);
     bool isHWCUsage(int usage);
     bool isHWCFormat(int format);
     bool isHWCTransform(uint32_t transform);
     bool isHWCBlending(uint32_t blending);
-    bool isHWCLayer(hwc_layer_t *layer);
-    bool isBobDeinterlace(hwc_layer_t *layer);
-    bool isForceOverlay(hwc_layer_t *layer);
-    bool areLayersIntersecting(hwc_layer_t *top, hwc_layer_t* bottom);
+    bool isHWCLayer(hwc_layer_1_t *layer);
+    bool isBobDeinterlace(hwc_layer_1_t *layer);
+    bool isForceOverlay(hwc_layer_1_t *layer);
+    bool areLayersIntersecting(hwc_layer_1_t *top, hwc_layer_1_t* bottom);
     void handleHotplugEvent();
     uint32_t disableUnusedVsyncs(uint32_t target);
     uint32_t enableVsyncs(uint32_t target);
@@ -115,8 +117,8 @@ public:
 public:
     bool initCheck() { return mInitialized; }
     bool initialize();
-    bool prepare(hwc_layer_list_t *list);
-    bool commit(hwc_display_t dpy, hwc_surface_t sur, hwc_layer_list_t *list);
+    bool prepare(int disp, hwc_display_contents_1_t *hdc);
+    bool commit(int disp, hwc_display_contents_1_t *hdc);
     bool vsyncControl(int enabled);
     bool release();
     bool dump(char *buff, int buff_len, int *cur_len);
@@ -125,13 +127,19 @@ public:
 #ifdef INTEL_RGB_OVERLAY
     IntelHWCWrapper* getWrapper() { return &mWrapper; }
 #endif
+    bool prepareDisplays(size_t numDisplays, hwc_display_contents_1_t** displays);
+    bool commitDisplays(size_t numDisplays, hwc_display_contents_1_t** displays);
+    bool blankDisplay(int disp, int blank);
+    bool getDisplayConfigs(int disp, uint32_t* configs, size_t* numConfigs);
+    bool getDisplayAttributes(int disp, uint32_t config,
+            const uint32_t* attributes, int32_t* values);
 
     IntelHWComposer()
         : IntelHWCUEventObserver(), IntelHWComposerDump(),
           mDrm(0), mBufferManager(0), mGrallocBufferManager(0),
           mPlaneManager(0), mLayerList(0), mProcs(0), mVsync(0), mFakeVsync(0),
           mLastVsync(0), mMonitoringMethod(0), mForceSwapBuffer(false),
-          mHotplugEvent(false), mWidiNativeWindow(NULL), mInitialized(false), mActiveVsyncs(0) {}
+          mHotplugEvent(false), mInitialized(false), mActiveVsyncs(0) {}
     ~IntelHWComposer();
 };
 

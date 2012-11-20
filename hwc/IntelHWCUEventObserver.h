@@ -42,7 +42,7 @@ private:
     static void *threadLoop(void *data);
     static void ueventHandler(void *data, const char *msg, int msgLen);
 protected:
-    virtual void onUEvent(const char *msg, int msgLen);
+    virtual void onUEvent(const char *msg, int msgLen, int msgType);
 public:
     IntelHWCUEventObserver();
     virtual ~IntelHWCUEventObserver();

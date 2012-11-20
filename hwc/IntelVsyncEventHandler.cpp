@@ -90,9 +90,10 @@ bool IntelVsyncEventHandler::threadLoop()
     int i = 0;
     int ret = 0;
 
+#define HW_VSYNC_MASK ((1 << VSYNC_SRC_HDMI) | (1 << VSYNC_SRC_MIPI))
     { // scope for lock
         Mutex::Autolock _l(mLock);
-        while (!mActiveVsyncs) {
+        while (!(mActiveVsyncs & HW_VSYNC_MASK)) {
             mCondition.wait(mLock);
         }
     }

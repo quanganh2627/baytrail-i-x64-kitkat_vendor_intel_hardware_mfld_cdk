@@ -22,7 +22,7 @@ LOCAL_C_INCLUDES += \
     external/stlport/stlport/ \
     bionic \
     external/alsa-lib/include \
-    hardware/alsa_sound/audio_hw_legacy \
+    $(TARGET_OUT_HEADERS)/alsa-sound \
     $(TARGET_OUT_HEADERS)/hw \
     $(TARGET_OUT_HEADERS)/alsa \
     $(TARGET_OUT_HEADERS)/vpc \

@@ -48,6 +48,9 @@
 #define WAIT_TIME_MS             20
 #define WAIT_BEFORE_RETRY        10000 //10ms
 
+/*this is used to avoid starvation*/
+#define LATENCY_TO_BUFFER_SIZE_RATIO 2
+
 /* Configuration for a stream */
 struct pcm_config {
     unsigned int channels;
@@ -402,6 +405,11 @@ static size_t out_get_buffer_size(const struct audio_stream *stream)
     buf_size = out->pcm_config.period_size *
                out->pcm_config.period_count *
                audio_stream_frame_size((struct audio_stream *)stream);
+
+    /*latency of audio flinger is based on this
+      buffer size. modifying the buffer size to avoid
+      starvation*/
+    buf_size/=LATENCY_TO_BUFFER_SIZE_RATIO;
 
     ALOGV("%s : %d, period_size : %d, frame_size : %d",
         __func__,

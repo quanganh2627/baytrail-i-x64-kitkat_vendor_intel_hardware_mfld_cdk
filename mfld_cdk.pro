@@ -4,8 +4,7 @@ CONFIG += ordered
 
 SUBDIRS += \
     simulation \
-    utility \
-    amc
+    utility
 
 
 

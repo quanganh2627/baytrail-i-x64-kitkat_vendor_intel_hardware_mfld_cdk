@@ -81,6 +81,13 @@ typedef struct {
     intel_overlay_mode_t old_display_mode;
 } intel_drm_output_state_t;
 
+typedef struct {
+    int vrefresh;
+    int hdisplay;
+    int vdisplay;
+    int flags;
+    int ratio;
+} intel_display_mode_t;
 
 class IntelHWComposer;
 /**
@@ -110,6 +117,31 @@ private:
     IntelHWComposerDrm(const IntelHWComposerDrm&);
     bool drmInit();
     void drmDestroy();
+
+private:
+     // basic function set
+    drmModeConnectorPtr getConnector(int disp);
+    void freeConnector(drmModeConnectorPtr connector);
+    drmModeEncoderPtr getEncoder(int disp);
+    void freeEncoder(drmModeEncoderPtr encoder);
+    uint32_t getCrtcId(int disp);
+
+    // DISP separate functions
+    bool setMIPIDpms(drmModeConnectorPtr connector, bool on);
+    bool setHDMIDpms(bool on);
+    bool setMIPIScaling(int type);
+    bool setHDMIScaling(int type);
+
+    // mode and Fb functions
+    bool isModeChanged(drmModeModeInfoPtr mode, intel_display_mode_t *m_selected);
+    drmModeModeInfoPtr getSelectMode(intel_display_mode_t *m_selected,
+                                    drmModeConnectorPtr connector);
+    bool setupDrmFb(int disp, uint32_t fb_handler, drmModeModeInfoPtr mode);
+    void deleteDrmFb(int disp);
+
+    // default detect only called by initialize
+    bool detectDrmModeInfo();
+
 public:
     ~IntelHWComposerDrm();
     static IntelHWComposerDrm& getInstance() {
@@ -121,8 +153,21 @@ public:
         return *instance;
     }
     bool initialize(IntelHWComposer *hwc);
-    bool detectDrmModeInfo();
     int getDrmFd() const { return mDrmFd; }
+
+    // Connection and Mode setting
+    bool detectDisplayConnection(int disp);
+    drmModeModeInfoPtr selectDisplayMode(int disp, intel_display_mode_t *m_selected);
+    bool setDisplayModeInfo(int disp, uint32_t fb_handler, drmModeModeInfoPtr mode);
+    bool handleDisplayDisConnection(int disp);
+
+    // DPMS
+    bool setDisplayDpms(int disp, bool on);
+    bool setHDMIPowerOff();
+    // Vsync
+    bool setDisplayVsyncs(int disp, bool on);
+    // Scaling
+    bool setDisplayScaling(int disp, int type);
 
     // DRM output states
     void setOutputConnection(const int output, drmModeConnection connection);
@@ -131,6 +176,7 @@ public:
     drmModeModeInfoPtr getOutputMode(const int output);
     void setOutputFBInfo(const int output, drmModeFBPtr fbInfo);
     drmModeFBPtr getOutputFBInfo(const int output);
+    uint32_t getOutputFBId(const int output);
     bool isValidOutputMode(const int output);
     void setDisplayMode(intel_overlay_mode_t displayMode);
     intel_overlay_mode_t getDisplayMode();

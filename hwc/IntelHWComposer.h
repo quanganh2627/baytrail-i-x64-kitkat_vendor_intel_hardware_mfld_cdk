@@ -51,6 +51,9 @@ public:
         VSYNC_SRC_FAKE,
         VSYNC_SRC_NUM,
     };
+    enum {
+        HDMI_BUF_NUM = 2,
+    };
 private:
     IntelHWComposerDrm *mDrm;
     IntelBufferManager *mBufferManager;
@@ -62,8 +65,18 @@ private:
     android::sp<IntelFakeVsyncEvent> mFakeVsync;
     nsecs_t mLastVsync;
     int mMonitoringMethod;
+    int mNextBuffer;
     bool mForceSwapBuffer;
     bool mHotplugEvent;
+    struct hdmi_buffer{
+        unsigned long long ui64Stamp;
+        IntelDisplayBuffer *buffer;
+    } mHDMIBuffers[HDMI_BUF_NUM];
+    struct hdmi_fb_handler {
+        uint32_t umhandle;
+        uint32_t kmhandle;
+        uint32_t size;
+    } mHDMIFBHandle;
     int* mWidiNativeWindow;
     android::Mutex mLock;
     IMG_framebuffer_device_public_t *mFBDev;
@@ -113,6 +126,7 @@ private:
 public:
     void onUEvent(const char *msg, int msgLen, int msgType);
     bool flipFramebufferContexts(void *contexts);
+    bool flipHDMIFramebufferContexts(void *contexts, hwc_layer_1_t *target_layer);
     void vsync(int64_t timestamp, int pipe);
 public:
     bool initCheck() { return mInitialized; }

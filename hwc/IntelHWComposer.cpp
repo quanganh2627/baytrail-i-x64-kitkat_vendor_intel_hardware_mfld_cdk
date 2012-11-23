@@ -358,6 +358,10 @@ bool IntelHWComposer::isSpriteLayer(hwc_display_contents_1_t *list,
         return false;
     }
 
+    // don't handle target framebuffer layer
+    if (layer->compositionType == HWC_FRAMEBUFFER_TARGET)
+        return false;
+
     // check whether pixel format is supported RGB formats
     if (mLayerList->getLayerType(index) != IntelHWComposerLayer::LAYER_TYPE_RGB) {
         ALOGD_IF(ALLOW_HWC_PRINT,
@@ -542,6 +546,11 @@ void IntelHWComposer::dumpLayerList(hwc_display_contents_1_t *list)
     ALOGD("DUMP LAYER LIST START");
     ALOGD("num of layers: %d", list->numHwLayers);
     for (size_t i = 0; i < list->numHwLayers; i++) {
+        int srcLeft = list->hwLayers[i].sourceCrop.left;
+        int srcTop = list->hwLayers[i].sourceCrop.top;
+        int srcRight = list->hwLayers[i].sourceCrop.right;
+        int srcBottom = list->hwLayers[i].sourceCrop.bottom;
+
 	int dstLeft = list->hwLayers[i].displayFrame.left;
 	int dstTop = list->hwLayers[i].displayFrame.top;
 	int dstRight = list->hwLayers[i].displayFrame.right;
@@ -551,11 +560,14 @@ void IntelHWComposer::dumpLayerList(hwc_display_contents_1_t *list)
         (mLayerList->getLayerType(i) != IntelHWComposerLayer::LAYER_TYPE_YUV) ?
         "RGB" : "YUV");
         ALOGD("Layer blending: 0x%x", list->hwLayers[i].blending);
+        ALOGD("Layer source: (%d, %d) - (%dx%d)", srcLeft, srcTop,
+             srcRight - srcLeft, srcBottom - srcTop);
         ALOGD("Layer positon: (%d, %d) - (%dx%d)", dstLeft, dstTop,
              dstRight - dstLeft, dstBottom - dstTop);
         ALOGD("Layer transform: 0x%x\n", list->hwLayers[i].transform);
         ALOGD("Layer handle: 0x%x\n", (uint32_t)list->hwLayers[i].handle);
         ALOGD("Layer flags: 0x%x\n", list->hwLayers[i].flags);
+        ALOGD("Layer compositionType: 0x%x\n", list->hwLayers[i].compositionType);
         ALOGD("\n");
     }
     ALOGD("DUMP LAYER LIST END");
@@ -1189,6 +1201,7 @@ bool IntelHWComposer::areLayersIntersecting(hwc_layer_1_t *top,
 
 void IntelHWComposer::handleHotplugEvent()
 {
+    android::Mutex::Autolock _l(mLock);
     ALOGD_IF(ALLOW_HWC_PRINT, "handleHotplugEvent");
 
     // go through layer list and call plane's onModeChange()
@@ -1197,12 +1210,11 @@ void IntelHWComposer::handleHotplugEvent()
         if (plane)
             plane->onDrmModeChange();
     }
+    mHotplugEvent = true;
 }
 
 void IntelHWComposer::onUEvent(const char *msg, int msgLen, int msgType)
 {
-    android::Mutex::Autolock _l(mLock);
-
 #ifdef TARGET_HAS_MULTIPLE_DISPLAY
     // if mds sent orientation change message, inform widi plane and return
     if (msgType == IntelExternalDisplayMonitor::MSG_TYPE_MDS_ORIENTATION_CHANGE) {
@@ -1217,9 +1229,8 @@ void IntelHWComposer::onUEvent(const char *msg, int msgLen, int msgType)
     // if send by mds, set the hotplug event and return
     if (msgType == IntelExternalDisplayMonitor::MSG_TYPE_MDS) {
         ALOGD("%s: got multiDisplay service event\n", __func__);
-        mDrm->detectDrmModeInfo();
+        //mDrm->detectDrmModeInfo();
         handleHotplugEvent();
-        mHotplugEvent = true;
         return;
     }
 #endif
@@ -1229,13 +1240,78 @@ void IntelHWComposer::onUEvent(const char *msg, int msgLen, int msgType)
     msg += strlen(msg) + 1;
 
     do {
-        if (!strncmp(msg, "HOTPLUG", strlen("HOTPLUG"))) {
-            ALOGD("%s: detected hdmi hotplug event:%s\n", __func__, msg);
-            mDrm->detectDrmModeInfo();
-            handleHotplugEvent();
-            mHotplugEvent = true;
-            break;
+        int disp = 1;
+        bool ret;
+        int isConnected = 0;
+        int size;
+
+        if (!strncmp(msg, "HOTPLUG_IN=1", strlen("HOTPLUG_IN=1"))) {
+            //ALOGD("%s: detected hdmi hotplug event:%s\n", __func__, msg);
+            //mDrm->detectDrmModeInfo();
+            //handleHotplugEvent();
+
+            ret = mDrm->detectDisplayConnection(disp);
+            if (!ret)
+                break;
+
+            // get display mode
+            drmModeModeInfoPtr mode;
+            mode = mDrm->selectDisplayMode(disp, NULL);
+            if (!mode) {
+                ret = false;
+                break;
+            }
+
+            // alloc buffer;
+            mHDMIFBHandle.size = align_to(mode->vdisplay * mode->hdisplay * 4, 64);
+            ret = mGrallocBufferManager->alloc(mHDMIFBHandle.size,
+                                               &mHDMIFBHandle.umhandle,
+                                               &mHDMIFBHandle.kmhandle);
+            if (!ret)
+                break;
+
+            // mode setting;
+            ret = mDrm->setDisplayModeInfo(disp, mHDMIFBHandle.kmhandle, mode);
+            if (!ret)
+                break;
+
+            isConnected = 1;
+        } else if (!strncmp(msg, "HOTPLUG_OUT=1", strlen("HOTPLUG_OUT=1"))) {
+
+            // detect connection
+            ret = mDrm->detectDisplayConnection(disp);
+            if (ret) {
+                ret = false;
+                break;
+            }
+
+            // rm FB
+            ret = mDrm->handleDisplayDisConnection(disp);
+            if (!ret)
+                break;
+
+            // release buffer;
+            ret = mGrallocBufferManager->dealloc(mHDMIFBHandle.umhandle);
+            if (!ret)
+                break;
+
+            memset(&mHDMIFBHandle, 0, sizeof(mHDMIFBHandle));
+            isConnected = 0;
         }
+
+        if (!strncmp(msg, "HOTPLUG", strlen("HOTPLUG")) && ret) {
+            ALOGD("%s: detected hdmi hotplug event:%s\n", __func__, msg);
+            handleHotplugEvent();
+
+	    /* hwc_dev->procs is set right after the device is opened, but there is
+	     * still a race condition where a hotplug event might occur after the open
+	     * but before the procs are registered. */
+	    if (mProcs && mProcs->vsync) {
+	        mProcs->hotplug(mProcs, HWC_DISPLAY_EXTERNAL, isConnected);
+	    }
+
+	}
+
         msg += strlen(msg) + 1;
     } while (*msg);
 }
@@ -1249,6 +1325,121 @@ void IntelHWComposer::vsync(int64_t timestamp, int pipe)
 	    mProcs->vsync(const_cast<hwc_procs_t*>(mProcs), 0, timestamp);
     }
     mLastVsync = timestamp;
+}
+
+bool IntelHWComposer::flipHDMIFramebufferContexts(void *contexts, hwc_layer_1_t *target_layer)
+{
+    ALOGD_IF(ALLOW_HWC_PRINT, "flipHDMIFrameBufferContexts");
+
+    if (!contexts) {
+        ALOGE("%s: Invalid plane contexts\n", __func__);
+        return false;
+    }
+
+    if (target_layer == NULL) {
+        ALOGE("%s: Invalid HDMI target layer\n", __func__);
+        return false;
+    }
+
+    int output = 1;
+    drmModeConnection connection = mDrm->getOutputConnection(output);
+    if (connection != DRM_MODE_CONNECTED) {
+        ALOGE("%s: HDMI does not connected\n", __func__);
+        return false;
+    }
+
+    //get target layer handler
+    intel_gralloc_buffer_handle_t *grallocHandle =
+    (intel_gralloc_buffer_handle_t*)target_layer->handle;
+
+    if (!grallocHandle)
+        return false;
+
+    //map HDMI buffer handler
+    IntelDisplayBuffer *buffer = NULL;
+
+    for (int i = 0; i < HDMI_BUF_NUM; i++) {
+	if (mHDMIBuffers[i].ui64Stamp == grallocHandle->ui64Stamp) {
+            ALOGD_IF(ALLOW_HWC_PRINT, "%s: buf stamp %d...\n", __func__,grallocHandle->ui64Stamp);
+            buffer = mHDMIBuffers[i].buffer;
+            break;
+        }
+    }
+
+    if (!buffer) {
+        // release the buffer in the next slot
+        if (mHDMIBuffers[mNextBuffer].ui64Stamp ||
+                    mHDMIBuffers[mNextBuffer].buffer) {
+            mGrallocBufferManager->unmap(mHDMIBuffers[mNextBuffer].buffer);
+            mHDMIBuffers[mNextBuffer].ui64Stamp = 0;
+            mHDMIBuffers[mNextBuffer].buffer = 0;
+        }
+
+        buffer = mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER0]);
+
+        if (!buffer) {
+            ALOGE("%s: failed to map HDMI handle !\n", __func__);
+            return false;
+        }
+
+        mHDMIBuffers[mNextBuffer].ui64Stamp = grallocHandle->ui64Stamp;
+        mHDMIBuffers[mNextBuffer].buffer = buffer;
+        // move mNextBuffer pointer
+        mNextBuffer = (mNextBuffer + 1) % HDMI_BUF_NUM;
+    }
+
+    // update layer info;
+    uint32_t fbWidth = target_layer->sourceCrop.right;
+    uint32_t fbHeight = target_layer->sourceCrop.bottom;
+    uint32_t gttOffsetInPage = buffer->getGttOffsetInPage();
+    uint32_t format = grallocHandle->format;
+    uint32_t spriteFormat;
+
+    switch (format) {
+        case HAL_PIXEL_FORMAT_RGBA_8888:
+            spriteFormat = INTEL_SPRITE_PIXEL_FORMAT_RGBA8888;
+            break;
+        case HAL_PIXEL_FORMAT_RGBX_8888:
+            spriteFormat = INTEL_SPRITE_PIXEL_FORMAT_RGBX8888;
+            break;
+        case HAL_PIXEL_FORMAT_BGRX_8888:
+            spriteFormat = INTEL_SPRITE_PIXEL_FORMAT_BGRX8888;
+            break;
+        case HAL_PIXEL_FORMAT_BGRA_8888:
+            spriteFormat = INTEL_SPRITE_PIXEL_FORMAT_BGRA8888;
+            break;
+        default:
+            spriteFormat = INTEL_SPRITE_PIXEL_FORMAT_BGRX8888;
+            ALOGE("%s: unsupported format 0x%x\n", __func__, format);
+            return false;
+    }
+
+    // update context
+    mdfld_plane_contexts_t *planeContexts;
+    intel_sprite_context_t *context;
+
+    planeContexts = (mdfld_plane_contexts_t*)contexts;
+    context = &planeContexts->sprite_contexts[output];
+
+    context->update_mask = SPRITE_UPDATE_ALL;
+    context->index = output;
+    context->pipe = output;
+    context->linoff = 0;
+    context->stride = align_to((4 * fbWidth), 64);
+    context->pos = 0;
+    context->size = ((fbHeight - 1) & 0xfff) << 16 | ((fbWidth - 1) & 0xfff);
+    context->surf = gttOffsetInPage << 12;
+
+    context->cntr = spriteFormat;
+    context->cntr |= 0x80000000;
+
+    ALOGD_IF(ALLOW_HWC_PRINT,
+            "HDMI Contexts gttoff:0x%x;stride:%d;format:0x%x;fbH:%d;fbW:%d\n",
+             gttOffsetInPage, context->stride, spriteFormat, fbHeight, fbWidth);
+    // update active primary
+    planeContexts->active_sprites |= (1 << output);
+
+    return true;
 }
 
 bool IntelHWComposer::flipFramebufferContexts(void *contexts)
@@ -1268,9 +1459,14 @@ bool IntelHWComposer::flipFramebufferContexts(void *contexts)
     planeContexts = (mdfld_plane_contexts_t*)contexts;
 
     for (int output = 0; output < OUTPUT_MAX; output++) {
+        // do not handle external display here
+        if (output > 0)
+            continue;
+
         drmModeConnection connection = mDrm->getOutputConnection(output);
         if (connection != DRM_MODE_CONNECTED)
             continue;
+
         drmModeFBPtr fbInfo = mDrm->getOutputFBInfo(output);
 
         fbWidth = fbInfo->width;
@@ -1314,6 +1510,8 @@ bool IntelHWComposer::prepare(int disp, hwc_display_contents_1_t *list)
     ALOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
 
     if (disp) return true;
+
+    if (list && list->numHwLayers == 1) return true;
 
     if (!initCheck()) {
         ALOGE("%s: failed to initialize HWComposer\n", __func__);
@@ -1417,8 +1615,6 @@ bool IntelHWComposer::commit(int disp, hwc_display_contents_1_t *list)
 {
     ALOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
 
-    if (disp) return true;
-
     if (!initCheck()) {
         ALOGE("%s: failed to initialize HWComposer\n", __func__);
         return false;
@@ -1487,7 +1683,7 @@ bool IntelHWComposer::commit(int disp, hwc_display_contents_1_t *list)
         buffer_handle_t bufferHandles[INTEL_DISPLAY_PLANE_NUM];
         int numBuffers = 0;
         // setup primary plane contexts if swap buffers is needed
-        if (needSwapBuffer) {
+        if (needSwapBuffer && list->hwLayers[list->numHwLayers-1].handle) {
             flipFramebufferContexts(context);
             bufferHandles[numBuffers++] = list->hwLayers[list->numHwLayers-1].handle;
         }
@@ -1958,6 +2154,11 @@ bool IntelHWComposer::initialize()
         goto pm_err;
     }
 
+    // init mHDMIBuffers
+    memset(mHDMIBuffers, 0, sizeof(mHDMIBuffers));
+    memset(&mHDMIFBHandle, 0, sizeof(mHDMIFBHandle));
+    mNextBuffer = 0;
+
     startObserver();
 
     mInitialized = true;
@@ -1996,10 +2197,116 @@ bool IntelHWComposer::prepareDisplays(size_t numDisplays,
 bool IntelHWComposer::commitDisplays(size_t numDisplays,
                                      hwc_display_contents_1_t** displays)
 {
-    int disp;
 
+    if (!initCheck()) {
+        ALOGE("%s: failed to initialize HWComposer\n", __func__);
+        return false;
+    }
+
+    android::Mutex::Autolock _l(mLock);
+
+    // if hotplug was happened & didn't be handled skip the flip
+    if (mHotplugEvent)
+        return true;
+
+    void *context = mPlaneManager->getPlaneContexts();
+    if (!context) {
+        ALOGE("%s: invalid plane contexts\n", __func__);
+        return false;
+    }
+
+    ALOGD_IF(ALLOW_HWC_PRINT,
+        "%s: num of displays: %d\n", __func__, numDisplays);
+    int disp;
+    int numBuffers = 0;
+    buffer_handle_t bufferHandles[INTEL_DISPLAY_PLANE_NUM];
     for (disp = 0; disp < numDisplays; disp ++) {
-        commit(disp, displays[disp]);
+
+        hwc_display_contents_1_t *list = displays[disp];
+        if (!list)
+            continue;
+
+        if (disp == 0) {
+            //dumpLayerList(list);
+            // need check whether eglSwapBuffers is necessary
+            bool needSwapBuffer = false;
+
+            // if all layers were attached with display planes then we don't need
+            // swap buffers.
+
+            if (!mLayerList->getLayersCount() ||
+                    mLayerList->getLayersCount() != mLayerList->getAttachedPlanesCount() ||
+                    mForceSwapBuffer) {
+                ALOGD_IF(ALLOW_HWC_PRINT,
+                        "%s: mForceSwapBuffer: %d, layer count: %d, attached plane:%d\n",
+                        __func__, mForceSwapBuffer, mLayerList->getLayersCount(),
+                        mLayerList->getAttachedPlanesCount());
+                needSwapBuffer = true;
+            }
+
+            // setup primary plane contexts if swap buffers is needed
+            if (needSwapBuffer && list->hwLayers[list->numHwLayers-1].handle) {
+                flipFramebufferContexts(context);
+                bufferHandles[numBuffers++] = list->hwLayers[list->numHwLayers-1].handle;
+            }
+
+            // Call plane's flip for each layer in hwc_layer_list, if a plane has
+            // been attached to a layer
+            // First post RGB layers, then overlay layers.
+            for (size_t i=0 ; list && i<list->numHwLayers ; i++) {
+                IntelDisplayPlane *plane = mLayerList->getPlane(i);
+                int flags = mLayerList->getFlags(i);
+
+                if (!plane)
+                    continue;
+                if (list->hwLayers[i].flags & HWC_SKIP_LAYER)
+                    continue;
+
+                if (list->hwLayers[i].compositionType != HWC_OVERLAY)
+                    continue;
+
+                ALOGD_IF(ALLOW_HWC_PRINT, "%s: flip plane %d, flags: 0x%x\n",
+                        __func__, i, flags);
+
+                bool ret = plane->flip(context, flags);
+                if (!ret)
+                    ALOGW("%s: failed to flip plane %d context !\n", __func__, i);
+                else
+                    bufferHandles[numBuffers++] =
+                        (buffer_handle_t)plane->getDataBufferHandle();
+
+                // clear flip flags, except for DELAY_DISABLE
+                mLayerList->setFlags(i, flags & IntelDisplayPlane::DELAY_DISABLE);
+
+                // remove clear fb hints
+                list->hwLayers[i].hints &= ~HWC_HINT_CLEAR_FB;
+            }
+        } else if (disp == 1) {
+            //dumpLayerList(list);
+
+            hwc_layer_1_t *target_layer = NULL;
+            if (list->hwLayers[list->numHwLayers-1].compositionType == HWC_FRAMEBUFFER_TARGET &&
+                list->hwLayers[list->numHwLayers-1].handle) {
+                target_layer = &list->hwLayers[list->numHwLayers-1];
+
+                flipHDMIFramebufferContexts(context, target_layer);
+                bufferHandles[numBuffers++] = target_layer->handle;
+            }
+        }
+    }
+
+        // commit plane contexts
+    if (mFBDev && numBuffers) {
+        ALOGD_IF(ALLOW_HWC_PRINT, "%s: commits %d buffers\n", __func__, numBuffers);
+        int err = mFBDev->Post2(&mFBDev->base,
+                bufferHandles,
+                numBuffers,
+                context,
+                mPlaneManager->getContextLength());
+        if (err) {
+            ALOGE("%s: Post2 failed with errno %d\n", __func__, err);
+            return false;
+        }
     }
 
     return true;

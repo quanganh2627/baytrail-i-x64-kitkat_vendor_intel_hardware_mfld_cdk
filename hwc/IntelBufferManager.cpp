@@ -1232,3 +1232,47 @@ void IntelGraphicBufferManager::waitIdle(uint32_t khandle)
     mWsbm->unreferenceTTMBuffer(wsbmBufferObject);
     return;
 }
+
+bool IntelGraphicBufferManager::alloc(uint32_t size,
+                          uint32_t* um_handle, uint32_t* km_handle)
+{
+    const int page_size = getpagesize();
+    const uint32_t attr = PVRSRV_MEM_READ | PVRSRV_MEM_WRITE;
+    PVRSRV_CLIENT_MEM_INFO* psMemInfo;
+    PVRSRV_ERROR res;
+
+    res = PVRSRVAllocDeviceMem2(&mDevData,
+                               mGeneralHeap,
+                               attr,        // attr
+                               size,        // size
+                               page_size,   // alignment
+                               NULL,        //private data,
+                               0,           //private data length,
+                               &psMemInfo);  //client mem info
+    if (res != PVRSRV_OK) {
+        ALOGE("%s: failed to alloc graphic memory(size=%d), err = %d",
+             __func__, size, res);
+        return false;
+    }
+
+    memset(psMemInfo->pvLinAddr, 0, psMemInfo->uAllocSize);
+    *um_handle = (uint32_t)psMemInfo;
+    *km_handle = (uint32_t)psMemInfo->hKernelMemInfo;
+    return true;
+}
+
+bool IntelGraphicBufferManager::dealloc(uint32_t um_handle)
+{
+    PVRSRV_ERROR res;
+
+    if (!um_handle)
+        return true;
+
+    res = PVRSRVFreeDeviceMem(&mDevData, (PVRSRV_CLIENT_MEM_INFO*)um_handle);
+    if (res != PVRSRV_OK) {
+        ALOGE("%s: failed to free graphic memory %x, err = %d",
+            __func__, um_handle, res);
+        return false;
+    }
+    return true;
+}

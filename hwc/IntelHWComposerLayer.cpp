@@ -101,7 +101,7 @@ void IntelHWComposerLayerList::updateLayerList(hwc_display_contents_1_t *layerLi
         return;
     }
 
-    numLayers = layerList->numHwLayers;
+    numLayers = layerList->numHwLayers - 1;
 
     if (numLayers <= 0 || !initCheck())
         return;

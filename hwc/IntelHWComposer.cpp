@@ -267,7 +267,7 @@ bool IntelHWComposer::isOverlayLayer(hwc_display_contents_1_t *list,
 
     // fall back if YUV Layer is in the middle of
     // other layers and covers the layers under it.
-    if (!forceOverlay && index > 0 && index < list->numHwLayers) {
+    if (!forceOverlay && index > 0 && index < list->numHwLayers - 1) {
         for (int i = index - 1; i >= 0; i--) {
             if (areLayersIntersecting(layer, &list->hwLayers[i])) {
                 useOverlay = false;
@@ -279,7 +279,7 @@ bool IntelHWComposer::isOverlayLayer(hwc_display_contents_1_t *list,
     // check whether layer are covered by layers above it
     // if layer is covered by a layer which needs blending,
     // clear corresponding region in frame buffer
-    for (size_t i = index + 1; i < list->numHwLayers; i++) {
+    for (size_t i = index + 1; i < list->numHwLayers - 1; i++) {
         if (areLayersIntersecting(&list->hwLayers[i], layer)) {
             ALOGD_IF(ALLOW_HWC_PRINT,
                 "%s: overlay %d is covered by layer %d\n", __func__, index, i);
@@ -370,10 +370,10 @@ bool IntelHWComposer::isSpriteLayer(hwc_display_contents_1_t *list,
 
     // disable sprite plane when HDMI is connected
     // FIXME: add HDMI sprite support later
-    if (mDrm->getOutputConnection(OUTPUT_HDMI) == DRM_MODE_CONNECTED) {
-        useSprite = false;
-        goto out_check;
-    }
+    //if (mDrm->getOutputConnection(OUTPUT_HDMI) == DRM_MODE_CONNECTED) {
+    //    useSprite = false;
+    //    goto out_check;
+    //}
 
     // fall back if HWC_SKIP_LAYER was set
     if ((layer->flags & HWC_SKIP_LAYER)) {
@@ -455,8 +455,8 @@ bool IntelHWComposer::isPrimaryLayer(hwc_display_contents_1_t *list,
 {
 #ifndef INTEL_RGB_OVERLAY
     // only use primary when layer is the top layer
-    if ((size_t)index != (list->numHwLayers - 1))
-        return false;
+    //if ((size_t)index != (list->numHwLayers - 1))
+    //    return false;
 #endif
 
 
@@ -481,7 +481,7 @@ bool IntelHWComposer::isPrimaryLayer(hwc_display_contents_1_t *list,
     }
 
     // check whether all other layers were handled by HWC
-    for (size_t i = 0; i < list->numHwLayers; i++) {
+    for (size_t i = 0; i < list->numHwLayers - 1; i++) {
         if ((list->hwLayers[i].compositionType != HWC_OVERLAY) && (i != index))
             return false;
     }
@@ -496,7 +496,7 @@ void IntelHWComposer::revisitLayerList(hwc_display_contents_1_t *list, bool isGe
     if (!list)
         return;
 
-    for (size_t i = 0; i < list->numHwLayers; i++) {
+    for (size_t i = 0; i < list->numHwLayers - 1; i++) {
         int flags = 0;
 
         // also need check whether a layer can be handled in general
@@ -636,7 +636,7 @@ void IntelHWComposer::onGeometryChanged(hwc_display_contents_1_t *list)
         goto out_check;
     }
 
-    for (size_t i = 0; list && i < list->numHwLayers; i++) {
+    for (size_t i = 0; list && i < list->numHwLayers - 1; i++) {
         // check whether a layer can be handled in general
         if (!isHWCLayer(&list->hwLayers[i]))
             continue;
@@ -854,7 +854,7 @@ bool IntelHWComposer::updateLayersData(hwc_display_contents_1_t *list)
     } else
          mFBDev->bBypassPost = 0; //cfg.bypasspost;
 
-    for (size_t i=0 ; i<list->numHwLayers ; i++) {
+    for (size_t i=0 ; i<list->numHwLayers - 1; i++) {
         hwc_layer_1_t *layer = &list->hwLayers[i];
         intel_gralloc_buffer_handle_t *grallocHandle =
             (intel_gralloc_buffer_handle_t*)layer->handle;
@@ -1744,7 +1744,7 @@ bool IntelHWComposer::commit(int disp, hwc_display_contents_1_t *list)
         // Call plane's flip for each layer in hwc_layer_list, if a plane has
         // been attached to a layer
         // First post RGB layers, then overlay layers.
-        for (size_t i=0 ; list && i<list->numHwLayers ; i++) {
+        for (size_t i=0 ; list && i<list->numHwLayers - 1; i++) {
             IntelDisplayPlane *plane = mLayerList->getPlane(i);
             int flags = mLayerList->getFlags(i);
 
@@ -1788,7 +1788,7 @@ bool IntelHWComposer::commit(int disp, hwc_display_contents_1_t *list)
     }
 
         //make sure all flips were finished
-        for (size_t i=0 ; list && i<list->numHwLayers ; i++) {
+        for (size_t i=0 ; list && i<list->numHwLayers - 1; i++) {
             IntelDisplayPlane *plane = mLayerList->getPlane(i);
             int flags = mLayerList->getFlags(i);
             if (!plane)
@@ -2311,7 +2311,7 @@ bool IntelHWComposer::commitDisplays(size_t numDisplays,
             // Call plane's flip for each layer in hwc_layer_list, if a plane has
             // been attached to a layer
             // First post RGB layers, then overlay layers.
-            for (size_t i=0 ; list && i<list->numHwLayers ; i++) {
+            for (size_t i=0 ; list && i<list->numHwLayers - 1; i++) {
                 IntelDisplayPlane *plane = mLayerList->getPlane(i);
                 int flags = mLayerList->getFlags(i);
 

@@ -33,6 +33,17 @@
 
 #include <alsa/asoundlib.h>
 
+#define PLATFORM_ID_PATH  "/sys/spid/platform_family_id"
+#define HARDWARE_ID_PATH  "/sys/spid/hardware_id"
+/**device variants*/
+enum{
+    MFLD_PHONE   = 0,
+    MFLD_TABLET  = 1,
+    CTP_PHONE    = 2,
+    CTP_TABLET   = 3,
+    MERR_XX      = 4
+};
+
 /*default sampling rate will be defined in respective board configs*/
 #ifndef DEFAULT_SAMPLING_RATE
   #define DEFAULT_SAMPLING_RATE  44100
@@ -306,8 +317,31 @@ error_exit:
 static int open_device(struct hdmi_stream_out *out)
 {
     int err = 0;
+    FILE *fp = 0;
+    int readbytes = 0,
+    hw_id = 0,platform_id = 0;
+    char readbuffer[10];
 
-    ALOGD("%s: opening AndroidPlayback_HDMI for %d channels", __func__, out->pcm_config.channels);
+    fp = fopen(PLATFORM_ID_PATH,"rb");
+    readbytes = fread(&readbuffer,1,4,fp);
+    if(fp)
+       fclose(fp);
+    platform_id=atoi(readbuffer);
+
+    fp = fopen(HARDWARE_ID_PATH,"rb");
+    readbytes = fread(&readbuffer,1,4,fp);
+    if(fp)
+       fclose(fp);
+    hw_id=atoi(readbuffer);
+
+    ALOGD("platform id = %d hardware id = %d",platform_id,hw_id);
+
+    /*PR 3.3/4.0 device needs the channel masks to be powers of 2 (1,2,4,8)*/
+    if((out->pcm_config.channels > 2) && (hw_id == 3 || hw_id == 4) &&
+        (platform_id == MFLD_PHONE || platform_id == MFLD_TABLET))
+       ALOGD("%s: opening Upmix_AndroidPlayback_HDMI for %d channels", __func__, out->pcm_config.channels);
+    else
+       ALOGD("%s: opening AndroidPlayback_HDMI for %d channels", __func__, out->pcm_config.channels);
 
 
     // The PCM stream is opened in blocking mode, per ALSA defaults.  The
@@ -321,14 +355,25 @@ static int open_device(struct hdmi_stream_out *out)
         out->handle = NULL;
         active_stream_out = NULL;
     }
-
-    err = snd_pcm_open(&out->handle, "AndroidPlayback_HDMI", SND_PCM_STREAM_PLAYBACK,
-                           SND_PCM_ASYNC);
-    if (err < 0) {
-        ALOGE("%s: Failed to open any ALSA device: %s", __func__, (char*)strerror(err));
-        out->handle = NULL;
-        goto err_open_device;
+    if (active_stream_out != NULL && active_stream_out->handle != NULL) {
+       ALOGV("%s: Closing already opened stream %x",__func__,active_stream_out->handle);
+       err = snd_pcm_drain(active_stream_out->handle);
+       ALOGV("%s: Drain the samples and stop the stream %s",__func__,snd_strerror(err));
+       snd_pcm_close(active_stream_out->handle);
+       active_stream_out->handle = NULL;
     }
+
+    if((out->pcm_config.channels > 2) && (hw_id == 3 || hw_id == 4) &&
+        (platform_id == MFLD_PHONE || platform_id == MFLD_TABLET)) {
+       err = snd_pcm_open(&out->handle, "Upmix_AndroidPlayback_HDMI", SND_PCM_STREAM_PLAYBACK,
+                           SND_PCM_ASYNC);
+    }
+    else{
+       err = snd_pcm_open(&out->handle, "AndroidPlayback_HDMI", SND_PCM_STREAM_PLAYBACK,
+                           SND_PCM_ASYNC);
+    }
+
+    ALOGD("pcm open = %d error = %s",out->handle,snd_strerror(err));
 
     err = set_hardware_params(out);
 
@@ -541,15 +586,15 @@ static ssize_t out_write(struct audio_stream_out *stream, const void* buffer,
     int it = 0;
     unsigned int totalSleepTime;
 
-    if(active_stream_out == NULL){
-       ALOGV("%s: previous stream closed- open again",__func__);
-       out->standby = true;
-    }
-
     ALOGV("%s out->standby = %d", __func__,out->standby);
 
     pthread_mutex_lock(&out->dev->lock);
     pthread_mutex_lock(&out->lock);
+
+    if(active_stream_out == NULL){
+       ALOGV("%s: previous stream closed- open again",__func__);
+       out->standby = true;
+    }
 
     if (out->standby) {
         ret = start_output_stream(out);

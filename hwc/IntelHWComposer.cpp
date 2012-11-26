@@ -1199,10 +1199,41 @@ bool IntelHWComposer::areLayersIntersecting(hwc_layer_1_t *top,
     return true;
 }
 
-void IntelHWComposer::handleHotplugEvent()
+void IntelHWComposer::signalHpdCompletion()
+{
+    Mutex::Autolock _l(mHpdLock);
+    if (mHpdCompletion == false) {
+        mHpdCompletion = true;
+        mHpdCondition.signal();
+        ALOGD("%s: send out hpd completion signal\n", __func__);
+    }
+}
+
+void IntelHWComposer::waitForHpdCompletion()
+{
+    Mutex::Autolock _l(mHpdLock);
+
+    // time out for 300ms
+    nsecs_t reltime = 300000000;
+    mHpdCompletion = false;
+    while(!mHpdCompletion) {
+        mHpdCondition.waitRelative(mHpdLock, reltime);
+    }
+
+    ALOGD("%s: receive hpd completion signal: %d\n", __func__, mHpdCompletion?1:0);
+}
+
+bool IntelHWComposer::handleDisplayModeChange()
 {
     android::Mutex::Autolock _l(mLock);
-    ALOGD_IF(ALLOW_HWC_PRINT, "handleHotplugEvent");
+    ALOGD_IF(ALLOW_HWC_PRINT, "handleDisplayModeChange");
+
+    if (!mDrm) {
+         ALOGW("%s: mDrm is not intilized!\n", __func__);
+         return false;
+    }
+
+    mDrm->detectMDSModeChange();
 
     // go through layer list and call plane's onModeChange()
     for (size_t i = 0 ; i < mLayerList->getLayersCount(); i++) {
@@ -1211,10 +1242,104 @@ void IntelHWComposer::handleHotplugEvent()
             plane->onDrmModeChange();
     }
     mHotplugEvent = true;
+
+    return true;
 }
 
-void IntelHWComposer::onUEvent(const char *msg, int msgLen, int msgType)
+bool IntelHWComposer::handleHotplugEvent(int hpd, void *data)
 {
+    bool ret = false;
+    int disp = 1;
+
+    ALOGD_IF(ALLOW_HWC_PRINT, "handleHotplugEvent");
+
+    if (!mDrm) {
+        ALOGW("%s: mDrm is not intilized!\n", __func__);
+        goto out;
+    }
+
+    if (hpd) {
+        // get display mode
+        intel_display_mode_t *s_mode = (intel_display_mode_t *)data;
+        drmModeModeInfoPtr mode;
+        mode = mDrm->selectDisplayDrmMode(disp, s_mode);
+        if (!mode) {
+            ret = false;
+            goto out;
+        }
+
+        // alloc buffer;
+        mHDMIFBHandle.size = align_to(mode->vdisplay * mode->hdisplay * 4, 64);
+        ret = mGrallocBufferManager->alloc(mHDMIFBHandle.size,
+                                      &mHDMIFBHandle.umhandle,
+                                      &mHDMIFBHandle.kmhandle);
+        if (!ret)
+            goto out;
+
+        // mode setting;
+        ret = mDrm->setDisplayDrmMode(disp, mHDMIFBHandle.kmhandle, mode);
+        if (!ret)
+            goto out;
+    } else {
+        // rm FB
+        ret = mDrm->handleDisplayDisConnection(disp);
+        if (!ret)
+            goto out;
+
+        // release buffer;
+        ret = mGrallocBufferManager->dealloc(mHDMIFBHandle.umhandle);
+        if (!ret)
+            goto out;
+
+        memset(&mHDMIFBHandle, 0, sizeof(mHDMIFBHandle));
+    }
+
+out:
+    if (ret) {
+        ALOGD("%s: detected hdmi hotplug event:%s\n", __func__, hpd?"IN":"OUT");
+        handleDisplayModeChange();
+
+        /* hwc_dev->procs is set right after the device is opened, but there is
+         * still a race condition where a hotplug event might occur after the open
+         * but before the procs are registered. */
+        if (mProcs && mProcs->vsync) {
+            mProcs->hotplug(mProcs, HWC_DISPLAY_EXTERNAL, hpd);
+        }
+    }
+
+    return ret;
+}
+
+bool IntelHWComposer::handleDynamicModeSetting(void *data)
+{
+    bool ret = false;
+
+    ALOGD_IF(ALLOW_HWC_PRINT, "%s: handle Dynamic mode setting!\n", __func__);
+    // send plug-out to SF for mode changing on the same device
+    // otherwise SF will bypass the plug-in message as there is
+    // no connection change;
+    ret = handleHotplugEvent(0, NULL);
+    if (!ret) {
+        ALOGW("%s: send fake unplug event failed!\n", __func__);
+        goto out;
+    }
+
+    // TODO: here we need to wait for the plug-out take effect.
+    waitForHpdCompletion();
+
+    // then change the mode and send plug-in to SF
+    ret = handleHotplugEvent(1, data);
+    if (!ret) {
+        ALOGW("%s: send plug in event failed!\n", __func__);
+        goto out;
+    }
+out:
+    return ret;
+}
+
+bool IntelHWComposer::onUEvent(const char *msg, int msgLen, int msgType, void *data)
+{
+    bool ret = false;
 #ifdef TARGET_HAS_MULTIPLE_DISPLAY
     // if mds sent orientation change message, inform widi plane and return
     if (msgType == IntelExternalDisplayMonitor::MSG_TYPE_MDS_ORIENTATION_CHANGE) {
@@ -1226,94 +1351,43 @@ void IntelHWComposer::onUEvent(const char *msg, int msgLen, int msgType)
             }
         }
     }
-    // if send by mds, set the hotplug event and return
-    if (msgType == IntelExternalDisplayMonitor::MSG_TYPE_MDS) {
-        ALOGD("%s: got multiDisplay service event\n", __func__);
-        //mDrm->detectDrmModeInfo();
-        handleHotplugEvent();
-        return;
-    }
+
+    if (msgType == IntelExternalDisplayMonitor::MSG_TYPE_MDS)
+        ret = handleDisplayModeChange();
+
+    // handle hdmi plug in;
+    if (msgType == IntelExternalDisplayMonitor::MSG_TYPE_MDS_HOTPLUG_IN)
+        ret = handleHotplugEvent(1, data);
+
+    // handle hdmi plug out;
+    if (msgType == IntelExternalDisplayMonitor::MSG_TYPE_MDS_HOTPLUG_OUT)
+        ret = handleHotplugEvent(0, NULL);
+
+    // handle dynamic mode setting
+    if (msgType == IntelExternalDisplayMonitor::MSG_TYPE_MDS_TIMING_DYNAMIC_SETTING)
+        ret = handleDynamicModeSetting(data);
+
+    return ret;
 #endif
 
     if (strcmp(msg, "change@/devices/pci0000:00/0000:00:02.0/drm/card0"))
-        return;
+        return true;
     msg += strlen(msg) + 1;
 
     do {
-        int disp = 1;
-        bool ret;
-        int isConnected = 0;
-        int size;
-
         if (!strncmp(msg, "HOTPLUG_IN=1", strlen("HOTPLUG_IN=1"))) {
-            //ALOGD("%s: detected hdmi hotplug event:%s\n", __func__, msg);
-            //mDrm->detectDrmModeInfo();
-            //handleHotplugEvent();
-
-            ret = mDrm->detectDisplayConnection(disp);
-            if (!ret)
-                break;
-
-            // get display mode
-            drmModeModeInfoPtr mode;
-            mode = mDrm->selectDisplayMode(disp, NULL);
-            if (!mode) {
-                ret = false;
-                break;
-            }
-
-            // alloc buffer;
-            mHDMIFBHandle.size = align_to(mode->vdisplay * mode->hdisplay * 4, 64);
-            ret = mGrallocBufferManager->alloc(mHDMIFBHandle.size,
-                                               &mHDMIFBHandle.umhandle,
-                                               &mHDMIFBHandle.kmhandle);
-            if (!ret)
-                break;
-
-            // mode setting;
-            ret = mDrm->setDisplayModeInfo(disp, mHDMIFBHandle.kmhandle, mode);
-            if (!ret)
-                break;
-
-            isConnected = 1;
-        } else if (!strncmp(msg, "HOTPLUG_OUT=1", strlen("HOTPLUG_OUT=1"))) {
-
-            // detect connection
-            ret = mDrm->detectDisplayConnection(disp);
-            if (ret) {
-                ret = false;
-                break;
-            }
-
-            // rm FB
-            ret = mDrm->handleDisplayDisConnection(disp);
-            if (!ret)
-                break;
-
-            // release buffer;
-            ret = mGrallocBufferManager->dealloc(mHDMIFBHandle.umhandle);
-            if (!ret)
-                break;
-
-            memset(&mHDMIFBHandle, 0, sizeof(mHDMIFBHandle));
-            isConnected = 0;
-        }
-
-        if (!strncmp(msg, "HOTPLUG", strlen("HOTPLUG")) && ret) {
             ALOGD("%s: detected hdmi hotplug event:%s\n", __func__, msg);
-            handleHotplugEvent();
-
-	    /* hwc_dev->procs is set right after the device is opened, but there is
-	     * still a race condition where a hotplug event might occur after the open
-	     * but before the procs are registered. */
-	    if (mProcs && mProcs->vsync) {
-	        mProcs->hotplug(mProcs, HWC_DISPLAY_EXTERNAL, isConnected);
-	    }
-
-	}
+            ret = handleHotplugEvent(1, NULL);
+            break;
+        } else if (!strncmp(msg, "HOTPLUG_OUT=1", strlen("HOTPLUG_OUT=1"))) {
+            ret = handleHotplugEvent(0, NULL);
+            break;
+        }
 
         msg += strlen(msg) + 1;
     } while (*msg);
+
+    return ret;
 }
 
 void IntelHWComposer::vsync(int64_t timestamp, int pipe)
@@ -1322,7 +1396,7 @@ void IntelHWComposer::vsync(int64_t timestamp, int pipe)
         ALOGV("%s: report vsync timestamp %llu, pipe %d, active 0x%x", __func__,
              timestamp, pipe, mActiveVsyncs);
         if ((1 << pipe) & mActiveVsyncs)
-	    mProcs->vsync(const_cast<hwc_procs_t*>(mProcs), 0, timestamp);
+            mProcs->vsync(const_cast<hwc_procs_t*>(mProcs), 0, timestamp);
     }
     mLastVsync = timestamp;
 }
@@ -1345,6 +1419,12 @@ bool IntelHWComposer::flipHDMIFramebufferContexts(void *contexts, hwc_layer_1_t 
     drmModeConnection connection = mDrm->getOutputConnection(output);
     if (connection != DRM_MODE_CONNECTED) {
         ALOGE("%s: HDMI does not connected\n", __func__);
+        return false;
+    }
+
+    intel_overlay_mode_t mode = mDrm->getDisplayMode();
+    if (mode == OVERLAY_EXTEND) {
+        ALOGV("%s: Skip FRAMEBUFFER_TARGET on video_ext mode\n", __func__);
         return false;
     }
 
@@ -1425,7 +1505,8 @@ bool IntelHWComposer::flipHDMIFramebufferContexts(void *contexts, hwc_layer_1_t 
     context->index = output;
     context->pipe = output;
     context->linoff = 0;
-    context->stride = align_to((4 * fbWidth), 64);
+    // Display requires 64 bytes align, Gralloc does 32 pixels align
+    context->stride = align_to((4 * fbWidth), 128);
     context->pos = 0;
     context->size = ((fbHeight - 1) & 0xfff) << 16 | ((fbWidth - 1) & 0xfff);
     context->surf = gttOffsetInPage << 12;
@@ -1436,6 +1517,7 @@ bool IntelHWComposer::flipHDMIFramebufferContexts(void *contexts, hwc_layer_1_t 
     ALOGD_IF(ALLOW_HWC_PRINT,
             "HDMI Contexts gttoff:0x%x;stride:%d;format:0x%x;fbH:%d;fbW:%d\n",
              gttOffsetInPage, context->stride, spriteFormat, fbHeight, fbWidth);
+
     // update active primary
     planeContexts->active_sprites |= (1 << output);
 
@@ -1509,7 +1591,11 @@ bool IntelHWComposer::prepare(int disp, hwc_display_contents_1_t *list)
 {
     ALOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
 
-    if (disp) return true;
+    if (disp) {
+        if (!list)
+            signalHpdCompletion();
+        return true;
+    }
 
     if (list && list->numHwLayers == 1) return true;
 
@@ -2161,7 +2247,7 @@ bool IntelHWComposer::initialize()
     memset(&mHDMIFBHandle, 0, sizeof(mHDMIFBHandle));
     mNextBuffer = 0;
 
-    startObserver();
+   // startObserver();
 
     mInitialized = true;
 
@@ -2272,7 +2358,7 @@ bool IntelHWComposer::commitDisplays(size_t numDisplays,
 
                 bool ret = plane->flip(context, flags);
                 if (!ret)
-                    ALOGW("%s: failed to flip plane %d context !\n", __func__, i);
+                    ALOGW("%s: skip to flip plane %d context !\n", __func__, i);
                 else
                     bufferHandles[numBuffers++] =
                         (buffer_handle_t)plane->getDataBufferHandle();
@@ -2291,8 +2377,11 @@ bool IntelHWComposer::commitDisplays(size_t numDisplays,
                 list->hwLayers[list->numHwLayers-1].handle) {
                 target_layer = &list->hwLayers[list->numHwLayers-1];
 
-                flipHDMIFramebufferContexts(context, target_layer);
-                bufferHandles[numBuffers++] = target_layer->handle;
+                bool ret = flipHDMIFramebufferContexts(context, target_layer);
+                if (!ret)
+                    ALOGV("%s: skip to flip HDMI fb context !\n", __func__);
+                else
+                    bufferHandles[numBuffers++] = target_layer->handle;
             }
         }
     }

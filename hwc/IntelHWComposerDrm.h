@@ -82,11 +82,11 @@ typedef struct {
 } intel_drm_output_state_t;
 
 typedef struct {
-    int vrefresh;
-    int hdisplay;
-    int vdisplay;
-    int flags;
-    int ratio;
+    uint32_t vrefresh;
+    uint32_t hdisplay;
+    uint32_t vdisplay;
+    uint32_t flags;
+    uint32_t ratio;
 } intel_display_mode_t;
 
 class IntelHWComposer;
@@ -139,9 +139,6 @@ private:
     bool setupDrmFb(int disp, uint32_t fb_handler, drmModeModeInfoPtr mode);
     void deleteDrmFb(int disp);
 
-    // default detect only called by initialize
-    bool detectDrmModeInfo();
-
 public:
     ~IntelHWComposerDrm();
     static IntelHWComposerDrm& getInstance() {
@@ -155,11 +152,15 @@ public:
     bool initialize(IntelHWComposer *hwc);
     int getDrmFd() const { return mDrmFd; }
 
+    // default detect only called by initialize
+    bool detectDrmModeInfo();
+
     // Connection and Mode setting
     bool detectDisplayConnection(int disp);
-    drmModeModeInfoPtr selectDisplayMode(int disp, intel_display_mode_t *m_selected);
-    bool setDisplayModeInfo(int disp, uint32_t fb_handler, drmModeModeInfoPtr mode);
+    drmModeModeInfoPtr selectDisplayDrmMode(int disp, intel_display_mode_t *m_selected);
+    bool setDisplayDrmMode(int disp, uint32_t fb_handler, drmModeModeInfoPtr mode);
     bool handleDisplayDisConnection(int disp);
+    bool detectMDSModeChange();
 
     // DPMS
     bool setDisplayDpms(int disp, bool on);

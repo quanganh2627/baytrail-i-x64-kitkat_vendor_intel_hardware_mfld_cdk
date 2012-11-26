@@ -220,6 +220,31 @@ intel_overlay_mode_t IntelHWComposerDrm::getOldDisplayMode()
     return mDrmOutputsState.old_display_mode;
 }
 
+bool IntelHWComposerDrm::detectMDSModeChange()
+{
+
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+    drmModeConnection hdmi = getOutputConnection(OUTPUT_HDMI);
+    int mdsMode = 0;
+    if (mMonitor != 0) {
+        mdsMode = mMonitor->getDisplayMode();
+        ALOGD_IF(ALLOW_MONITOR_PRINT, "%s: get MDS Mode %d", __func__, mdsMode);
+        //TODO: overlay only support OVERLAY_EXTEND and OVERLAY_MIPI0
+        if (mdsMode == OVERLAY_EXTEND && hdmi == DRM_MODE_CONNECTED)
+            setDisplayMode(OVERLAY_EXTEND);
+        else if (mdsMode == OVERLAY_CLONE_MIPI0)
+            setDisplayMode(OVERLAY_CLONE_MIPI0);
+        else
+            setDisplayMode(OVERLAY_MIPI0);
+    } else
+#endif
+    {
+        setDisplayMode(OVERLAY_MIPI0);
+    }
+
+    return true;
+}
+
 bool IntelHWComposerDrm::initialize(IntelHWComposer *hwc)
 {
     bool ret = false;
@@ -354,23 +379,7 @@ bool IntelHWComposerDrm::detectDrmModeInfo()
     drmModeConnection mipi1 = getOutputConnection(OUTPUT_MIPI1);
     drmModeConnection hdmi = getOutputConnection(OUTPUT_HDMI);
 
-#ifdef TARGET_HAS_MULTIPLE_DISPLAY
-    int mdsMode = 0;
-    if (mMonitor != 0) {
-        mdsMode = mMonitor->getDisplayMode();
-        ALOGD("%s: getDisplayMode %d", __func__, mdsMode);
-        //TODO: overlay only support OVERLAY_EXTEND and OVERLAY_MIPI0
-        if (mdsMode == OVERLAY_EXTEND && hdmi == DRM_MODE_CONNECTED)
-            setDisplayMode(OVERLAY_EXTEND);
-        else if (mdsMode == OVERLAY_CLONE_MIPI0)
-            setDisplayMode(OVERLAY_CLONE_MIPI0);
-        else
-            setDisplayMode(OVERLAY_MIPI0);
-    } else
-#endif
-    {
-        setDisplayMode(OVERLAY_MIPI0);
-    }
+    detectMDSModeChange();
 
     ALOGD_IF(ALLOW_MONITOR_PRINT,
            "%s: mipi/lvds %s, mipi1 %s, hdmi %s, displayMode %d\n",
@@ -391,8 +400,8 @@ IntelHWComposerDrm::getConnector(int disp)
         return NULL;
     }
 
-    int req_connector_type = 0;
-    int req_connector_type_id = 1;
+    uint32_t req_connector_type = 0;
+    uint32_t req_connector_type_id = 1;
 
     switch (disp) {
         case OUTPUT_MIPI0:
@@ -454,7 +463,7 @@ IntelHWComposerDrm::getEncoder(int disp)
         return NULL;
     }
 
-    int req_encoder_type = 0;
+    uint32_t req_encoder_type = 0;
 
     switch (disp) {
         case OUTPUT_MIPI0:
@@ -508,7 +517,7 @@ uint32_t IntelHWComposerDrm::getCrtcId(int disp)
 {
     if (mDrmFd < 0) {
         ALOGE("%s: invalid drm FD\n", __func__);
-        return NULL;
+        return 0;
     }
 
     drmModeEncoderPtr encoder = NULL;
@@ -565,7 +574,7 @@ bool IntelHWComposerDrm::setHDMIScaling(int type) {
 }
 
 drmModeModeInfoPtr
-IntelHWComposerDrm::selectDisplayMode(int disp, intel_display_mode_t *m_selected)
+IntelHWComposerDrm::selectDisplayDrmMode(int disp, intel_display_mode_t *m_selected)
 {
     drmModeModeInfoPtr mode = getOutputMode(disp);
 
@@ -616,8 +625,8 @@ IntelHWComposerDrm::getSelectMode(intel_display_mode_t *m_selected,
         if (m_selected &&
             m_selected->vrefresh == mode->vrefresh &&
             m_selected->hdisplay == mode->hdisplay &&
-            m_selected->vdisplay == mode->vdisplay &&
-            m_selected->flags == mode->flags) {
+            m_selected->vdisplay == mode->vdisplay ) {
+            //m_selected->flags == mode->flags) {
             index = i;
             break;
         }
@@ -644,8 +653,8 @@ bool IntelHWComposerDrm::isModeChanged(drmModeModeInfoPtr mode,
     if (m_selected && mode &&
         m_selected->vrefresh == mode->vrefresh &&
         m_selected->hdisplay == mode->hdisplay &&
-        m_selected->vdisplay == mode->vdisplay &&
-        m_selected->flags == mode->flags) {
+        m_selected->vdisplay == mode->vdisplay ) {
+       // m_selected->flags == mode->flags) {
         return false;
     } else {
         return true;
@@ -701,21 +710,23 @@ void IntelHWComposerDrm::deleteDrmFb(int disp)
     drmModeFBPtr fbInfo = getOutputFBInfo(disp);
 
     if (fbInfo) {
-        ALOGD("%s: rm FB !\n", __func__);
+        ALOGD_IF(ALLOW_MONITOR_PRINT, "%s: rm FB !\n", __func__);
         drmModeRmFB(mDrmFd, fbInfo->fb_id);
     }
 }
 
 bool IntelHWComposerDrm::handleDisplayDisConnection(int disp)
 {
-    if (disp == 1) {
+    if (disp == OUTPUT_HDMI) {
         drmModeModeInfo mode;
+        drmModeConnection connection = DRM_MODE_DISCONNECTED;
 
-        ALOGD("%s: handle disconnection !\n", __func__);
+        setOutputConnection(disp, connection);
         memset(&mode, 0, sizeof(drmModeModeInfo));
         setOutputMode(disp, &mode, 1);
         deleteDrmFb(disp);
     }
+
     return true;
 }
 
@@ -756,9 +767,9 @@ bool IntelHWComposerDrm::detectDisplayConnection(int disp)
     return true;
 }
 
-bool IntelHWComposerDrm::setDisplayModeInfo(int disp,
-                                            uint32_t fb_handler,
-                                            drmModeModeInfoPtr mode)
+bool IntelHWComposerDrm::setDisplayDrmMode(int disp,
+                                           uint32_t fb_handler,
+                                           drmModeModeInfoPtr mode)
 {
     drmModeConnectorPtr connector = NULL;
     uint32_t crtc_id = 0;
@@ -816,6 +827,7 @@ bool IntelHWComposerDrm::setDisplayModeInfo(int disp,
     }
 
     freeConnector(connector);
+
     return true;
 }
 

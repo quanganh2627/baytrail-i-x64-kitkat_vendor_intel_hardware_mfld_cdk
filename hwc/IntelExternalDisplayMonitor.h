@@ -47,6 +47,9 @@ public:
         MSG_TYPE_UEVENT = 0,
         MSG_TYPE_MDS,
         MSG_TYPE_MDS_ORIENTATION_CHANGE,
+        MSG_TYPE_MDS_HOTPLUG_IN,
+        MSG_TYPE_MDS_HOTPLUG_OUT,
+        MSG_TYPE_MDS_TIMING_DYNAMIC_SETTING,
     };
 
     enum {
@@ -59,7 +62,7 @@ public:
     void initialize();
 public:
     // onMdsMessage() interface
-    void onMdsMessage(int msg, int data);
+    int onMdsMessage(int msg, void *data, int size);
 public:
     int getDisplayMode();
     bool isVideoPlaying();
@@ -75,6 +78,12 @@ private:
     virtual bool threadLoop();
     virtual android::status_t readyToRun();
     virtual void onFirstRef();
+
+    inline bool checkMdsMode(int value, int bit) {
+        if ((value & bit) == bit)
+           return true;
+        return false;
+    }
 private:
     MultiDisplayClient* mMDClient;
     android::Mutex mLock;
@@ -85,6 +94,7 @@ private:
     IntelHWComposer *mComposer;
     char mUeventMessage[UEVENT_MSG_LEN];
     int mUeventFd;
+    int mLastMsg;
 }; // IntelExternalDisplayMonitor
 
 #endif // __INTEL_EXTERNAL_DISPLAY_MONITOR_H__

@@ -77,6 +77,7 @@ private:
         uint32_t kmhandle;
         uint32_t size;
     } mHDMIFBHandle;
+
     int* mWidiNativeWindow;
     android::Mutex mLock;
     IMG_framebuffer_device_public_t *mFBDev;
@@ -85,6 +86,9 @@ private:
     uint32_t mVsyncsEnabled;
     uint32_t mVsyncsCount;
     nsecs_t mVsyncsTimestamp;
+    mutable Mutex mHpdLock;
+    Condition mHpdCondition;
+    bool mHpdCompletion;
 #ifdef INTEL_RGB_OVERLAY
     IntelHWCWrapper mWrapper;
 #endif
@@ -120,11 +124,15 @@ private:
     bool isBobDeinterlace(hwc_layer_1_t *layer);
     bool isForceOverlay(hwc_layer_1_t *layer);
     bool areLayersIntersecting(hwc_layer_1_t *top, hwc_layer_1_t* bottom);
-    void handleHotplugEvent();
+    bool handleHotplugEvent(int hdp, void *data);
+    bool handleDisplayModeChange();
+    bool handleDynamicModeSetting(void *data);
     uint32_t disableUnusedVsyncs(uint32_t target);
     uint32_t enableVsyncs(uint32_t target);
+    void signalHpdCompletion();
+    void waitForHpdCompletion();
 public:
-    void onUEvent(const char *msg, int msgLen, int msgType);
+    bool onUEvent(const char *msg, int msgLen, int msgType, void *data);
     bool flipFramebufferContexts(void *contexts);
     bool flipHDMIFramebufferContexts(void *contexts, hwc_layer_1_t *target_layer);
     void vsync(int64_t timestamp, int pipe);
@@ -153,7 +161,8 @@ public:
           mDrm(0), mBufferManager(0), mGrallocBufferManager(0),
           mPlaneManager(0), mLayerList(0), mProcs(0), mVsync(0), mFakeVsync(0),
           mLastVsync(0), mMonitoringMethod(0), mForceSwapBuffer(false),
-          mHotplugEvent(false), mInitialized(false), mActiveVsyncs(0) {}
+          mHotplugEvent(false), mInitialized(false),
+          mActiveVsyncs(0), mHpdCompletion(true) {}
     ~IntelHWComposer();
 };
 

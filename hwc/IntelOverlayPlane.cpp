@@ -1065,8 +1065,9 @@ bool IntelOverlayContext::disable()
 
     ALOGD("%s: disable overlay...\n", __func__);
     mOverlayBackBuffer->OCMD &= ~OVERLAY_ENABLE;
-    bool ret = flush((IntelDisplayPlane::FLASH_NEEDED |
-                      IntelDisplayPlane::WAIT_VBLANK));
+    //bool ret = flush((IntelDisplayPlane::FLASH_NEEDED |
+     //                 IntelDisplayPlane::WAIT_VBLANK));
+    bool ret = flush((IntelDisplayPlane::FLASH_NEEDED));
     if (ret == false) {
         ALOGE("%s: failed to disable overlay\n", __func__);
         unlock();

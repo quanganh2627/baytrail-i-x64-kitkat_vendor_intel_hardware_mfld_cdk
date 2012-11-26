@@ -115,7 +115,7 @@ void *IntelHWCUEventObserver::threadLoop(void *data)
         if(nr > 0 && fds.revents == POLLIN) {
             int count = recv(fd, ueventMessage, UEVENT_MSG_LEN - 2, 0);
             if (count > 0)
-                observer->onUEvent(ueventMessage, UEVENT_MSG_LEN - 2, 0);
+                observer->onUEvent(ueventMessage, UEVENT_MSG_LEN - 2, 0, data);
         }
     } while (observer->isReadyToRun());
 
@@ -128,10 +128,10 @@ void IntelHWCUEventObserver::ueventHandler(void *data, const char *msg, int msgL
 {
     IntelHWCUEventObserver *observer = static_cast<IntelHWCUEventObserver*>(data);
     if (observer)
-        observer->onUEvent(msg, msgLen, 0);
+        observer->onUEvent(msg, msgLen, 0, data);
 }
 
-void IntelHWCUEventObserver::onUEvent(const char *msg, int msgLen, int msgType)
+bool IntelHWCUEventObserver::onUEvent(const char *msg, int msgLen, int msgType, void * data)
 {
-
+    return true;
 }

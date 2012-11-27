@@ -13,6 +13,8 @@ LOCAL_COPY_HEADERS_TO := hw
 LOCAL_COPY_HEADERS := \
 	fm_module.h
 
+ifeq ($(BUILD_FM_RADIO),true)
+
 LOCAL_CFLAGS := -D_POSIX_SOURCE -Wno-multichar
 
 LOCAL_C_INCLUDES += \
@@ -35,6 +37,8 @@ LOCAL_SHARED_LIBRARIES := \
 
 LOCAL_SRC_FILES:= \
 	fm_module.cpp
+
+endif
 
 LOCAL_MODULE:= fm.$(TARGET_DEVICE)
 LOCAL_MODULE_TAGS := optional

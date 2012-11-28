@@ -224,7 +224,7 @@ status_t IntelExternalDisplayMonitor::readyToRun()
     ALOGD_IF(ALLOW_MONITOR_PRINT, "External display monitor ready to run");
 
     // get multi-display manager service, retry 10 seconds
-    int retry = 2;
+    int retry = 10;
     do {
         const String16 name("MultiDisplay");
         sp<IBinder> service;

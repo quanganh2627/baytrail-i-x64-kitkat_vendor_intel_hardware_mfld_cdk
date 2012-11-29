@@ -96,7 +96,7 @@ void IntelVsyncEventHandler::handleVsyncEvent(const char *msg, int msgLen)
 
 void IntelVsyncEventHandler::setActiveVsyncs(uint32_t activeVsyncs)
 {
-    Mutex::Autolock _l(mLock);
+    android::Mutex::Autolock _l(mLock);
     mActiveVsyncs = activeVsyncs;
     mCondition.signal();
 }
@@ -109,7 +109,7 @@ bool IntelVsyncEventHandler::threadLoop()
 
 #define HW_VSYNC_MASK ((1 << VSYNC_SRC_HDMI) | (1 << VSYNC_SRC_MIPI))
     { // scope for lock
-        Mutex::Autolock _l(mLock);
+        android::Mutex::Autolock _l(mLock);
         while (!(mActiveVsyncs & HW_VSYNC_MASK)) {
             mCondition.wait(mLock);
         }
@@ -139,13 +139,13 @@ bool IntelVsyncEventHandler::threadLoop()
     return true;
 }
 
-status_t IntelVsyncEventHandler::readyToRun()
+android::status_t IntelVsyncEventHandler::readyToRun()
 {
-    return NO_ERROR;
+    return android::NO_ERROR;
 }
 
 void IntelVsyncEventHandler::onFirstRef()
 {
     ALOGV("Vsync Event Handler onFirstRef");
-    run("HWC Vsync Event Handler", PRIORITY_URGENT_DISPLAY);
+    run("HWC Vsync Event Handler", android::PRIORITY_URGENT_DISPLAY);
 }

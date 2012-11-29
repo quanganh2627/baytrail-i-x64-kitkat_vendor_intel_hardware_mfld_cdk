@@ -64,7 +64,7 @@ IntelFakeVsyncEvent::~IntelFakeVsyncEvent()
 
 void IntelFakeVsyncEvent::setEnabled(bool enabled, nsecs_t lastVsync)
 {
-    Mutex::Autolock _l(mLock);
+    android::Mutex::Autolock _l(mLock);
     mNextFakeVSync = lastVsync + mRefreshPeriod;
     mEnabled = enabled;
     mCondition.signal();
@@ -73,7 +73,7 @@ void IntelFakeVsyncEvent::setEnabled(bool enabled, nsecs_t lastVsync)
 bool IntelFakeVsyncEvent::threadLoop()
 {
     { // scope for lock
-        Mutex::Autolock _l(mLock);
+        android::Mutex::Autolock _l(mLock);
         while (!mEnabled) {
             mCondition.wait(mLock);
         }
@@ -106,12 +106,12 @@ bool IntelFakeVsyncEvent::threadLoop()
     return true;
 }
 
-status_t  IntelFakeVsyncEvent::readyToRun()
+android::status_t IntelFakeVsyncEvent::readyToRun()
 {
-    return NO_ERROR;
+    return android::NO_ERROR;
 }
 
 void IntelFakeVsyncEvent::onFirstRef()
 {
-    run("HWC Fake Vsync Event", PRIORITY_URGENT_DISPLAY);
+    run("HWC Fake Vsync Event", android::PRIORITY_URGENT_DISPLAY);
 }

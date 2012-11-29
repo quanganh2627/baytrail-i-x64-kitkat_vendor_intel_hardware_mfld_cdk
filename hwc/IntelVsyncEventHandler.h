@@ -47,8 +47,6 @@
 
 #include <utils/threads.h>
 
-using namespace android;
-
 extern "C" int clock_nanosleep(clockid_t clock_id, int flags,
                            const struct timespec *request,
                            struct timespec *remain);
@@ -77,8 +75,8 @@ private:
 private:
     virtual void handleVsyncEvent(const char *msg, int msgLen);
 private:
-    mutable Mutex mLock;
-    Condition mCondition;
+    mutable android::Mutex mLock;
+    android::Condition mCondition;
     IntelHWComposer *mComposer;
     int mDrmFd;
     mutable nsecs_t mNextFakeVSync;

@@ -47,8 +47,6 @@
 
 #include <utils/threads.h>
 
-using namespace android;
-
 extern "C" int clock_nanosleep(clockid_t clock_id, int flags,
                            const struct timespec *request,
                            struct timespec *remain);
@@ -69,8 +67,8 @@ private:
     virtual android::status_t readyToRun();
     virtual void onFirstRef();
 private:
-    mutable Mutex mLock;
-    Condition mCondition;
+    mutable android::Mutex mLock;
+    android::Condition mCondition;
     bool mEnabled;
     IntelHWComposer *mComposer;
     mutable nsecs_t mNextFakeVSync;

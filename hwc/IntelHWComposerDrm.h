@@ -50,7 +50,6 @@
 #include <psb_drm.h>
 #include <pthread.h>
 #include <pvr2d.h>
-
 #ifdef TARGET_HAS_MULTIPLE_DISPLAY
 #include <IntelExternalDisplayMonitor.h>
 #endif
@@ -107,6 +106,7 @@ typedef struct {
 } intel_display_mode_t;
 
 class IntelHWComposer;
+
 /**
  * Class: Overlay HAL implementation
  * This is a singleton implementation of hardware overlay.

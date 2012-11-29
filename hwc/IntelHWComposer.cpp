@@ -2213,6 +2213,9 @@ bool IntelHWComposer::initialize()
     memset(mHDMIBuffers, 0, sizeof(mHDMIBuffers));
     memset(&mHDMIFBHandle, 0, sizeof(mHDMIFBHandle));
     mNextBuffer = 0;
+    // do mode setting in HWC if HDMI is connected when boot up
+    if (mDrm->detectDisplayConnection(OUTPUT_HDMI))
+        handleHotplugEvent(1, NULL);
 
    // startObserver();
 

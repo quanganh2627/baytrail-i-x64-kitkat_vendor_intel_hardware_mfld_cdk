@@ -157,7 +157,7 @@ struct device_suffix_t {
 
 /* The following table(s) need to match in order of the route bits
  */
-static const device_suffix_t deviceSuffix[] = {
+static const device_suffix_t outputDeviceSuffix[] = {
     { AudioSystem::DEVICE_OUT_EARPIECE,              "_Earpiece" },
     { AudioSystem::DEVICE_OUT_SPEAKER,               "_Speaker" },
     { AudioSystem::DEVICE_OUT_BLUETOOTH_SCO,         "_Bluetooth" },
@@ -169,6 +169,12 @@ static const device_suffix_t deviceSuffix[] = {
     { AudioSystem::DEVICE_OUT_AUX_DIGITAL,           "_HDMI" },
     { AudioSystem::DEVICE_OUT_WIDI,                  "_Widi" },
     { AudioSystem::DEVICE_OUT_DEFAULT,                "_Null" },
+};
+
+static const int outputDeviceSuffixLen = (sizeof(outputDeviceSuffix)
+                                    / sizeof(device_suffix_t));
+
+static const device_suffix_t inputDeviceSuffix[] = {
     { AudioSystem::DEVICE_IN_BUILTIN_MIC,            "_BuiltinMic" },
     { AudioSystem::DEVICE_IN_BACK_MIC,               "_BuiltinBackMic" },
     { AudioSystem::DEVICE_IN_BLUETOOTH_SCO_HEADSET,  "_BluetoothScoHeadset" },
@@ -177,14 +183,14 @@ static const device_suffix_t deviceSuffix[] = {
     { AudioSystem::DEVICE_IN_DEFAULT,                "_Null" },
 };
 
-static const int deviceSuffixLen = (sizeof(deviceSuffix)
+static const int inputDeviceSuffixLen = (sizeof(inputDeviceSuffix)
                                     / sizeof(device_suffix_t));
 
 // ----------------------------------------------------------------------------
 
 static snd_pcm_stream_t direction(alsa_handle_t *handle)
 {
-    return (handle->devices & AudioSystem::DEVICE_OUT_ALL) ?
+    return (audio_is_output_devices(handle->devices)) ?
             SND_PCM_STREAM_PLAYBACK : SND_PCM_STREAM_CAPTURE;
 }
 
@@ -197,11 +203,22 @@ static const char *deviceName(alsa_handle_t *handle, uint32_t device, int mode, 
     assert(sizeof(devString) > strlen(prefix));
     strncpy(devString, prefix, sizeof(devString) - 1);
 
-    for (int dev = 0; device && dev < deviceSuffixLen; dev++) {
-        if (device & deviceSuffix[dev].device) {
-            ALSA_STRCAT(devString, deviceSuffix[dev].suffix);
-            device &= ~deviceSuffix[dev].device;
-            hasDevExt = 1;
+    if (direction(handle) == SND_PCM_STREAM_PLAYBACK) {
+        for (int dev = 0; dev < outputDeviceSuffixLen; dev++) {
+            if (device & outputDeviceSuffix[dev].device) {
+                ALSA_STRCAT(devString, outputDeviceSuffix[dev].suffix);
+                device &= ~outputDeviceSuffix[dev].device;
+                hasDevExt = 1;
+            }
+        }
+    } else {
+        device &= ~AUDIO_DEVICE_BIT_IN;
+        for (int dev = 0; dev < inputDeviceSuffixLen; dev++) {
+            if (device & inputDeviceSuffix[dev].device) {
+                ALSA_STRCAT(devString, inputDeviceSuffix[dev].suffix);
+                device &= ~inputDeviceSuffix[dev].device;
+                hasDevExt = 1;
+            }
         }
     }
 
@@ -428,7 +445,7 @@ static status_t setSoftwareParams(alsa_handle_t *handle)
     // Configure ALSA to start the transfer when the buffer is almost full.
     snd_pcm_get_params(handle->handle, &bufferSize, &periodSize);
 
-    if (handle->devices & AudioSystem::DEVICE_OUT_ALL) {
+    if (audio_is_output_devices(handle->devices)) {
         if (handle->curMode == AudioSystem::MODE_NORMAL || handle->curMode == AudioSystem::MODE_RINGTONE) {
             // For playback, configure ALSA to start the transfer when the buffer is full
             startThreshold = bufferSize - 1;
@@ -531,7 +548,7 @@ static status_t s_init_stream(alsa_handle_t *handle, uint32_t devices, int mode,
 {
     LOGD("s_init_stream called for devices %08x in mode %d and FM RX mode %d...", devices, mode, fmrx_mode);
 
-    if (devices & AudioSystem::DEVICE_IN_ALL) {
+    if (!audio_is_output_devices(devices)) {
 
         *handle = _defaultsIn;
     } else {
@@ -637,7 +654,7 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode, int fm
     }
 
 
-    if (devices & AudioSystem::DEVICE_OUT_ALL) {
+    if (audio_is_output_devices(devices)) {
         // reset the initial value for playback
         handle->sampleRate = _defaultsOut.sampleRate;
         handle->wait_timeoutMs = _defaultsOut.wait_timeoutMs;
@@ -675,7 +692,7 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode, int fm
     //This SRC change will not take effect when device is changed during the recording.
     //This is not a formal solution and limitation, so maybe we will modify these codes
     //when we find a better way to resolve SRC.
-    if (devices & AudioSystem::DEVICE_IN_ALL) {
+    if (!audio_is_output_devices(devices)) {
         // reset the initial value for record
         handle->sampleRate = _defaultsIn.sampleRate;
         handle->channels = _defaultsIn.channels;

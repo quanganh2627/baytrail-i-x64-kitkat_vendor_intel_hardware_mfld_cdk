@@ -48,6 +48,9 @@ LOCAL_SHARED_LIBRARIES := liblog libEGL libcutils libdrm libpvr2d \
                           libhardware libGLESv1_CM
 LOCAL_SRC_FILES := IntelHWComposerModule.cpp \
                    IntelHWComposer.cpp \
+                   IntelDisplayDevice.cpp \
+                   IntelMIPIDisplayDevice.cpp \
+                   IntelHDMIDisplayDevice.cpp \
                    IntelHWComposerLayer.cpp \
                    IntelHWComposerDump.cpp \
                    IntelBufferManager.cpp \

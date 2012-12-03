@@ -475,6 +475,7 @@ public:
     void reclaimPlane(IntelDisplayPlane *plane);
     void disableReclaimedPlanes(int type);
     void *getPlaneContexts() const;
+    void resetPlaneContexts();
     int getContextLength() const;
     int setZOrderConfig(int config, int pipe);
     int getZOrderConfig(int pipe);

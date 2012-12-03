@@ -54,7 +54,6 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
         ALOGE("%s: failed to allocate plane contexts\n", __func__);
         return;
     }
-
     memset(mPlaneContexts, 0, mContextLength);
 
     // allocate primary plane pool
@@ -466,9 +465,13 @@ void IntelDisplayPlaneManager::disableReclaimedPlanes(int type)
     }
 }
 
-void* IntelDisplayPlaneManager::getPlaneContexts() const
+void IntelDisplayPlaneManager::resetPlaneContexts()
 {
     memset(mPlaneContexts, 0, mContextLength);
+}
+
+void* IntelDisplayPlaneManager::getPlaneContexts() const
+{
     return mPlaneContexts;
 }
 

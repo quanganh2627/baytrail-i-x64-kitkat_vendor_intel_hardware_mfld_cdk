@@ -39,6 +39,7 @@
 #include <IntelHWComposerDump.h>
 #include <IntelVsyncEventHandler.h>
 #include <IntelFakeVsyncEvent.h>
+#include <IntelDisplayDevice.h>
 #ifdef INTEL_RGB_OVERLAY
 #include <IntelHWCWrapper.h>
 #endif
@@ -52,26 +53,21 @@ public:
         VSYNC_SRC_NUM,
     };
     enum {
-        HDMI_BUF_NUM = 2,
+        PRIMARY_DISPLAY = 0,
+        SECOND_DISPLAY = 1,
+        DISPLAY_NUM = 2,
     };
 private:
     IntelHWComposerDrm *mDrm;
     IntelBufferManager *mBufferManager;
     IntelBufferManager *mGrallocBufferManager;
     IntelDisplayPlaneManager *mPlaneManager;
-    IntelHWComposerLayerList *mLayerList;
+    IntelDisplayDevice *mDisplayDevice[DISPLAY_NUM];
     hwc_procs_t const *mProcs;
     android::sp<IntelVsyncEventHandler> mVsync;
     android::sp<IntelFakeVsyncEvent> mFakeVsync;
     nsecs_t mLastVsync;
-    int mMonitoringMethod;
-    int mNextBuffer;
-    bool mForceSwapBuffer;
-    bool mHotplugEvent;
-    struct hdmi_buffer{
-        unsigned long long ui64Stamp;
-        IntelDisplayBuffer *buffer;
-    } mHDMIBuffers[HDMI_BUF_NUM];
+
     struct hdmi_fb_handler {
         uint32_t umhandle;
         uint32_t kmhandle;
@@ -86,6 +82,7 @@ private:
     uint32_t mVsyncsEnabled;
     uint32_t mVsyncsCount;
     nsecs_t mVsyncsTimestamp;
+
     mutable Mutex mHpdLock;
     Condition mHpdCondition;
     bool mHpdCompletion;
@@ -93,37 +90,6 @@ private:
     IntelHWCWrapper mWrapper;
 #endif
 private:
-    void dumpLayerList(hwc_display_contents_1_t *list);
-    void onGeometryChanged(hwc_display_contents_1_t *list);
-    bool overlayPrepare(int index, hwc_layer_1_t *layer, int flags);
-    bool spritePrepare(int index, hwc_layer_1_t *layer, int flags);
-    bool primaryPrepare(int index, hwc_layer_1_t *layer, int flags);
-    bool isOverlayLayer(hwc_display_contents_1_t *list,
-                        int index,
-                        hwc_layer_1_t *layer,
-                        int& flags);
-    bool isSpriteLayer(hwc_display_contents_1_t *list,
-                       int index,
-                       hwc_layer_1_t *layer,
-                       int& flags);
-    bool isPrimaryLayer(hwc_display_contents_1_t *list,
-                       int index,
-                       hwc_layer_1_t *layer,
-                       int& flags);
-    bool isScreenshotActive(hwc_display_contents_1_t *list);
-    void revisitLayerList(hwc_display_contents_1_t *list, bool isGeometryChanged);
-    bool useOverlayRotation(hwc_layer_1_t *layer, int index, uint32_t& handle,
-                           int& w, int& h,
-                           int& srcX, int& srcY, int& srcW, int& srcH, uint32_t& transform);
-    bool updateLayersData(hwc_display_contents_1_t *list);
-    bool isHWCUsage(int usage);
-    bool isHWCFormat(int format);
-    bool isHWCTransform(uint32_t transform);
-    bool isHWCBlending(uint32_t blending);
-    bool isHWCLayer(hwc_layer_1_t *layer);
-    bool isBobDeinterlace(hwc_layer_1_t *layer);
-    bool isForceOverlay(hwc_layer_1_t *layer);
-    bool areLayersIntersecting(hwc_layer_1_t *top, hwc_layer_1_t* bottom);
     bool handleHotplugEvent(int hdp, void *data);
     bool handleDisplayModeChange();
     bool handleDynamicModeSetting(void *data);
@@ -133,14 +99,10 @@ private:
     void waitForHpdCompletion();
 public:
     bool onUEvent(const char *msg, int msgLen, int msgType, void *data);
-    bool flipFramebufferContexts(void *contexts);
-    bool flipHDMIFramebufferContexts(void *contexts, hwc_layer_1_t *target_layer);
     void vsync(int64_t timestamp, int pipe);
 public:
     bool initCheck() { return mInitialized; }
     bool initialize();
-    bool prepare(int disp, hwc_display_contents_1_t *hdc);
-    bool commit(int disp, hwc_display_contents_1_t *hdc);
     bool vsyncControl(int enabled);
     bool release();
     bool dump(char *buff, int buff_len, int *cur_len);
@@ -159,9 +121,8 @@ public:
     IntelHWComposer()
         : IntelHWCUEventObserver(), IntelHWComposerDump(),
           mDrm(0), mBufferManager(0), mGrallocBufferManager(0),
-          mPlaneManager(0), mLayerList(0), mProcs(0), mVsync(0), mFakeVsync(0),
-          mLastVsync(0), mMonitoringMethod(0), mForceSwapBuffer(false),
-          mHotplugEvent(false), mInitialized(false),
+          mPlaneManager(0),mProcs(0), mVsync(0), mFakeVsync(0),
+          mLastVsync(0), mInitialized(false),
           mActiveVsyncs(0), mHpdCompletion(true) {}
     ~IntelHWComposer();
 };

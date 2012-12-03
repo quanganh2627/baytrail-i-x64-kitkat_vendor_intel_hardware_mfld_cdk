@@ -359,6 +359,7 @@ bool IntelHWComposer::vsyncControl(int enabled)
     uint32_t activeVsyncs = 0;
     uint32_t enabledVsyncs = 0;
     IntelWidiPlane* widiPlane = 0;
+    static int hwcVsyncDisabled;
 
     ALOGV("vsyncControl, enabled %d\n", enabled);
 
@@ -369,9 +370,19 @@ bool IntelHWComposer::vsyncControl(int enabled)
 
     // for disable vsync request, disable all active vsyncs
     if (!enabled) {
+	//SurfaceFlinger eventthread will disable vsync when
+        //nothing to do in one vsync interval, and the next HW
+        //vsync seems to be lost when enable it again, cause
+        //some benchmark finish its composition in 3 vsync instead of 2
+        //Here don't let eventthread be so aggresive.
+        //"4" here is a empirical value.
+        hwcVsyncDisabled++;
+        if (hwcVsyncDisabled < 4)
+            return true;
         targetVsyncs = 0;
         goto disable_vsyncs;
-    }
+    } else
+	hwcVsyncDisabled = 0;
 
     // use fake vsync for widi extend video mode
     widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();

@@ -136,6 +136,8 @@ static alsa_handle_t _defaultsOut = {
     periodTime         : NOT_SET, // Period time for playback
     modPrivate         : 0,
     openFlag           : 0,
+    curFmRxMode        : NOT_SET,
+    isOutput           : true,
 };
 
 static alsa_handle_t _defaultsIn = {
@@ -153,6 +155,8 @@ static alsa_handle_t _defaultsIn = {
     periodTime         : 40000,   // Period time for capture = 20000 * 2
     modPrivate         : 0,
     openFlag           : 0,
+    curFmRxMode        : NOT_SET,
+    isOutput           : false,
 };
 
 struct device_suffix_t {
@@ -196,7 +200,7 @@ static const int inputDeviceSuffixLen = (sizeof(inputDeviceSuffix)
 
 static snd_pcm_stream_t direction(alsa_handle_t *handle)
 {
-    return (audio_is_output_devices(handle->devices)) ?
+    return (handle->isOutput) ?
             SND_PCM_STREAM_PLAYBACK : SND_PCM_STREAM_CAPTURE;
 }
 
@@ -218,7 +222,6 @@ static const char *deviceName(alsa_handle_t *handle, uint32_t device, int mode, 
             }
         }
     } else {
-        device &= ~AUDIO_DEVICE_BIT_IN;
         for (int dev = 0; dev < inputDeviceSuffixLen; dev++) {
             if (device & inputDeviceSuffix[dev].device) {
                 ALSA_STRCAT(devString, inputDeviceSuffix[dev].suffix);
@@ -451,7 +454,7 @@ static status_t setSoftwareParams(alsa_handle_t *handle)
     // Configure ALSA to start the transfer when the buffer is almost full.
     snd_pcm_get_params(handle->handle, &bufferSize, &periodSize);
 
-    if (audio_is_output_devices(handle->devices)) {
+    if (handle->isOutput) {
         if (handle->curMode == AudioSystem::MODE_NORMAL || handle->curMode == AudioSystem::MODE_RINGTONE) {
             // For playback, configure ALSA to start the transfer when the buffer is full
             startThreshold = bufferSize - 1;
@@ -610,7 +613,7 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode, int fm
     // changes, but we might be recovering from an error or manipulating
     // mixer settings (see asound.conf).
     //
-    LOGD("s_open: closing handle first %d, %d", devices, mode);
+    LOGD("s_open: closing handle first devices:0x%x, mode:%d", devices, mode);
     s_close(handle);
 
     LOGD("open called for devices %08x in mode %d...", devices, mode);
@@ -662,7 +665,7 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode, int fm
     }
 
 
-    if (audio_is_output_devices(devices)) {
+    if (handle->isOutput) {
         // reset the initial value for playback
         handle->sampleRate = _defaultsOut.sampleRate;
         handle->wait_timeoutMs = _defaultsOut.wait_timeoutMs;
@@ -700,7 +703,7 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode, int fm
     //This SRC change will not take effect when device is changed during the recording.
     //This is not a formal solution and limitation, so maybe we will modify these codes
     //when we find a better way to resolve SRC.
-    if (!audio_is_output_devices(devices)) {
+    if (!handle->isOutput) {
         // reset the initial value for record
         handle->sampleRate = _defaultsIn.sampleRate;
         handle->channels = _defaultsIn.channels;
@@ -709,7 +712,7 @@ static status_t s_open(alsa_handle_t *handle, uint32_t devices, int mode, int fm
         if (mode == AudioSystem::MODE_IN_CALL) {
             handle->sampleRate = VOICE_CODEC_DEFAULT_SAMPLE_RATE;
         }
-        else if (devices & AudioSystem::DEVICE_IN_BLUETOOTH_SCO_HEADSET) {
+        else if (devices & AudioSystem::DEVICE_IN_BLUETOOTH_SCO_HEADSET ) {
 
             handle->sampleRate = VOICE_BT_DEFAULT_SAMPLE_RATE;
             handle->channels = 1;

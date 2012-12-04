@@ -102,4 +102,9 @@ private:
     bool _bLogsOn;
     // Lock
     android::Mutex _lock;
+
+    // Vibration reduction percentage android propery key
+    static const char _vibrationReductionPercentagePropertyKey[];
+    // Vibration reduction percentage value
+    int iVibrationReductionPercentage;
 };

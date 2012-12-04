@@ -27,6 +27,9 @@
 #include "Vibrator.h"
 #include "Property.h"
 
+// Vibrator duration reduction percentage android property key and default value
+const char CVibrator::_vibrationReductionPercentagePropertyKey[] =  "Audiocomms.Vibrator.ReduceRate";
+
 // Parameter framework of vibrator subsystem
 const char CVibrator::_acVibraPath[] =  "/etc/parameter-framework/ParameterFrameworkConfigurationVibrator.xml";
 const char CVibrator::_acLogsOnPropName[] = "Audiocomms.Vibrator.LogsOn";
@@ -97,6 +100,11 @@ CVibrator::CVibrator() :
 
         LOGI("parameter-framework [Vibrator] successfully started!");
     }
+
+    // Because the vibrator could make noise to remote party when the phone call is activated, duration of vibration need to be reduced for some devices.
+    // Ther percentage of reduce duration is pre-defined in android property
+    iVibrationReductionPercentage = TProperty<int>(_vibrationReductionPercentagePropertyKey, 100);
+
 }
 
 CVibrator::~CVibrator()
@@ -153,6 +161,8 @@ bool CVibrator::switchOn(int32_t iDurationMs)
         LOGD("%s : Switch off vibrator as requested vibration duration is 0 ms)", __FUNCTION__);
         return processSwitchRequest(false);
     }
+
+    iDurationMs = iDurationMs * iVibrationReductionPercentage/100;
 
     return processSwitchRequest(true, iDurationMs);
 }

@@ -894,7 +894,7 @@ static int hdmi_dev_open(const hw_module_t* module, const char* name,
         return -ENOMEM;
 
     hdmi_dev->hw_device.common.tag            = HARDWARE_DEVICE_TAG;
-    hdmi_dev->hw_device.common.version        = AUDIO_DEVICE_API_VERSION_1_0;
+    hdmi_dev->hw_device.common.version        = AUDIO_DEVICE_API_VERSION_2_0;
     hdmi_dev->hw_device.common.module         = (struct hw_module_t *) module;
     hdmi_dev->hw_device.common.close          = hdmi_dev_close;
 

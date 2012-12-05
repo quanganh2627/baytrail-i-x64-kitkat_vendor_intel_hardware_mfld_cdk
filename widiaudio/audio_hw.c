@@ -89,6 +89,7 @@ struct audio_device {
     struct audio_hw_device hw_device;
 
     pthread_mutex_t lock;
+    char *bgmstate;
 };
 
 struct widi_stream_out {
@@ -117,7 +118,7 @@ struct widi_stream_out {
 opened pcm device.*/
 /*Fix me: move the global variables to any structure*/
 
-struct widi_stream_out *active_stream_out = NULL;
+static struct widi_stream_out *active_stream_out = NULL;
 
 static int close_device(struct widi_stream_out *stream)
 {
@@ -186,6 +187,8 @@ static int set_hardware_params(struct widi_stream_out *out)
                         snd_strerror(err));
         out->sample_rate = requested_rate;
     }
+    ALOGV("sampling rate : %d\n", requested_rate);
+
     // Setup buffers for latency
 
     buffer_size = out->pcm_config.period_size * out->pcm_config.period_count;
@@ -316,9 +319,12 @@ static int open_device(struct widi_stream_out *out)
     // AudioFlinger seems to assume blocking mode too, so asynchronous mode
     // should not be used.
     if (out->handle != NULL) {
-        ALOGE("%s: Closing ALSA device:", __func__);
+        ALOGV("%s: Closing ALSA device:", __func__);
+        err = snd_pcm_drain(out->handle);
+        ALOGV("%s: Drain the samples and stop the stream %s",__func__,snd_strerror(err));
         snd_pcm_close(out->handle);
         out->handle = NULL;
+        active_stream_out = NULL;
     }
 
     err = snd_pcm_open(&out->handle, "AndroidPlayback_Widi", SND_PCM_STREAM_PLAYBACK,
@@ -384,7 +390,7 @@ static uint32_t out_get_sample_rate(const struct audio_stream *stream)
 {
     struct widi_stream_out *out = (struct widi_stream_out *)stream;
 
-    ALOGV("%s : smaple_rate: %d", __func__, out->pcm_config.rate);
+    ALOGV("%s : sample_rate: %d", __func__, out->pcm_config.rate);
 
     return out->pcm_config.rate;
 }
@@ -466,34 +472,7 @@ static int out_dump(const struct audio_stream *stream, int fd)
 
 static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
 {
-    struct widi_stream_out *out = (struct widi_stream_out *)stream;
-    struct str_parms *parms;
-    char value[32];
-    int ret = 0,
-        val = 0;
-
-    ALOGV("%s Entered", __func__);
-
-    parms = str_parms_create_str(kvpairs);
-
-    pthread_mutex_lock(&out->dev->lock);
-
-    ret = str_parms_get_str(parms, AUDIO_PARAMETER_STREAM_ROUTING, value, sizeof(value));
-    if (ret >= 0) {
-       val = atoi(value);
-       if (val & AUDIO_DEVICE_OUT_WIDI){
-          //pthread_mutex_unlock(&out->dev->lock);
-          /*we don't do anything here, so no need of standby. It will be needed
-          if we want to change the configuration parameters
-          CHECK - for scenarios where parameter setting is needed*/
-          //out_standby(stream);
-          //pthread_mutex_lock(&out->dev->lock);
-       }
-    }
-
-    pthread_mutex_unlock(&out->dev->lock);
-    str_parms_destroy(parms);
-
+    ALOGV("%s unsupported", __func__);
     return 0;
 }
 
@@ -535,10 +514,15 @@ static ssize_t out_write(struct audio_stream_out *stream, const void* buffer,
     int it = 0;
     unsigned int totalSleepTime;
 
-    ALOGV("%s out->standy = %d", __func__,out->standby);
+    ALOGV("%s out->standby = %d", __func__,out->standby);
 
     pthread_mutex_lock(&out->dev->lock);
     pthread_mutex_lock(&out->lock);
+
+    if(active_stream_out == NULL){
+       ALOGV("%s: previous stream closed- open again",__func__);
+       out->standby = true;
+    }
 
     if (out->standby) {
         ret = start_output_stream(out);
@@ -734,34 +718,41 @@ static int widi_dev_open_output_stream(struct audio_hw_device *dev,
     out->standby  = true;
 
     pthread_mutex_lock(&out->dev->lock);
+    pthread_mutex_lock(&out->lock);
 
-//if one more request to open the pcm device comes, close
-// the already opened device. Audio Policy update needed
-// to support a single stream being fed to renderer
-    if (active_stream_out != NULL) {
-       ALOGV("%s: Closing already opened stream %x",__func__,active_stream_out->handle);
+    // if one more request to open the pcm device comes, close
+    // the already opened device. Audio Policy update needed
+    // to support a single stream being fed to renderer
+
+     if (active_stream_out != NULL && active_stream_out->handle != NULL) {
+       ALOGV("%s: Closing already opened stream %x",__func__,(int)active_stream_out->handle);
+       ret = snd_pcm_drain(active_stream_out->handle);
+       ALOGV("%s: Drain the samples and stop the stream %s",__func__,snd_strerror(ret));
        snd_pcm_close(active_stream_out->handle);
        active_stream_out->handle = NULL;
+       active_stream_out = NULL;
     }
 
     ret = start_output_stream(out);
     if (ret != 0) {
-            ALOGV("%s: stream start failed", __func__);
-            goto err_open;
+        ALOGV("%s: stream start failed", __func__);
+        goto err_open;
     }
 
     out->standby = false;
 
     *stream_out = &out->stream;
 
+    pthread_mutex_unlock(&out->lock);
     pthread_mutex_unlock(&out->dev->lock);
 
     ALOGV("%s: Successful", __func__);
     return 0;
 
 err_open:
-    pthread_mutex_unlock(&out->dev->lock);
     ALOGE("%s: Failed", __func__);
+    pthread_mutex_unlock(&out->lock);
+    pthread_mutex_unlock(&out->dev->lock);
     free(out);
     *stream_out = NULL;
     return ret;
@@ -782,14 +773,53 @@ static void widi_dev_close_output_stream(struct audio_hw_device *dev,
 
 static int widi_dev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
 {
-    ALOGV("%s unsupported", __func__);
+    struct audio_device *adev = (struct audio_device *)dev;
+    char *key,*value;
+    char * kvp = (char*)kvpairs;
+    int err = 0;
+
+    if ((kvpairs == NULL) && (adev == NULL)) {
+        ALOGE("%s NUll inputs kvpairs = %s, adev = %d",__func__, kvpairs,(int)adev);
+        return err;
+    }
+
+    ALOGV("%s entered with key-value pair %s", __func__,kvpairs);
+
+    key = strtok(kvp,"=");
+    value = strtok(NULL, "=");
+    if (key != NULL) {
+        if (strcmp(key, AUDIO_PARAMETER_KEY_REMOTE_BGM_STATE) == 0) {
+           adev->bgmstate = strdup("false");
+           if (value != NULL) {
+               if (strcmp(value, "true") == 0) {
+                  adev->bgmstate = strdup("true");
+               }
+            }
+        }
+    }
     return 0;
 }
 
 static char * widi_dev_get_parameters(const struct audio_hw_device *dev,
                                   const char *keys)
 {
-    ALOGV("%s unsupported", __func__);
+    struct audio_device *adev = (struct audio_device *)dev;
+    struct str_parms *parms = str_parms_create_str(keys);
+    char value[32];
+    int ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_REMOTE_BGM_STATE,
+                                     value, sizeof(value));
+    char *str;
+
+    str_parms_destroy(parms);
+    if (ret >= 0) {
+        ALOGV("%s adev->bgmstate %s", __func__,adev->bgmstate);
+        parms = str_parms_create_str(adev->bgmstate);
+        str = str_parms_to_str(parms);
+        str = strtok(str, "=");
+        str_parms_destroy(parms);
+        ALOGV("%s entered with key %s for which value is %s", __func__,keys,str);
+        return str;
+    }
     return strdup("");
 }
 
@@ -885,6 +915,7 @@ static int widi_dev_open(const hw_module_t* module, const char* name,
     widi_dev = calloc(1, sizeof(struct audio_device));
     if (!widi_dev)
         return -ENOMEM;
+    widi_dev->bgmstate = "false";
 
     widi_dev->hw_device.common.tag            = HARDWARE_DEVICE_TAG;
     widi_dev->hw_device.common.version        = AUDIO_DEVICE_API_VERSION_2_0;

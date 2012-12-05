@@ -479,7 +479,7 @@ bool IntelHWComposer::dumpDisplayStat()
     dumpPrintf("  + INT_ENABLE_REG: 0x%x \n", arg.display.int_enable);
 
     // open this if need to dump all display registers.
-#if 0
+#if 1
     // dump all display regs in driver
     memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
     arg.display_read_mask = REGRWBITS_DISPLAY_ALL;

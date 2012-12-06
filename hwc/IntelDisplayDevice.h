@@ -63,15 +63,15 @@ class IntelDisplayVsync {
 
 class IntelDisplayDevice : public IntelHWComposerDump {
 protected:
-    IntelDisplayConfig mConfig;
-    IntelHWComposerLayerList *mLayerList;
+    //IntelDisplayConfig mConfig;
     IntelDisplayPlaneManager *mPlaneManager;
     IntelHWComposerDrm *mDrm;
-    int32_t mIsConnected;
-    bool mInitialized;
-    bool mHotplugEvent;
-    bool mForceSwapBuffer;
+    IntelHWComposerLayerList *mLayerList;
     uint32_t mDisplayIndex;
+    bool mForceSwapBuffer;
+    bool mHotplugEvent;
+    bool mIsConnected;
+    bool mInitialized;
 
 protected:
     virtual bool isHWCUsage(int usage);
@@ -167,7 +167,6 @@ public:
     virtual bool commit(hwc_display_contents_1_t *hdc,
                         buffer_handle_t *bh, int &numBuffers);
     virtual bool dump(char *buff, int buff_len, int *cur_len);
-    virtual bool blank(int blank);
 
     virtual bool getDisplayConfig(uint32_t* configs, size_t* numConfigs);
     virtual bool getDisplayAttributes(uint32_t config,
@@ -180,9 +179,9 @@ protected:
         HDMI_BUF_NUM = 2,
     };
 
-    IMG_framebuffer_device_public_t *mFBDev;
     IntelBufferManager *mBufferManager;
     IntelBufferManager *mGrallocBufferManager;
+    IMG_framebuffer_device_public_t *mFBDev;
 
     struct hdmi_buffer{
         unsigned long long ui64Stamp;
@@ -207,7 +206,6 @@ public:
     virtual bool commit(hwc_display_contents_1_t *hdc,
                         buffer_handle_t *bh, int &numBuffers);
     virtual bool dump(char *buff, int buff_len, int *cur_len);
-    virtual bool blank(int blank);
 
     virtual bool getDisplayConfig(uint32_t* configs, size_t* numConfigs);
     virtual bool getDisplayAttributes(uint32_t config,

@@ -42,7 +42,7 @@ IntelHWComposer::~IntelHWComposer()
     delete mGrallocBufferManager;
     delete mDrm;
 
-    for (int i=0; i<DISPLAY_NUM; i++) {
+    for (size_t i=0; i<DISPLAY_NUM; i++) {
         delete mDisplayDevice[i];
      }
     // stop uevent observer
@@ -85,7 +85,7 @@ bool IntelHWComposer::handleDisplayModeChange()
 
     mDrm->detectMDSModeChange();
 
-    for (int i=0; i<DISPLAY_NUM; i++)
+    for (size_t i=0; i<DISPLAY_NUM; i++)
         mDisplayDevice[i]->onHotplugEvent(true);
 
     return true;
@@ -192,7 +192,7 @@ bool IntelHWComposer::onUEvent(const char *msg, int msgLen, int msgType, void *d
         if(mPlaneManager->isWidiActive()) {
             IntelWidiPlane* widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
             if (widiPlane->setOrientationChanged() != NO_ERROR) {
-                ALOGE("%s: error in sending orientation change event to widiplane");
+                ALOGE("%s: error in sending orientation change event to widiplane", __func__);
             }
         }
     }
@@ -613,13 +613,12 @@ bool IntelHWComposer::initialize()
 
      // create display devices
     memset(mDisplayDevice, 0, sizeof(mDisplayDevice));
-    for (int i=0; i<DISPLAY_NUM; i++) {
-
-         if (i == PRIMARY_DISPLAY)
+    for (size_t i=0; i<DISPLAY_NUM; i++) {
+         if (i == HWC_DISPLAY_PRIMARY)
              mDisplayDevice[i] =
                  new IntelMIPIDisplayDevice(mBufferManager, mGrallocBufferManager,
                                        mPlaneManager, mFBDev, mDrm, i);
-         else if (i == SECOND_DISPLAY)
+         else if (i == HWC_DISPLAY_EXTERNAL)
              mDisplayDevice[i] =
                  new IntelHDMIDisplayDevice(mBufferManager, mGrallocBufferManager,
                                        mPlaneManager, mFBDev, mDrm, i);
@@ -666,7 +665,7 @@ bool IntelHWComposer::prepareDisplays(size_t numDisplays,
 {
     android::Mutex::Autolock _l(mLock);
 
-    for (int disp = 0; disp < numDisplays; disp++) {
+    for (size_t disp = 0; disp < numDisplays; disp++) {
          hwc_display_contents_1_t *list = displays[disp];
          mDisplayDevice[disp]->prepare(list);
 
@@ -692,9 +691,11 @@ bool IntelHWComposer::commitDisplays(size_t numDisplays,
     buffer_handle_t bufferHandles[INTEL_DISPLAY_PLANE_NUM];
     int numBuffers = 0;
 
-    for (int disp = 0; disp < numDisplays; disp++) {
+    for (size_t disp = 0; disp < numDisplays; disp++) {
          hwc_display_contents_1_t *list = displays[disp];
-         mDisplayDevice[disp]->commit(list, bufferHandles, numBuffers);
+
+         if (list)
+             mDisplayDevice[disp]->commit(list, bufferHandles, numBuffers);
     }
 
     void *context = mPlaneManager->getPlaneContexts();
@@ -718,96 +719,40 @@ bool IntelHWComposer::commitDisplays(size_t numDisplays,
 
 bool IntelHWComposer::blankDisplay(int disp, int blank)
 {
-    return true;
+    bool ret=true;
+
+    if ((disp<DISPLAY_NUM) && mDisplayDevice[disp])
+        ret = mDisplayDevice[disp]->blank(blank);
+
+    return ret;
 }
 
 bool IntelHWComposer::getDisplayConfigs(int disp, uint32_t* configs, 
                                         size_t* numConfigs)
 {
-    if (!numConfigs || !numConfigs[0])
+    if (disp >= DISPLAY_NUM) {
+        ALOGW("%s: invalid disp num %d\n", __func__, disp);
         return false;
-
-    if (disp == HWC_DISPLAY_PRIMARY) {
-        *numConfigs = 1;
-        configs[0] = 0;
-        return true;
-    } else if (disp == HWC_DISPLAY_EXTERNAL) {
-       if (mDrm->getOutputConnection(OUTPUT_HDMI) == DRM_MODE_CONNECTED)
-       {
-ALOGD("get display config for HDMI");
-        *numConfigs = 1;
-        configs[0] = 0;
-        return true;
-       }
     }
 
-    return false;
+    if (!mDisplayDevice[disp]->getDisplayConfig(configs, numConfigs)) {
+        return false;
+    }
+
+    return true;
 }
 
 bool IntelHWComposer::getDisplayAttributes(int disp, uint32_t config,
             const uint32_t* attributes, int32_t* values)
 {
-    if (!attributes || !values)
+    if (disp >= DISPLAY_NUM) {
+        ALOGW("%s: invalid disp num %d\n", __func__, disp);
         return false;
+    }
 
-    if (disp == HWC_DISPLAY_PRIMARY && config == 0) {
-        while (*attributes != HWC_DISPLAY_NO_ATTRIBUTE) {
-            switch (*attributes) {
-            case HWC_DISPLAY_VSYNC_PERIOD:
-                *values = 1e9 / mFBDev->base.fps;
-                break;
-            case HWC_DISPLAY_WIDTH:
-                *values = mFBDev->base.width;
-                break;
-            case HWC_DISPLAY_HEIGHT:
-                *values = mFBDev->base.height;
-                break;
-            case HWC_DISPLAY_DPI_X:
-                *values =  mFBDev->base.xdpi;
-                break;
-            case HWC_DISPLAY_DPI_Y:
-                *values =  mFBDev->base.ydpi;
-                break;
-            default:
-                break;
-            }
-            attributes ++;
-            values ++;
-        }
-        return true;
+    if (!mDisplayDevice[disp]->getDisplayAttributes(config, attributes, values)) {
+        return false;
     }
-    else if (disp == HWC_DISPLAY_EXTERNAL && config == 0) {
-        if (mDrm->getOutputConnection(OUTPUT_HDMI) == DRM_MODE_CONNECTED)
-        {
-            drmModeModeInfoPtr mode = mDrm->getOutputMode(OUTPUT_HDMI);
-   ALOGD("getDisplayAttribute for HDMI: %d x %d x %d", mode->hdisplay,
-        mode->vdisplay, mode->vrefresh);
- 
-            while (*attributes != HWC_DISPLAY_NO_ATTRIBUTE) {
-            switch (*attributes) {
-            case HWC_DISPLAY_VSYNC_PERIOD:
-                *values = 1e9 / mode->vrefresh;
-                break;
-            case HWC_DISPLAY_WIDTH:
-                *values = mode->hdisplay;
-                break;
-            case HWC_DISPLAY_HEIGHT:
-                *values = mode->vdisplay;
-                break;
-            case HWC_DISPLAY_DPI_X:
-                *values = 0;
-                break;
-            case HWC_DISPLAY_DPI_Y:
-                *values = 0;
-                break;
-            default:
-                break;
-            }
-            attributes ++;
-            values ++;
-        }
-        return true;
-        }
-    }
-    return false;
+
+    return true;
 }

@@ -37,9 +37,10 @@
 IntelDisplayDevice::IntelDisplayDevice(IntelDisplayPlaneManager *pm,
                              IntelHWComposerDrm *drm, uint32_t index)
        :  IntelHWComposerDump(),
-          mPlaneManager(pm), mDrm(drm), mDisplayIndex(index),
-          mForceSwapBuffer(false), mLayerList(0),
-          mHotplugEvent(false), mInitialized(false)
+          mPlaneManager(pm), mDrm(drm), mLayerList(0),
+          mDisplayIndex(index), mForceSwapBuffer(false),
+          mHotplugEvent(false), mIsConnected(false),
+          mInitialized(false)
 {
     ALOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
 }
@@ -233,9 +234,10 @@ bool IntelDisplayDevice::isScreenshotActive(hwc_display_contents_1_t *list)
     int h = topLayer->displayFrame.bottom - topLayer->displayFrame.top;
 
     drmModeFBPtr fbInfo =
-        IntelHWComposerDrm::getInstance().getOutputFBInfo(OUTPUT_MIPI0);
+        IntelHWComposerDrm::getInstance().getOutputFBInfo(mDisplayIndex);
 
-    if (x == 0 && y == 0 && w == fbInfo->width && h == fbInfo->height)
+    if (x == 0 && y == 0 &&
+        w == int(fbInfo->width) && h == int(fbInfo->height))
         return true;
 
     return false;
@@ -352,7 +354,7 @@ bool IntelDisplayDevice::release()
         return false;
 
     // disable all attached planes
-    for (size_t i=0 ; i<mLayerList->getLayersCount() ; i++) {
+    for (int i=0 ; i<mLayerList->getLayersCount() ; i++) {
         IntelDisplayPlane *plane = mLayerList->getPlane(i);
 
         if (plane) {
@@ -377,7 +379,7 @@ bool IntelDisplayDevice::dump(char *buff,
 void IntelDisplayDevice::onHotplugEvent(bool hpd)
 {
     // go through layer list and call plane's onModeChange()
-    for (size_t i = 0 ; i < mLayerList->getLayersCount(); i++) {
+    for (int i = 0 ; i < mLayerList->getLayersCount(); i++) {
         IntelDisplayPlane *plane = mLayerList->getPlane(i);
         if (plane)
             plane->onDrmModeChange();
@@ -388,7 +390,12 @@ void IntelDisplayDevice::onHotplugEvent(bool hpd)
 
 bool IntelDisplayDevice::blank(int blank)
 {
-    return false;
+    bool ret=false;
+
+    if (mDrm)
+        ret = mDrm->setDisplayDpms(mDisplayIndex, blank);
+
+    return ret;
 }
 
 bool IntelDisplayDevice::getDisplayConfig(uint32_t* configs,
@@ -398,7 +405,7 @@ bool IntelDisplayDevice::getDisplayConfig(uint32_t* configs,
 }
 
 bool IntelDisplayDevice::getDisplayAttributes(uint32_t config,
-            const uint32_t* attributes, int32_t* values)
+            const uint32_t *attributes, int32_t* values)
 {
-   return false;
+    return false;
 }

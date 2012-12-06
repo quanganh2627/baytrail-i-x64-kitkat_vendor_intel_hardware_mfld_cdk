@@ -43,7 +43,8 @@ IntelMIPIDisplayDevice::IntelMIPIDisplayDevice(IntelBufferManager *bm,
                                      : IntelDisplayDevice(pm, drm, index),
                                        mBufferManager(bm),
                                        mGrallocBufferManager(gm),
-                                       mFBDev(fbdev)
+                                       mFBDev(fbdev),
+                                       mWidiNativeWindow(NULL)
 {
     ALOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
 
@@ -146,13 +147,6 @@ bool IntelMIPIDisplayDevice::isSpriteLayer(hwc_display_contents_1_t *list,
         goto out_check;
     }
 
-    // disable sprite plane when HDMI is connected
-    // FIXME: add HDMI sprite support later
-    if (mDrm->getOutputConnection(OUTPUT_HDMI) == DRM_MODE_CONNECTED) {
-        useSprite = false;
-        goto out_check;
-    }
-
     // fall back if HWC_SKIP_LAYER was set
     if ((layer->flags & HWC_SKIP_LAYER)) {
         ALOGD_IF(ALLOW_HWC_PRINT, "isSpriteLayer: HWC_SKIP_LAYER");
@@ -231,13 +225,6 @@ bool IntelMIPIDisplayDevice::isPrimaryLayer(hwc_display_contents_1_t *list,
                                      hwc_layer_1_t *layer,
                                      int& flags)
 {
-#ifndef INTEL_RGB_OVERLAY
-    // only use primary when layer is the top layer
-    if ((size_t)index != (list->numHwLayers - 1))
-        return false;
-#endif
-
-
     // if a layer has already been handled, further check if it's a
     // sprite layer/overlay layer, if so, we simply bypass this layer.
     if (layer->compositionType == HWC_OVERLAY) {
@@ -260,7 +247,8 @@ bool IntelMIPIDisplayDevice::isPrimaryLayer(hwc_display_contents_1_t *list,
 
     // check whether all other layers were handled by HWC
     for (size_t i = 0; i < list->numHwLayers-1; i++) {
-        if ((list->hwLayers[i].compositionType != HWC_OVERLAY) && (i != index))
+        if ((i != size_t(index)) &&
+            (list->hwLayers[i].compositionType != HWC_OVERLAY))
             return false;
     }
 
@@ -342,7 +330,7 @@ bool IntelMIPIDisplayDevice::isOverlayLayer(hwc_display_contents_1_t *list,
 
     // fall back if YUV Layer is in the middle of
     // other layers and covers the layers under it.
-    if (!forceOverlay && index > 0 && index < list->numHwLayers-1) {
+    if (!forceOverlay && index > 0 && index < int(list->numHwLayers-1)) {
         for (int i = index - 1; i >= 0; i--) {
             if (areLayersIntersecting(layer, &list->hwLayers[i])) {
                 useOverlay = false;
@@ -818,7 +806,7 @@ bool IntelMIPIDisplayDevice::useOverlayRotation(hwc_layer_1_t *layer,
             return true;
         }
 
-        if (transform != payload->client_transform) {
+        if (transform != uint32_t(payload->client_transform)) {
             ALOGD_IF(ALLOW_HWC_PRINT,
                     "%s: rotation buffer was not prepared by client! ui64Stamp = %llu\n", __func__, grallocHandle->ui64Stamp);
             return false;
@@ -1053,7 +1041,7 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
                             if(mDrm->isMdsSurface(mWidiNativeWindow)) {
                                  widiplane->setNativeWindow(mWidiNativeWindow);
                                  ALOGD_IF(ALLOW_HWC_PRINT,
-                                        "Native window is from MDS for widi at composer = 0x%x ", mWidiNativeWindow);
+                                        "Native window is from MDS for widi at composer = 0x%p ", mWidiNativeWindow);
                             }
                             else {
                                 mWidiNativeWindow = NULL;
@@ -1065,7 +1053,7 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
                 else {
                     mWidiNativeWindow = NULL;
                     ALOGD_IF(ALLOW_HWC_PRINT,
-                           "Native window from widiplane for background  = %d", mWidiNativeWindow);
+                           "Native window from widiplane for background  = %p", mWidiNativeWindow);
                 }
                 continue;
             }
@@ -1204,49 +1192,43 @@ bool IntelMIPIDisplayDevice::flipFramebufferContexts(void *contexts)
 
     planeContexts = (mdfld_plane_contexts_t*)contexts;
 
-    for (int output = 0; output < OUTPUT_MAX; output++) {
-        // do not handle external display here
-        if (output > 0)
-            continue;
+    drmModeConnection connection = mDrm->getOutputConnection(mDisplayIndex);
+    if (connection != DRM_MODE_CONNECTED)
+        return false;
 
-        drmModeConnection connection = mDrm->getOutputConnection(output);
-        if (connection != DRM_MODE_CONNECTED)
-            continue;
+    drmModeFBPtr fbInfo = mDrm->getOutputFBInfo(mDisplayIndex);
 
-        drmModeFBPtr fbInfo = mDrm->getOutputFBInfo(output);
+    fbWidth = fbInfo->width;
+    fbHeight = fbInfo->height;
 
-        fbWidth = fbInfo->width;
-        fbHeight = fbInfo->height;
+    zOrderConfig = mPlaneManager->getZOrderConfig(mDisplayIndex);
+    if ((zOrderConfig == IntelDisplayPlaneManager::ZORDER_OcOaP) ||
+        (zOrderConfig == IntelDisplayPlaneManager::ZORDER_OaOcP))
+        forceBottom = true;
 
-        zOrderConfig = mPlaneManager->getZOrderConfig(output);
-        if ((zOrderConfig == IntelDisplayPlaneManager::ZORDER_OcOaP) ||
-            (zOrderConfig == IntelDisplayPlaneManager::ZORDER_OaOcP))
-            forceBottom = true;
+    context = &planeContexts->primary_contexts[mDisplayIndex];
 
-        context = &planeContexts->primary_contexts[output];
+    // update context
+    context->update_mask = SPRITE_UPDATE_ALL;
+    context->index = mDisplayIndex;
+    context->pipe = mDisplayIndex;
+    context->linoff = 0;
+    context->stride = align_to((4 * fbWidth), 64);
+    context->pos = 0;
+    context->size = ((fbHeight - 1) & 0xfff) << 16 | ((fbWidth - 1) & 0xfff);
+    context->surf = 0;
 
-        // update context
-        context->update_mask = SPRITE_UPDATE_ALL;
-        context->index = output;
-        context->pipe = output;
-        context->linoff = 0;
-        context->stride = align_to((4 * fbWidth), 64);
-        context->pos = 0;
-        context->size = ((fbHeight - 1) & 0xfff) << 16 | ((fbWidth - 1) & 0xfff);
-        context->surf = 0;
-
-        // config z order; switch z order may cause flicker
-        if (forceBottom) {
-            context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRX8888;
-        } else {
-            context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRA8888;
-        }
-
-        context->cntr |= 0x80000000;
-
-        // update active primary
-        planeContexts->active_primaries |= (1 << output);
+    // config z order; switch z order may cause flicker
+    if (forceBottom) {
+        context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRX8888;
+    } else {
+        context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRA8888;
     }
+
+    context->cntr |= 0x80000000;
+
+    // update active primary
+    planeContexts->active_primaries |= (1 << mDisplayIndex);
 
     return true;
 }
@@ -1260,7 +1242,7 @@ bool IntelMIPIDisplayDevice::dump(char *buff,
 
     mDumpBuf = buff;
     mDumpBuflen = buff_len;
-    mDumpLen = 0;
+    mDumpLen = (int) (*cur_len);
 
     if (mLayerList) {
        dumpPrintf("------------ MIPI Totally %d layers -------------\n",
@@ -1277,27 +1259,67 @@ bool IntelMIPIDisplayDevice::dump(char *buff,
        }
 
        dumpPrintf("-------------MIPI runtime parameters -------------\n");
+       dumpPrintf("  + mHotplugEvent: %d \n", mHotplugEvent);
        dumpPrintf("  + bypassPost: %d \n", mFBDev->bBypassPost);
+       dumpPrintf("  + mForceSwapBuffer: %d \n", mForceSwapBuffer);
        dumpPrintf("  + mForceSwapBuffer: %d \n", mForceSwapBuffer);
        dumpPrintf("  + Display Mode: %d \n", mDrm->getDisplayMode());
     }
 
+    *cur_len = mDumpLen;
     return ret;
-}
-
-bool IntelMIPIDisplayDevice::blank(int blank)
-{
-    return false;
 }
 
 bool IntelMIPIDisplayDevice::getDisplayConfig(uint32_t* configs,
                                         size_t* numConfigs)
 {
-    return false;
+    if (!numConfigs || !numConfigs[0])
+        return false;
+
+    if (mDrm->getOutputConnection(mDisplayIndex) != DRM_MODE_CONNECTED)
+        return false;
+
+    *numConfigs = 1;
+    configs[0] = 0;
+
+    return true;
 }
 
 bool IntelMIPIDisplayDevice::getDisplayAttributes(uint32_t config,
             const uint32_t* attributes, int32_t* values)
 {
-   return false;
+    if (config != 0)
+        return false;
+
+    if (!attributes || !values)
+        return false;
+
+    if (mDrm->getOutputConnection(mDisplayIndex) != DRM_MODE_CONNECTED)
+        return false;
+
+    while (*attributes != HWC_DISPLAY_NO_ATTRIBUTE) {
+        switch (*attributes) {
+        case HWC_DISPLAY_VSYNC_PERIOD:
+            *values = 1e9 / mFBDev->base.fps;
+            break;
+        case HWC_DISPLAY_WIDTH:
+            *values = mFBDev->base.width;
+            break;
+        case HWC_DISPLAY_HEIGHT:
+            *values = mFBDev->base.height;
+            break;
+        case HWC_DISPLAY_DPI_X:
+            *values = mFBDev->base.xdpi;
+            break;
+        case HWC_DISPLAY_DPI_Y:
+            *values = mFBDev->base.ydpi;
+            break;
+        default:
+            break;
+        }
+        attributes ++;
+        values ++;
+    }
+
+    return true;
 }

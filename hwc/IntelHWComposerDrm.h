@@ -163,7 +163,7 @@ public:
     bool detectMDSModeChange();
 
     // DPMS
-    bool setDisplayDpms(int disp, bool on);
+    bool setDisplayDpms(int disp, bool blank);
     bool setHDMIPowerOff();
     // Vsync
     bool setDisplayVsyncs(int disp, bool on);

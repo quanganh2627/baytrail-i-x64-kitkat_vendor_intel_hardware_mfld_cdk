@@ -53,8 +53,6 @@ public:
         VSYNC_SRC_NUM,
     };
     enum {
-        PRIMARY_DISPLAY = 0,
-        SECOND_DISPLAY = 1,
         DISPLAY_NUM = 2,
     };
 private:

@@ -832,12 +832,80 @@ bool IntelHWComposerDrm::setDisplayDrmMode(int disp,
 }
 
 // DPMS
-bool IntelHWComposerDrm::setDisplayDpms(int disp, bool on) {
+bool IntelHWComposerDrm::setDisplayDpms(int disp, bool blank)
+{
+    int ret=0;
+
+    if (disp == OUTPUT_MIPI0) {
+        // Set MIPI On/Off
+        drmModeConnectorPtr connector;
+        drmModePropertyPtr props = NULL;
+
+        if ((connector = getConnector(disp)) == NULL) {
+            ALOGW("%s: failed to get connector :%d!\n", __func__, disp);
+            goto err;
+        }
+
+        if (connector->connection != DRM_MODE_CONNECTED) {
+            ALOGW("%s: connector %d is not connected!\n", __func__, disp);
+            freeConnector(connector);
+            goto err;
+        }
+
+        for (int i = 0; i < connector->count_props; i++) {
+            props = drmModeGetProperty(mDrmFd, connector->props[i]);
+            if (!props) continue;
+
+            if (!strcmp(props->name, "DPMS")) {
+                ALOGD_IF(ALLOW_MONITOR_PRINT,
+                         "%s: %s %u", __func__,
+                         (blank == 0) ? "On" : "Off",
+                         connector->connector_id);
+                ret = drmModeConnectorSetProperty(mDrmFd,
+                                connector->connector_id,
+                                props->prop_id,
+                                (blank==0) ? DRM_MODE_DPMS_ON : DRM_MODE_DPMS_OFF);
+                drmModeFreeProperty(props);
+                break;
+            }
+            drmModeFreeProperty(props);
+        }
+    } else if (disp == OUTPUT_HDMI) {
+        // Set HDMI On/Off
+        struct drm_psb_disp_ctrl dp_ctrl;
+
+        ALOGD_IF(ALLOW_MONITOR_PRINT,
+                 "%s: %s", __func__,
+                 (blank == 0) ? "On" : "Off");
+        memset(&dp_ctrl, 0, sizeof(dp_ctrl));
+        dp_ctrl.cmd =
+              (blank==0) ? DRM_PSB_DISP_PLANEB_ENABLE : DRM_PSB_DISP_PLANEB_DISABLE;
+
+        ret = drmCommandWriteRead(mDrmFd, DRM_PSB_HDMI_FB_CMD, &dp_ctrl, sizeof(dp_ctrl));
+    }
+
+    if (ret != 0) {
+        ALOGW("%s: connector %d dpms failed!\n", __func__, disp);
+        goto err;
+    }
+
     return true;
+err:
+    return false;
 }
 
-bool IntelHWComposerDrm::setHDMIPowerOff() {
-    return true;
+bool IntelHWComposerDrm::setHDMIPowerOff()
+{
+    int ret=0;
+    struct drm_psb_disp_ctrl dp_ctrl;
+
+    memset(&dp_ctrl, 0, sizeof(dp_ctrl));
+    dp_ctrl.cmd = DRM_PSB_HDMI_OSPM_ISLAND_DOWN;
+
+    ret = drmCommandWriteRead(mDrmFd,
+            DRM_PSB_HDMI_FB_CMD, &dp_ctrl, sizeof(dp_ctrl));
+
+    return (ret==0)?true:false;
 }
 
 // Vsync

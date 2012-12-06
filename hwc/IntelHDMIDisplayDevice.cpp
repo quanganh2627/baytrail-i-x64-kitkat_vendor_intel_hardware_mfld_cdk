@@ -110,6 +110,9 @@ IntelHDMIDisplayDevice::~IntelHDMIDisplayDevice()
 void IntelHDMIDisplayDevice::onGeometryChanged(hwc_display_contents_1_t *list)
 {
     //TODO: need to implement this function for HDMI display.
+
+    // update layer list with new list
+    mLayerList->updateLayerList(list);
 }
 
 bool IntelHDMIDisplayDevice::prepare(hwc_display_contents_1_t *list)
@@ -121,8 +124,13 @@ bool IntelHDMIDisplayDevice::prepare(hwc_display_contents_1_t *list)
         return false;
     }
 
+    if (!list || (list->flags & HWC_GEOMETRY_CHANGED)) {
+        onGeometryChanged(list);
+    }
+
     // handle hotplug event here
     if (mHotplugEvent) {
+        ALOGD_IF(ALLOW_HWC_PRINT, "%s: reset hotplug event flag\n", __func__);
         mHotplugEvent = false;
     }
 
@@ -141,24 +149,26 @@ bool IntelHDMIDisplayDevice::commit(hwc_display_contents_1_t *list,
     }
 
     // if hotplug was happened & didn't be handled skip the flip
-    if (mHotplugEvent)
+    if (mHotplugEvent) {
+        ALOGW("%s: hotplug event is true\n", __func__);
         return true;
+    }
 
     int output = 1;
     drmModeConnection connection = mDrm->getOutputConnection(output);
     if (connection != DRM_MODE_CONNECTED) {
-        ALOGE("%s: HDMI does not connected\n", __func__);
+        ALOGW("%s: HDMI does not connected\n", __func__);
         return false;
     }
 
     void *context = mPlaneManager->getPlaneContexts();
     if (!context) {
-        ALOGE("%s: invalid plane contexts\n", __func__);
+        ALOGW("%s: invalid plane contexts\n", __func__);
         return false;
     }
 
     if (list &&
-        (list->numHwLayers-1)>0 &&
+        list->numHwLayers>0 &&
         list->hwLayers[list->numHwLayers-1].handle &&
         list->hwLayers[list->numHwLayers-1].compositionType == HWC_FRAMEBUFFER_TARGET) {
 
@@ -170,7 +180,9 @@ bool IntelHDMIDisplayDevice::commit(hwc_display_contents_1_t *list,
             ALOGV("%s: skip to flip HDMI fb context !\n", __func__);
         else
             bufferHandles[numBuffers++] = target_layer->handle;
-    }
+    } else
+        ALOGW("%s: layernum: %d, no found of framebuffer_target!\n",
+                                       __func__, list->numHwLayers);
 
     return true;
 }
@@ -186,12 +198,12 @@ bool IntelHDMIDisplayDevice::flipFramebufferContexts(void *contexts,
     ALOGD_IF(ALLOW_HWC_PRINT, "flipHDMIFrameBufferContexts");
 
     if (!contexts) {
-        ALOGE("%s: Invalid plane contexts\n", __func__);
+        ALOGW("%s: Invalid plane contexts\n", __func__);
         return false;
     }
 
     if (target_layer == NULL) {
-        ALOGE("%s: Invalid HDMI target layer\n", __func__);
+        ALOGW("%s: Invalid HDMI target layer\n", __func__);
         return false;
     }
 
@@ -215,7 +227,7 @@ bool IntelHDMIDisplayDevice::flipFramebufferContexts(void *contexts,
     for (int i = 0; i < HDMI_BUF_NUM; i++) {
         if (mHDMIBuffers[i].ui64Stamp == grallocHandle->ui64Stamp) {
             ALOGD_IF(ALLOW_HWC_PRINT,
-                     "%s: buf stamp %d...\n", __func__,grallocHandle->ui64Stamp);
+                     "%s: buf stamp %lld...\n", __func__,grallocHandle->ui64Stamp);
             buffer = mHDMIBuffers[i].buffer;
             break;
         }
@@ -308,7 +320,7 @@ bool IntelHDMIDisplayDevice::dump(char *buff,
 
     mDumpBuf = buff;
     mDumpBuflen = buff_len;
-    mDumpLen = 0;
+    mDumpLen = (int)(*cur_len);
 
     if (mLayerList) {
        dumpPrintf("------------ HDMI Totally %d layers -------------\n",
@@ -323,26 +335,68 @@ bool IntelHDMIDisplayDevice::dump(char *buff,
            } else
                dumpPrintf("   # layer %d goes through eglswapbuffer\n ", i);
        }
+       dumpPrintf("-------------HDMI runtime parameters -------------\n");
+       dumpPrintf("  + mHotplugEvent: %d \n", mHotplugEvent);
 
-       dumpPrintf("------------- end of HDMI layers -------------\n");
     }
 
+    *cur_len = mDumpLen;
     return ret;
-}
-
-bool IntelHDMIDisplayDevice::blank(int blank)
-{
-    return false;
 }
 
 bool IntelHDMIDisplayDevice::getDisplayConfig(uint32_t* configs,
                                         size_t* numConfigs)
 {
-    return false;
+    if (!numConfigs || !numConfigs[0])
+        return false;
+
+    if (mDrm->getOutputConnection(mDisplayIndex) != DRM_MODE_CONNECTED)
+        return false;
+
+    *numConfigs = 1;
+    configs[0] = 0;
+
+    return true;
+
 }
 
 bool IntelHDMIDisplayDevice::getDisplayAttributes(uint32_t config,
             const uint32_t* attributes, int32_t* values)
 {
-   return false;
+    if (config != 0)
+        return false;
+
+    if (!attributes || !values)
+        return false;
+
+    if (mDrm->getOutputConnection(mDisplayIndex) != DRM_MODE_CONNECTED)
+        return false;
+
+    drmModeModeInfoPtr mode = mDrm->getOutputMode(mDisplayIndex);
+
+    while (*attributes != HWC_DISPLAY_NO_ATTRIBUTE) {
+        switch (*attributes) {
+        case HWC_DISPLAY_VSYNC_PERIOD:
+            *values = 1e9 / mode->vrefresh;
+            break;
+        case HWC_DISPLAY_WIDTH:
+            *values = mode->hdisplay;
+            break;
+        case HWC_DISPLAY_HEIGHT:
+            *values = mode->vdisplay;
+            break;
+        case HWC_DISPLAY_DPI_X:
+            *values = 0;
+            break;
+        case HWC_DISPLAY_DPI_Y:
+            *values = 0;
+            break;
+        default:
+            break;
+        }
+        attributes ++;
+        values ++;
+    }
+
+    return true;
 }

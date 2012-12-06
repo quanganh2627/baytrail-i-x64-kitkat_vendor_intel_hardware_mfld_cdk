@@ -280,6 +280,15 @@ static int hwc_getDisplayAttributes(hwc_composer_device_1_t* dev, int disp,
     return -EINVAL;
 }
 
+static int hwc_compositionComplete(hwc_composer_device_1_t* dev, int disp)
+{
+    IntelHWComposer *hwc = static_cast<IntelHWComposer*>(dev);
+
+    if (hwc && hwc->compositionComplete(disp))
+        return 0;
+
+    return -EINVAL;
+}
 
 /*****************************************************************************/
 
@@ -339,6 +348,9 @@ static int hwc_device_open(const struct hw_module_t* module, const char* name,
         hwc->hwc_composer_device_1_t::eventControl = hwc_eventControl;
         hwc->hwc_composer_device_1_t::getDisplayConfigs = hwc_getDisplayConfigs;
         hwc->hwc_composer_device_1_t::getDisplayAttributes = hwc_getDisplayAttributes;
+
+        // This is used to hack FBO switch flush issue in SurfaceFlinger.
+        hwc->hwc_composer_device_1_t::reserved_proc[0] = (void*)hwc_compositionComplete;
 
         *device = &hwc->hwc_composer_device_1_t::common;
         status = 0;

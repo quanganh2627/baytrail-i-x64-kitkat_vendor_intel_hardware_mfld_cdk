@@ -756,3 +756,11 @@ bool IntelHWComposer::getDisplayAttributes(int disp, uint32_t config,
 
     return true;
 }
+
+bool IntelHWComposer::compositionComplete(int disp)
+{
+    if (mFBDev) {
+        mFBDev->base.compositionComplete(&mFBDev->base);
+    }
+    return true;
+}

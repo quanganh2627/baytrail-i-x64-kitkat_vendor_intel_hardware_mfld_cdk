@@ -115,6 +115,7 @@ public:
     bool getDisplayConfigs(int disp, uint32_t* configs, size_t* numConfigs);
     bool getDisplayAttributes(int disp, uint32_t config,
             const uint32_t* attributes, int32_t* values);
+    bool compositionComplete(int disp);
 
     IntelHWComposer()
         : IntelHWCUEventObserver(), IntelHWComposerDump(),

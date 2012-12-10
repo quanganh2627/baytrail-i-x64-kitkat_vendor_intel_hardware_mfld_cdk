@@ -33,6 +33,7 @@
 #include <IntelOverlayUtil.h>
 #include <IntelWidiPlane.h>
 #include <IntelHWComposerCfg.h>
+#define INTEL_EXT_SF_ANIMATION_HINT
 
 IntelMIPIDisplayDevice::IntelMIPIDisplayDevice(IntelBufferManager *bm,
                                        IntelBufferManager *gm,

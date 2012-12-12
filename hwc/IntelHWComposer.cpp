@@ -91,7 +91,7 @@ bool IntelHWComposer::handleDisplayModeChange()
     return true;
 }
 
-bool IntelHWComposer::handleHotplugEvent(int hpd, void *data)
+bool IntelHWComposer::handleHotplugEvent(int hpd, void *data, int *modeIndex)
 {
     bool ret = false;
     int disp = 1;
@@ -99,7 +99,7 @@ bool IntelHWComposer::handleHotplugEvent(int hpd, void *data)
     ALOGD_IF(ALLOW_HWC_PRINT, "handleHotplugEvent");
 
     if (!mDrm) {
-        ALOGW("%s: mDrm is not intilized!\n", __func__);
+        ALOGW("%s: mDrm is not intialized!\n", __func__);
         goto out;
     }
 
@@ -107,7 +107,7 @@ bool IntelHWComposer::handleHotplugEvent(int hpd, void *data)
         // get display mode
         intel_display_mode_t *s_mode = (intel_display_mode_t *)data;
         drmModeModeInfoPtr mode;
-        mode = mDrm->selectDisplayDrmMode(disp, s_mode);
+        mode = mDrm->selectDisplayDrmMode(disp, s_mode, modeIndex);
         if (!mode) {
             ret = false;
             goto out;
@@ -155,7 +155,7 @@ out:
     return ret;
 }
 
-bool IntelHWComposer::handleDynamicModeSetting(void *data)
+bool IntelHWComposer::handleDynamicModeSetting(void *data, int* modeIndex)
 {
     bool ret = false;
 
@@ -163,7 +163,7 @@ bool IntelHWComposer::handleDynamicModeSetting(void *data)
     // send plug-out to SF for mode changing on the same device
     // otherwise SF will bypass the plug-in message as there is
     // no connection change;
-    ret = handleHotplugEvent(0, NULL);
+    ret = handleHotplugEvent(0, NULL, NULL);
     if (!ret) {
         ALOGW("%s: send fake unplug event failed!\n", __func__);
         goto out;
@@ -173,7 +173,7 @@ bool IntelHWComposer::handleDynamicModeSetting(void *data)
     waitForHpdCompletion();
 
     // then change the mode and send plug-in to SF
-    ret = handleHotplugEvent(1, data);
+    ret = handleHotplugEvent(1, data, modeIndex);
     if (!ret) {
         ALOGW("%s: send plug in event failed!\n", __func__);
         goto out;
@@ -182,7 +182,7 @@ out:
     return ret;
 }
 
-bool IntelHWComposer::onUEvent(const char *msg, int msgLen, int msgType, void *data)
+bool IntelHWComposer::onUEvent(const char *msg, int msgLen, int msgType, void *data, int* modeIndex)
 {
     bool ret = false;
 #ifdef TARGET_HAS_MULTIPLE_DISPLAY
@@ -202,15 +202,15 @@ bool IntelHWComposer::onUEvent(const char *msg, int msgLen, int msgType, void *d
 
     // handle hdmi plug in;
     if (msgType == IntelExternalDisplayMonitor::MSG_TYPE_MDS_HOTPLUG_IN)
-        ret = handleHotplugEvent(1, data);
+        ret = handleHotplugEvent(1, data, modeIndex);
 
     // handle hdmi plug out;
     if (msgType == IntelExternalDisplayMonitor::MSG_TYPE_MDS_HOTPLUG_OUT)
-        ret = handleHotplugEvent(0, NULL);
+        ret = handleHotplugEvent(0, NULL, NULL);
 
     // handle dynamic mode setting
     if (msgType == IntelExternalDisplayMonitor::MSG_TYPE_MDS_TIMING_DYNAMIC_SETTING)
-        ret = handleDynamicModeSetting(data);
+        ret = handleDynamicModeSetting(data, modeIndex);
 
     return ret;
 #endif
@@ -222,10 +222,10 @@ bool IntelHWComposer::onUEvent(const char *msg, int msgLen, int msgType, void *d
     do {
         if (!strncmp(msg, "HOTPLUG_IN=1", strlen("HOTPLUG_IN=1"))) {
             ALOGD("%s: detected hdmi hotplug event:%s\n", __func__, msg);
-            ret = handleHotplugEvent(1, NULL);
+            ret = handleHotplugEvent(1, NULL, NULL);
             break;
         } else if (!strncmp(msg, "HOTPLUG_OUT=1", strlen("HOTPLUG_OUT=1"))) {
-            ret = handleHotplugEvent(0, NULL);
+            ret = handleHotplugEvent(0, NULL, NULL);
             break;
         }
 
@@ -635,7 +635,7 @@ bool IntelHWComposer::initialize()
 
     // do mode setting in HWC if HDMI is connected when boot up
     if (mDrm->detectDisplayConnection(OUTPUT_HDMI))
-        handleHotplugEvent(1, NULL);
+        handleHotplugEvent(1, NULL, NULL);
 
     // startObserver();
     mInitialized = true;

@@ -574,7 +574,7 @@ bool IntelHWComposerDrm::setHDMIScaling(int type) {
 }
 
 drmModeModeInfoPtr
-IntelHWComposerDrm::selectDisplayDrmMode(int disp, intel_display_mode_t *m_selected)
+IntelHWComposerDrm::selectDisplayDrmMode(int disp, intel_display_mode_t *m_selected, int* modeIndex)
 {
     drmModeModeInfoPtr mode = getOutputMode(disp);
 
@@ -589,7 +589,7 @@ IntelHWComposerDrm::selectDisplayDrmMode(int disp, intel_display_mode_t *m_selec
         return NULL;
     }
 
-    mode = getSelectMode(m_selected, connector);
+    mode = getSelectMode(m_selected, connector, modeIndex);
 
     if (!mode) {
         ALOGW("%s: fail to get selected mode or any other mode! \n", __func__);
@@ -611,7 +611,7 @@ IntelHWComposerDrm::selectDisplayDrmMode(int disp, intel_display_mode_t *m_selec
 // mode and Fb functions
 drmModeModeInfoPtr
 IntelHWComposerDrm::getSelectMode(intel_display_mode_t *m_selected,
-                                  drmModeConnectorPtr connector)
+                                  drmModeConnectorPtr connector, int* modeIndex)
 {
     int index = 0;
     int i = 0;
@@ -640,9 +640,11 @@ IntelHWComposerDrm::getSelectMode(intel_display_mode_t *m_selected,
     if (index == connector->count_modes) {
         LOGE("%s: Failed to find any mode, count is %d",
                 __func__, connector->count_modes);
+        *modeIndex = -1;
         return NULL;
     }
-
+    if (modeIndex != NULL)
+        *modeIndex = index;
     return &connector->modes[index];
 }
 
@@ -757,7 +759,7 @@ bool IntelHWComposerDrm::detectDisplayConnection(int disp)
 
     //update mode info
 #if 1
-    mode = getSelectMode(NULL, connector);
+    mode = getSelectMode(NULL, connector, NULL);
     if (mode)
         setOutputMode(disp, mode, 1);
 #endif

@@ -30,7 +30,7 @@
 
 #include <utils/threads.h>
 
-#include "display/IExtendDisplayModeChangeListener.h"
+#include "display/IExtendDisplayListener.h"
 #include "display/IMultiDisplayComposer.h"
 #include "display/MultiDisplayClient.h"
 #include "display/MultiDisplayType.h"
@@ -38,7 +38,7 @@
 class IntelHWComposer;
 
 class IntelExternalDisplayMonitor :
-    public android::BnExtendDisplayModeChangeListener,
+    public android::BnExtendDisplayListener,
     public android::IBinder::DeathRecipient,
     protected android::Thread
 {

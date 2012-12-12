@@ -135,7 +135,7 @@ private:
     // mode and Fb functions
     bool isModeChanged(drmModeModeInfoPtr mode, intel_display_mode_t *m_selected);
     drmModeModeInfoPtr getSelectMode(intel_display_mode_t *m_selected,
-                                    drmModeConnectorPtr connector);
+                                    drmModeConnectorPtr connector, int* modeIndex);
     bool setupDrmFb(int disp, uint32_t fb_handler, drmModeModeInfoPtr mode);
     void deleteDrmFb(int disp);
 
@@ -157,7 +157,7 @@ public:
 
     // Connection and Mode setting
     bool detectDisplayConnection(int disp);
-    drmModeModeInfoPtr selectDisplayDrmMode(int disp, intel_display_mode_t *m_selected);
+    drmModeModeInfoPtr selectDisplayDrmMode(int disp, intel_display_mode_t *m_selected, int* modeIndex);
     bool setDisplayDrmMode(int disp, uint32_t fb_handler, drmModeModeInfoPtr mode);
     bool handleDisplayDisConnection(int disp);
     bool detectMDSModeChange();

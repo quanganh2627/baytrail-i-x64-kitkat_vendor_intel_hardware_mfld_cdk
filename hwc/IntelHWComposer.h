@@ -88,15 +88,15 @@ private:
     IntelHWCWrapper mWrapper;
 #endif
 private:
-    bool handleHotplugEvent(int hdp, void *data);
+    bool handleHotplugEvent(int hdp, void *data, int* modeIndex);
     bool handleDisplayModeChange();
-    bool handleDynamicModeSetting(void *data);
+    bool handleDynamicModeSetting(void *data, int* modeIndex);
     uint32_t disableUnusedVsyncs(uint32_t target);
     uint32_t enableVsyncs(uint32_t target);
     void signalHpdCompletion();
     void waitForHpdCompletion();
 public:
-    bool onUEvent(const char *msg, int msgLen, int msgType, void *data);
+    bool onUEvent(const char *msg, int msgLen, int msgType, void *data, int* modeIndex);
     void vsync(int64_t timestamp, int pipe);
 public:
     bool initCheck() { return mInitialized; }

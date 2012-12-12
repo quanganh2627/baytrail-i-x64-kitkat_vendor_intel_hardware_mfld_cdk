@@ -57,6 +57,11 @@ IntelExternalDisplayMonitor::IntelExternalDisplayMonitor(IntelHWComposer *hwc) :
 IntelExternalDisplayMonitor::~IntelExternalDisplayMonitor()
 {
     ALOGD_IF(ALLOW_MONITOR_PRINT, "External display monitor Destroyed");
+    if (mMDClient) {
+        mMDClient->unregisterListener(this);
+        delete mMDClient;
+        mMDClient = NULL;
+    }
     mInitialized = false;
     mComposer = 0;
 }
@@ -70,12 +75,14 @@ void IntelExternalDisplayMonitor::initialize()
 int IntelExternalDisplayMonitor::onMdsMessage(int msg, void *data, int size)
 {
     bool ret = true;
+    int modeIndex = -1;
 
     ALOGI("onMdsMessage: External display monitor onMdsMessage, %d size :%d ", msg, size);
     if (msg == MDS_ORIENTATION_CHANGE) {
         ALOGV("onMdsMessage: MDS_ORIENTATION_CHANGE received");
         if (mWidiOn)
-            ret = mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2, MSG_TYPE_MDS_ORIENTATION_CHANGE, data);
+            ret = mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2,
+                    MSG_TYPE_MDS_ORIENTATION_CHANGE, data, NULL);
     } else {
         int hwcmsg = MSG_TYPE_MDS;
 
@@ -83,19 +90,19 @@ int IntelExternalDisplayMonitor::onMdsMessage(int msg, void *data, int size)
             int mode = *((int*)data);
 
             if (checkMdsMode(mActiveDisplayMode, MDS_HDMI_CONNECTED) &&
-                !checkMdsMode(mode, MDS_HDMI_ON)) {
-                ALOGV("%s: HDMI is plugged out %d", __func__, mode);
+                !checkMdsMode(mode, MDS_HDMI_CONNECTED)) {
+                ALOGI("%s: HDMI is plugged out %d", __func__, mode);
                 mLastMsg = MSG_TYPE_MDS_HOTPLUG_OUT;
-                ret = mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2, mLastMsg, NULL);
+                ret = mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2, mLastMsg, NULL, NULL);
             }
         } else if (msg == MDS_SET_TIMING) {
             MDSHDMITiming* timing = (MDSHDMITiming*)data;
 
             if (mLastMsg == MSG_TYPE_MDS_HOTPLUG_OUT) {
-                ALOGV("%s: HDMI is plugged in, should set HDMI timing", __func__);
+                ALOGI("%s: HDMI is plugged in, should set HDMI timing", __func__);
                 mLastMsg = MSG_TYPE_MDS_HOTPLUG_IN;
             } else {
-                ALOGV("%s: Dynamic setting HDMI timing", __func__);
+                ALOGI("%s: Dynamic setting HDMI timing", __func__);
                 mLastMsg = MSG_TYPE_MDS_TIMING_DYNAMIC_SETTING;
             }
 
@@ -103,15 +110,15 @@ int IntelExternalDisplayMonitor::onMdsMessage(int msg, void *data, int size)
             ALOGD("%s: Setting HDMI timing %dx%d@%dx%dx%d", __func__,
                     timing->width, timing->height,
                     timing->refresh, timing->ratio, timing->interlace);
-            ret = mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2, mLastMsg, mode);
+            ret = mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2, mLastMsg, mode, &modeIndex);
+            return modeIndex;
         }
 
         if (msg == MDS_MODE_CHANGE) {
             mActiveDisplayMode = *(int *)data;
-            ret = mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2, MSG_TYPE_MDS, NULL);
+            ret = mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2, MSG_TYPE_MDS, NULL, NULL);
         }
     }
-
     return ret ? 0 : (-1);
 }
 
@@ -213,7 +220,7 @@ bool IntelExternalDisplayMonitor::threadLoop()
         if (count > 0)
             mComposer->onUEvent(mUeventMessage,
                                 UEVENT_MSG_LEN - 2,
-                                MSG_TYPE_UEVENT, NULL);
+                                MSG_TYPE_UEVENT, NULL, NULL);
     }
 
     return true;
@@ -280,7 +287,7 @@ status_t IntelExternalDisplayMonitor::readyToRun()
     } else {
         ALOGI("Got MultiDisplay Service\n");
         if (mMDClient != NULL)
-            mMDClient->registerModeChangeListener(this);
+            mMDClient->registerListener(this, "HWComposer", MDS_MODE_CHANGE | MDS_SET_TIMING);
     }
 
     return NO_ERROR;

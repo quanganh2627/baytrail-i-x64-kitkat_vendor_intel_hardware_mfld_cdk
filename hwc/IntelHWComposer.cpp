@@ -526,7 +526,6 @@ bool IntelHWComposer::initialize()
     int bufferType = IntelBufferManager::TTM_BUFFER;
 
     ALOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
-
     // open IMG frame buffer device
     hw_module_t const* module;
     if (hw_get_module(GRALLOC_HARDWARE_MODULE_ID, &module) == 0) {
@@ -763,4 +762,77 @@ bool IntelHWComposer::compositionComplete(int disp)
         mFBDev->base.compositionComplete(&mFBDev->base);
     }
     return true;
+}
+
+bool IntelHWComposer::setFramecount(int cmd, int count, int x, int y)
+{
+   struct drm_psb_register_rw_arg arg;
+   struct psb_gtt_mapping_arg gttarg;
+   uint32_t fb_size = 0;
+   uint8_t* pDatabuff = NULL;
+   uint8_t w = 128;
+   uint8_t h = 128;
+   int ret = 0;
+   void *virtAddr;
+   uint32_t size;
+   PVR2D_ULONG uFlags = 0;
+   PVR2DERROR err;
+   switch(cmd){
+      case 0:
+         if (mCursorBufferManager) {
+           if (cursorDataBuffer) {
+              ret = mCursorBufferManager->updateCursorReg(count, cursorDataBuffer, 0, 0, w, h, true);
+              if (ret == false) {
+                 ALOGE("%s: Failed to update Cursor content\n", __func__);
+                 return false;
+              }
+           }
+         }
+         break;
+      case 1:
+         if (!mCursorBufferManager) {
+            mCursorBufferManager = new IntelPVRBufferManager(mDrm->getDrmFd());
+            if (!mCursorBufferManager) {
+               ALOGE("%s: Failed to create Cursor buffer manager\n", __func__);
+               ret = false;
+               goto gralloc_bm_err;
+            }
+            ret = mCursorBufferManager->initialize();
+            if (ret == false) {
+               ALOGE("%s: Failed to initialize Cursor buffer manager\n", __func__);
+               goto gralloc_bm_err;
+            }
+            cursorDataBuffer = mCursorBufferManager->curAlloc(w, h);
+            if (!cursorDataBuffer) {
+               ALOGE("%s: Failed to alloc Cursor buffer memory\n", __func__);
+               ret = false;
+               goto gralloc_bm_err;
+            }
+            ret = mCursorBufferManager->updateCursorReg(0, cursorDataBuffer, x, y, w, h, true);
+            if (ret == false) {
+               ALOGE("%s: Failed to update Cursor content\n", __func__);
+               return false;
+            }
+         }
+         break;
+      case 2:
+         if (mCursorBufferManager) {
+           if (cursorDataBuffer) {
+               ret = mCursorBufferManager->updateCursorReg(0, cursorDataBuffer, x, y, w, h, false);
+               if (ret == false) {
+                  ALOGE("%s: Failed to update Cursor content\n", __func__);
+                  return false;
+               }
+           }
+           mCursorBufferManager->curFree(cursorDataBuffer);
+           mCursorBufferManager = 0;
+           delete mCursorBufferManager;
+         }
+         break;
+    }
+    return ret;
+    gralloc_bm_err:
+       mCursorBufferManager = 0;
+       delete mCursorBufferManager;
+       return false;
 }

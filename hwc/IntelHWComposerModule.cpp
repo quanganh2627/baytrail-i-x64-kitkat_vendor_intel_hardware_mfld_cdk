@@ -290,6 +290,15 @@ static int hwc_compositionComplete(hwc_composer_device_1_t* dev, int disp)
     return -EINVAL;
 }
 
+static int hwc_setFramecount(hwc_composer_device_1_t* dev, int cmd, int count, int x, int y)
+{
+    IntelHWComposer *hwc = static_cast<IntelHWComposer*>(dev);
+
+    if (hwc && hwc->setFramecount(cmd, count, x, y))
+        return 0;
+
+    return -EINVAL;
+}
 /*****************************************************************************/
 
 static int hwc_device_open(const struct hw_module_t* module, const char* name,
@@ -352,6 +361,8 @@ static int hwc_device_open(const struct hw_module_t* module, const char* name,
         // This is used to hack FBO switch flush issue in SurfaceFlinger.
         hwc->hwc_composer_device_1_t::reserved_proc[0] = (void*)hwc_compositionComplete;
 
+        // Frame update debug interaction with SurfaceFlinger.
+        hwc->hwc_composer_device_1_t::reserved_proc[1] = (void*)hwc_setFramecount;
         *device = &hwc->hwc_composer_device_1_t::common;
         status = 0;
     }

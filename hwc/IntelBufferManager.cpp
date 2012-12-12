@@ -596,6 +596,162 @@ void IntelPVRBufferManager::unmap(IntelDisplayBuffer *buffer)
     PVR2DMemFree(mPVR2DHandle, pvr2dMemInfo);
 }
 
+/*add for User eXperience Frame update debug  start*/
+uint8_t picIndex[16][4]={
+   { 0, 0, 0, 0},
+   { 0, 0, 0, 1},
+   { 0, 0, 1, 1},
+   { 0, 0, 1, 0},
+   { 0, 1, 1, 0},
+   { 0, 1, 1, 1},
+   { 0, 1, 0, 1},
+   { 0, 1, 0, 0},
+   { 1, 1, 0, 0},
+   { 1, 1, 0, 1},
+   { 1, 1, 1, 1},
+   { 1, 1, 1, 0},
+   { 1, 0, 1, 0},
+   { 1, 0, 1, 1},
+   { 1, 0, 0, 1},
+   { 1, 0, 0, 0}
+};
+void IntelPVRBufferManager::fillPixelColor(uint8_t* buf, int x, int y, int stride, int PIXEL_SIZE, int color)
+{
+   int c;
+   off_t lineOffset = (y * stride + x) * PIXEL_SIZE;
+   for (c = 0; c < PIXEL_SIZE; c++) {
+       buf[lineOffset + c] = color;
+       if (c == PIXEL_SIZE-1) buf[lineOffset + c] = 0xff;
+   }
+}
+void IntelPVRBufferManager::fill4Block(uint8_t* buf, uint8_t a, uint8_t b, uint8_t c, uint8_t d, int w, int h, int stride, int offset)
+{
+    int x, y;
+    uint8_t delta = w/10;
+    uint8_t pixelSize = 4;
+    LOGI("%s: %d", __func__, offset);
+    for (x = 0; x < w; x++) {
+       for (y = 0; y < h; y++)
+         fillPixelColor(buf + offset, x, y, stride, pixelSize, 0);
+    }
+    for (x = delta/2; x < (w - delta/2); x++) {
+       for (y = delta/2; y < (h - delta/2); y++)
+         fillPixelColor(buf + offset, x, y, stride, pixelSize, 0xff);
+    }
+    for (x = delta; x < (w/2 - delta/2); x++) {
+       for (y = delta; y < (h/2 - delta/2); y++)
+         fillPixelColor(buf + offset, x, y, stride, pixelSize, (a == 1) ? 0 : 0xff);
+    }
+    for (x = delta; x < w/2-delta/2; x++) {
+       for (y = (h/2 + delta/2); y < (h - delta); y++)
+         fillPixelColor(buf + offset, x, y, stride, pixelSize, (b == 1) ? 0 : 0xff);
+    }
+    for (x = (w/2 + delta/2); x < (w - delta); x++) {
+       for (y = delta; y < (h/2 - delta/2); y++)
+         fillPixelColor(buf + offset, x, y, stride, pixelSize, (c == 1) ? 0 : 0xff);
+    }
+    for (x = (w/2 + delta/2); x < (w - delta); x++) {
+       for (y = (h/2 + delta/2); y < (h - delta); y++)
+         fillPixelColor(buf + offset, x, y, stride, pixelSize, (d == 1) ? 0 : 0xff);
+    }
+}
+void IntelPVRBufferManager::drawSingleDigital(uint8_t* buf, int w, int h, int stride, int offset)
+{
+   int i;
+   for (i=0; i<16; i++) {
+     fill4Block(buf, picIndex[i][0], picIndex[i][1], picIndex[i][2], picIndex[i][3],
+                 w, h, stride, offset*i);
+   }
+}
+bool IntelPVRBufferManager::updateCursorReg(int count, IntelDisplayBuffer *cursorDataBuffer, int x, int y, int w, int h,  bool isEnable)
+{
+   struct drm_psb_register_rw_arg arg;
+   memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
+   arg.cursor_enable_mask = (isEnable) ? 1 : 0;
+   arg.cursor_disable_mask = (isEnable) ? 0 : 1;
+   arg.cursor.CursorADDR = ((cursorDataBuffer->getGttOffsetInPage())<< 12) + count * ( w * h * 4);
+   arg.cursor.xPos = (x >= w) ? (x - w) : 0;
+   arg.cursor.yPos = (y >= h) ? (y - h) : 0;
+   arg.cursor.CursorSize = (w > 64) ? 1 : 0;
+   int ret = drmCommandWriteRead(mDrmFd,
+                                 DRM_PSB_REGISTER_RW,
+                                 &arg, sizeof(arg));
+   if (ret) {
+          LOGW("%s: open cursor failed with error code %d\n",
+          __func__, ret);
+          return false;
+   }
+   return true;
+}
+
+IntelDisplayBuffer* IntelPVRBufferManager::curAlloc(int w, int h)
+{
+    if (!mPVR2DHandle) {
+        ALOGE("%s: PVR wasn't initialized\n", __func__);
+        return 0;
+    }
+    PVR2D_ULONG uFlags = 0;
+    PVR2DMEMINFO *pvr2dMemInfo;
+    int fb_size = w * h * 4 * 16;
+    /*buffer size should align to page size*/
+    fb_size = align_to(fb_size, 4096);
+    PVR2DERROR err = PVR2DMemAlloc(mPVR2DHandle,
+                                        fb_size,
+                                              1,
+                                         uFlags,
+                               &(pvr2dMemInfo));
+    if (err != PVR2D_OK) {
+       LOGE("%s: failed to map handle 0x%x\n", __func__, mPVR2DHandle);
+    }
+    void *virtAddr = pvr2dMemInfo->pBase;
+    uint32_t size = pvr2dMemInfo->ui32MemSize;
+    int gttOffsetInPage = 0;
+    // map it into gtt
+    bool ret = gttMap(pvr2dMemInfo, &gttOffsetInPage,
+                      (uint32_t)virtAddr, size, 1);
+    if (!ret) {
+        ALOGE("%s: failed to map 0x%x to GTT\n", __func__, pvr2dMemInfo);
+        PVR2DMemFree(mPVR2DHandle, pvr2dMemInfo);
+        return 0;
+    }
+    ALOGD_IF(ALLOW_BUFFER_PRINT,
+           "%s: mapped handle 0x%x, gtt %d\n", __func__, pvr2dMemInfo,
+         gttOffsetInPage);
+   if (virtAddr){
+      drawSingleDigital((uint8_t *)(virtAddr), w, h, w, w * h * 4);
+   }
+   IntelDisplayBuffer *buffer = new IntelDisplayBuffer(pvr2dMemInfo,
+                                                        virtAddr,
+                                                        gttOffsetInPage,
+                                                        size,
+                                                        0);
+   return buffer;
+}
+
+void IntelPVRBufferManager::curFree(IntelDisplayBuffer *buffer)
+{
+    if (!mPVR2DHandle) {
+       ALOGE("%s: PVR wasn't initialized\n", __func__);
+        return;
+    }
+
+    if (!buffer) {
+        ALOGE("%s: invalid buffer\n", __func__);
+        return;
+    }
+
+    PVR2DMEMINFO *pvr2dMemInfo = (PVR2DMEMINFO*)buffer->getBufferObject();
+
+    if (!pvr2dMemInfo)
+        return;
+
+    // unmap from gtt
+    gttUnmap(pvr2dMemInfo);
+
+    // unmap buffer
+    PVR2DMemFree(mPVR2DHandle, pvr2dMemInfo);
+}
+
 IntelBCDBufferManager::IntelBCDBufferManager(int fd)
     : IntelBufferManager(fd), mWsbm(0)
 {

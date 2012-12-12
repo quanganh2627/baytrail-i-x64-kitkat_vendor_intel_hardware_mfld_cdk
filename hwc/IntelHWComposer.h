@@ -43,7 +43,6 @@
 #ifdef INTEL_RGB_OVERLAY
 #include <IntelHWCWrapper.h>
 #endif
-
 class IntelHWComposer : public hwc_composer_device_1_t, public IntelHWCUEventObserver, public IntelHWComposerDump  {
 public:
     enum {
@@ -59,13 +58,14 @@ private:
     IntelHWComposerDrm *mDrm;
     IntelBufferManager *mBufferManager;
     IntelBufferManager *mGrallocBufferManager;
+    IntelBufferManager *mCursorBufferManager;
+    IntelDisplayBuffer *cursorDataBuffer;
     IntelDisplayPlaneManager *mPlaneManager;
     IntelDisplayDevice *mDisplayDevice[DISPLAY_NUM];
     hwc_procs_t const *mProcs;
     android::sp<IntelVsyncEventHandler> mVsync;
     android::sp<IntelFakeVsyncEvent> mFakeVsync;
     nsecs_t mLastVsync;
-
     struct hdmi_fb_handler {
         uint32_t umhandle;
         uint32_t kmhandle;
@@ -116,10 +116,11 @@ public:
     bool getDisplayAttributes(int disp, uint32_t config,
             const uint32_t* attributes, int32_t* values);
     bool compositionComplete(int disp);
-
+    bool setFramecount(int cmd, int count, int x, int y);
     IntelHWComposer()
         : IntelHWCUEventObserver(), IntelHWComposerDump(),
           mDrm(0), mBufferManager(0), mGrallocBufferManager(0),
+          mCursorBufferManager(0), cursorDataBuffer(0),
           mPlaneManager(0),mProcs(0), mVsync(0), mFakeVsync(0),
           mLastVsync(0), mInitialized(false),
           mActiveVsyncs(0), mHpdCompletion(true) {}

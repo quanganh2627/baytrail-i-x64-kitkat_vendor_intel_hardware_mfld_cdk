@@ -159,6 +159,10 @@ public:
         return false;
     }
     virtual bool dealloc(uint32_t um_handle) { return false; }
+    virtual bool updateCursorReg(int count, IntelDisplayBuffer *cursorDataBuffer,
+                        int x, int y, int w, int h, bool isEnable) {return false;}
+    virtual IntelDisplayBuffer* curAlloc(int w, int h) {return 0;}
+    virtual void curFree(IntelDisplayBuffer *buffer) {}
     bool initCheck() const { return mInitialized; }
     IntelBufferManager(int fd)
         : mDrmFd(fd), mInitialized(false) {
@@ -254,6 +258,11 @@ private:
     bool gttMap(PVR2DMEMINFO *buf, int *offset,
                 uint32_t virt, uint32_t size,  uint32_t gttAlign);
     bool gttUnmap(PVR2DMEMINFO *buf);
+    /*add for Cursor debug*/
+    void fillPixelColor(uint8_t* buf, int x, int y, int stride, int PIXEL_SIZE, int color);
+    void fill4Block(uint8_t* buf, uint8_t a, uint8_t b, uint8_t c, uint8_t d,
+                    int w, int h, int stride, int offset);
+    void drawSingleDigital(uint8_t* buf, int w, int h, int stride, int offset);
 public:
     IntelPVRBufferManager(int fd)
         : IntelBufferManager(fd), mPVR2DHandle(0) {}
@@ -263,6 +272,10 @@ public:
     void unwrap(IntelDisplayBuffer *buffer);
     IntelDisplayBuffer* map(uint32_t handle);
     void unmap(IntelDisplayBuffer *buffer);
+    bool updateCursorReg(int count, IntelDisplayBuffer *cursorDataBuffer,
+                         int x, int y, int w, int h, bool isEnable);
+    IntelDisplayBuffer* curAlloc(int w, int h);
+    void curFree(IntelDisplayBuffer *buffer);
 };
 
 // NOTE: the number of max device devices should be aligned with kernel driver

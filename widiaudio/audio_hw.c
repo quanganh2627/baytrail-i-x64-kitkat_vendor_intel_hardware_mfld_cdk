@@ -887,7 +887,7 @@ static int widi_dev_open(const hw_module_t* module, const char* name,
         return -ENOMEM;
 
     widi_dev->hw_device.common.tag            = HARDWARE_DEVICE_TAG;
-    widi_dev->hw_device.common.version        = AUDIO_DEVICE_API_VERSION_1_0;
+    widi_dev->hw_device.common.version        = AUDIO_DEVICE_API_VERSION_2_0;
     widi_dev->hw_device.common.module         = (struct hw_module_t *) module;
     widi_dev->hw_device.common.close          = widi_dev_close;
 

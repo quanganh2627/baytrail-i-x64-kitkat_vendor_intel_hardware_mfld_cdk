@@ -257,25 +257,23 @@ bool MedfieldSpritePlane::flip(void *contexts, uint32_t flags)
            "%s: flip to surface 0x%x\n", __func__, context->surf);
 
     // update context
-    for (int output = 0; output < OUTPUT_MAX; output++) {
-        drmModeConnection connection =
-            IntelHWComposerDrm::getInstance().getOutputConnection(output);
+    drmModeConnection connection =
+        IntelHWComposerDrm::getInstance().getOutputConnection(mIndex);
 
-        if (connection != DRM_MODE_CONNECTED) {
-            ALOGD_IF(ALLOW_SPRITE_PRINT,
-                   "%s: output %d not connected\n", __func__, output);
-            continue;
-        }
-
-        context->index = output;
-        context->pipe = output;
-        // context->update_mask &= ~SPRITE_UPDATE_POSITION;
-
-        // update plane contexts
-        memcpy(&planeContexts->sprite_contexts[output],
-               context, sizeof(intel_sprite_context_t));
-        planeContexts->active_sprites |= (1 << output);
+    if (connection != DRM_MODE_CONNECTED) {
+        ALOGD_IF(ALLOW_SPRITE_PRINT,
+               "%s: output %d not connected\n", __func__, mIndex);
+        return false;
     }
+
+    context->index = mIndex;
+    context->pipe = mIndex;
+    // context->update_mask &= ~SPRITE_UPDATE_POSITION;
+
+    // update plane contexts
+    memcpy(&planeContexts->sprite_contexts[mIndex],
+           context, sizeof(intel_sprite_context_t));
+    planeContexts->active_sprites |= (1 << mIndex);
 
     // clear update_mask
     context->update_mask = 0;

@@ -41,9 +41,15 @@ class CParameterMgrPlatformConnectorLogger : public CParameterMgrPlatformConnect
 public:
     CParameterMgrPlatformConnectorLogger() {}
 
-    virtual void log(const std::string& strLog)
+    virtual void log(bool bIsWarning, const std::string& strLog)
     {
-        LOGD("%s", strLog.c_str());
+        if (bIsWarning) {
+
+            ALOGW("%s", strLog.c_str());
+        } else {
+
+            ALOGD("%s", strLog.c_str());
+        }
     }
 };
 
@@ -279,13 +285,8 @@ void CVibrator::doSwitch(bool bOn)
         // Criterion states
         _vibratorState->setCriterionState(bOn);
 
-        // Apply confiurations
-        string strError;
-
-        if (!_parameterMgrPlatformConnector->applyConfigurations(strError)) {
-
-            LOGE("%s, applyConfigurations error: %s", __FUNCTION__, strError.c_str());
-        }
+        // Apply configurations
+        _parameterMgrPlatformConnector->applyConfigurations();
     }
 
     // State

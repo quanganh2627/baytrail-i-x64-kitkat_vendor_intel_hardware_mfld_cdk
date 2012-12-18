@@ -1594,6 +1594,7 @@ bool IntelOverlayPlane::invalidateDataBuffer()
     memset(mDataBuffers, 0, sizeof(mDataBuffers));
     memset(mDataBuffer, 0, sizeof(*mDataBuffer));
     mNextBuffer = 0;
+
     return true;
 }
 
@@ -1603,10 +1604,11 @@ bool IntelOverlayPlane::flip(void *contexts, uint32_t flags)
     if (initCheck()) {
         IntelOverlayContextMfld *overlayContext =
             reinterpret_cast<IntelOverlayContextMfld*>(mContext);
-
-        if ((mWidiPlane && mWidiPlane->isActive()) ||
-	    (flags & IntelDisplayPlane::DELAY_DISABLE) ||
-            IntelHWComposerDrm::getInstance().isOverlayOff()){
+        if (flags & IntelDisplayPlane::DELAY_DISABLE) {
+            // return false as overlay context flip is bypassed
+            ret = false;
+        } else if ((mWidiPlane && mWidiPlane->isActive()) ||
+                   IntelHWComposerDrm::getInstance().isOverlayOff()){
             ALOGD_IF(ALLOW_OVERLAY_PRINT,
                     "%s: disable overlay context!\n", __func__);
             ret = disable();

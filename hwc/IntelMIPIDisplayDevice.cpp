@@ -129,10 +129,6 @@ bool IntelMIPIDisplayDevice::isSpriteLayer(hwc_display_contents_1_t *list,
         return false;
     }
 
-    // don't handle target framebuffer layer
-    if (layer->compositionType == HWC_FRAMEBUFFER_TARGET)
-        return false;
-
     // check whether pixel format is supported RGB formats
     if (mLayerList->getLayerType(index) != IntelHWComposerLayer::LAYER_TYPE_RGB) {
         ALOGD_IF(ALLOW_HWC_PRINT,
@@ -246,7 +242,7 @@ bool IntelMIPIDisplayDevice::isPrimaryLayer(hwc_display_contents_1_t *list,
     }
 
     // check whether all other layers were handled by HWC
-    for (size_t i = 0; i < list->numHwLayers-1; i++) {
+    for (size_t i = 0; i < (size_t)mLayerList->getLayersCount(); i++) {
         if ((i != size_t(index)) &&
             (list->hwLayers[i].compositionType != HWC_OVERLAY))
             return false;
@@ -330,7 +326,7 @@ bool IntelMIPIDisplayDevice::isOverlayLayer(hwc_display_contents_1_t *list,
 
     // fall back if YUV Layer is in the middle of
     // other layers and covers the layers under it.
-    if (!forceOverlay && index > 0 && index < int(list->numHwLayers-1)) {
+    if (!forceOverlay && index > 0 && index < (mLayerList->getLayersCount()-1)) {
         for (int i = index - 1; i >= 0; i--) {
             if (areLayersIntersecting(layer, &list->hwLayers[i])) {
                 useOverlay = false;
@@ -342,7 +338,7 @@ bool IntelMIPIDisplayDevice::isOverlayLayer(hwc_display_contents_1_t *list,
     // check whether layer are covered by layers above it
     // if layer is covered by a layer which needs blending,
     // clear corresponding region in frame buffer
-    for (size_t i = index + 1; i < list->numHwLayers-1; i++) {
+    for (size_t i = index + 1; i < (size_t)mLayerList->getLayersCount(); i++) {
         if (areLayersIntersecting(&list->hwLayers[i], layer)) {
             ALOGD_IF(ALLOW_HWC_PRINT,
                 "%s: overlay %d is covered by layer %d\n", __func__, index, i);
@@ -370,12 +366,9 @@ out_check:
     // check if frame buffer clear is needed
     if (useOverlay) {
         ALOGD("isOverlayLayer: got an overlay layer");
-        if (needClearFb) {
-            //layer->hints |= HWC_HINT_CLEAR_FB;
-            ALOGD_IF(ALLOW_HWC_PRINT, "isOverlayLayer: clear fb");
-            mForceSwapBuffer = true;
-        }
         layer->compositionType = HWC_OVERLAY;
+        if (needClearFb)
+            ALOGD_IF(ALLOW_HWC_PRINT, "isOverlayLayer: clear fb");
     }
 
     flags = 0;
@@ -389,7 +382,7 @@ void IntelMIPIDisplayDevice::revisitLayerList(hwc_display_contents_1_t *list, bo
     if (!list)
         return;
 
-    for (size_t i = 0; i < list->numHwLayers-1; i++) {
+    for (size_t i = 0; i < (size_t)mLayerList->getLayersCount(); i++) {
         int flags = 0;
 
         // also need check whether a layer can be handled in general
@@ -451,7 +444,7 @@ void IntelMIPIDisplayDevice::onGeometryChanged(hwc_display_contents_1_t *list)
         goto out_check;
     }
 
-    for (size_t i = 0; list && i < list->numHwLayers-1; i++) {
+    for (size_t i = 0; list && i < (size_t)mLayerList->getLayersCount(); i++) {
         // check whether a layer can be handled in general
         if (!isHWCLayer(&list->hwLayers[i]))
             continue;
@@ -504,17 +497,14 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
         return false;
     }
 
-    // delay 3 circles to disable useless overlay planes
-    static int counter = 0;
-    if (mPlaneManager->hasReclaimedOverlays()) {
-        if (++counter == 3) {
-            mPlaneManager->disableReclaimedPlanes(IntelDisplayPlane::DISPLAY_PLANE_OVERLAY);
-            counter = 0;
-        }
+    // FIXME: it is tricky here to wait for cycles to disable reclaim overlay;
+    // As processFlip cmd schedule in SGX maybe delayed more than one cycle,
+    // especially under the case of high quality video rotation.
+    static int cnt = 0;
+    if (mPlaneManager->hasReclaimedOverlays() && ++cnt == 3) {
+        mPlaneManager->disableReclaimedPlanes(IntelDisplayPlane::DISPLAY_PLANE_OVERLAY);
+        cnt = 0;
     }
-    else
-        counter = 0;
-
 
     // clear force swap buffer flag
     mForceSwapBuffer = false;
@@ -564,8 +554,8 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
             (list->flags & HWC_GEOMETRY_CHANGED)) {
             bool hasSkipLayer = false;
             ALOGD_IF(ALLOW_HWC_PRINT,
-                    "layers num:%d", list->numHwLayers-1);
-            for (size_t j = 0 ; j < list->numHwLayers-1 ; j++) {
+                    "layers num:%d", mLayerList->getLayersCount());
+            for (size_t j = 0 ; j < (size_t)mLayerList->getLayersCount(); j++) {
                 if (list->hwLayers[j].flags & HWC_SKIP_LAYER) {
                 hasSkipLayer = true;
                 break;
@@ -573,7 +563,7 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
             }
 
             if (!hasSkipLayer) {
-                if ((list->numHwLayers-1) == 1)
+                if (mLayerList->getLayersCount() == 1)
                     mDrm->notifyMipi(false);
                 else
                     mDrm->notifyMipi(true);
@@ -586,11 +576,6 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
         ALOGD_IF(ALLOW_HWC_PRINT, "prepare: revisiting layer list\n");
         revisitLayerList(list, false);
     }
-
-    //FIXME: we have to clear fb by hwc itself because
-    //surfaceflinger can't do proper clear now.
-    if (mForceSwapBuffer)
-        mLayerList->clearWithOpenGL();
 
     return true;
 }
@@ -657,7 +642,11 @@ bool IntelMIPIDisplayDevice::commit(hwc_display_contents_1_t *list,
     { //if (mFBDev->bBypassPost) {
         buffer_handle_t *bufferHandles = bh;
         // setup primary plane contexts if swap buffers is needed
-        if (needSwapBuffer && list->hwLayers[list->numHwLayers-1].handle) {
+        if (needSwapBuffer &&
+            mLayerList->getLayersCount() > 0 &&
+            list->hwLayers[list->numHwLayers-1].handle &&
+            list->hwLayers[list->numHwLayers-1].compositionType ==
+                                            HWC_FRAMEBUFFER_TARGET) {
             flipFramebufferContexts(context);
             bufferHandles[numBuffers++] = list->hwLayers[list->numHwLayers-1].handle;
         }
@@ -665,7 +654,7 @@ bool IntelMIPIDisplayDevice::commit(hwc_display_contents_1_t *list,
         // Call plane's flip for each layer in hwc_layer_list, if a plane has
         // been attached to a layer
         // First post RGB layers, then overlay layers.
-        for (size_t i=0 ; list && i<list->numHwLayers-1 ; i++) {
+        for (size_t i=0 ; list && i<(size_t)mLayerList->getLayersCount(); i++) {
             IntelDisplayPlane *plane = mLayerList->getPlane(i);
             int flags = mLayerList->getFlags(i);
 
@@ -953,13 +942,37 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
     } else
          mFBDev->bBypassPost = 0; //cfg.bypasspost;
 
-    for (size_t i=0 ; i<list->numHwLayers-1 ; i++) {
+    for (size_t i=0 ; i<(size_t)mLayerList->getLayersCount(); i++) {
         hwc_layer_1_t *layer = &list->hwLayers[i];
+        // layer safety check
+        if (!isHWCLayer(layer))
+            continue;
+
         intel_gralloc_buffer_handle_t *grallocHandle =
             (intel_gralloc_buffer_handle_t*)layer->handle;
 
-        if (grallocHandle &&
-            grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12) {
+        // check plane
+        plane = mLayerList->getPlane(i);
+        if (!plane)
+            continue;
+
+        // get layer parameter
+        int bobDeinterlace;
+        int srcX = layer->sourceCrop.left;
+        int srcY = layer->sourceCrop.top;
+        int srcWidth = layer->sourceCrop.right - layer->sourceCrop.left;
+        int srcHeight = layer->sourceCrop.bottom - layer->sourceCrop.top;
+        int planeType = plane->getPlaneType();
+
+        if(srcHeight == 1 || srcWidth == 1) {
+            mLayerList->detachPlane(i, plane);
+            layer->compositionType = HWC_FRAMEBUFFER;
+            handled = false;
+            continue;
+        }
+
+        // need to wait for video buffer ready before setting data buffer
+        if (grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12) {
             // map payload buffer
             IntelDisplayBuffer *buffer =
                 mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
@@ -980,49 +993,14 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
             //wait video buffer idle
             mGrallocBufferManager->waitIdle(payload->khandle);
         }
-        plane = mLayerList->getPlane(i);
-        if (!plane)
-            continue;
 
-        // clear layer's visible region if need clear up flag was set
-        // and sprite plane was used as primary plane (point to FB)
-        if (mLayerList->getNeedClearup(i) &&
-            mPlaneManager->primaryAvailable(0)) {
-            ALOGD_IF(ALLOW_HWC_PRINT,
-                  "updateLayersData: clear visible region of layer %d", i);
-            list->hwLayers[i].hints |= HWC_HINT_CLEAR_FB;
-        }
-
-        int bobDeinterlace;
-        int srcX = layer->sourceCrop.left;
-        int srcY = layer->sourceCrop.top;
-        int srcWidth = layer->sourceCrop.right - layer->sourceCrop.left;
-        int srcHeight = layer->sourceCrop.bottom - layer->sourceCrop.top;
-        int planeType = plane->getPlaneType();
-
-        if(srcHeight == 1 || srcWidth == 1) {
-            mLayerList->detachPlane(i, plane);
-            layer->compositionType = HWC_FRAMEBUFFER;
-            handled = false;
-            continue;
-        }
-
-        // get & setup overlay data buffer
+        // get & setup data buffer and buffer format
         IntelDisplayBuffer *buffer = plane->getDataBuffer();
         IntelDisplayDataBuffer *dataBuffer =
             reinterpret_cast<IntelDisplayDataBuffer*>(buffer);
         if (!dataBuffer) {
-            ALOGE("%s: invalid overlay data buffer\n", __func__);
+            ALOGE("%s: invalid data buffer\n", __func__);
             continue;
-        }
-
-        // if invalid gralloc buffer handle, throw back this layer to SF
-        if (!grallocHandle) {
-                ALOGE("%s: invalid buffer handle\n", __func__);
-                mLayerList->detachPlane(i, plane);
-                layer->compositionType = HWC_FRAMEBUFFER;
-                handled = false;
-                continue;
         }
 
         int bufferWidth = grallocHandle->width;
@@ -1058,11 +1036,7 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
                 continue;
             }
 
-            IntelOverlayContext *overlayContext =
-                reinterpret_cast<IntelOverlayContext*>(plane->getContext());
             int flags = mLayerList->getFlags(i);
-
-            // disable overlay if DELAY_DISABLE flag was set
             if (flags & IntelDisplayPlane::DELAY_DISABLE) {
                 ALOGD_IF(ALLOW_HWC_PRINT,
                        "updateLayerData: disable plane (DELAY)!");
@@ -1106,14 +1080,6 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
                 flags &= ~IntelDisplayPlane::BOB_DEINTERLACE;
             }
             mLayerList->setFlags(i, flags);
-
-            // clear FB first on first overlay frame
-            if (layer->compositionType == HWC_FRAMEBUFFER) {
-                ALOGD_IF(ALLOW_HWC_PRINT,
-                       "updateLayerData: first overlay frame clear fb");
-                //layer->hints |= HWC_HINT_CLEAR_FB;
-                mForceSwapBuffer = true;
-            }
 
             // switch to overlay
             layer->compositionType = HWC_OVERLAY;
@@ -1170,6 +1136,15 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
         } else {
             ALOGW("%s: invalid plane type %d\n", __func__, planeType);
             continue;
+        }
+
+        // clear layer's visible region if need clear up flag was set
+        // and sprite plane was used as primary plane (point to FB)
+        if (mLayerList->getNeedClearup(i) &&
+            mPlaneManager->primaryAvailable(0)) {
+            ALOGD_IF(ALLOW_HWC_PRINT,
+                  "updateLayersData: clear visible region of layer %d", i);
+            list->hwLayers[i].hints |= HWC_HINT_CLEAR_FB;
         }
     }
 

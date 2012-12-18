@@ -113,6 +113,14 @@ void IntelHDMIDisplayDevice::onGeometryChanged(hwc_display_contents_1_t *list)
 
     // update layer list with new list
     mLayerList->updateLayerList(list);
+
+    //skip all layers handling for extended video mode
+    if (mDrm->getDisplayMode() == OVERLAY_EXTEND) {
+        for (size_t i = 0; list && i < list->numHwLayers-1; i++) {
+            list->hwLayers[i].compositionType = HWC_OVERLAY;
+            list->hwLayers[i].hints = 0;
+        }
+    }
 }
 
 bool IntelHDMIDisplayDevice::prepare(hwc_display_contents_1_t *list)
@@ -159,6 +167,11 @@ bool IntelHDMIDisplayDevice::commit(hwc_display_contents_1_t *list,
     if (connection != DRM_MODE_CONNECTED) {
         ALOGW("%s: HDMI does not connected\n", __func__);
         return false;
+    }
+
+    if (mDrm->getDisplayMode() == OVERLAY_EXTEND) {
+        ALOGW("%s: bypass HDMI post under extended video mode\n", __func__);
+        return true;
     }
 
     void *context = mPlaneManager->getPlaneContexts();

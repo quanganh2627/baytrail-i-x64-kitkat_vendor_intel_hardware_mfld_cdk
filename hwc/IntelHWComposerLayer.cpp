@@ -101,10 +101,21 @@ void IntelHWComposerLayerList::updateLayerList(hwc_display_contents_1_t *layerLi
         return;
     }
 
-    numLayers = layerList->numHwLayers - 1;
+    numLayers = layerList->numHwLayers;
+    // reset numLayers minus one if HWC supports FRAMEBUFFER_TARGET
+    // For FRAMEBUFFER_TARGET we handle it separately
+    if (layerList->hwLayers[numLayers-1].compositionType == HWC_FRAMEBUFFER_TARGET)
+        numLayers = layerList->numHwLayers - 1;
 
-    if (numLayers <= 0 || !initCheck())
+    if (numLayers <= 0 || !initCheck()) {
+        mNumLayers = 0;
+        mNumRGBLayers = 0;
+        mNumYUVLayers = 0;
+        mAttachedSpritePlanes = 0;
+        mAttachedOverlayPlanes = 0;
+        mNumAttachedPlanes = 0;
         return;
+    }
 
     if (mNumLayers < numLayers) {
         delete [] mLayerList;
@@ -352,32 +363,4 @@ int IntelHWComposerLayerList::getYUVLayerCount() const
     }
 
     return mNumYUVLayers;
-}
-
-void IntelHWComposerLayerList::clearWithOpenGL() const
-{
-    drmModeModeInfoPtr mode;
-    mode = IntelHWComposerDrm::getInstance().getOutputMode(OUTPUT_MIPI0);
-
-    if (!mode || !mode->hdisplay || !mode->vdisplay) {
-        ALOGE("%s: failed to detect mode of output OUTPUT_MIPI0\n", __func__);
-        return;
-    }
-
-    ALOGD("%s: clear fb here, size %d x %d", __func__, mode->hdisplay, mode->vdisplay);
-    GLfloat vertices[][2] = {
-        { 0,  mode->vdisplay },
-        { 0,  0 },
-        { mode->hdisplay, 0 },
-        { mode->hdisplay, mode->vdisplay }
-    };
-
-    glColor4f(0, 0, 0, 0);
-
-    glDisable(GL_TEXTURE_EXTERNAL_OES);
-    glDisable(GL_TEXTURE_2D);
-    glDisable(GL_BLEND);
-
-    glVertexPointer(2, GL_FLOAT, 0, vertices);
-    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 }

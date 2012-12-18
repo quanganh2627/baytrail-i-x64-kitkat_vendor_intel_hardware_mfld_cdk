@@ -206,14 +206,19 @@ bool IntelDisplayDevice::isScreenshotActive(hwc_display_contents_1_t *list)
     if (!list || !list->numHwLayers)
         return false;
 
-    hwc_layer_1_t *topLayer = &list->hwLayers[list->numHwLayers - 1];
-    IntelWidiPlane* widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
-
+    // Bypass ext video mode
     if (mDrm->getDisplayMode() == OVERLAY_EXTEND)
         return false;
 
+    // bypass widi
+    IntelWidiPlane* widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
     if (widiPlane->isActive())
         return false;
+
+    if (mLayerList->getLayersCount() <= 0)
+        return true;
+
+    hwc_layer_1_t *topLayer = &list->hwLayers[mLayerList->getLayersCount()-1];
 
     if (!topLayer) {
         ALOGW("This might be a surfaceflinger BUG\n");
@@ -223,7 +228,8 @@ bool IntelDisplayDevice::isScreenshotActive(hwc_display_contents_1_t *list)
     if (!(topLayer->flags & HWC_SKIP_LAYER))
         return false;
 
-    for (size_t i = 0; i < list->numHwLayers-1; i++) {
+    // bypass protected video
+    for (size_t i = 0; i < (size_t)mLayerList->getLayersCount(); i++) {
         if (mLayerList->isProtectedLayer(i))
             return false;
     }
@@ -295,6 +301,10 @@ bool IntelDisplayDevice::isHWCLayer(hwc_layer_1_t *layer)
 
     // if (layer->flags & HWC_SKIP_LAYER)
     //    return false;
+
+    // bypass HWC_FRAMEBUFFER_TARGET
+    if (layer->compositionType == HWC_FRAMEBUFFER_TARGET)
+        return false;
 
     // check transform
     // if (!isHWCTransform(layer->transform))

@@ -373,6 +373,12 @@ static int open_device(struct hdmi_stream_out *out)
                            SND_PCM_ASYNC);
     }
 
+    if (err < 0) {
+        ALOGE("%s: Failed to open any ALSA device: %s", __func__, (char*)strerror(err));
+        out->handle = NULL;
+        goto err_open_device;
+    }
+
     ALOGD("pcm open = %d error = %s",out->handle,snd_strerror(err));
 
     err = set_hardware_params(out);

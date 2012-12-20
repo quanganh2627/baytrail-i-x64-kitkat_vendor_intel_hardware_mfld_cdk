@@ -62,6 +62,9 @@ enum{
 /*this is used to avoid starvation*/
 #define LATENCY_TO_BUFFER_SIZE_RATIO 2
 
+#define INTEL_HDMI_CARD          "hw:3"
+#define CHANNEL_MAP_REQUEST      3
+
 /* Configuration for a stream */
 struct pcm_config {
     unsigned int channels;
@@ -97,7 +100,7 @@ struct pcm_config pcm_config_default = {
 
 struct audio_device {
     struct audio_hw_device hw_device;
-
+    int sink_sup_channels;
     pthread_mutex_t lock;
 };
 
@@ -381,6 +384,12 @@ static int open_device(struct hdmi_stream_out *out)
 
     ALOGD("pcm open = %d error = %s",out->handle,snd_strerror(err));
 
+    if (err < 0) {
+        ALOGE("%s: Failed to open any ALSA device: %s", __func__, (char*)strerror(err));
+        out->handle = NULL;
+        goto err_open_device;
+    }
+
     err = set_hardware_params(out);
 
     if (err == 0)
@@ -527,10 +536,126 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
     return 0;
 }
 
+static int parse_channel_map()
+{
+  snd_ctl_t *hndl = NULL;
+  snd_ctl_elem_id_t *id;
+  snd_ctl_elem_info_t *info;
+  snd_ctl_elem_type_t type;
+  snd_ctl_elem_value_t *control;
+  int count=0,idx=0,numid=0,chmap=0,chcount=0;
+  int err = 0;
+
+  ALOGV("%s entered",__func__);
+
+  err = snd_ctl_open(&hndl,INTEL_HDMI_CARD,0);
+  if(err < 0){
+    ALOGE("[EDID]unable to open alsa mixer control %d",err);
+    ALOGW("[EDID]error !! returning default channel count");
+    return AUDIO_CHANNEL_OUT_STEREO;
+  }
+
+  snd_ctl_elem_id_alloca(&id);
+  snd_ctl_elem_info_alloca(&info);
+  snd_ctl_elem_value_alloca(&control);
+
+  /*retrieve the channel map info from mixer interface*/
+  snd_ctl_elem_id_set_interface(id,SND_CTL_ELEM_IFACE_MIXER);
+  snd_ctl_elem_id_set_numid(id,CHANNEL_MAP_REQUEST);
+
+  snd_ctl_elem_info_set_id(info,id);
+
+  if((err = snd_ctl_elem_info(hndl,info)) < 0){
+    ALOGE("%s: [EDID]cannot find the control element",__func__);
+    snd_ctl_close(hndl);
+    ALOGW("[EDID]error !! returning default channel count");
+    return AUDIO_CHANNEL_OUT_STEREO;
+  }
+
+  numid = snd_ctl_elem_info_get_numid(info);
+  type = snd_ctl_elem_info_get_type(info);
+  count = snd_ctl_elem_info_get_count(info);
+
+  ALOGV("[EDID]id = %d",numid);
+  ALOGV("[EDID]type = %d",type);
+  ALOGV("[EDID]count = %d",count);
+
+  snd_ctl_elem_value_set_id(control,id);
+
+  if((err = snd_ctl_elem_read(hndl,control)) < 0){
+     ALOGE("[EDID]can't read channel map %d",err);
+     return AUDIO_CHANNEL_OUT_STEREO;
+  }
+
+  type = snd_ctl_elem_info_get_type(info);
+  count = snd_ctl_elem_info_get_count(info);
+
+  for(idx = 0;idx<count;idx++){
+     chmap = snd_ctl_elem_value_get_integer(control,idx);
+     if(chmap > 0)  ++chcount;
+     ALOGD("[EDID]chmap = %li",snd_ctl_elem_value_get_integer(control,idx));
+  }
+
+  ALOGD("[EDID]valid number of channels supported by sink = %d",chcount);
+
+  snd_ctl_close(hndl);
+
+  ALOGV("%s exit",__func__);
+
+  if(chcount > 2)
+    return AUDIO_CHANNEL_OUT_5POINT1;
+  else
+    return AUDIO_CHANNEL_OUT_STEREO;
+}
+
+static int out_read_edid(const struct audio_stream *stream)
+{
+    struct hdmi_stream_out *out = (struct hdmi_stream_out *)stream;
+    struct audio_device *adev = out->dev;
+
+    /**read the channel max param from the sink*/
+    adev->sink_sup_channels = parse_channel_map();
+
+    ALOGV("%s sink supports 0x%x max channels", __func__,adev->sink_sup_channels);
+    return 0;
+}
+
 static char * out_get_parameters(const struct audio_stream *stream, const char *keys)
 {
-    ALOGV("%s unsupported", __func__);
-    return strdup("");
+    struct hdmi_stream_out *out = (struct hdmi_stream_out *)stream;
+    struct audio_device *adev = out->dev;
+    struct str_parms *params_in = str_parms_create_str(keys);
+    char *str;
+    char value[256];
+    int ret;
+
+    struct str_parms *params_out = str_parms_create();
+
+    ALOGV("%s Entered %s", __func__,keys);
+
+    ret = str_parms_get_str(params_in, AUDIO_PARAMETER_STREAM_SUP_CHANNELS, value, sizeof(value));
+    if (ret >= 0) {
+	/*read the channel support from sink*/
+	out_read_edid(stream);
+
+	if(adev->sink_sup_channels == AUDIO_CHANNEL_OUT_5POINT1){
+            strcat(value,"AUDIO_CHANNEL_OUT_5POINT1");
+	}
+	else{
+           strcat(value,"AUDIO_CHANNEL_OUT_STEREO");
+	}
+    } else {
+        str = strdup(keys);
+    }
+
+    str_parms_add_str(params_out, AUDIO_PARAMETER_STREAM_SUP_CHANNELS, value);
+    str = strdup(str_parms_to_str(params_out));
+
+    ALOGV("%s AUDIO_PARAMETER_STREAM_SUP_CHANNELS %s", __func__,str);
+    str_parms_destroy(params_in);
+    str_parms_destroy(params_out);
+
+    return str;
 }
 
 static uint32_t out_get_latency(const struct audio_stream_out *stream)
@@ -720,14 +845,20 @@ static int hdmi_dev_open_output_stream(struct audio_hw_device *dev,
     if (!out)
         return -ENOMEM;
 
+    out->dev          = hdmi_dev;
     out->channel_mask = AUDIO_CHANNEL_OUT_STEREO;
 
     if (flags & AUDIO_OUTPUT_FLAG_DIRECT) {
         ALOGV("%s: HDMI Multichannel",__func__);
         if (config->sample_rate == 0)
             config->sample_rate = pcm_config_default.rate;
-        if (config->channel_mask == 0)
-            config->channel_mask = AUDIO_CHANNEL_OUT_5POINT1;
+        if (config->channel_mask == 0){
+            /*read the channel support from sink*/
+            out_read_edid(out);
+            config->channel_mask = hdmi_dev->sink_sup_channels;
+            if(config->channel_mask == 0)
+               config->channel_mask = AUDIO_CHANNEL_OUT_5POINT1;
+        }
     } else {
         ALOGV("%s: HDMI Stereo",__func__);
         if (config->sample_rate == 0)
@@ -763,7 +894,7 @@ static int hdmi_dev_open_output_stream(struct audio_hw_device *dev,
     out->stream.get_render_position        = out_get_render_position;
     out->stream.get_next_write_timestamp   = out_get_next_write_timestamp;
 
-    out->dev        = hdmi_dev;
+//    out->dev        = hdmi_dev;
     out->latency    = DEFAULT_PERIOD_TIME * out->pcm_config.period_count;
 
     out->standby  = true;
@@ -774,6 +905,7 @@ static int hdmi_dev_open_output_stream(struct audio_hw_device *dev,
     // if one more request to open the pcm device comes, close
     // the already opened device. Audio Policy update needed
     // to support a single stream being fed to renderer
+
     if (active_stream_out != NULL && active_stream_out->handle != NULL) {
        ALOGV("%s: Closing already opened stream %x",__func__,active_stream_out->handle);
        ret = snd_pcm_drain(active_stream_out->handle);

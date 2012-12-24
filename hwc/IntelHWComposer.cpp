@@ -102,6 +102,9 @@ bool IntelHWComposer::handleDisplayModeChange()
 
     mDrm->detectMDSModeChange();
 
+    if (needSwitchVsyncSrc())
+        vsyncControl_l(1);
+
     for (size_t i=0; i<DISPLAY_NUM; i++)
         mDisplayDevice[i]->onHotplugEvent(true);
 
@@ -370,25 +373,10 @@ enable_out:
     return enabledVsyncs;
 }
 
-bool IntelHWComposer::vsyncControl(int enabled)
+uint32_t IntelHWComposer::getTargetVsync()
 {
     uint32_t targetVsyncs = 0;
-    uint32_t activeVsyncs = 0;
-    uint32_t enabledVsyncs = 0;
     IntelWidiPlane* widiPlane = 0;
-
-    ALOGV("vsyncControl, enabled %d\n", enabled);
-
-    if (enabled != 0 && enabled != 1)
-        return false;
-
-    android::Mutex::Autolock _l(mLock);
-
-    // for disable vsync request, disable all active vsyncs
-    if (!enabled) {
-        targetVsyncs = 0;
-        goto disable_vsyncs;
-    }
 
     // use fake vsync for widi extend video mode
     widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
@@ -400,6 +388,47 @@ bool IntelHWComposer::vsyncControl(int enabled)
         targetVsyncs |= (1 << VSYNC_SRC_HDMI);
     } else
         targetVsyncs |= (1 << VSYNC_SRC_MIPI);
+
+    return targetVsyncs;
+}
+
+bool IntelHWComposer::needSwitchVsyncSrc()
+{
+    uint32_t targetVsyncs;
+
+    if (!mActiveVsyncs)
+        return false;
+
+    targetVsyncs = getTargetVsync();
+    if (targetVsyncs != mActiveVsyncs)
+        return true;
+
+    return false;
+}
+
+bool IntelHWComposer::vsyncControl(int enabled)
+{
+    android::Mutex::Autolock _l(mLock);
+    return vsyncControl_l(enabled);
+}
+
+bool IntelHWComposer::vsyncControl_l(int enabled)
+{
+    uint32_t targetVsyncs = 0;
+    uint32_t activeVsyncs = 0;
+    uint32_t enabledVsyncs = 0;
+
+    ALOGV("vsyncControl, enabled %d\n", enabled);
+
+    if (enabled != 0 && enabled != 1)
+        return false;
+
+    // for disable vsync request, disable all active vsyncs
+    if (!enabled) {
+        targetVsyncs = 0;
+        goto disable_vsyncs;
+    }
+    targetVsyncs = getTargetVsync();
 
     // enable selected vsyncs
     enabledVsyncs = enableVsyncs(targetVsyncs);

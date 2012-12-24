@@ -110,6 +110,9 @@ private:
     bool handleDynamicModeSetting(void *data, int* modeIndex);
     uint32_t disableUnusedVsyncs(uint32_t target);
     uint32_t enableVsyncs(uint32_t target);
+    uint32_t getTargetVsync();
+    bool needSwitchVsyncSrc();
+    bool vsyncControl_l(int enabled);
     void signalHpdCompletion();
     void waitForHpdCompletion();
 public:

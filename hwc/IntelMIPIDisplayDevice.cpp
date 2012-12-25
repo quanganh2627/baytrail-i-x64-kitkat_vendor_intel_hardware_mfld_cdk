@@ -1285,10 +1285,10 @@ bool IntelMIPIDisplayDevice::getDisplayAttributes(uint32_t config,
             *values = mFBDev->base.height;
             break;
         case HWC_DISPLAY_DPI_X:
-            *values = mFBDev->base.xdpi;
+            *values = mFBDev->base.xdpi * 1000.0f;
             break;
         case HWC_DISPLAY_DPI_Y:
-            *values = mFBDev->base.ydpi;
+            *values = mFBDev->base.ydpi * 1000.0f;
             break;
         default:
             break;

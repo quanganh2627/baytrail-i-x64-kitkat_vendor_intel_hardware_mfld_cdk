@@ -308,7 +308,7 @@ bool IntelHWComposerDrm::detectDrmModeInfo()
 
     /*try to get drm resources*/
     drmModeResPtr resources = drmModeGetResources(mDrmFd);
-    if (!resources) {
+    if (!resources || !resources->connectors) {
         ALOGE("%s: fail to get drm resources. %s\n", __func__, strerror(errno));
         return false;
     }
@@ -435,7 +435,7 @@ IntelHWComposerDrm::getConnector(int disp)
     }
 
     drmModeResPtr resources = drmModeGetResources(mDrmFd);
-    if (!resources) {
+    if (!resources || !resources->connectors) {
         ALOGE("%s: fail to get drm resources. %s\n", __func__, strerror(errno));
         return NULL;
     }
@@ -496,7 +496,7 @@ IntelHWComposerDrm::getEncoder(int disp)
     }
 
     drmModeResPtr resources = drmModeGetResources(mDrmFd);
-    if (!resources) {
+    if (!resources || !resources->encoders) {
         ALOGE("%s: fail to get drm resources. %s\n", __func__, strerror(errno));
         return NULL;
     }
@@ -552,6 +552,9 @@ uint32_t IntelHWComposerDrm::getCrtcId(int disp)
     if (crtc_id == 0) {
         /* Query an available crtc to use */
         if ((resources = drmModeGetResources(mDrmFd)) == NULL)
+            return 0;
+
+        if (!resources->crtcs)
             return 0;
 
         for (i = 0; i < resources->count_crtcs; i++) {

@@ -575,13 +575,15 @@ bool IntelHWComposer::initialize()
     // open IMG frame buffer device
     hw_module_t const* module;
     if (hw_get_module(GRALLOC_HARDWARE_MODULE_ID, &module) == 0) {
-        IMG_gralloc_module_public_t *imgGrallocModule;
-        imgGrallocModule = (IMG_gralloc_module_public_t*)module;
-        mFBDev = imgGrallocModule->psFrameBufferDevice;
-        mFBDev->bBypassPost = 0; //cfg.bypasspost;
+        if (module) {
+            IMG_gralloc_module_public_t *imgGrallocModule;
+            imgGrallocModule = (IMG_gralloc_module_public_t*)module;
+            mFBDev = imgGrallocModule->psFrameBufferDevice;
+            mFBDev->bBypassPost = 0; //cfg.bypasspost;
+        }
     }
 
-    if (!mFBDev) {
+    if (!mFBDev && module) {
         framebuffer_open(module, (framebuffer_device_t**)&mFBDev);
     }
 

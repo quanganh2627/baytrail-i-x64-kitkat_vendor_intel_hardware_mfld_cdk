@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+ifeq ($(INTEL_HWC_MERRIFIELD),true)
+
 LOCAL_PATH := $(call my-dir)
-
-include $(LOCAL_PATH)/merrifield/Android.mk
-
-ifeq ($(INTEL_HWC),true)
 
 # HAL module implemenation, not prelinked and stored in
 # hw/<OVERLAY_HARDWARE_MODULE_ID>.<ro.product.board>.so
@@ -27,6 +25,7 @@ LOCAL_COPY_HEADERS_TO := hwc
 LOCAL_COPY_HEADERS := \
     IntelBufferManager.h \
     IntelDisplayPlaneManager.h \
+    IntelExternalDisplayMonitor.h \
     IntelHWCUEventObserver.h \
     IntelHWComposer.h \
     IntelHWComposerDrm.h \
@@ -39,16 +38,13 @@ LOCAL_COPY_HEADERS := \
     IntelWidiPlane.h \
     IntelWsbm.h \
     IntelWsbmWrapper.h
-ifeq ($(TARGET_HAS_MULTIPLE_DISPLAY),true)
-LOCAL_COPY_HEADERS += IntelExternalDisplayMonitor.h
-endif
 include $(BUILD_COPY_HEADERS)
 endif
 
 LOCAL_PRELINK_MODULE := false
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
 LOCAL_SHARED_LIBRARIES := liblog libEGL libcutils libdrm libpvr2d \
-                          libwsbm libsrv_um libui libutils libbinder\
+                          libwsbm libui libutils libbinder\
                           libhardware libGLESv1_CM
 LOCAL_SRC_FILES := IntelHWComposerModule.cpp \
                    IntelHWComposer.cpp \
@@ -87,10 +83,10 @@ LOCAL_C_INCLUDES := $(addprefix $(LOCAL_PATH)/../../, $(SGX_INCLUDES)) \
             frameworks/native/include/media/openmax \
             frameworks/native/opengl/include \
             hardware/libhardware_legacy/include/hardware_legacy \
-            hardware/intel/linux-2.6/drivers/staging/intel_media/common \
-            $(TARGET_OUT_HEADERS)/pvr/hal \
-            $(TARGET_OUT_HEADERS)/pvr/pvr2d \
-            $(TARGET_OUT_HEADERS)/pvr/include4 \
+            hardware/intel/linux-2.6/drivers/staging/mrfl/drv \
+            hardware/intel/linux-2.6/drivers/staging/mrfl/interface \
+            hardware/intel/PRIVATE/rgx/rogue/android/graphicshal \
+            hardware/intel/PRIVATE/rgx/rogue/include/ \
             $(TARGET_OUT_HEADERS)/drm \
             $(TARGET_OUT_HEADERS)/libdrm \
             $(TARGET_OUT_HEADERS)/libdrm/shared-core \
@@ -109,7 +105,7 @@ endif
 include $(BUILD_SHARED_LIBRARY)
 
 ifeq ($(INTEL_WIDI), true)
-include $(LOCAL_PATH)/libhwcwidi/Android.mk
+include $(LOCAL_PATH)/../libhwcwidi/Android.mk
 endif
 
 endif

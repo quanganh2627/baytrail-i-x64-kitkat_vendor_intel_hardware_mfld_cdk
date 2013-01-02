@@ -523,34 +523,7 @@ static int out_dump(const struct audio_stream *stream, int fd)
 
 static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
 {
-    struct hdmi_stream_out *out = (struct hdmi_stream_out *)stream;
-    struct str_parms *parms;
-    char value[32];
-    int ret = 0,
-        val = 0;
-
-    ALOGV("%s Entered", __func__);
-
-    parms = str_parms_create_str(kvpairs);
-
-    pthread_mutex_lock(&out->dev->lock);
-
-    ret = str_parms_get_str(parms, AUDIO_PARAMETER_STREAM_ROUTING, value, sizeof(value));
-    if (ret >= 0) {
-       val = atoi(value);
-       if (val & AUDIO_DEVICE_OUT_AUX_DIGITAL){
-          //pthread_mutex_unlock(&out->dev->lock);
-          /*we don't do anything here, so no need of standby. It will be needed
-          if we want to change the configuration parameters
-          CHECK - for scenarios where parameter setting is needed*/
-          //out_standby(stream);
-          //pthread_mutex_lock(&out->dev->lock);
-       }
-    }
-
-    pthread_mutex_unlock(&out->dev->lock);
-    str_parms_destroy(parms);
-
+    ALOGV("%s unsupported", __func__);
     return 0;
 }
 

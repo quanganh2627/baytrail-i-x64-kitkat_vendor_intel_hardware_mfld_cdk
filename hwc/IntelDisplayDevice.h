@@ -72,6 +72,7 @@ protected:
     bool mHotplugEvent;
     bool mIsConnected;
     bool mInitialized;
+    bool mIsScreenshotActive;
 
 protected:
     virtual bool isHWCUsage(int usage);

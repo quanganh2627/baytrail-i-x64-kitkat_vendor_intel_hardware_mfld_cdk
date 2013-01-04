@@ -502,7 +502,7 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
     // As processFlip cmd schedule in SGX maybe delayed more than one cycle,
     // especially under the case of high quality video rotation.
     static int cnt = 0;
-    if (mPlaneManager->hasReclaimedOverlays() && ++cnt == 3) {
+    if (mPlaneManager->hasReclaimedOverlays() && (!mIsScreenshotActive || ++cnt == 3)) {
         mPlaneManager->disableReclaimedPlanes(IntelDisplayPlane::DISPLAY_PLANE_OVERLAY);
         cnt = 0;
     }

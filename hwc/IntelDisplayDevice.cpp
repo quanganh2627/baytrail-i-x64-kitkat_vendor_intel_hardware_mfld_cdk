@@ -40,7 +40,7 @@ IntelDisplayDevice::IntelDisplayDevice(IntelDisplayPlaneManager *pm,
           mPlaneManager(pm), mDrm(drm), mLayerList(0),
           mDisplayIndex(index), mForceSwapBuffer(false),
           mHotplugEvent(false), mIsConnected(false),
-          mInitialized(false)
+          mInitialized(false), mIsScreenshotActive(false)
 {
     ALOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
 }
@@ -203,36 +203,13 @@ void IntelDisplayDevice::dumpLayerList(hwc_display_contents_1_t *list)
 
 bool IntelDisplayDevice::isScreenshotActive(hwc_display_contents_1_t *list)
 {
-    if (!list || !list->numHwLayers)
+    if (!list || !list->numHwLayers) {
+        mIsScreenshotActive = false;
         return false;
-
-    // Bypass ext video mode
-    if (mDrm->getDisplayMode() == OVERLAY_EXTEND)
-        return false;
-
-    // bypass widi
-    IntelWidiPlane* widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
-    if (widiPlane->isActive())
-        return false;
-
-    if (mLayerList->getLayersCount() <= 0)
-        return true;
+    }
 
     hwc_layer_1_t *topLayer = &list->hwLayers[mLayerList->getLayersCount()-1];
-
-    if (!topLayer) {
-        ALOGW("This might be a surfaceflinger BUG\n");
-        return false;
-    }
-
-    if (!(topLayer->flags & HWC_SKIP_LAYER))
-        return false;
-
-    // bypass protected video
-    for (size_t i = 0; i < (size_t)mLayerList->getLayersCount(); i++) {
-        if (mLayerList->isProtectedLayer(i))
-            return false;
-    }
+    IntelWidiPlane* widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
 
     int x = topLayer->displayFrame.left;
     int y = topLayer->displayFrame.top;
@@ -242,11 +219,40 @@ bool IntelDisplayDevice::isScreenshotActive(hwc_display_contents_1_t *list)
     drmModeFBPtr fbInfo =
         IntelHWComposerDrm::getInstance().getOutputFBInfo(mDisplayIndex);
 
-    if (x == 0 && y == 0 &&
-        w == int(fbInfo->width) && h == int(fbInfo->height))
-        return true;
+    // Bypass ext video mode/ widi
+    if (mDrm->getDisplayMode() == OVERLAY_EXTEND ||
+        widiPlane->isActive()) {
+        mIsScreenshotActive = false;
+        goto exit;
+    }
 
-    return false;
+    // bypass protected video
+    for (size_t i = 0; i < (size_t)mLayerList->getLayersCount(); i++) {
+        if (mLayerList->isProtectedLayer(i)) {
+            mIsScreenshotActive = false;
+            goto exit;
+        }
+    }
+
+    if (mLayerList->getLayersCount() <= 0) {
+        mIsScreenshotActive = true;
+        goto exit;
+    }
+
+    if (!(topLayer->flags & HWC_SKIP_LAYER)) {
+        mIsScreenshotActive = false;
+        goto exit;
+    }
+
+    if (x == 0 && y == 0 &&
+        w == int(fbInfo->width) && h == int(fbInfo->height)) {
+        mIsScreenshotActive = true;
+        goto exit;
+    }
+
+    mIsScreenshotActive = false;
+exit:
+    return mIsScreenshotActive;
 }
 
 // Check the usage of a buffer

@@ -25,7 +25,6 @@ LOCAL_COPY_HEADERS_TO := hwc
 LOCAL_COPY_HEADERS := \
     IntelBufferManager.h \
     IntelDisplayPlaneManager.h \
-    IntelExternalDisplayMonitor.h \
     IntelHWCUEventObserver.h \
     IntelHWComposer.h \
     IntelHWComposerDrm.h \
@@ -38,6 +37,9 @@ LOCAL_COPY_HEADERS := \
     IntelWidiPlane.h \
     IntelWsbm.h \
     IntelWsbmWrapper.h
+ifeq ($(TARGET_HAS_MULTIPLE_DISPLAY),true)
+LOCAL_COPY_HEADERS += IntelExternalDisplayMonitor.h
+endif
 include $(BUILD_COPY_HEADERS)
 endif
 

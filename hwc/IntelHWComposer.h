@@ -98,8 +98,8 @@ private:
     uint32_t mVsyncsCount;
     nsecs_t mVsyncsTimestamp;
 
-    mutable Mutex mHpdLock;
-    Condition mHpdCondition;
+    mutable android::Mutex mHpdLock;
+    android::Condition mHpdCondition;
     bool mHpdCompletion;
 #ifdef INTEL_RGB_OVERLAY
     IntelHWCWrapper mWrapper;

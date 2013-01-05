@@ -68,7 +68,7 @@ IntelHWComposer::~IntelHWComposer()
 
 void IntelHWComposer::signalHpdCompletion()
 {
-    Mutex::Autolock _l(mHpdLock);
+    android::Mutex::Autolock _l(mHpdLock);
     if (mHpdCompletion == false) {
         mHpdCompletion = true;
         mHpdCondition.signal();
@@ -78,7 +78,7 @@ void IntelHWComposer::signalHpdCompletion()
 
 void IntelHWComposer::waitForHpdCompletion()
 {
-    Mutex::Autolock _l(mHpdLock);
+    android::Mutex::Autolock _l(mHpdLock);
 
     // time out for 300ms
     nsecs_t reltime = 300000000;

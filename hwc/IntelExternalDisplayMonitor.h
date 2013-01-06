@@ -61,6 +61,7 @@ class IntelExternalDisplayMonitor :
 {
 public:
     enum {
+        MSG_TYPE_MDS_UNDEFINED = -1,
         MSG_TYPE_UEVENT = 0,
         MSG_TYPE_MDS,
         MSG_TYPE_MDS_ORIENTATION_CHANGE,

@@ -65,7 +65,7 @@ IntelExternalDisplayMonitor::IntelExternalDisplayMonitor(IntelHWComposer *hwc) :
     mWidiOn(false),
     mInitialized(false),
     mComposer(hwc),
-    mLastMsg(MSG_TYPE_MDS_HOTPLUG_OUT)
+    mLastMsg(MSG_TYPE_MDS_UNDEFINED)
 {
     ALOGD_IF(ALLOW_MONITOR_PRINT, "External display monitor created");
     initialize();
@@ -101,8 +101,6 @@ int IntelExternalDisplayMonitor::onMdsMessage(int msg, void *data, int size)
             ret = mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2,
                     MSG_TYPE_MDS_ORIENTATION_CHANGE, data, NULL);
     } else {
-        int hwcmsg = MSG_TYPE_MDS;
-
         if (msg == MDS_MODE_CHANGE) {
             int mode = *((int*)data);
 
@@ -262,14 +260,17 @@ status_t IntelExternalDisplayMonitor::readyToRun()
                 ALOGI("Create a MultiDisplay client at HWC");
                 bool bWait = true;
                 mActiveDisplayMode = mMDClient->getMode(bWait);
-                if (getDisplayMode() == OVERLAY_CLONE_MIPI0)
+                mLastMsg = checkMdsMode(mActiveDisplayMode, MDS_HDMI_CONNECTED) ?
+                    MSG_TYPE_MDS_HOTPLUG_IN : MSG_TYPE_MDS_HOTPLUG_OUT;
+
+                if (getDisplayMode() == OVERLAY_CLONE_MIPI0) {
                     IntelHWComposerDrm::getInstance().setDisplayMode(OVERLAY_CLONE_MIPI0);
-                else if (getDisplayMode() == OVERLAY_EXTEND) {
+                } else if (getDisplayMode() == OVERLAY_EXTEND) {
                     IntelHWComposerDrm::getInstance().setDisplayMode(OVERLAY_EXTEND);
                     ALOGE("Impossible be here. Only clone mode or single mode is valid initialized state.");
-                }
-                else
+                } else {
                     IntelHWComposerDrm::getInstance().setDisplayMode(OVERLAY_MIPI0);
+                }
             }
             service->linkToDeath(this);
             break;
@@ -304,7 +305,7 @@ status_t IntelExternalDisplayMonitor::readyToRun()
     } else {
         ALOGI("Got MultiDisplay Service\n");
         if (mMDClient != NULL)
-            mMDClient->registerListener(this, "HWComposer", MDS_MODE_CHANGE | MDS_SET_TIMING);
+            mMDClient->registerListener(this, const_cast<char *>("HWComposer"), MDS_MODE_CHANGE | MDS_SET_TIMING);
     }
 
     return NO_ERROR;

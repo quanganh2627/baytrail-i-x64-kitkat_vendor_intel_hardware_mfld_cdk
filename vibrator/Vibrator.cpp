@@ -32,6 +32,7 @@ const char CVibrator::_vibrationReductionPercentagePropertyKey[] =  "Audiocomms.
 
 // Parameter framework of vibrator subsystem
 const char CVibrator::_acVibraPath[] =  "/etc/parameter-framework/ParameterFrameworkConfigurationVibrator.xml";
+const char CVibrator::_acVibraIsPresentPropName[] = "Audiocomms.Vibrator.IsPresent";
 const char CVibrator::_acLogsOnPropName[] = "Audiocomms.Vibrator.LogsOn";
 
 /// PFW related definitions
@@ -99,7 +100,10 @@ CVibrator::CVibrator() :
 
     /// Start
     std::string strError;
-    if (!_parameterMgrPlatformConnector->start(strError)) {
+    if (!TProperty<bool>("Audiocomms.Vibrator.IsPresent", true)) {
+
+        LOGI("parameter-framework [Vibrator] Hardware vibrator is not present!");
+    } else if (!_parameterMgrPlatformConnector->start(strError)) {
 
         LOGE("parameter-framework [Vibrator] start error: %s", strError.c_str());
     } else {
@@ -157,6 +161,14 @@ void CVibrator::fillSelectionCriterionType(ISelectionCriterionTypeInterface* pSe
 // Vibrator switch on/off
 bool CVibrator::switchOn(int32_t iDurationMs)
 {
+    if (!isPresent()) {
+
+        return false;
+    }
+
+    // Pass in ms the duration of the vibration
+    LOGD("%s : Turn ON vibrator for %d ms request", __FUNCTION__, iDurationMs);
+
     if (iDurationMs < 0) {
 
         LOGW("%s : Unable to switch on (negative duration required)", __FUNCTION__);
@@ -175,6 +187,13 @@ bool CVibrator::switchOn(int32_t iDurationMs)
 
 bool CVibrator::switchOff()
 {
+    if (!isPresent()) {
+
+        return false;
+    }
+
+    LOGD("%s : Turn OFF vibrator request", __FUNCTION__);
+
     return processSwitchRequest(false);
 }
 

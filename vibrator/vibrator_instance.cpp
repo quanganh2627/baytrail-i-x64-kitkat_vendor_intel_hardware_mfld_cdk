@@ -37,16 +37,11 @@ static int intelVibraExists()
 
 static int intelVibraOn(int duration_ms)
 {
-    // Pass in ms the duration of the vibration
-    LOGD("%s : Turn ON vibrator for %d ms request", __FUNCTION__, duration_ms);
-
     return getInstance()->switchOn(duration_ms) ? 0 : -1;
 }
 
 static int intelVibraOff()
 {
-    LOGD("%s : Turn OFF vibrator request", __FUNCTION__);
-
     return getInstance()->switchOff() ? 0 : -1;
 }
 

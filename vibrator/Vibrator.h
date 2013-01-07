@@ -86,6 +86,7 @@ private:
 
     // Parameter framework of vibrator subsystem
     static const char _acVibraPath[];
+    static const char _acVibraIsPresentPropName[];
     static const char _acLogsOnPropName[];
 
     // Vibrator requested state

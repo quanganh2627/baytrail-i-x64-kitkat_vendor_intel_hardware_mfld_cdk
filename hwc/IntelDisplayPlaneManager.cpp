@@ -105,7 +105,7 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
             goto primary_init_err;
         }
 
-        for (; i < mSpritePlaneCount; i++) {
+        for (i = 0; i < mSpritePlaneCount; i++) {
             mSpritePlanes[i] =
                 new MedfieldSpritePlane(mDrmFd, i, mGrallocBufferManager);
             if (!mSpritePlanes[i]) {
@@ -160,20 +160,38 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
 zorder_config_err:
     free(mZOrderConfigs);
 overlay_alloc_err:
-    for (; i >= 0; i--)
-        delete mOverlayPlanes[i];
-    free(mOverlayPlanes);
-    mOverlayPlanes = 0;
+    if (mOverlayPlanes) {
+        for (int i = 0; i < mOverlayPlaneCount; i++) {
+            if (mOverlayPlanes[i]) {
+                mOverlayPlanes[i]->reset();
+                delete mOverlayPlanes[i];
+            }
+        }
+        free(mOverlayPlanes);
+        mOverlayPlanes = 0;
+    }
 sprite_init_err:
-    for (; i >= 0; i--)
-        delete mPrimaryPlanes[i];
-    free(mPrimaryPlanes);
-    mPrimaryPlanes = 0;
+    if (mSpritePlanes) {
+        for (int i = 0; i < mSpritePlaneCount; i++) {
+            if (mSpritePlanes[i]) {
+                mSpritePlanes[i]->reset();
+                delete mSpritePlanes[i];
+            }
+        }
+        free(mSpritePlanes);
+        mSpritePlanes = 0;
+    }
 primary_init_err:
-    for (; i >= 0; i--)
-	delete mSpritePlanes[i];
-    free(mSpritePlanes);
-    mSpritePlanes = 0;
+    if (mPrimaryPlanes) {
+        for (int i = 0; i < mPrimaryPlaneCount; i++) {
+            if (mPrimaryPlanes[i]) {
+                mPrimaryPlanes[i]->reset();
+                delete mPrimaryPlanes[i];
+            }
+        }
+        free(mPrimaryPlanes);
+        mPrimaryPlanes = 0;
+    }
 primary_alloc_err:
     free(mPlaneContexts);
     mInitialized = false;
@@ -217,7 +235,7 @@ IntelDisplayPlaneManager::~IntelDisplayPlaneManager()
             }
         }
         free(mOverlayPlanes);
-        mSpritePlanes = 0;
+        mOverlayPlanes = 0;
     }
 
     // delete zorder configs

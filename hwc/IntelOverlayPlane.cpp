@@ -892,7 +892,10 @@ bool IntelOverlayContext::setDataBuffer(IntelDisplayDataBuffer& buffer)
         return false;
     }
 
-    mOverlayBackBuffer->OCMD |= 0x1;
+    if (IntelHWComposerDrm::getInstance().isOverlayOff())
+        mOverlayBackBuffer->OCMD &= ~OVERLAY_ENABLE;
+    else
+        mOverlayBackBuffer->OCMD |= OVERLAY_ENABLE;
 
     if (buffer.mBobDeinterlace) {
         mOverlayBackBuffer->OCMD |= BUF_TYPE_FIELD;

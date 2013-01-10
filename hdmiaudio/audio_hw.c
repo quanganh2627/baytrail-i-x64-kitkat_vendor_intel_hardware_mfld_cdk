@@ -340,7 +340,7 @@ static int open_device(struct hdmi_stream_out *out)
     ALOGD("platform id = %d hardware id = %d",platform_id,hw_id);
 
     /*PR 3.3/4.0 device needs the channel masks to be powers of 2 (1,2,4,8)*/
-    if((out->pcm_config.channels > 2) && (hw_id == 3 || hw_id == 4) &&
+    if((out->pcm_config.channels > 2) &&
         (platform_id == MFLD_PHONE || platform_id == MFLD_TABLET))
        ALOGD("%s: opening Upmix_AndroidPlayback_HDMI for %d channels", __func__, out->pcm_config.channels);
     else
@@ -366,7 +366,7 @@ static int open_device(struct hdmi_stream_out *out)
        active_stream_out->handle = NULL;
     }
 
-    if((out->pcm_config.channels > 2) && (hw_id == 3 || hw_id == 4) &&
+    if((out->pcm_config.channels > 2) &&
         (platform_id == MFLD_PHONE || platform_id == MFLD_TABLET)) {
        err = snd_pcm_open(&out->handle, "Upmix_AndroidPlayback_HDMI", SND_PCM_STREAM_PLAYBACK,
                            SND_PCM_ASYNC);

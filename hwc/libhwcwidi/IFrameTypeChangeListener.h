@@ -55,8 +55,9 @@
  * Enumeration for the type of frame being served.
  */
 enum HWCFrameType {
-    HWC_FRAMETYPE_VIDEO,         /// Decoded output from video decoder
-    HWC_FRAMETYPE_FRAME_BUFFER,  /// Frames from frame buffer
+    HWC_FRAMETYPE_FRAME_BUFFER,      /// Frames from frame buffer
+    HWC_FRAMETYPE_VIDEO,             /// Decoded output from video decoder
+    HWC_FRAMETYPE_VIDEO_BACKGROUND,  /// Decoded output from video decoder for background
 };
 
 /**

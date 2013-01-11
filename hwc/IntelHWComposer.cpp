@@ -206,9 +206,18 @@ bool IntelHWComposer::onUEvent(const char *msg, int msgLen, int msgType, void *d
 {
     bool ret = false;
 #ifdef TARGET_HAS_MULTIPLE_DISPLAY
-    // if mds sent orientation change message, inform widi plane and return
+    // if mds sent orientation change message or set background video mode, inform widi plane and return
     if (msgType == IntelExternalDisplayMonitor::MSG_TYPE_MDS_ORIENTATION_CHANGE) {
         ALOGD("%s: got multiDisplay service orientation change event\n", __func__);
+    }
+
+    if (msgType == IntelExternalDisplayMonitor::MSG_TYPE_MDS_SET_BACKGROUND_VIDEO_MODE) {
+        ALOGD("%s: got multiDisplay service background video mode event\n", __func__);
+        if(mPlaneManager->isWidiActive()) {
+            IntelWidiPlane* widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
+            int value = *((int*)data);
+            widiPlane->setBackgroundVideoMode((bool)value);
+        }
     }
 
     if (msgType == IntelExternalDisplayMonitor::MSG_TYPE_MDS)

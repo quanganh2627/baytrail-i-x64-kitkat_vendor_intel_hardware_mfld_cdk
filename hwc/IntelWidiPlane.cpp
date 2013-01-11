@@ -63,7 +63,8 @@ IntelWidiPlane::IntelWidiPlane(int fd, int index, IntelBufferManager *bm)
       mPrevExtFrame((uint32_t)-1),
       mUseRotateHandle(false),
       mExtWidth(0),
-      mExtHeight(0)
+      mExtHeight(0),
+      mWidiFrameType(HWC_FRAMETYPE_FRAME_BUFFER)
 {
     ALOGD_IF(ALLOW_WIDI_PRINT, "Intel Widi Plane constructor");
 
@@ -188,7 +189,7 @@ switch_to_clone:
 void
 IntelWidiPlane::setBackgroundVideoMode(bool value) {
 
-    ALOGD_IF(ALLOW_WIDI_PRINT, "Set Background video mode = %d", value);
+    ALOGD_IF(ALLOW_WIDI_PRINT,"Set Background video mode in HWC = %d", value);
     mSetBackgroudVideoMode = value;
 }
 
@@ -198,14 +199,25 @@ IntelWidiPlane::isBackgroundVideoMode() {
 }
 
 void
-IntelWidiPlane::getNativeWindow(int*& nativeWindow) {
-    if(mState == WIDI_PLANE_STATE_STREAMING) {
-        nativeWindow = (int *)(mCurrExtFramePayload.p->native_window);
-        ALOGD_IF(ALLOW_WIDI_PRINT,"getNativeWindow nativeWindow = 0x%x", nativeWindow);
+IntelWidiPlane::getNativeWindow(int*& nativeWindow,intel_gralloc_buffer_handle_t* nHandle) {
+    if(nHandle == NULL) {
+        nativeWindow = NULL;
+        LOGE("nHandle is NULL");
+        return;
+    }
+    LOGI("Get the nativewindow ");
+    widiPayloadBuffer_t payload;
+    ssize_t index = mExtVideoBuffersMapping.indexOfKey(nHandle);
+    if (index == NAME_NOT_FOUND) {
+        if(mapPayloadBuffer(nHandle, &payload)) {
+            nativeWindow = (int *)(payload.p->native_window);
+            unmapPayloadBuffer(&payload);
+        } else
+            nativeWindow = NULL;
     }
     else {
-        nativeWindow = NULL;
-        ALOGD_IF(ALLOW_WIDI_PRINT, "Widi not streaming nativeWindow is Null");
+        payload = mExtVideoBuffersMapping.valueAt(index);
+        nativeWindow = (int *)(payload.p->native_window);
     }
 }
 
@@ -295,14 +307,25 @@ IntelWidiPlane::setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t 
     status_t ret = NO_ERROR;
     widiPayloadBuffer_t payload;
     bool isResolutionChanged = false;
+    bool isModeNeedChange = false;
 
     Mutex::Autolock _l(mExtBufferMapLock);
 
-    if(!isSurfaceMatching(nHandle))
+    if(!isSurfaceMatching(nHandle)) {
         return;
+    }
+    else if(mSetBackgroudVideoMode && mBackgroundWidiNw != NULL)
+    {
+       if(mWidiFrameType == HWC_FRAMETYPE_VIDEO)
+       {
+         LOGI("Call SendInitMode again as this is meant for background");
+         isModeNeedChange = true;
+       }
+    }
+
 
     // If the resolution is changed, reset
-    if(mExtWidth != width || mExtHeight != height) {
+    if(mExtWidth != width || mExtHeight != height || isModeNeedChange) {
 
         if(mExtVideoBuffersMapping.size()) {
             for(unsigned int i = 0; i < mExtVideoBuffersMapping.size(); i ++) {
@@ -359,7 +382,11 @@ IntelWidiPlane::setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t 
                     heightr = width;
                 }
 
-                ret = notifyFrameTypeChange(HWC_FRAMETYPE_VIDEO, widthr, heightr);
+                HWCFrameType frameType = HWC_FRAMETYPE_VIDEO;
+                if(mSetBackgroudVideoMode && (mBackgroundWidiNw == ((int *)(payload.p->native_window))))
+                    frameType = HWC_FRAMETYPE_VIDEO_BACKGROUND;
+
+                ret = notifyFrameTypeChange(frameType, widthr, heightr);
                 if (ret != NO_ERROR) {
                     ALOGE("Something went wrong setting the mode, we continue in clone mode");
                 }
@@ -412,6 +439,7 @@ status_t
 IntelWidiPlane::notifyFrameTypeChange(HWCFrameType frameType, uint32_t width, uint32_t height) {
 
     status_t ret = NO_ERROR;
+    mWidiFrameType = frameType;
     if(frameType == HWC_FRAMETYPE_FRAME_BUFFER) {
 
         if(mFrameTypeChangeListener != NULL) {
@@ -426,11 +454,11 @@ IntelWidiPlane::notifyFrameTypeChange(HWCFrameType frameType, uint32_t width, ui
         mExtHeight = 0;
         mWidiStatusChanged = true;
         mBackgroundWidiNw = NULL;
-    } else if(frameType == HWC_FRAMETYPE_VIDEO) {
+    } else if((frameType == HWC_FRAMETYPE_VIDEO) || (frameType == HWC_FRAMETYPE_VIDEO_BACKGROUND)) {
 
         if(mFrameTypeChangeListener != NULL) {
             FrameInfo frameInfo;
-            frameInfo.frameType = HWC_FRAMETYPE_VIDEO;
+            frameInfo.frameType = frameType;
             frameInfo.contentWidth = width;
             frameInfo.contentHeight = height;
             frameInfo.bufferWidth = mExtVideoBufferMeta.width;
@@ -449,11 +477,13 @@ IntelWidiPlane::notifyFrameTypeChange(HWCFrameType frameType, uint32_t width, ui
                 mWidiStatusChanged = true;
             } else {
                 clearExtVideoModeContext();
+                mBackgroundWidiNw = NULL;
                 ALOGE("Error setting Extended video mode ");
             }
         }
         else {
             clearExtVideoModeContext();
+            mBackgroundWidiNw = NULL;
             ALOGE("Error setting Extended video mode ");
         }
     }
@@ -479,7 +509,7 @@ IntelWidiPlane::clearExtVideoModeContext(bool lock) {
     mExtVideoBuffersMapping.clear();
     memset(&mCurrExtFramePayload, 0, sizeof(mCurrExtFramePayload));
     mPrevExtFrame = (uint32_t)-1;
-
+    mWidiFrameType = HWC_FRAMETYPE_FRAME_BUFFER;
     if(lock) {
         mExtBufferMapLock.unlock();
     }

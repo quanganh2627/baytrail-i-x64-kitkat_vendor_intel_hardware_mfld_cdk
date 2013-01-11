@@ -283,6 +283,42 @@ bool IntelMIPIDisplayDevice::isOverlayLayer(hwc_display_contents_1_t *list,
     }
 
     // Got a YUV layer, check external display status for extend video mode
+    if (widiPlane->isActive()) {
+        int srcWidth = layer->sourceCrop.right - layer->sourceCrop.left;
+        int srcHeight = layer->sourceCrop.bottom - layer->sourceCrop.top;
+
+        if(widiPlane->isBackgroundVideoMode() && widiPlane->isStreaming() && (mWidiNativeWindow != NULL)) {
+            if(!(widiPlane->isSurfaceMatching(grallocHandle))) {
+                useOverlay = false;
+                goto out_check;
+            }
+        }
+
+        if(!(widiPlane->isExtVideoAllowed()) || (srcWidth < 176 || srcHeight < 176)
+            || (grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12)) {
+           /* If extended video mode is not allowed or the resolution of video less than
+            * 176 x 176 or Software decoder (e.g. VP8) is used, we stop here and let the
+            * video to be rendered via GFx plane by surface flinger. Video encoder has
+            * limitation that HW encoder can't encode video that is less than QCIF (176 x 144).
+            * Since video rotation metadata may tell us to rotate the image after decoding,
+            * our width and height fields might be reversed from the resolution that will
+            * be sent to WiDi. So we set the minimum resolution to 176x176 to guarantee
+            * that we can support the resolution even if rotation will be done, before trying
+            * to use extended mode.
+            */
+            useOverlay = false;
+            goto out_check;
+        }
+        if(widiPlane->isPlayerOn() && widiPlane->isExtVideoAllowed()) {
+            LOGD_IF(ALLOW_HWC_PRINT, "isOverlayLayer: widi video on and force overlay");
+            forceOverlay = true;
+        }
+    }
+    else
+    {
+        mWidiNativeWindow = NULL;
+    }
+
     // force to use overlay in video extend mode
     if (mDrm->getDisplayMode() == OVERLAY_EXTEND)
         forceOverlay = true;
@@ -532,6 +568,9 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
                         }
                     }
                     widiPlane->setPlayerStatus(mDrm->isVideoPlaying(), fps);
+
+                    if(!widiPlane->isPlayerOn())
+                        mWidiNativeWindow = NULL;
                 }
             }
             mHotplugEvent = false;
@@ -1000,28 +1039,28 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
 
         if (planeType == IntelDisplayPlane::DISPLAY_PLANE_OVERLAY) {
             if (widiplane) {
-                widiplane->setOverlayData(grallocHandle, srcWidth, srcHeight);
-                if(widiplane->isBackgroundVideoMode()) {
-                    if((mWidiNativeWindow == NULL) &&  widiplane->isStreaming()) {
-                        widiplane->getNativeWindow(mWidiNativeWindow);
+                if(widiplane->isBackgroundVideoMode() && widiplane->isPlayerOn()) {
+                    if(mWidiNativeWindow == NULL) {
+                        widiplane->getNativeWindow(mWidiNativeWindow, grallocHandle);
                         if(mWidiNativeWindow != NULL) {
                             if(mDrm->isMdsSurface(mWidiNativeWindow)) {
-                                 widiplane->setNativeWindow(mWidiNativeWindow);
-                                 ALOGD_IF(ALLOW_HWC_PRINT,
-                                        "Native window is from MDS for widi at composer = 0x%p ", mWidiNativeWindow);
+                                widiplane->setNativeWindow(mWidiNativeWindow);
+                                LOGD_IF(ALLOW_HWC_PRINT,
+                                    "Native window is from MDS for widi at composer = 0x%x ", mWidiNativeWindow);
                             }
                             else {
                                 mWidiNativeWindow = NULL;
-                                ALOGD_IF(ALLOW_HWC_PRINT,"Native window is not from MDS");
+                                LOGI("Native window is not from MDS");
                             }
                         }
                     }
                 }
                 else {
                     mWidiNativeWindow = NULL;
-                    ALOGD_IF(ALLOW_HWC_PRINT,
-                           "Native window from widiplane for background  = %p", mWidiNativeWindow);
+                    LOGD_IF(ALLOW_HWC_PRINT,
+                           "Native window from widiplane for background  = %d", mWidiNativeWindow);
                 }
+                widiplane->setOverlayData(grallocHandle, srcWidth, srcHeight);
                 continue;
             }
 

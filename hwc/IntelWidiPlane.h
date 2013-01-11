@@ -75,7 +75,7 @@ public:
     void setBackgroundVideoMode(bool value);
     bool isBackgroundVideoMode();
     void setNativeWindow(int *nw);
-    void getNativeWindow(int*& nativeWindow);
+    void getNativeWindow(int*& nativeWindow, intel_gralloc_buffer_handle_t* nHandle);
     bool isSurfaceMatching(intel_gralloc_buffer_handle_t* nHandle);
     void setPlayerStatus(bool status, int fps);
     void setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t width, uint32_t height);
@@ -134,6 +134,7 @@ protected:
     uint32_t                        mExtWidth;
     uint32_t                        mExtHeight;
     int32_t *                       mBackgroundWidiNw;
+    HWCFrameType                    mWidiFrameType;
 };
 
 #else  // Stub implementation in case of widi module is not compiled
@@ -151,7 +152,7 @@ public:
     void setBackgroundVideoMode(bool value){return;};
     bool isBackgroundVideoMode() {return false;};
     void setNativeWindow(int *nw){};
-    void getNativeWindow(int*& nativeWindow){};
+    void getNativeWindow(int*& nativeWindow, intel_gralloc_buffer_handle_t* nHandle){};
     bool isSurfaceMatching(intel_gralloc_buffer_handle_t* nHandle){return false;};
     void setPlayerStatus(bool status, int fps) {return;};
 

@@ -95,11 +95,21 @@ int IntelExternalDisplayMonitor::onMdsMessage(int msg, void *data, int size)
     int modeIndex = -1;
 
     ALOGI("onMdsMessage: External display monitor onMdsMessage, %d size :%d ", msg, size);
-    if (msg == MDS_ORIENTATION_CHANGE) {
-        ALOGV("onMdsMessage: MDS_ORIENTATION_CHANGE received");
-        if (mWidiOn)
-            ret = mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2,
+    if ((msg == MDS_ORIENTATION_CHANGE || msg == MDS_SET_BACKGROUND_VIDEO_MODE) && mWidiOn) {
+        switch(msg) {
+            case MDS_ORIENTATION_CHANGE: {
+                ALOGV("onMdsMessage: MDS_ORIENTATION_CHANGE received");
+                ret = mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2,
                     MSG_TYPE_MDS_ORIENTATION_CHANGE, data, NULL);
+            } break;
+            case MDS_SET_BACKGROUND_VIDEO_MODE: {
+                ALOGV("onMdsMessage: MDS_SET_BACKGROUND_VIDEO_MODE received");
+                ret = mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2,
+                    MSG_TYPE_MDS_SET_BACKGROUND_VIDEO_MODE, data, NULL);
+            } break;
+            default:
+                break;
+        }
     } else {
         if (msg == MDS_MODE_CHANGE) {
             int mode = *((int*)data);
@@ -307,7 +317,7 @@ status_t IntelExternalDisplayMonitor::readyToRun()
     } else {
         ALOGI("Got MultiDisplay Service\n");
         if (mMDClient != NULL)
-            mMDClient->registerListener(this, const_cast<char *>("HWComposer"), MDS_MODE_CHANGE | MDS_SET_TIMING);
+            mMDClient->registerListener(this, const_cast<char *>("HWComposer"), MDS_MODE_CHANGE | MDS_SET_TIMING | MDS_SET_BACKGROUND_VIDEO_MODE);
     }
 
     return NO_ERROR;

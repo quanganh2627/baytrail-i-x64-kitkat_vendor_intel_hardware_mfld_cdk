@@ -46,64 +46,20 @@
 #include <IntelWidiPlane.h>
 #include <IntelOverlayUtil.h>
 
-#include "streaming/IWirelessDisplayService.h"
-#include "streaming/IWirelessDisplay.h"
-
-
 using namespace android;
-using namespace intel::widi;
-
-bool
-IntelWidiPlane::WidiInitThread::threadLoop() {
-
-    sp<IBinder> service;
-    sp<IServiceManager> sm = defaultServiceManager();
-    ALOGD_IF(ALLOW_WIDI_PRINT, "WidiPlane Init thread starting ");
-    do {
-        service = (sm->getService(String16("media.widi")));
-
-        if (service != 0) {
-            break;
-         }
-         ALOGW("Wireless display service not published, waiting...");
-         usleep(500000); // 0.5 s
-    } while(true);
-
-    ALOGD_IF(ALLOW_WIDI_PRINT, "Widi service found = %p", service.get());
-
-    mSelf->mWirelesDisplayservice = service;
-
-    sp<IWirelessDisplayService> widiService = interface_cast<IWirelessDisplayService>(service);
-
-    status_t s = widiService->registerHWPlane(mSelf);
-    ALOGD_IF(ALLOW_WIDI_PRINT, "Widi plane registered status = %d", s);
-
-    service->linkToDeath(mSelf->mDeathNotifier);
-
-    {
-        Mutex::Autolock _l(mSelf->mLock);
-        mSelf->mState = WIDI_PLANE_STATE_INITIALIZED;
-        mSelf->mInitialized = true;
-    }
-
-    ALOGD_IF(ALLOW_WIDI_PRINT, "WidiPlane Init thread completed ");
-    return false;
-}
 
 IntelWidiPlane::IntelWidiPlane(int fd, int index, IntelBufferManager *bm)
     : IntelDisplayPlane(fd, IntelDisplayPlane::DISPLAY_PLANE_OVERLAY, index, bm),
       mAllowExtVideoMode(true),
       mSetBackgroudVideoMode(false),
       mBackgroundWidiNw(NULL),
-      mState(WIDI_PLANE_STATE_UNINIT),
+      mState(WIDI_PLANE_STATE_INITIALIZED),
       mWidiStatusChanged(false),
       mPlayerStatus(false),
       mStreamingEnabled(false),
       mExtFrameRate(30),
-      mInitThread(NULL),
-      mFlipListener(NULL),
-      mWirelessDisplay(NULL),
-      mCurrentOrientation(0),
+      mFrameListener(NULL),
+      mFrameTypeChangeListener(NULL),
       mPrevExtFrame((uint32_t)-1),
       mUseRotateHandle(false),
       mExtWidth(0),
@@ -115,21 +71,10 @@ IntelWidiPlane::IntelWidiPlane(int fd, int index, IntelBufferManager *bm)
     mExtVideoBuffersMapping.setCapacity(EXT_VIDEO_MODE_MAX_SURFACE);
     clearExtVideoModeContext();
 
-
-    /* defer initialization of widi plane to another thread
-     * we do this because the initialization may take long time and we do not
-     * want to hold out the HWC initialization.
-     * The initialization involves registering the plane to the Widi media server
-     * over binder
-     */
-
     mDeathNotifier = new DeathNotifier(this);
-
-    init(); // defer the rest to the thread;
+    mInitialized = true;
 
     ALOGD_IF(ALLOW_WIDI_PRINT, "Intel Widi Plane constructor- DONE");
-    return;
-
 }
 
 IntelWidiPlane::~IntelWidiPlane()
@@ -137,10 +82,6 @@ IntelWidiPlane::~IntelWidiPlane()
     ALOGD_IF(ALLOW_WIDI_PRINT, "Intel Widi Plane destructor");
     if (initCheck()) {
         mInitialized = false;
-        if(mInitThread == NULL) {
-                mInitThread->requestExitAndWait();
-                mInitThread.clear();
-         }
     }
 }
 
@@ -151,14 +92,17 @@ IntelWidiPlane::setPosition(int left, int top, int right, int bottom)
     }
 }
 
-
 status_t
-IntelWidiPlane::enablePlane(sp<IBinder> display) {
+IntelWidiPlane::enablePlane(sp<IFrameTypeChangeListener> typeChangeListener) {
     Mutex::Autolock _l(mLock);
 
     if(mState == WIDI_PLANE_STATE_INITIALIZED) {
         ALOGD_IF(ALLOW_WIDI_PRINT, "Plane Enabled !!");
-        mWirelessDisplay = display;
+        mFrameTypeChangeListener = typeChangeListener;
+        if(mFrameTypeChangeListener != NULL) {
+            sp<IBinder> b = mFrameTypeChangeListener->asBinder();
+            b->linkToDeath(mDeathNotifier);
+        }
         mState = WIDI_PLANE_STATE_ACTIVE;
         mWidiStatusChanged = true;
     }
@@ -184,35 +128,28 @@ IntelWidiPlane::disablePlane(bool isConnected) {
     else {
        if ((mState == WIDI_PLANE_STATE_ACTIVE) || (mState == WIDI_PLANE_STATE_STREAMING)) {
            ALOGV("Plane Disabled !!");
-           mWirelessDisplay = NULL;
            mState = WIDI_PLANE_STATE_INITIALIZED;
            mWidiStatusChanged = true;
+           if(mFrameTypeChangeListener != NULL) {
+               mFrameTypeChangeListener->asBinder()->unlinkToDeath(mDeathNotifier);
+               mFrameTypeChangeListener = NULL;
+           }
+           if(mFrameListener != NULL) {
+               mFrameListener->asBinder()->unlinkToDeath(mDeathNotifier);
+               mFrameListener = NULL;
+           }
            clearExtVideoModeContext();
         }
     }
     return;
 }
 
-status_t
-IntelWidiPlane::registerFlipListener(sp<IPageFlipListener> listener) {
-
-    mFlipListener = listener;
-    return NO_ERROR;
-}
-
 bool
 IntelWidiPlane::flip(void *context, uint32_t flags) {
 
-    ALOGD_IF(ALLOW_HWC_PRINT,
-                   "Widi Plane flip, flip listener = %p", mFlipListener.get());
-    if (mFlipListener != NULL && mState == WIDI_PLANE_STATE_ACTIVE && mStreamingEnabled) {
-        mFlipListener->pageFlipped(systemTime(),mCurrentOrientation);
-
-    } else if (mState == WIDI_PLANE_STATE_STREAMING) {
-
+    ALOGD_IF(ALLOW_HWC_PRINT, "Widi Plane flip");
+    if (mState == WIDI_PLANE_STATE_STREAMING) {
         Mutex::Autolock _l(mExtBufferMapLock);
-
-        sp<IWirelessDisplay> wd = interface_cast<IWirelessDisplay> (mWirelessDisplay);
 
         if(mCurrExtFramePayload.p == NULL) {
             return true;
@@ -232,9 +169,11 @@ IntelWidiPlane::flip(void *context, uint32_t flags) {
             goto switch_to_clone;
         }
 
-        status_t ret = wd->sendBuffer(khandle, mCurrExtFramePayload.p->timestamp);
-        if (ret == NO_ERROR) {
-            mCurrExtFramePayload.p->renderStatus = 1;
+        if(mFrameListener != NULL) {
+            status_t ret = mFrameListener->bufferAvailable(khandle, mCurrExtFramePayload.p->timestamp);
+            if (ret == NO_ERROR) {
+                mCurrExtFramePayload.p->renderStatus = 1;
+            }
         }
 
         mPrevExtFrame = khandle;
@@ -242,15 +181,8 @@ IntelWidiPlane::flip(void *context, uint32_t flags) {
     return true;
 
 switch_to_clone:
-    sendInitMode(IWirelessDisplay::WIDI_MODE_CLONE, 0, 0);
+    notifyFrameTypeChange(HWC_FRAMETYPE_FRAME_BUFFER, 0, 0);
     return true;
-}
-
-void
-IntelWidiPlane::allowExtVideoMode(bool allow) {
-
-    ALOGD_IF(ALLOW_WIDI_PRINT, "Allow Ext video mode = %d", allow);
-    mAllowExtVideoMode = allow;
 }
 
 void
@@ -324,14 +256,9 @@ IntelWidiPlane::setPlayerStatus(bool status, int fps) {
         }
         mPlayerStatus = status;
         if ( (mState == WIDI_PLANE_STATE_STREAMING) && status == false) {
-            sendInitMode(IWirelessDisplay::WIDI_MODE_CLONE,0,0);
+            notifyFrameTypeChange(HWC_FRAMETYPE_FRAME_BUFFER, 0, 0);
         }
     }
-}
-
-void
-IntelWidiPlane::setOrientation(uint32_t orientation) {
-    mCurrentOrientation = orientation;
 }
 
 bool
@@ -432,7 +359,7 @@ IntelWidiPlane::setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t 
                     heightr = width;
                 }
 
-                ret = sendInitMode(IWirelessDisplay::WIDI_MODE_EXTENDED_VIDEO, widthr, heightr);
+                ret = notifyFrameTypeChange(HWC_FRAMETYPE_VIDEO, widthr, heightr);
                 if (ret != NO_ERROR) {
                     ALOGE("Something went wrong setting the mode, we continue in clone mode");
                 }
@@ -481,36 +408,17 @@ IntelWidiPlane::isWidiStatusChanged() {
         return false;
 }
 
-
-void
-IntelWidiPlane::init() {
-
-    if(mInitThread != NULL) {
-        mInitThread->requestExitAndWait();
-        mInitThread.clear();
-    }
-
-    {
-        Mutex::Autolock _l(mLock);
-        mInitialized = false;
-        mState = WIDI_PLANE_STATE_UNINIT;
-    }
-
-    mInitThread = new WidiInitThread(this);
-    mInitThread->run();
-}
-
 status_t
-IntelWidiPlane::sendInitMode(int mode, uint32_t width, uint32_t height) {
+IntelWidiPlane::notifyFrameTypeChange(HWCFrameType frameType, uint32_t width, uint32_t height) {
 
     status_t ret = NO_ERROR;
-    sp<IWirelessDisplay> wd = interface_cast<IWirelessDisplay>(mWirelessDisplay);
+    if(frameType == HWC_FRAMETYPE_FRAME_BUFFER) {
 
-    if(mode == IWirelessDisplay::WIDI_MODE_CLONE) {
-
-        ret = wd->initMode(NULL,
-                           IWirelessDisplay::WIDI_MODE_CLONE,
-                           0, 0, 0, 0);
+        if(mFrameTypeChangeListener != NULL) {
+            FrameInfo frameInfo;
+            frameInfo.frameType = HWC_FRAMETYPE_FRAME_BUFFER;
+            mFrameListener = mFrameTypeChangeListener->frameTypeChanged(frameInfo);
+        }
         mState = WIDI_PLANE_STATE_ACTIVE;
         clearExtVideoModeContext();
         mUseRotateHandle = false;
@@ -518,25 +426,38 @@ IntelWidiPlane::sendInitMode(int mode, uint32_t width, uint32_t height) {
         mExtHeight = 0;
         mWidiStatusChanged = true;
         mBackgroundWidiNw = NULL;
-    } else if(mode == IWirelessDisplay::WIDI_MODE_EXTENDED_VIDEO) {
+    } else if(frameType == HWC_FRAMETYPE_VIDEO) {
 
-       ret = wd->initMode(&mExtVideoBufferMeta,
-                          IWirelessDisplay::WIDI_MODE_EXTENDED_VIDEO,
-                          width, height, mExtFrameRate, 1);
-
-       if (ret == NO_ERROR ) {
-           mState = WIDI_PLANE_STATE_STREAMING;
-           mWidiStatusChanged = true;
-       } else {
-
-           clearExtVideoModeContext();
-           ALOGE("Error setting Extended video mode ");
-       }
-
+        if(mFrameTypeChangeListener != NULL) {
+            FrameInfo frameInfo;
+            frameInfo.frameType = HWC_FRAMETYPE_VIDEO;
+            frameInfo.contentWidth = width;
+            frameInfo.contentHeight = height;
+            frameInfo.bufferWidth = mExtVideoBufferMeta.width;
+            frameInfo.bufferHeight = mExtVideoBufferMeta.height;
+            frameInfo.bufferFormat = mExtVideoBufferMeta.format;
+            frameInfo.lumaUStride = mExtVideoBufferMeta.luma_stride;
+            frameInfo.chromaUStride = mExtVideoBufferMeta.chroma_u_stride;
+            frameInfo.chromaVStride = mExtVideoBufferMeta.chroma_v_stride;
+            frameInfo.bufferChromaUStride = mExtVideoBufferMeta.chroma_u_stride;
+            frameInfo.bufferChromaVStride = mExtVideoBufferMeta.chroma_v_stride;
+            frameInfo.contentFrameRateN = mExtFrameRate;
+            frameInfo.contentFrameRateD = 1;
+            mFrameListener = mFrameTypeChangeListener->frameTypeChanged(frameInfo);
+            if (mFrameListener != NULL) {
+                mState = WIDI_PLANE_STATE_STREAMING;
+                mWidiStatusChanged = true;
+            } else {
+                clearExtVideoModeContext();
+                ALOGE("Error setting Extended video mode ");
+            }
+        }
+        else {
+            clearExtVideoModeContext();
+            ALOGE("Error setting Extended video mode ");
+        }
     }
-
     return ret;
-
 }
 
 void
@@ -566,7 +487,7 @@ IntelWidiPlane::clearExtVideoModeContext(bool lock) {
 
 void
 IntelWidiPlane::returnBuffer(int khandle) {
-    ALOGD_IF(ALLOW_WIDI_PRINT, "Buffer returned, index = %d", index);
+    ALOGD_IF(ALLOW_WIDI_PRINT, "Buffer returned, index = %d", khandle);
 
     Mutex::Autolock _l(mExtBufferMapLock);
 
@@ -585,28 +506,6 @@ IntelWidiPlane::returnBuffer(int khandle) {
 
 void
 IntelWidiPlane::DeathNotifier::binderDied(const wp<IBinder>& who) {
-    ALOGW("widi server died - trying to register again");
-
+    ALOGW("Frame listener died - disabling plane");
     mSelf->disablePlane(false);
-
-    mSelf->init();
-
-}
-
-IntelWidiPlane::DeathNotifier::~DeathNotifier() {
-    if (mSelf->mWirelesDisplayservice != 0) {
-        mSelf->mWirelesDisplayservice->unlinkToDeath(this);
-    }
-}
-
-status_t
-IntelWidiPlane::setOrientationChanged() {
-   ALOGI("%s()", __func__);
-   status_t ret = NO_ERROR;
-   sp<IWirelessDisplay> wd = interface_cast<IWirelessDisplay> (mWirelessDisplay);
-   ret = wd->setOrientationChanged();
-   if (ret != NO_ERROR)
-       ALOGE("IntelWidiPlane::setOrientationChanged binder error");
-
-   return ret;
 }

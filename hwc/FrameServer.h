@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012, Intel Corporation. All rights reserved.
+ * Copyright (c) 2013, Intel Corporation. All rights reserved.
  *
  * Redistribution.
  * Redistribution and use in binary form, without modification, are
@@ -40,50 +40,29 @@
  *
  */
 
+#ifndef ANDROID_FRAME_SERVER_H
+#define ANDROID_FRAME_SERVER_H
+
+#include <stdint.h>
+#include <sys/types.h>
+
+#include <utils/RefBase.h>
+#include <binder/IInterface.h>
 #include <binder/Parcel.h>
-#include <binder/IMemory.h>
-#include <binder/IPCThreadState.h>
-#include <binder/IServiceManager.h>
 
-#include <IPageFlipListener.h>
+#include "IFrameServer.h"
+#include "IntelWidiPlane.h"
 
-using namespace android;
-
-class BpPageFlipListener : public BpInterface<IPageFlipListener>
+class FrameServer : public BnFrameServer
 {
-public:
-    BpPageFlipListener(const sp<IBinder>& impl)
-        : BpInterface<IPageFlipListener>(impl)
-    {
-    }
+private:
+    IntelWidiPlane* mWidiPlane;
 
-    virtual void pageFlipped(int64_t time, uint32_t orientation)
-    {
-        Parcel data, reply;
-        data.writeInterfaceToken(IPageFlipListener::getInterfaceDescriptor());
-        data.writeInt64(time);
-        data.writeInt32(orientation);
-        remote()->transact(BnPageFlipListener::PAGE_FLIPPED, data, &reply);
-    }
+public:
+    FrameServer(IntelWidiPlane* widiPlane);
+    virtual android::status_t start(android::sp<IFrameTypeChangeListener> frameTypeChangeListener);
+    virtual android::status_t stop(bool isConnected);
+    virtual android::status_t notifyBufferReturned(int index);
 };
 
-IMPLEMENT_META_INTERFACE(PageFlipListener, "android.ui.IPageFlipListener");
-
-status_t BnPageFlipListener::onTransact(
-    uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
-{
-    switch(code) {
-        case PAGE_FLIPPED: {
-            CHECK_INTERFACE(IPageFlipListener, data, reply);
-            int64_t time = data.readInt64();
-            uint32_t orientation = data.readInt32();
-            pageFlipped(time, orientation);
-            reply->writeNoException();
-        } break;
-        default:
-            return BBinder::onTransact(code, data, reply, flags);
-    }
-    return NO_ERROR;
-}
-
-
+#endif // ANDROID_FRAME_SERVER_H

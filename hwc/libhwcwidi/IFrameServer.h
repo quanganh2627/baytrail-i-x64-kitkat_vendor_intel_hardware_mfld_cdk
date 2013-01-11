@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012, Intel Corporation. All rights reserved.
+ * Copyright (c) 2013, Intel Corporation. All rights reserved.
  *
  * Redistribution.
  * Redistribution and use in binary form, without modification, are
@@ -40,8 +40,8 @@
  *
  */
 
-#ifndef ANDROID_SF_IPAGE_FLIP_LISTENER_H
-#define ANDROID_SF_IPAGE_FLIP_LISTENER_H
+#ifndef ANDROID_I_FRAME_SERVER_H
+#define ANDROID_I_FRAME_SERVER_H
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -50,27 +50,49 @@
 #include <binder/IInterface.h>
 #include <binder/Parcel.h>
 
+#include "IFrameTypeChangeListener.h"
 
-class IPageFlipListener : public android::IInterface
+/**
+ * An interface for serving video frames to an external module.
+ * The external module needs to register an IFrameListener to
+ * be notified when a new frame is available.
+ */
+class IFrameServer : public android::IInterface
 {
 public:
-    DECLARE_META_INTERFACE(PageFlipListener);
+    DECLARE_META_INTERFACE(FrameServer);
 
-    virtual void pageFlipped(int64_t time, uint32_t orientation) = 0;
+    /**
+     * Start serving frames.
+     *
+     * @param typeChangeListener An object of IFrameTypeChangeListener interface
+     *                       which will be used by HWC to notify the external module.
+     * @return NO_ERROR if successful. TODO: Add other error codes.
+     */
+    virtual android::status_t start(android::sp<IFrameTypeChangeListener> typeChangeListener) = 0;
+    /**
+     * Stop serving frames.
+     *
+     * @param isConnected TODO: Check if this is really needed.
+     * @return NO_ERROR if successful TODO: Add other error codes.
+     */
+    virtual android::status_t stop(bool isConnected) = 0;
+    /**
+     * Signal HWC that a buffer has returned and can be reused.
+     *
+     * @param index Index of the buffer
+     * @return NO_ERROR if successful TODO: Add other error codes.
+     */
+    virtual android::status_t notifyBufferReturned(int index) = 0;
 };
 
-class BnPageFlipListener : public android::BnInterface<IPageFlipListener>
+class BnFrameServer : public android::BnInterface<IFrameServer>
 {
 public:
-    enum {
-        PAGE_FLIPPED = IBinder::FIRST_CALL_TRANSACTION,
-    };
-
     virtual android::status_t onTransact(   uint32_t code,
                                             const android::Parcel& data,
                                             android::Parcel* reply,
                                             uint32_t flags = 0);
 };
 
-
-#endif // ANDROID_SF_IPAGE_FLIP_LISTENER_H
+#endif // ANDROID_I_FRAME_SERVER_H

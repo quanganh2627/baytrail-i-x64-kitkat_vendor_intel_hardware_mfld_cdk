@@ -5,9 +5,9 @@ LOCAL_PATH:= $(call my-dir)
 #
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES:=               \
-    HwWidiPlaneProxy.cpp         \
-    IPageFlipListener.cpp
-
+    FrameServerProxy.cpp         \
+    FrameListenerProxy.cpp       \
+    FrameTypeChangeListenerProxy.cpp
 
 LOCAL_SHARED_LIBRARIES :=           \
     libutils                        \
@@ -16,8 +16,9 @@ LOCAL_SHARED_LIBRARIES :=           \
 
 #LOCAL_C_INCLUDES :=                                                 \
 
-LOCAL_COPY_HEADERS := IHwWidiPlane.h	\
-                      IPageFlipListener.h
+LOCAL_COPY_HEADERS := IFrameServer.h \
+                      IFrameTypeChangeListener.h \
+                      IFrameListener.h
 
 LOCAL_MODULE:= libhwcwidi
 LOCAL_MODULE_TAGS := optional

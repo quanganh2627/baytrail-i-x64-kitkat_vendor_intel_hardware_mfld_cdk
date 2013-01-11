@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012, Intel Corporation. All rights reserved.
+ * Copyright (c) 2013, Intel Corporation. All rights reserved.
  *
  * Redistribution.
  * Redistribution and use in binary form, without modification, are
@@ -40,50 +40,62 @@
  *
  */
 
-#ifndef INTEL_HWWIDIPLANE_H
-#define INTEL_HWWIDIPLANE_H
+//#define LOG_NDEBUG 0
+#define LOG_TAG "HWC-Widi-FrameListenerProxy"
 
-#include <utils/Errors.h>  // for status_t
-#include <utils/KeyedVector.h>
-#include <utils/RefBase.h>
-#include <utils/String8.h>
-#include <binder/IInterface.h>
+#include <stdint.h>
+#include <sys/types.h>
+
 #include <binder/Parcel.h>
-#include "IPageFlipListener.h"
+#include <binder/IMemory.h>
+#include <utils/Errors.h>  // for status_t
 
-namespace intel {
-namespace widi {
+#include "IFrameListener.h"
 
-class IWirelessDisplay;
+using namespace android;
 
-// This is the interface for Widi HW Plane  service. This interface is used for
-// Enabling the pseudo  HW-Composer plane in the HWC HAL Module
+enum {
+    BUFFER_AVAILABLE = IBinder::FIRST_CALL_TRANSACTION,
+};
 
-class IHwWidiPlane: public android::IInterface
+class BpFrameListener: public BpInterface<IFrameListener>
 {
 public:
-    DECLARE_META_INTERFACE(HwWidiPlane);
+    BpFrameListener(const sp<IBinder>& impl)
+        : BpInterface<IFrameListener>(impl)
+    {
+    }
 
-    virtual android::status_t  enablePlane(android::sp<android::IBinder> display) = 0;
-    virtual void disablePlane(bool isConnected) = 0;
-    virtual void allowExtVideoMode(bool allow) = 0;
-    virtual void setBackgroundVideoMode(bool value) = 0;
-    virtual android::status_t  registerFlipListener(android::sp<IPageFlipListener> listener) = 0;
-    virtual void returnBuffer(int index) = 0;
+    virtual status_t bufferAvailable(int khandle, int64_t timestamp)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IFrameListener::getInterfaceDescriptor());
+        data.writeInt32(khandle);
+        data.writeInt64(timestamp);
+        remote()->transact(BUFFER_AVAILABLE, data, &reply);
+        return reply.readInt32();
+    }
 };
+
+IMPLEMENT_META_INTERFACE(FrameListener, "android.widi.IFrameListener");
+
+// ----------------------------------------------------------------------
+
+status_t BnFrameListener::onTransact(
+    uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
+{
+    switch(code) {
+        case BUFFER_AVAILABLE: {
+            CHECK_INTERFACE(IFrameListener, data, reply);
+            int khandle = data.readInt32();
+            int64_t timestamp = data.readInt64();
+            bufferAvailable(khandle, timestamp);
+            reply->writeInt32(NO_ERROR);
+            return NO_ERROR;
+        } break;
+        default:
+            return BBinder::onTransact(code, data, reply, flags);
+    }
+}
 
 // ----------------------------------------------------------------------------
-
-class BnHwWidiPlane: public android::BnInterface<IHwWidiPlane>
-{
-public:
-    virtual android::status_t    onTransact( uint32_t code,
-                                    const android::Parcel& data,
-                                    android::Parcel* reply,
-                                    uint32_t flags = 0);
-};
-
-}; // namespace widi
-}; // namespace intel
-
-#endif // INTEL_HWWIDIPLANE_H

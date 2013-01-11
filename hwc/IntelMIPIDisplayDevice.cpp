@@ -138,12 +138,6 @@ bool IntelMIPIDisplayDevice::isSpriteLayer(hwc_display_contents_1_t *list,
         goto out_check;
     }
 
-    // Got a RGB layer, disable sprite plane when Widi is active
-    if (mPlaneManager->isWidiActive()) {
-        useSprite = false;
-        goto out_check;
-    }
-
     // fall back if HWC_SKIP_LAYER was set
     if ((layer->flags & HWC_SKIP_LAYER)) {
         ALOGD_IF(ALLOW_HWC_PRINT, "isSpriteLayer: HWC_SKIP_LAYER");
@@ -425,8 +419,6 @@ void IntelMIPIDisplayDevice::revisitLayerList(hwc_display_contents_1_t *list, bo
 // 2) attach planes to these layers which can be handled by HWC
 void IntelMIPIDisplayDevice::onGeometryChanged(hwc_display_contents_1_t *list)
 {
-    bool firstTime = true;
-
     // reclaim all planes
     bool ret = mLayerList->invalidatePlanes();
     if (!ret) {
@@ -471,11 +463,6 @@ void IntelMIPIDisplayDevice::onGeometryChanged(hwc_display_contents_1_t *list)
             }
         } else {
             list->hwLayers[i].compositionType = HWC_FRAMEBUFFER;
-            if(firstTime && mPlaneManager->isWidiActive() ) {
-                IntelWidiPlane *p = (IntelWidiPlane *)mPlaneManager->getWidiPlane();
-                p->setOrientation(list->hwLayers[i].transform);
-                firstTime = false;
-            }
         }
     }
 

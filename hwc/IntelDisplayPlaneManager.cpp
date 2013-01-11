@@ -44,6 +44,11 @@
  */
 #include <IntelDisplayPlaneManager.h>
 #include <IntelWidiPlane.h>
+#include <binder/ProcessState.h>
+#ifdef INTEL_WIDI
+#include <utils/Errors.h>
+#include "FrameServer.h"
+#endif
 
 IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
                                                    IntelBufferManager *bm,
@@ -57,6 +62,9 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
       mInitialized(false)
 {
     int i = 0;
+#ifdef INTEL_WIDI
+    status_t ret = NO_ERROR;
+#endif
 
     ALOGD_IF(ALLOW_PLANE_PRINT, "%s\n", __func__);
 
@@ -153,6 +161,14 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
         ALOGE("%s: failed to allocate widi plane %d\n", __func__, i);
         goto zorder_config_err;
     }
+#ifdef INTEL_WIDI
+    // Instantiate frame server and add it to service manager
+    ret = defaultServiceManager()->addService(String16("hwc.widi"), new FrameServer((IntelWidiPlane*) mWidiPlane));
+    if(ret != NO_ERROR) {
+        ALOGE("%s: Could not register hwc.widi with service manager, error = %d", __func__, ret);
+    }
+    ProcessState::self()->startThreadPool();
+#endif
 
     mInitialized = true;
     return;

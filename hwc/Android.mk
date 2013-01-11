@@ -73,9 +73,9 @@ LOCAL_MODULE := hwcomposer.$(TARGET_DEVICE)
 LOCAL_CFLAGS:= -DLOG_TAG=\"hwcomposer\" -DLINUX
 
 ifeq ($(INTEL_WIDI), true)
-LOCAL_SHARED_LIBRARIES += libwidistreaming libhwcwidi
-LOCAL_CFLAGS += -DINTEL_WIDI=1
-LOCAL_SRC_FILES += IntelWidiPlane.cpp
+LOCAL_SHARED_LIBRARIES += libhwcwidi
+LOCAL_CFLAGS += -DINTEL_WIDI
+LOCAL_SRC_FILES += IntelWidiPlane.cpp FrameServer.cpp
 endif
 
 ifeq ($(TARGET_SUPPORT_HWC_SYS_LAYER), true)

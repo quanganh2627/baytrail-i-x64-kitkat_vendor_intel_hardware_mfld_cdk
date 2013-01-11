@@ -209,12 +209,6 @@ bool IntelHWComposer::onUEvent(const char *msg, int msgLen, int msgType, void *d
     // if mds sent orientation change message, inform widi plane and return
     if (msgType == IntelExternalDisplayMonitor::MSG_TYPE_MDS_ORIENTATION_CHANGE) {
         ALOGD("%s: got multiDisplay service orientation change event\n", __func__);
-        if(mPlaneManager->isWidiActive()) {
-            IntelWidiPlane* widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
-            if (widiPlane->setOrientationChanged() != NO_ERROR) {
-                ALOGE("%s: error in sending orientation change event to widiplane", __func__);
-            }
-        }
     }
 
     if (msgType == IntelExternalDisplayMonitor::MSG_TYPE_MDS)

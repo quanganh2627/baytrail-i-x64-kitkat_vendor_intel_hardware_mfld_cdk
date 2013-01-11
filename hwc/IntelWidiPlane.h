@@ -52,7 +52,8 @@
 #include <utils/KeyedVector.h>
 #include <binder/IInterface.h>
 #include <binder/IServiceManager.h>
-#include "IHwWidiPlane.h"
+#include "IFrameListener.h"
+#include "IFrameTypeChangeListener.h"
 
 static const unsigned int EXT_VIDEO_MODE_MAX_SURFACE = 32;
 
@@ -61,17 +62,15 @@ typedef struct {
         IntelDisplayBuffer      *pDB;
 }widiPayloadBuffer_t;
 
-class IntelWidiPlane : public IntelDisplayPlane , public intel::widi::BnHwWidiPlane {
+class IntelWidiPlane : public IntelDisplayPlane, public RefBase {
 
 public:
     IntelWidiPlane(int fd, int index, IntelBufferManager *bufferManager);
     ~IntelWidiPlane();
     virtual void setPosition(int left, int top, int right, int bottom);
 
-    android::status_t  enablePlane(android::sp<android::IBinder> display);
+    android::status_t  enablePlane(sp<IFrameTypeChangeListener> typeChangelistener);
     void  disablePlane(bool isConnected);
-    android::status_t  registerFlipListener(android::sp<IPageFlipListener> listener);
-    void allowExtVideoMode(bool allow);
     bool isExtVideoAllowed() {return mAllowExtVideoMode;};
     void setBackgroundVideoMode(bool value);
     bool isBackgroundVideoMode();
@@ -79,7 +78,6 @@ public:
     void getNativeWindow(int*& nativeWindow);
     bool isSurfaceMatching(intel_gralloc_buffer_handle_t* nHandle);
     void setPlayerStatus(bool status, int fps);
-    void setOrientation(uint32_t orientation);
     void setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t width, uint32_t height);
     bool isStreaming() { return (mState == WIDI_PLANE_STATE_STREAMING); };
     bool isPlayerOn() { return mPlayerStatus; };
@@ -88,27 +86,16 @@ public:
     bool flip(void *contexts, uint32_t flags);
     bool isActive();
     bool isWidiStatusChanged();
-    android::status_t setOrientationChanged();
 
 protected:
     void init();
-    android::status_t sendInitMode(int mode, uint32_t width, uint32_t height);
+    android::status_t notifyFrameTypeChange(HWCFrameType frameType, uint32_t width, uint32_t height);
     bool mapPayloadBuffer(intel_gralloc_buffer_handle_t* gHandle, widiPayloadBuffer_t* wPayload);
     void unmapPayloadBuffer(widiPayloadBuffer_t* wPayload);
     void clearExtVideoModeContext(bool lock = true);
 
-    class WidiInitThread: public android::Thread {
-    public:
-        WidiInitThread(IntelWidiPlane* me): android::Thread(false), mSelf(me) {ALOGV("Widi Plane Init thread created");};
-        ~WidiInitThread(){ALOGV("Widi Plane Init thread destroyed");};
-
-    private:
-        bool  threadLoop();
-    private:
-        android::sp<IntelWidiPlane> mSelf;
-    };
     typedef enum {
-        WIDI_PLANE_STATE_UNINIT,
+        WIDI_PLANE_STATE_UNINIT, // TODO: UNINIT is not used anymore, remove?
         WIDI_PLANE_STATE_INITIALIZED,
         WIDI_PLANE_STATE_ACTIVE,
         WIDI_PLANE_STATE_STREAMING
@@ -118,7 +105,6 @@ protected:
     {
     public:
                 DeathNotifier(IntelWidiPlane* me): mSelf(me) {}
-        virtual ~DeathNotifier();
 
         virtual void binderDied(const android::wp<android::IBinder>& who);
     private:
@@ -134,11 +120,9 @@ protected:
     int                             mExtFrameRate;
 
     android::Mutex                  mLock;
-    android::sp<WidiInitThread>     mInitThread;
-    android::sp<IPageFlipListener>  mFlipListener;
     android::sp<DeathNotifier>      mDeathNotifier;
-    android::sp<IBinder>            mWirelesDisplayservice;
-    android::sp<IBinder>            mWirelessDisplay;
+    android::sp<IFrameListener>     mFrameListener; // to notify widi
+    android::sp<IFrameTypeChangeListener> mFrameTypeChangeListener; // to notify widi
     uint32_t                        mCurrentOrientation;
 
     android::Mutex                  mExtBufferMapLock;
@@ -163,7 +147,6 @@ public:
     virtual void setPosition(int left, int top, int right, int bottom){return;};
     void setOverlayData(intel_gralloc_buffer_handle_t* nHandle, uint32_t width, uint32_t height){};
 
-    void allowExtVideoMode(bool allow){return;};
     bool isExtVideoAllowed() {return true;};
     void setBackgroundVideoMode(bool value){return;};
     bool isBackgroundVideoMode() {return false;};
@@ -171,14 +154,12 @@ public:
     void getNativeWindow(int*& nativeWindow){};
     bool isSurfaceMatching(intel_gralloc_buffer_handle_t* nHandle){return false;};
     void setPlayerStatus(bool status, int fps) {return;};
-    void setOrientation(uint32_t orientation){return;};
 
     bool flip(void *contexts, uint32_t flags){return true;};
     bool isActive(){return false;};
     bool isStreaming() { return false; };
     bool isPlayerOn() { return false; };
     bool isWidiStatusChanged(){return false;};
-    android::status_t setOrientationChanged() {return android::NO_ERROR;};
 
 
 };

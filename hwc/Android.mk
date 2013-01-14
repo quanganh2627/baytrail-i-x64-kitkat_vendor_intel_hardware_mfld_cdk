@@ -87,7 +87,7 @@ LOCAL_C_INCLUDES := $(addprefix $(LOCAL_PATH)/../../, $(SGX_INCLUDES)) \
             frameworks/native/include/media/openmax \
             frameworks/native/opengl/include \
             hardware/libhardware_legacy/include/hardware_legacy \
-            hardware/intel/linux-2.6/drivers/staging/intel_media/common \
+            $(KERNEL_SRC_DIR)/drivers/staging/intel_media/common \
             $(TARGET_OUT_HEADERS)/pvr/hal \
             $(TARGET_OUT_HEADERS)/pvr/pvr2d \
             $(TARGET_OUT_HEADERS)/pvr/include4 \

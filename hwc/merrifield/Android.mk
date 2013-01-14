@@ -83,8 +83,8 @@ LOCAL_C_INCLUDES := $(addprefix $(LOCAL_PATH)/../../, $(SGX_INCLUDES)) \
             frameworks/native/include/media/openmax \
             frameworks/native/opengl/include \
             hardware/libhardware_legacy/include/hardware_legacy \
-            hardware/intel/linux-2.6/drivers/staging/mrfl/drv \
-            hardware/intel/linux-2.6/drivers/staging/mrfl/interface \
+            $(KERNEL_SRC_DIR)/drivers/staging/mrfl/drv \
+            $(KERNEL_SRC_DIR)/drivers/staging/mrfl/interface \
             hardware/intel/PRIVATE/rgx/rogue/android/graphicshal \
             hardware/intel/PRIVATE/rgx/rogue/include/ \
             $(TARGET_OUT_HEADERS)/drm \

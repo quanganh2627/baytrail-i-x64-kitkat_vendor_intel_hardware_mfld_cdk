@@ -622,7 +622,7 @@ bool IntelHWComposer::initialize()
     if (mDrm->detectDisplayConnection(OUTPUT_HDMI))
         handleHotplugEvent(1, NULL, NULL);
 
-    startObserver();
+    //startObserver();
 
     mInitialized = true;
 

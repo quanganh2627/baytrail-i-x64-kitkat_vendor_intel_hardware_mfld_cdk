@@ -640,7 +640,7 @@ bool IntelMIPIDisplayDevice::commit(hwc_display_contents_1_t *list,
              ALOGE("Widi Plane is NULL");
     }
 
-    { //if (mFBDev->bBypassPost) {
+    {
         buffer_handle_t *bufferHandles = bh;
         // setup primary plane contexts if swap buffers is needed
         if (needSwapBuffer &&
@@ -940,11 +940,8 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
     bool ret = true;
     bool handled = true;
 
-    if (mPlaneManager->isWidiActive()) {
+    if (mPlaneManager->isWidiActive())
          widiplane = (IntelWidiPlane*) mPlaneManager->getWidiPlane();
-         mFBDev->bBypassPost = 0;
-    } else
-         mFBDev->bBypassPost = 0; //cfg.bypasspost;
 
     for (size_t i=0 ; i<(size_t)mLayerList->getLayersCount(); i++) {
         hwc_layer_1_t *layer = &list->hwLayers[i];
@@ -1240,7 +1237,6 @@ bool IntelMIPIDisplayDevice::dump(char *buff,
 
        dumpPrintf("-------------MIPI runtime parameters -------------\n");
        dumpPrintf("  + mHotplugEvent: %d \n", mHotplugEvent);
-       dumpPrintf("  + bypassPost: %d \n", mFBDev->bBypassPost);
        dumpPrintf("  + mForceSwapBuffer: %d \n", mForceSwapBuffer);
        dumpPrintf("  + mForceSwapBuffer: %d \n", mForceSwapBuffer);
        dumpPrintf("  + Display Mode: %d \n", mDrm->getDisplayMode());

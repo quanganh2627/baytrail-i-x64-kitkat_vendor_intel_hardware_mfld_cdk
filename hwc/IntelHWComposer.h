@@ -69,9 +69,14 @@ public:
         VSYNC_SRC_NUM,
     };
     enum {
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
         DISPLAY_NUM = 2,
+#else
+        DISPLAY_NUM = 1,
+#endif
     };
 private:
+    IMG_framebuffer_device_public_t *mFBDev;
     IntelHWComposerDrm *mDrm;
     IntelBufferManager *mBufferManager;
     IntelBufferManager *mGrallocBufferManager;
@@ -91,7 +96,6 @@ private:
 
     int* mWidiNativeWindow;
     android::Mutex mLock;
-    IMG_framebuffer_device_public_t *mFBDev;
     bool mInitialized;
     uint32_t mActiveVsyncs;
     uint32_t mVsyncsEnabled;
@@ -138,7 +142,7 @@ public:
     bool compositionComplete(int disp);
     bool setFramecount(int cmd, int count, int x, int y);
     IntelHWComposer()
-        : IntelHWCUEventObserver(), IntelHWComposerDump(),
+        : IntelHWCUEventObserver(), IntelHWComposerDump(), mFBDev(0),
           mDrm(0), mBufferManager(0), mGrallocBufferManager(0),
           mCursorBufferManager(0), cursorDataBuffer(0),
           mPlaneManager(0),mProcs(0), mVsync(0), mFakeVsync(0),

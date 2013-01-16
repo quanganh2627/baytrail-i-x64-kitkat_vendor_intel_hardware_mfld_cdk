@@ -574,32 +574,38 @@ bool IntelHWComposer::initialize()
     ALOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
     // open IMG frame buffer device
     hw_module_t const* module;
-    if (hw_get_module(GRALLOC_HARDWARE_MODULE_ID, &module) == 0) {
-        if (module) {
-            IMG_gralloc_module_public_t *imgGrallocModule;
-            imgGrallocModule = (IMG_gralloc_module_public_t*)module;
-            mFBDev = imgGrallocModule->psFrameBufferDevice;
-            mFBDev->bBypassPost = 0; //cfg.bypasspost;
+    if (hw_get_module(GRALLOC_HARDWARE_MODULE_ID, &module) != 0) {
+        ALOGE("%s: failed to open IMG GRALLOC module\n", __func__);
+        goto err;
+    }
+
+    if (module) {
+        IMG_gralloc_module_public_t *imgGrallocModule;
+        imgGrallocModule = (IMG_gralloc_module_public_t*)module;
+        mFBDev = imgGrallocModule->psFrameBufferDevice;
+
+        if (!mFBDev) {
+            // try again to open FBDev if it is NULL in GrallocModule
+            framebuffer_open(module, (framebuffer_device_t**)&mFBDev);
         }
-    }
 
-    if (!mFBDev && module) {
-        framebuffer_open(module, (framebuffer_device_t**)&mFBDev);
+        if (!mFBDev) {
+            ALOGE("%s: failed to open IMG FB device\n", __func__);
+            goto err;
+        }
+        // set hwcRef to protect FBDev from being closed
+        mFBDev->hwcRef = true;
+    } else {
+        ALOGE("%s: IMG GRALLOC module is NULL\n", __func__);
+        goto err;
     }
-
-    if (!mFBDev) {
-        ALOGE("%s: failed to open IMG FB device\n", __func__);
-        return false;
-    }
-    mFBDev->hwcRef = true;
 
     //create new DRM object if not exists
     if (!mDrm) {
         mDrm = &IntelHWComposerDrm::getInstance();
         if (!mDrm) {
             ALOGE("%s: Invalid DRM object\n", __func__);
-            ret = false;
-            goto drm_err;
+            goto fbdev_err;
         }
 
         ret = mDrm->initialize(this);
@@ -609,6 +615,7 @@ bool IntelHWComposer::initialize()
         }
     }
 
+    //create Vsync Event Handler
     mVsync = new IntelVsyncEventHandler(this, mDrm->getDrmFd());
 
     mFakeVsync = new IntelFakeVsyncEvent(this);
@@ -619,14 +626,13 @@ bool IntelHWComposer::initialize()
         mBufferManager = new IntelBCDBufferManager(mDrm->getDrmFd());
         if (!mBufferManager) {
             ALOGE("%s: Failed to create buffer manager\n", __func__);
-            ret = false;
-            goto bm_err;
+            goto drm_err;
         }
         // do initialization
         ret = mBufferManager->initialize();
         if (ret == false) {
             ALOGE("%s: Failed to initialize buffer manager\n", __func__);
-            goto bm_init_err;
+            goto bm_err;
         }
     }
 
@@ -636,8 +642,7 @@ bool IntelHWComposer::initialize()
         mGrallocBufferManager = new IntelGraphicBufferManager(mDrm->getDrmFd());
         if (!mGrallocBufferManager) {
             ALOGE("%s: Failed to create Gralloc buffer manager\n", __func__);
-            ret = false;
-            goto gralloc_bm_err;
+            goto bm_err;
         }
 
         ret = mGrallocBufferManager->initialize();
@@ -654,11 +659,11 @@ bool IntelHWComposer::initialize()
                                          mBufferManager, mGrallocBufferManager);
         if (!mPlaneManager) {
             ALOGE("%s: Failed to create plane manager\n", __func__);
-            goto bm_init_err;
+            goto gralloc_bm_err;
         }
     }
 
-     // create display devices
+    // create display devices
     memset(mDisplayDevice, 0, sizeof(mDisplayDevice));
     for (size_t i=0; i<DISPLAY_NUM; i++) {
          if (i == HWC_DISPLAY_PRIMARY)
@@ -674,7 +679,7 @@ bool IntelHWComposer::initialize()
 
          if (!mDisplayDevice[i]) {
              ALOGE("%s: Failed to create plane manager\n", __func__);
-             goto bm_init_err;
+             goto device_err;
          }
     }
 
@@ -691,20 +696,41 @@ bool IntelHWComposer::initialize()
     ALOGD_IF(ALLOW_HWC_PRINT, "%s: successfully\n", __func__);
     return true;
 
+device_err:
+    for (size_t i=0; i<DISPLAY_NUM; i++) {
+        if (mDisplayDevice[i])
+            delete mDisplayDevice[i];
+        mDisplayDevice[i] = 0;
+    }
+
 pm_err:
-    delete mPlaneManager;
-bm_init_err:
-    delete mGrallocBufferManager;
+    if (mPlaneManager)
+        delete mPlaneManager;
+    mPlaneManager = 0;
+
 gralloc_bm_err:
-    delete mBufferManager;
-    mBufferManager = 0;
+    if (mGrallocBufferManager)
+        delete mGrallocBufferManager;
+    mGrallocBufferManager = 0;
+
 bm_err:
-    stopObserver();
-observer_err:
-    delete mDrm;
-    mDrm = 0;
+    if (mBufferManager)
+        delete mBufferManager;
+    mBufferManager = 0;
+
 drm_err:
-    return ret;
+    if (mDrm)
+        delete mDrm;
+    mDrm = 0;
+
+fbdev_err:
+    if (mFBDev) {
+        mFBDev->hwcRef = false;
+        framebuffer_close((framebuffer_device_t*)mFBDev);
+        mFBDev = NULL;
+    }
+err:
+    return false;
 }
 
 bool IntelHWComposer::prepareDisplays(size_t numDisplays,
@@ -713,8 +739,12 @@ bool IntelHWComposer::prepareDisplays(size_t numDisplays,
     android::Mutex::Autolock _l(mLock);
 
     for (size_t disp = 0; disp < numDisplays; disp++) {
+         if (disp >= DISPLAY_NUM)
+             break;
+
          hwc_display_contents_1_t *list = displays[disp];
-         mDisplayDevice[disp]->prepare(list);
+         if (list)
+             mDisplayDevice[disp]->prepare(list);
 
          if (disp && !list)
              signalHpdCompletion();
@@ -739,6 +769,9 @@ bool IntelHWComposer::commitDisplays(size_t numDisplays,
     int numBuffers = 0;
 
     for (size_t disp = 0; disp < numDisplays; disp++) {
+         if (disp >= DISPLAY_NUM)
+             break;
+
          hwc_display_contents_1_t *list = displays[disp];
 
          if (list)

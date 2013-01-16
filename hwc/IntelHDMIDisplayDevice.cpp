@@ -43,7 +43,8 @@ IntelHDMIDisplayDevice::IntelHDMIDisplayDevice(IntelBufferManager *bm,
                                   : IntelDisplayDevice(pm, drm, index),
                                     mBufferManager(bm),
                                     mGrallocBufferManager(gm),
-                                    mFBDev(fbdev)
+                                    mFBDev(fbdev),
+                                    mGraphicPlaneVisible(true)
 {
     ALOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
 
@@ -114,12 +115,27 @@ void IntelHDMIDisplayDevice::onGeometryChanged(hwc_display_contents_1_t *list)
     // update layer list with new list
     mLayerList->updateLayerList(list);
 
-    //skip all layers handling for extended video mode
-    if (mDrm->getDisplayMode() == OVERLAY_EXTEND) {
+    intel_overlay_mode_t mode = mDrm->getDisplayMode();
+    if (mode == OVERLAY_MIPI0) {
+        mGraphicPlaneVisible = false;
+    } else if (mode == OVERLAY_EXTEND) {
         for (size_t i = 0; list && i < list->numHwLayers-1; i++) {
-            list->hwLayers[i].compositionType = HWC_OVERLAY;
-            list->hwLayers[i].hints = 0;
+            if (mLayerList->getLayerType(i) ==
+                    IntelHWComposerLayer::LAYER_TYPE_YUV) {
+                list->hwLayers[i].compositionType = HWC_OVERLAY;
+                list->hwLayers[i].hints = 0;
+
+                // Check if the video is placed to a window
+                if (isVideoPutInWindow(OUTPUT_HDMI, &(list->hwLayers[i]))) {
+                    mGraphicPlaneVisible = false;
+                    ALOGD_IF(ALLOW_HWC_PRINT, "%s: In window mode", __func__);
+                } else {
+                    mGraphicPlaneVisible = true;
+                }
+            }
         }
+    } else {
+        mGraphicPlaneVisible = true;
     }
 }
 
@@ -179,9 +195,8 @@ bool IntelHDMIDisplayDevice::commit(hwc_display_contents_1_t *list,
         return false;
     }
 
-    intel_overlay_mode_t mode = mDrm->getDisplayMode();
-    if (mode != OVERLAY_CLONE_MIPI0) {
-        //ALOGE("%s: Bypass HDMI post if mode isn't clone mode", __func__);
+    if (!mGraphicPlaneVisible) {
+        ALOGV("%s: Skip FRAMEBUFFER_TARGET flip\n", __func__);
         return false;
     }
 
@@ -235,8 +250,8 @@ bool IntelHDMIDisplayDevice::flipFramebufferContexts(void *contexts,
     }
 
     intel_overlay_mode_t mode = mDrm->getDisplayMode();
-    if (mode == OVERLAY_EXTEND) {
-        ALOGV("%s: Skip FRAMEBUFFER_TARGET on video_ext mode\n", __func__);
+    if (!mGraphicPlaneVisible) {
+        ALOGD("%s: Skip FRAMEBUFFER_TARGET \n", __func__);
         return false;
     }
 

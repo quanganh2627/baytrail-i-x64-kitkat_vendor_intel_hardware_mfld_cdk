@@ -225,6 +225,7 @@ protected:
     IntelBufferManager *mBufferManager;
     int yStride;
     int uvStride;
+    bool mOnTop;
 
     bool backBufferInit();
     bool bufferOffsetSetup(IntelDisplayDataBuffer& buf);
@@ -255,7 +256,8 @@ public:
          mContext(0),
          mOverlayBackBuffer(0),
          mBackBuffer(0),
-         mSize(0) {}
+         mSize(0),
+         mOnTop(false) {}
 
     ~IntelOverlayContext();
 
@@ -293,6 +295,9 @@ public:
 
     // DRM mode change handle
     intel_overlay_mode_t onDrmModeChange();
+
+    // Set overlay on top if no rgb layers in the list
+    bool setOverlayOnTop(bool isOnTop);
 };
 
 class IntelOverlayContextMfld : public IntelOverlayContext
@@ -348,6 +353,7 @@ public:
     virtual void setPipeByMode(intel_overlay_mode_t displayMode);
     virtual void forceBottom(bool bottom);
     virtual uint32_t onDrmModeChange();
+    virtual bool setOverlayOnTop(bool isOnTop);
 
     virtual bool setWidiPlane(IntelDisplayPlane*);
 

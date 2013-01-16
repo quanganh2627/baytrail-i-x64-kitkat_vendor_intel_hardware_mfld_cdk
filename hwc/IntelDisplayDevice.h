@@ -102,6 +102,7 @@ protected:
 
     virtual void dumpLayerList(hwc_display_contents_1_t *list);
     virtual bool isScreenshotActive(hwc_display_contents_1_t *list);
+    virtual bool isVideoPutInWindow(int output, hwc_layer_1_t *layer);
 
 public:
     virtual bool initCheck() { return mInitialized; }
@@ -212,6 +213,7 @@ public:
     virtual bool getDisplayConfig(uint32_t* configs, size_t* numConfigs);
     virtual bool getDisplayAttributes(uint32_t config,
             const uint32_t* attributes, int32_t* values);
-
+private:
+    bool mGraphicPlaneVisible;
 };
 #endif /*__INTEL__DISPLAY_DEVICE__*/

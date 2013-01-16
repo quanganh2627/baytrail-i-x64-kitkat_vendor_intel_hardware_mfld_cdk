@@ -51,6 +51,55 @@ IntelDisplayDevice::IntelDisplayDevice::~IntelDisplayDevice()
     ALOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
 }
 
+bool IntelDisplayDevice::isVideoPutInWindow(int output, hwc_layer_1_t *layer) {
+    bool inWindow = false;
+
+    if (mDrm == NULL) {
+        ALOGE("mDrm is NULL!");
+        return false;
+    }
+
+    drmModeFBPtr fbInfo = mDrm->getOutputFBInfo(output);
+    if (fbInfo == NULL) {
+        ALOGE("Get FB info failed!");
+        return false;
+    }
+
+    int fbW = fbInfo->width;
+    int fbH = fbInfo->height;
+
+    int srcWidth = layer->sourceCrop.right - layer->sourceCrop.left;
+    int srcHeight = layer->sourceCrop.bottom - layer->sourceCrop.top;
+
+    int dstWidth = layer->displayFrame.right - layer->displayFrame.left;
+    int dstHeight = layer->displayFrame.bottom - layer->displayFrame.top;
+
+    LOGD_IF(ALLOW_HWC_PRINT,
+            "output:%d fbW:%d fbH:%d dst_w:%d dst_h:%d src_w:%d src_h:%d",
+            output, fbW, fbH, dstWidth, dstHeight, srcWidth, srcHeight);
+    /*
+     * Check if the app put the video to a window
+     * 1) Both dst width and height are smaller than FB w/h
+     * 2) For device(e.g. phone), fbW < fbH:
+     check if it is back to portait mode.
+     * 3) For device(e.g. tablet, hdtv), fbW > fbH:
+     check if it is back to portait mode.
+     */
+    if (dstWidth < fbW && dstHeight < fbH) {
+        inWindow = true;
+    } else if (fbW < fbH) {
+        if ((dstWidth > dstHeight && srcWidth >= srcHeight) ||
+            (dstWidth < dstHeight && srcWidth <= srcHeight))
+            inWindow = true;
+    } else if (fbW > fbH) {
+        if ((dstWidth > dstHeight && srcWidth <= srcHeight) ||
+            (dstWidth < dstHeight && srcWidth >= srcHeight))
+            inWindow = true;
+    }
+
+    return inWindow;
+}
+
 bool IntelDisplayDevice::overlayPrepare(int index, hwc_layer_1_t *layer, int flags)
 {
     if (!layer) {
@@ -70,13 +119,30 @@ bool IntelDisplayDevice::overlayPrepare(int index, hwc_layer_1_t *layer, int fla
     int dstRight = layer->displayFrame.right;
     int dstBottom = layer->displayFrame.bottom;
 
-    // setup plane parameters
-    plane->setPosition(dstLeft, dstTop, dstRight, dstBottom);
+    IntelOverlayPlane *overlayP =
+        reinterpret_cast<IntelOverlayPlane *>(plane);
+    if (mDrm->getDisplayMode() == OVERLAY_EXTEND) {
+        // Put overlay on top if no other layers exist
+        overlayP->setOverlayOnTop(mLayerList->getLayersCount() == 1);
 
-    plane->setPipeByMode(mDrm->getDisplayMode());
+        // Check if the video is placed to a window
+        if (isVideoPutInWindow(OUTPUT_MIPI0, layer)) {
+            overlayP->setOverlayOnTop(true);
+
+            struct drm_psb_disp_ctrl dp_ctrl;
+            memset(&dp_ctrl, 0, sizeof(dp_ctrl));
+            dp_ctrl.cmd = DRM_PSB_DISP_PLANEB_DISABLE;
+            drmCommandWriteRead(mDrm->getDrmFd(), DRM_PSB_HDMI_FB_CMD, &dp_ctrl, sizeof(dp_ctrl));
+        }
+    }
+
+    // setup plane parameters
+    overlayP->setPosition(dstLeft, dstTop, dstRight, dstBottom);
+
+    overlayP->setPipeByMode(mDrm->getDisplayMode());
 
     // attach plane to hwc layer
-    mLayerList->attachPlane(index, plane, flags);
+    mLayerList->attachPlane(index, overlayP, flags);
 
     return true;
 }

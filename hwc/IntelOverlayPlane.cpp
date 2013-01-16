@@ -1147,6 +1147,20 @@ bool IntelOverlayContext::reset()
     return true;
 }
 
+bool IntelOverlayContext::setOverlayOnTop(bool isOnTop)
+{
+    if (!mContext)
+        return false;
+
+    lock();
+
+    mOnTop = isOnTop;
+
+    unlock();
+
+    return true;
+}
+
 void IntelOverlayContext::setPipe(intel_display_pipe_t pipe)
 {
     if (!mContext)
@@ -1168,9 +1182,12 @@ void IntelOverlayContext::setPipe(intel_display_pipe_t pipe)
         break;
     case PIPE_HDMI:
         mContext->pipe = (0x2 << 6);
-        // make sure overlay is on the top of sprite plane
-        mOverlayBackBuffer->DCLRKM |= (0x1 << 31);
-        mOverlayBackBuffer->DCLRKM |= 0xffffff;
+        ALOGD_IF(ALLOW_OVERLAY_PRINT, "set overlay on top:%d", mOnTop);
+        if (mOnTop) {
+           // Overlay is on the top of sprite plane.
+           mOverlayBackBuffer->DCLRKM |= (0x1 << 31);
+           mOverlayBackBuffer->DCLRKM |= 0xffffff;
+        }
         break;
     default:
 	ALOGW("%s: invalid display pipe %d\n", __func__, pipe);
@@ -1780,5 +1797,12 @@ bool IntelOverlayPlane::setWidiPlane(IntelDisplayPlane* wplane) {
         mWidiPlane = (IntelWidiPlane*)wplane;
 
     return true;
+}
+
+bool IntelOverlayPlane::setOverlayOnTop(bool isOnTop)
+{
+    IntelOverlayContext *overlayContext =
+        reinterpret_cast<IntelOverlayContext*>(mContext);
+    return (uint32_t)overlayContext->setOverlayOnTop(isOnTop);
 }
 

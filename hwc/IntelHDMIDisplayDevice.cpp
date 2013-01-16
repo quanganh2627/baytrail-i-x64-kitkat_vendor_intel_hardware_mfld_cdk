@@ -161,12 +161,6 @@ bool IntelHDMIDisplayDevice::commit(hwc_display_contents_1_t *list,
         ALOGW("%s: hotplug event is true\n", __func__);
         return true;
     }
-    //TODO: Only under OVERLAY_CLONE_MIPI0 mode, need to handle
-    intel_overlay_mode_t mode = mDrm->getDisplayMode();
-    if (mode != OVERLAY_CLONE_MIPI0) {
-        //ALOGE("%s: mode is %d", __func__, mode);
-        return false;
-    }
 
     int output = 1;
     drmModeConnection connection = mDrm->getOutputConnection(output);
@@ -175,9 +169,10 @@ bool IntelHDMIDisplayDevice::commit(hwc_display_contents_1_t *list,
         return false;
     }
 
-    if (mDrm->getDisplayMode() == OVERLAY_EXTEND) {
-        ALOGW("%s: bypass HDMI post under extended video mode\n", __func__);
-        return true;
+    intel_overlay_mode_t mode = mDrm->getDisplayMode();
+    if (mode != OVERLAY_CLONE_MIPI0) {
+        //ALOGE("%s: Bypass HDMI post if mode isn't clone mode", __func__);
+        return false;
     }
 
     void *context = mPlaneManager->getPlaneContexts();

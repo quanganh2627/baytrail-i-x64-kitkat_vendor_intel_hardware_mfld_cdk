@@ -314,7 +314,7 @@ bool IntelOverlayContext::flush(uint32_t flags)
     memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
     arg.overlay_write_mask = 1;
     arg.overlay_read_mask = 0;
-    arg.overlay.b_wms = 0;
+    arg.overlay.b_wms = 1;
     arg.overlay.b_wait_vblank = (flags & IntelDisplayPlane::WAIT_VBLANK) ? 1 : 0;
     arg.overlay.OVADD = (mContext->gtt_offset_in_page << 12);
     // pipe select
@@ -1112,7 +1112,7 @@ bool IntelOverlayContext::disable()
     ALOGD("%s: disable overlay...\n", __func__);
     mOverlayBackBuffer->OCMD &= ~OVERLAY_ENABLE;
     //bool ret = flush((IntelDisplayPlane::FLASH_NEEDED |
-     //                 IntelDisplayPlane::WAIT_VBLANK));
+    //                 IntelDisplayPlane::WAIT_VBLANK));
     bool ret = flush((IntelDisplayPlane::FLASH_NEEDED));
     if (ret == false) {
         ALOGE("%s: failed to disable overlay\n", __func__);
@@ -1630,7 +1630,7 @@ bool IntelOverlayPlane::invalidateDataBuffer()
     // unmap all BCD buffers from all devices
     if (!initCheck())
         return false;
-
+    return true;
     for (int i = 0; i < OVERLAY_DATA_BUFFER_NUM_MAX; i++) {
         if (mDataBuffers[i].bufferType == IntelBufferManager::TTM_BUFFER)
             mBufferManager->unwrap(mDataBuffers[i].buffer);

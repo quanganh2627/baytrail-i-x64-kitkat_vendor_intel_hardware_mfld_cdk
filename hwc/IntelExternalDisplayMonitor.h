@@ -97,7 +97,7 @@ private:
     virtual android::status_t readyToRun();
     virtual void onFirstRef();
 
-    inline bool checkMdsMode(int value, int bit) {
+    inline bool checkMode(int value, int bit) {
         if ((value & bit) == bit)
            return true;
         return false;

@@ -407,6 +407,10 @@ void IntelDisplayDevice::onHotplugEvent(bool hpd)
     }
 
     mHotplugEvent = hpd;
+    if (hpd && mDrm->isOverlayOff()) {
+        if (mPlaneManager->hasReclaimedOverlays())
+            mPlaneManager->disableReclaimedPlanes(IntelDisplayPlane::DISPLAY_PLANE_OVERLAY);
+    }
 }
 
 bool IntelDisplayDevice::blank(int blank)

@@ -104,8 +104,8 @@ int IntelExternalDisplayMonitor::onMdsMessage(int msg, void *data, int size)
         if (msg == MDS_MODE_CHANGE) {
             int mode = *((int*)data);
 
-            if (checkMdsMode(mActiveDisplayMode, MDS_HDMI_CONNECTED) &&
-                !checkMdsMode(mode, MDS_HDMI_CONNECTED)) {
+            if (checkMode(mActiveDisplayMode, MDS_HDMI_CONNECTED) &&
+                !checkMode(mode, MDS_HDMI_CONNECTED)) {
                 ALOGI("%s: HDMI is plugged out %d", __func__, mode);
                 mLastMsg = MSG_TYPE_MDS_HOTPLUG_OUT;
                 ret = mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2, mLastMsg, NULL, NULL);
@@ -139,26 +139,29 @@ int IntelExternalDisplayMonitor::onMdsMessage(int msg, void *data, int size)
 
 int IntelExternalDisplayMonitor::getDisplayMode()
 {
-    ALOGD_IF(ALLOW_MONITOR_PRINT, "Get display mode %d", mActiveDisplayMode);
-    if (mActiveDisplayMode & MDS_HDMI_VIDEO_EXT)
-        return OVERLAY_EXTEND;
-    else if (mActiveDisplayMode & MDS_HDMI_CLONE)
-        return OVERLAY_CLONE_MIPI0;
-    else
-        return OVERLAY_MIPI0;
+    int mode = OVERLAY_MIPI0;
+    if (checkMode(mActiveDisplayMode, MDS_HDMI_ON)) {
+        if (checkMode(mActiveDisplayMode, MDS_HDMI_VIDEO_EXT)) {
+            if (!checkMode(mActiveDisplayMode, MDS_OVERLAY_OFF))
+                mode = OVERLAY_EXTEND;
+        } else if (checkMode(mActiveDisplayMode, MDS_HDMI_CLONE))
+                mode = OVERLAY_CLONE_MIPI0;
+    }
+    ALOGD("Get MultiDisplay mode %#x, %d", mActiveDisplayMode, mode);
+    return mode;
 }
 
 bool IntelExternalDisplayMonitor::isVideoPlaying()
 {
-    if (mActiveDisplayMode & MDS_VIDEO_PLAYING)
+    if (checkMode(mActiveDisplayMode, MDS_VIDEO_PLAYING))
        return true;
     return false;
 }
 
 bool IntelExternalDisplayMonitor::isOverlayOff()
 {
-    if (mActiveDisplayMode & MDS_OVERLAY_OFF) {
-       ALOGW("Overlay is off.");
+    if (checkMode(mActiveDisplayMode, MDS_OVERLAY_OFF)) {
+       ALOGW("overlay is off, %#x", mActiveDisplayMode);
        return true;
     }
     return false;
@@ -260,17 +263,16 @@ status_t IntelExternalDisplayMonitor::readyToRun()
                 ALOGI("Create a MultiDisplay client at HWC");
                 bool bWait = true;
                 mActiveDisplayMode = mMDClient->getMode(bWait);
-                mLastMsg = checkMdsMode(mActiveDisplayMode, MDS_HDMI_CONNECTED) ?
+                mLastMsg = checkMode(mActiveDisplayMode, MDS_HDMI_CONNECTED) ?
                     MSG_TYPE_MDS_HOTPLUG_IN : MSG_TYPE_MDS_HOTPLUG_OUT;
-
-                if (getDisplayMode() == OVERLAY_CLONE_MIPI0) {
+                int mode = getDisplayMode();
+                if (mode == OVERLAY_CLONE_MIPI0)
                     IntelHWComposerDrm::getInstance().setDisplayMode(OVERLAY_CLONE_MIPI0);
-                } else if (getDisplayMode() == OVERLAY_EXTEND) {
+                else if (mode == OVERLAY_EXTEND) {
                     IntelHWComposerDrm::getInstance().setDisplayMode(OVERLAY_EXTEND);
                     ALOGE("Impossible be here. Only clone mode or single mode is valid initialized state.");
-                } else {
+                } else
                     IntelHWComposerDrm::getInstance().setDisplayMode(OVERLAY_MIPI0);
-                }
             }
             service->linkToDeath(this);
             break;

@@ -804,8 +804,11 @@ bool IntelHWComposer::blankDisplay(int disp, int blank)
 {
     bool ret=true;
 
-    if ((disp<DISPLAY_NUM) && mDisplayDevice[disp])
-        ret = mDisplayDevice[disp]->blank(blank);
+    if ((disp<DISPLAY_NUM) && mDisplayDevice[disp]) {
+        mDisplayDevice[disp]->blank(blank);
+        if (blank == 1)
+            mDisplayDevice[disp]->release();
+    }
 
     return ret;
 }

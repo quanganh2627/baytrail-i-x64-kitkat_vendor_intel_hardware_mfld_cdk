@@ -73,6 +73,7 @@ protected:
     bool mIsConnected;
     bool mInitialized;
     bool mIsScreenshotActive;
+    bool mIsBlank;
 
 protected:
     virtual bool isHWCUsage(int usage);

@@ -40,7 +40,8 @@ IntelDisplayDevice::IntelDisplayDevice(IntelDisplayPlaneManager *pm,
           mPlaneManager(pm), mDrm(drm), mLayerList(0),
           mDisplayIndex(index), mForceSwapBuffer(false),
           mHotplugEvent(false), mIsConnected(false),
-          mInitialized(false), mIsScreenshotActive(false)
+          mInitialized(false), mIsScreenshotActive(false),
+          mIsBlank(false)
 {
     ALOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
 }
@@ -410,6 +411,11 @@ void IntelDisplayDevice::onHotplugEvent(bool hpd)
 bool IntelDisplayDevice::blank(int blank)
 {
     bool ret=false;
+
+    if (blank == 1)
+        mIsBlank = true;
+    else
+        mIsBlank = false;
 
     if (mDrm)
         ret = mDrm->setDisplayDpms(mDisplayIndex, blank);

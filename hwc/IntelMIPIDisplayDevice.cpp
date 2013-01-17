@@ -521,6 +521,11 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
         return false;
     }
 
+    if (mIsBlank) {
+        //ALOGW("%s: HWC is blank, bypass", __func__);
+        return false;
+    }
+
     // FIXME: it is tricky here to wait for cycles to disable reclaim overlay;
     // As processFlip cmd schedule in SGX maybe delayed more than one cycle,
     // especially under the case of high quality video rotation.
@@ -618,6 +623,11 @@ bool IntelMIPIDisplayDevice::commit(hwc_display_contents_1_t *list,
         return false;
     }
 
+    if (mIsBlank) {
+        //ALOGW("%s: HWC is blank, bypass", __func__);
+        return false;
+    }
+
     // if hotplug was happened & didn't be handled skip the flip
     if (mHotplugEvent)
         return true;
@@ -627,7 +637,6 @@ bool IntelMIPIDisplayDevice::commit(hwc_display_contents_1_t *list,
         ALOGE("%s: invalid plane contexts\n", __func__);
         return false;
     }
-
     // need check whether eglSwapBuffers is necessary
     bool needSwapBuffer = false;
 

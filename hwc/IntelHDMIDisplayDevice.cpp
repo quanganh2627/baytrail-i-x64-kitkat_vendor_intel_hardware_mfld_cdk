@@ -132,6 +132,11 @@ bool IntelHDMIDisplayDevice::prepare(hwc_display_contents_1_t *list)
         return false;
     }
 
+    if (mIsBlank) {
+        //ALOGW("%s: HWC is blank, bypass", __func__);
+        return false;
+    }
+
     if (!list || (list->flags & HWC_GEOMETRY_CHANGED)) {
         onGeometryChanged(list);
     }
@@ -153,6 +158,11 @@ bool IntelHDMIDisplayDevice::commit(hwc_display_contents_1_t *list,
 
     if (!initCheck()) {
         ALOGE("%s: failed to initialize HWComposer\n", __func__);
+        return false;
+    }
+
+    if (mIsBlank) {
+        //ALOGW("%s: HWC is blank, bypass", __func__);
         return false;
     }
 

@@ -774,16 +774,18 @@ bool IntelMIPIDisplayDevice::useOverlayRotation(hwc_layer_1_t *layer,
         intel_gralloc_payload_t *payload =
             (intel_gralloc_payload_t*)buffer->getCpuAddr();
 
-        // unmap payload buffer
-        mGrallocBufferManager->unmap(buffer);
         if (!payload) {
             ALOGE("%s: invalid address\n", __func__);
+            // unmap payload buffer
+            mGrallocBufferManager->unmap(buffer);
             return false;
         }
 
         if (payload->force_output_method == OUTPUT_FORCE_GPU) {
             ALOGD_IF(ALLOW_HWC_PRINT,
                     "%s: force to use surface texture.", __func__);
+            // unmap payload buffer
+            mGrallocBufferManager->unmap(buffer);
             return false;
         }
 
@@ -797,12 +799,16 @@ bool IntelMIPIDisplayDevice::useOverlayRotation(hwc_layer_1_t *layer,
         if (!transform) {
             ALOGD_IF(ALLOW_HWC_PRINT,
                     "%s: use overlay to display original buffer.", __func__);
+            // unmap payload buffer
+            mGrallocBufferManager->unmap(buffer);
             return true;
         }
 
         if (transform != uint32_t(payload->client_transform)) {
             ALOGD_IF(ALLOW_HWC_PRINT,
                     "%s: rotation buffer was not prepared by client! ui64Stamp = %llu\n", __func__, grallocHandle->ui64Stamp);
+            // unmap payload buffer
+            mGrallocBufferManager->unmap(buffer);
             return false;
         }
 
@@ -812,6 +818,10 @@ bool IntelMIPIDisplayDevice::useOverlayRotation(hwc_layer_1_t *layer,
         h = payload->rotated_height;
         //wait video rotated buffer idle
         mGrallocBufferManager->waitIdle(handle);
+
+        // unmap payload buffer
+        mGrallocBufferManager->unmap(buffer);
+
         // NOTE: exchange the srcWidth & srcHeight since
         // video driver currently doesn't call native_window_*
         // helper functions to update info for rotation buffer.
@@ -886,10 +896,13 @@ bool IntelMIPIDisplayDevice::isForceOverlay(hwc_layer_1_t *layer)
             mGrallocBufferManager->unmap(buffer);
             return false;
         }
-        mGrallocBufferManager->unmap(buffer);
 
-        if (payload->force_output_method == OUTPUT_FORCE_OVERLAY)
+        if (payload->force_output_method == OUTPUT_FORCE_OVERLAY) {
+            mGrallocBufferManager->unmap(buffer);
             return true;
+        }
+
+        mGrallocBufferManager->unmap(buffer);
     }
 
     return false;
@@ -926,13 +939,14 @@ bool IntelMIPIDisplayDevice::isBobDeinterlace(hwc_layer_1_t *layer)
 
     intel_gralloc_payload_t *payload =
         (intel_gralloc_payload_t*)buffer->getCpuAddr();
-    mGrallocBufferManager->unmap(buffer);
     if (!payload) {
         ALOGE("%s: invalid address\n", __func__);
+        mGrallocBufferManager->unmap(buffer);
         return bobDeinterlace;
     }
 
     bobDeinterlace = (payload->bob_deinterlace == 1) ? true : false;
+    mGrallocBufferManager->unmap(buffer);
     return bobDeinterlace;
 }
 
@@ -968,14 +982,15 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
             intel_gralloc_payload_t *payload =
                 (intel_gralloc_payload_t*)buffer->getCpuAddr();
 
-            // unmap payload buffer
-            mGrallocBufferManager->unmap(buffer);
             if (!payload) {
                 ALOGE("%s: invalid address\n", __func__);
                 return false;
             }
             //wait video buffer idle
             mGrallocBufferManager->waitIdle(payload->khandle);
+
+            // unmap payload buffer
+            mGrallocBufferManager->unmap(buffer);
         }
         plane = mLayerList->getPlane(i);
         if (!plane)

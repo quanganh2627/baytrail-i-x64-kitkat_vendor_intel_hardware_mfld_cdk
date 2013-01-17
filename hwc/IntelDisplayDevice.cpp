@@ -244,6 +244,11 @@ bool IntelDisplayDevice::isScreenshotActive(hwc_display_contents_1_t *list)
         goto exit;
     }
 
+    if (!fbInfo) {
+        ALOGE("Invalid fbINfo\n");
+        return false;
+    }
+
     if (x == 0 && y == 0 &&
         w == int(fbInfo->width) && h == int(fbInfo->height)) {
         mIsScreenshotActive = true;

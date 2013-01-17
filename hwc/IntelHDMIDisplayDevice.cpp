@@ -199,9 +199,12 @@ bool IntelHDMIDisplayDevice::commit(hwc_display_contents_1_t *list,
             ALOGV("%s: skip to flip HDMI fb context !\n", __func__);
         else
             bufferHandles[numBuffers++] = target_layer->handle;
-    } else
+    } else if (list)
         ALOGW("%s: layernum: %d, no found of framebuffer_target!\n",
                                        __func__, list->numHwLayers);
+    else
+        ALOGW("%s: Invalid list, no found of framebuffer_target!\n",
+                                       __func__);
 
     return true;
 }

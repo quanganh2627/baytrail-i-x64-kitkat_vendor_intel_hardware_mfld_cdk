@@ -58,7 +58,7 @@ IntelExternalDisplayMonitor::~IntelExternalDisplayMonitor()
 {
     ALOGD_IF(ALLOW_MONITOR_PRINT, "External display monitor Destroyed");
     if (mMDClient) {
-        mMDClient->unregisterListener(this);
+        mMDClient->unregisterListener();
         delete mMDClient;
         mMDClient = NULL;
     }

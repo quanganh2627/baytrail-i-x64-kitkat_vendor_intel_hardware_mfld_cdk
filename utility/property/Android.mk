@@ -48,11 +48,30 @@ LOCAL_COPY_HEADERS := $(property_exported_includes_files)
 
 LOCAL_SRC_FILES := $(property_src_files)
 
-LOCAL_CFLAGS += -O0 -fprofile-arcs -ftest-coverage
-LOCAL_LDFLAGS += -fprofile-arcs -lgcov
-
 LOCAL_MODULE := libproperty_static_host
 LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_HOST_STATIC_LIBRARY)
+
+
+# build for target test
+#######################
+
+include $(CLEAR_VARS)
+
+LOCAL_COPY_HEADERS_TO := $(property_exported_includes_folder)
+LOCAL_COPY_HEADERS := $(property_exported_includes_files)
+
+LOCAL_SRC_FILES := $(property_src_files)
+
+LOCAL_C_INCLUDES += \
+    external/stlport/stlport \
+    bionic
+
+LOCAL_SHARED_LIBRARIES := libstlport libcutils
+
+LOCAL_MODULE := libproperty_static
+LOCAL_MODULE_TAGS := optional
+
+include $(BUILD_STATIC_LIBRARY)
 

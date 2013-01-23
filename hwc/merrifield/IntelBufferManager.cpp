@@ -324,7 +324,7 @@ bool IntelGraphicBufferManager::gttMap(void *vaddr,
     arg.vaddr = (uint32_t)vaddr;
     arg.size = size;
 
-    ALOGD("gttMap: virt 0x%x, size %d\n", vaddr, size);
+    ALOGD_IF(ALLOW_BUFFER_PRINT, "gttMap: virt 0x%x, size %d\n", vaddr, size);
 
     int ret = drmCommandWriteRead(mDrmFd, DRM_PSB_GTT_MAP, &arg, sizeof(arg));
     if (ret) {

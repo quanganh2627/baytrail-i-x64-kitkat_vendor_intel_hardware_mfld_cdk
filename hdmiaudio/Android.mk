@@ -24,12 +24,27 @@ LOCAL_PRELINK_MODULE := false
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
 LOCAL_CFLAGS := -D_POSIX_SOURCE
 
+ifeq ($(BOARD_USES_TINY_ALSA_AUDIO), true)
+
+LOCAL_SRC_FILES := \
+        tinyaudio_hw.c
+
+LOCAL_C_INCLUDES += \
+	external/tinyalsa/include
+
+LOCAL_SHARED_LIBRARIES := liblog libcutils libtinyalsa
+
+else
+
 LOCAL_SRC_FILES := \
         audio_hw.c
+
 LOCAL_C_INCLUDES += \
         external/alsa-lib/include
 
 LOCAL_SHARED_LIBRARIES := liblog libcutils libasound
+
+endif #BOARD_USES_TINY_ALSA_AUDIO
 
 LOCAL_MODULE := audio.hdmi.$(TARGET_DEVICE)
 LOCAL_MODULE_TAGS := optional

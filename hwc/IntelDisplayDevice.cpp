@@ -178,10 +178,10 @@ void IntelDisplayDevice::dumpLayerList(hwc_display_contents_1_t *list)
         int srcRight = list->hwLayers[i].sourceCrop.right;
         int srcBottom = list->hwLayers[i].sourceCrop.bottom;
 
-	int dstLeft = list->hwLayers[i].displayFrame.left;
-	int dstTop = list->hwLayers[i].displayFrame.top;
-	int dstRight = list->hwLayers[i].displayFrame.right;
-	int dstBottom = list->hwLayers[i].displayFrame.bottom;
+        int dstLeft = list->hwLayers[i].displayFrame.left;
+        int dstTop = list->hwLayers[i].displayFrame.top;
+        int dstRight = list->hwLayers[i].displayFrame.right;
+        int dstBottom = list->hwLayers[i].displayFrame.bottom;
 
         ALOGD("Layer type: %s",
         (mLayerList->getLayerType(i) != IntelHWComposerLayer::LAYER_TYPE_YUV) ?
@@ -203,13 +203,34 @@ void IntelDisplayDevice::dumpLayerList(hwc_display_contents_1_t *list)
 
 bool IntelDisplayDevice::isScreenshotActive(hwc_display_contents_1_t *list)
 {
-    if (!list || !list->numHwLayers) {
-        mIsScreenshotActive = false;
+    mIsScreenshotActive = false;
+
+    if (!list || !list->numHwLayers)
         return false;
+
+    // no layer in list except framebuffer target
+    if (mLayerList->getLayersCount() <= 0)
+        return false;
+
+    // Bypass ext video mode
+    if (mDrm->getDisplayMode() == OVERLAY_EXTEND)
+        return false;
+
+    // Bypass widi
+    IntelWidiPlane* widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
+    if (widiPlane && widiPlane->isActive())
+        return false;
+
+    // bypass protected video
+    for (size_t i = 0; i < (size_t)mLayerList->getLayersCount(); i++) {
+        if (mLayerList->isProtectedLayer(i))
+            return false;
     }
 
+    // check topLayer before getting its size
     hwc_layer_1_t *topLayer = &list->hwLayers[mLayerList->getLayersCount()-1];
-    IntelWidiPlane* widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
+    if (!topLayer || !(topLayer->flags & HWC_SKIP_LAYER))
+        return false;
 
     int x = topLayer->displayFrame.left;
     int y = topLayer->displayFrame.top;
@@ -219,31 +240,6 @@ bool IntelDisplayDevice::isScreenshotActive(hwc_display_contents_1_t *list)
     drmModeFBPtr fbInfo =
         IntelHWComposerDrm::getInstance().getOutputFBInfo(mDisplayIndex);
 
-    // Bypass ext video mode/ widi
-    if (mDrm->getDisplayMode() == OVERLAY_EXTEND ||
-        widiPlane->isActive()) {
-        mIsScreenshotActive = false;
-        goto exit;
-    }
-
-    // bypass protected video
-    for (size_t i = 0; i < (size_t)mLayerList->getLayersCount(); i++) {
-        if (mLayerList->isProtectedLayer(i)) {
-            mIsScreenshotActive = false;
-            goto exit;
-        }
-    }
-
-    if (mLayerList->getLayersCount() <= 0) {
-        mIsScreenshotActive = true;
-        goto exit;
-    }
-
-    if (!(topLayer->flags & HWC_SKIP_LAYER)) {
-        mIsScreenshotActive = false;
-        goto exit;
-    }
-
     if (!fbInfo) {
         ALOGE("Invalid fbINfo\n");
         return false;
@@ -252,12 +248,10 @@ bool IntelDisplayDevice::isScreenshotActive(hwc_display_contents_1_t *list)
     if (x == 0 && y == 0 &&
         w == int(fbInfo->width) && h == int(fbInfo->height)) {
         mIsScreenshotActive = true;
-        goto exit;
+        return true;
     }
 
-    mIsScreenshotActive = false;
-exit:
-    return mIsScreenshotActive;
+    return false;
 }
 
 // Check the usage of a buffer

@@ -245,6 +245,8 @@ status_t IntelExternalDisplayMonitor::readyToRun()
                 ALOGI("Create a MultiDisplay client at HWC");
                 bool bWait = true;
                 mActiveDisplayMode = mMDClient->getMode(bWait);
+                mLastMsg = (mActiveDisplayMode & MDS_HDMI_CONNECTED) ?
+                    MSG_TYPE_MDS_HOTPLUG_IN : MSG_TYPE_MDS_HOTPLUG_OUT;
                 if (getDisplayMode() == OVERLAY_CLONE_MIPI0)
                     IntelHWComposerDrm::getInstance().setDisplayMode(OVERLAY_CLONE_MIPI0);
                 else if (getDisplayMode() == OVERLAY_EXTEND) {

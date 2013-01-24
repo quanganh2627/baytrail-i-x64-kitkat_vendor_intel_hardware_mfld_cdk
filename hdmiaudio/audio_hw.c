@@ -584,6 +584,7 @@ static int parse_channel_map()
 
   if((err = snd_ctl_elem_read(hndl,control)) < 0){
      ALOGE("[EDID]can't read channel map %d",err);
+     snd_ctl_close(hndl);
      return AUDIO_CHANNEL_OUT_STEREO;
   }
 

@@ -134,7 +134,7 @@ bool IntelHWComposer::handleHotplugEvent(int hpd, void *data, int *modeIndex)
         }
 
         // alloc buffer;
-        mHDMIFBHandle.size = align_to(mode->vdisplay * mode->hdisplay * 4, 64);
+        mHDMIFBHandle.size = mode->vdisplay * align_to(mode->hdisplay * 4, 64);
         ret = mGrallocBufferManager->alloc(mHDMIFBHandle.size,
                                       &mHDMIFBHandle.umhandle,
                                       &mHDMIFBHandle.kmhandle);

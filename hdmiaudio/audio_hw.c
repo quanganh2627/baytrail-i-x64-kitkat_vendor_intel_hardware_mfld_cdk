@@ -62,7 +62,7 @@ enum{
 /*this is used to avoid starvation*/
 #define LATENCY_TO_BUFFER_SIZE_RATIO 2
 
-#define INTEL_HDMI_CARD          "hw:3"
+#define INTEL_HDMI_CARD          "hw:IntelHDMI"
 #define CHANNEL_MAP_REQUEST      3
 
 /* Configuration for a stream */
@@ -359,7 +359,7 @@ static int open_device(struct hdmi_stream_out *out)
         active_stream_out = NULL;
     }
     if (active_stream_out != NULL && active_stream_out->handle != NULL) {
-       ALOGV("%s: Closing already opened stream %x",__func__,active_stream_out->handle);
+       ALOGV("%s: Closing already opened stream %d",__func__,(int)active_stream_out->handle);
        err = snd_pcm_drain(active_stream_out->handle);
        ALOGV("%s: Drain the samples and stop the stream %s",__func__,snd_strerror(err));
        snd_pcm_close(active_stream_out->handle);
@@ -382,7 +382,7 @@ static int open_device(struct hdmi_stream_out *out)
         goto err_open_device;
     }
 
-    ALOGD("pcm open = %d error = %s",out->handle,snd_strerror(err));
+    ALOGD("pcm open = %d error = %s",(int)out->handle,snd_strerror(err));
 
     if (err < 0) {
         ALOGE("%s: Failed to open any ALSA device: %s", __func__, (char*)strerror(err));
@@ -609,7 +609,7 @@ static int parse_channel_map()
     return AUDIO_CHANNEL_OUT_STEREO;
 }
 
-static int out_read_edid(const struct audio_stream *stream)
+static int out_read_edid(const struct hdmi_stream_out *stream)
 {
     struct hdmi_stream_out *out = (struct hdmi_stream_out *)stream;
     struct audio_device *adev = out->dev;
@@ -637,7 +637,7 @@ static char * out_get_parameters(const struct audio_stream *stream, const char *
     ret = str_parms_get_str(params_in, AUDIO_PARAMETER_STREAM_SUP_CHANNELS, value, sizeof(value));
     if (ret >= 0) {
 	/*read the channel support from sink*/
-	out_read_edid(stream);
+	out_read_edid(out);
 
 	if(adev->sink_sup_channels == AUDIO_CHANNEL_OUT_5POINT1){
             strcat(value,"AUDIO_CHANNEL_OUT_5POINT1");
@@ -908,7 +908,7 @@ static int hdmi_dev_open_output_stream(struct audio_hw_device *dev,
     // to support a single stream being fed to renderer
 
     if (active_stream_out != NULL && active_stream_out->handle != NULL) {
-       ALOGV("%s: Closing already opened stream %x",__func__,active_stream_out->handle);
+       ALOGV("%s: Closing already opened stream %x",__func__,(int)active_stream_out->handle);
        ret = snd_pcm_drain(active_stream_out->handle);
        ALOGV("%s: Drain the samples and stop the stream %s",__func__,snd_strerror(ret));
        snd_pcm_close(active_stream_out->handle);

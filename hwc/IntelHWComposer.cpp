@@ -180,6 +180,13 @@ bool IntelHWComposer::handleDynamicModeSetting(void *data, int* modeIndex)
     bool ret = false;
 
     ALOGD_IF(ALLOW_HWC_PRINT, "%s: handle Dynamic mode setting!\n", __func__);
+    // check HDMI timing
+    int index = mDrm->checkOutputMode(data);
+    if (index != -1) {
+        *modeIndex = index;
+        ALOGD("Same HDMI timing %d, ignore this setting", *modeIndex);
+        return true;
+    }
     // send plug-out to SF for mode changing on the same device
     // otherwise SF will bypass the plug-in message as there is
     // no connection change;

@@ -205,6 +205,7 @@ public:
     bool isMdsSurface(int *nativeWindow);
     bool notifyWidi(bool);
     bool getVideoInfo(int *displayW, int *displayH, int *fps, int *isinterlace);
+    int  checkOutputMode(void* data);
 };
 
 #endif /*__INTEL_HWCOMPOSER_DRM_H__*/

@@ -237,6 +237,33 @@ intel_overlay_mode_t IntelHWComposerDrm::getOldDisplayMode()
     return mDrmOutputsState.old_display_mode;
 }
 
+int  IntelHWComposerDrm::checkOutputMode(void* data) {
+    intel_display_mode_t* s_mode = (intel_display_mode_t*)data;
+    drmModeModeInfoPtr mode = getOutputMode(OUTPUT_HDMI);
+    drmModeConnectorPtr connector = NULL;
+    //If it is a new different timing
+    if (isModeChanged(mode, s_mode))
+        return -1;
+    //If not, need to get mode index
+    connector = getConnector(OUTPUT_HDMI);
+    if (!connector) {
+        ALOGW("%s: Fail to get drm connector\n", __func__);
+        return -1;
+    }
+    for (int i = 0; i < connector->count_modes; i++) {
+        ALOGD_IF(ALLOW_MONITOR_PRINT, "%dx%dx%dHz",
+                connector->modes[i].hdisplay,
+                connector->modes[i].vdisplay,
+                connector->modes[i].vrefresh);
+        if (connector->modes[i].vrefresh == mode->vrefresh &&
+                connector->modes[i].vdisplay == mode->vdisplay &&
+                connector->modes[i].hdisplay == mode->hdisplay) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 bool IntelHWComposerDrm::detectMDSModeChange()
 {
 
@@ -366,7 +393,6 @@ bool IntelHWComposerDrm::detectDrmModeInfo()
             setOutputConnection(outputIndex, DRM_MODE_DISCONNECTED);
             continue;
         }
-
         /*set crtc mode*/
         setOutputMode(outputIndex, &crtc->mode, crtc->mode_valid);
 
@@ -633,8 +659,10 @@ drmModeModeInfoPtr
 IntelHWComposerDrm::getSelectMode(intel_display_mode_t *m_selected,
                                   drmModeConnectorPtr connector, int* modeIndex)
 {
-    int index = 0;
+    int index = -1;
     int i = 0;
+    int preferred = -1;
+    int max = 0;
     drmModeModeInfoPtr mode;
 
     // mode sort as big --> small
@@ -650,19 +678,38 @@ IntelHWComposerDrm::getSelectMode(intel_display_mode_t *m_selected,
             index = i;
             break;
         }
-
-        // set to prefer mode if select mode is NULL
+        // Get prefer mode
         if (mode->type & DRM_MODE_TYPE_PREFERRED)
-            index = i;
+            preferred = i;
+        // Get the max timing
+        if ((connector->modes[i].hdisplay > connector->modes[max].hdisplay) &&
+            (connector->modes[i].vdisplay > connector->modes[max].vdisplay)) {
+            max = i;
+        } else if (
+            (connector->modes[i].hdisplay == connector->modes[max].hdisplay) &&
+            (connector->modes[i].vdisplay == connector->modes[max].vdisplay) &&
+            (connector->modes[i].vrefresh > connector->modes[max].vrefresh)) {
+            max = i;
+        }
+        ALOGV("%dx%d@%dHz, %d, %d, %d, %d",
+                connector->modes[i].hdisplay,
+                connector->modes[i].vdisplay,
+                connector->modes[i].vrefresh, i, index, max, preferred);
     }
-
-    // could not find required mode or prefer mode
-    if (index == connector->count_modes) {
-        LOGE("%s: Failed to find any mode, count is %d",
-                __func__, connector->count_modes);
-        *modeIndex = -1;
-        return NULL;
+    // could not find required mode
+    if (index == -1) {
+        if (preferred != -1) {
+            //Select the max if the preferred < the max
+            if (connector->modes[preferred].hdisplay < connector->modes[max].hdisplay ||
+                connector->modes[preferred].vdisplay < connector->modes[max].vdisplay ||
+                connector->modes[preferred].vrefresh < connector->modes[max].vrefresh)
+                index = max;
+            else
+                index = preferred;
+        } else
+            index = max;
     }
+    LOGD("Get the timing index, %d, %d, %d", preferred, max, index);
     if (modeIndex != NULL)
         *modeIndex = index;
     return &connector->modes[index];

@@ -1006,7 +1006,13 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
             handled = false;
             continue;
         }
-
+        if (planeType == IntelDisplayPlane::DISPLAY_PLANE_OVERLAY) {
+            if (mDrm->isOverlayOff()) {
+                plane->disable();
+                handled = false;
+                continue;
+            }
+        }
         // need to wait for video buffer ready before setting data buffer
         if (grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12 ||
             grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) {

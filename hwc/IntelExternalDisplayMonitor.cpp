@@ -122,20 +122,20 @@ int IntelExternalDisplayMonitor::onMdsMessage(int msg, void *data, int size)
             }
         } else if (msg == MDS_SET_TIMING) {
             MDSHDMITiming* timing = (MDSHDMITiming*)data;
-
+            intel_display_mode_t* mode = NULL;
             if (mLastMsg == MSG_TYPE_MDS_HOTPLUG_OUT) {
                 ALOGD_IF(ALLOW_MONITOR_PRINT, "%s: HDMI is plugged in, should set HDMI timing", __func__);
                 mLastMsg = MSG_TYPE_MDS_HOTPLUG_IN;
             } else {
-                ALOGD_IF(ALLOW_MONITOR_PRINT, "%s: Dynamic setting HDMI timing", __func__);
+                ALOGD_IF(ALLOW_MONITOR_PRINT, "%s: Setting HDMI timing", __func__);
                 mLastMsg = MSG_TYPE_MDS_TIMING_DYNAMIC_SETTING;
             }
 
-            intel_display_mode_t *mode = (intel_display_mode_t *)data;
             ALOGD_IF(ALLOW_MONITOR_PRINT, "%s: Setting HDMI timing %dx%d@%dx%dx%d", __func__,
                     timing->width, timing->height,
                     timing->refresh, timing->ratio, timing->interlace);
-            ret = mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2, mLastMsg, mode, &modeIndex);
+            ret = mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2,
+                    mLastMsg, (intel_display_mode_t *)data, &modeIndex);
             return modeIndex;
         }
 
@@ -317,7 +317,8 @@ status_t IntelExternalDisplayMonitor::readyToRun()
     } else {
         ALOGD_IF(ALLOW_MONITOR_PRINT, "Got MultiDisplay Service\n");
         if (mMDClient != NULL)
-            mMDClient->registerListener(this, const_cast<char *>("HWComposer"), MDS_MODE_CHANGE | MDS_SET_TIMING | MDS_SET_BACKGROUND_VIDEO_MODE);
+            mMDClient->registerListener(this, const_cast<char *>("HWComposer"),
+                    MDS_MODE_CHANGE | MDS_SET_TIMING | MDS_SET_BACKGROUND_VIDEO_MODE);
     }
 
     return NO_ERROR;

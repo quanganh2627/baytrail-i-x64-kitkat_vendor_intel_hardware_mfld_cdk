@@ -26,7 +26,6 @@
  *
  */
 #include <IntelWsbm.h>
-#include <IntelOverlayUtil.h>
 #include <cutils/log.h>
 #include <cutils/atomic.h>
 
@@ -35,7 +34,7 @@
  ***********************************************************************/
 IntelWsbm::IntelWsbm(int drmFD)
 {
-    ALOGV("%s: creating a new wsbm object...\n", __func__);
+    LOGV("%s: creating a new wsbm object...\n", __func__);
     mDrmFD = drmFD;
 }
 
@@ -48,7 +47,7 @@ bool IntelWsbm::initialize()
 {
     int ret = pvrWsbmInitialize(mDrmFD);
     if(ret) {
-        ALOGE("%s: wsbm initialize failed\n", __FUNCTION__);
+        LOGE("%s: wsbm initialize failed\n", __FUNCTION__);
         return false;
     }
 
@@ -59,7 +58,7 @@ bool IntelWsbm::allocateTTMBuffer(uint32_t size, uint32_t align, void ** buf)
 {
     int ret = pvrWsbmAllocateTTMBuffer(size, align, buf);
     if(ret) {
-        ALOGE("%s: Allocate buffer failed\n", __func__);
+        LOGE("%s: Allocate buffer failed\n", __func__);
         return false;
     }
 
@@ -70,7 +69,7 @@ bool IntelWsbm::destroyTTMBuffer(void * buf)
 {
     int ret = pvrWsbmDestroyTTMBuffer(buf);
     if(ret) {
-        ALOGE("%s: destroy buffer failed\n", __func__);
+        LOGE("%s: destroy buffer failed\n", __func__);
         return false;
     }
 
@@ -91,7 +90,7 @@ bool IntelWsbm::wrapTTMBuffer(uint32_t handle, void **buf)
 {
     int ret = pvrWsbmWrapTTMBuffer(handle, buf);
     if (ret) {
-        ALOGE("%s: wrap buffer failed\n", __func__);
+        LOGE("%s: wrap buffer failed\n", __func__);
         return false;
     }
 
@@ -102,7 +101,7 @@ bool IntelWsbm::unreferenceTTMBuffer(void *buf)
 {
     int ret = pvrWsbmUnReference(buf);
     if (ret) {
-        ALOGE("%s: unreference buffer failed\n", __func__);
+        LOGE("%s: unreference buffer failed\n", __func__);
         return false;
     }
 
@@ -118,7 +117,7 @@ bool IntelWsbm::waitIdleTTMBuffer(void *buf)
 {
     int ret = pvrWsbmWaitIdle(buf);
     if (ret) {
-        ALOGE("%s: wait ttm buffer idle failed\n", __func__);
+        LOGE("%s: wait ttm buffer idle failed\n", __func__);
         return false;
     }
 

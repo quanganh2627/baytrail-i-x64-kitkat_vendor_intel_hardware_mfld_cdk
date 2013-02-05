@@ -34,6 +34,7 @@
 #include <sys/types.h>
 #include <sys/poll.h>
 #include <sys/ioctl.h>
+#include <cutils/properties.h>
 
 #include "ad_log.h"
 #include "ad_i2c.h"
@@ -43,7 +44,8 @@
 #define AD_VERSION "V1.1"
 
 
-#define TTY_RDY_WAIT	100 /* in ms */
+#define TTY_RDY_WAIT	       100   /* in ms */
+#define AUDIENCE_ACK_US_DELAY  20000 /* in us */
 
 enum {
     ID_STD = 0,
@@ -54,8 +56,28 @@ enum {
 enum {
     DUMP_NONE,
     DUMP_PACKET,
-    DUMP_PAYLOAD,
+    DUMP_PAYLOAD
 };
+
+typedef enum {
+    AUDIENCE_ES305,
+    AUDIENCE_ES325,
+    AUDIENCE_UNKNOWN,
+    // Last enum element
+    AUDIENCE_NOF_VERSION
+} chip_version_t;
+
+static const char* chipVersion2String[AUDIENCE_NOF_VERSION] = {
+    "es305",
+    "es325",
+    "Unknown"
+};
+
+static chip_version_t audience_chip = AUDIENCE_UNKNOWN;
+
+static const char *    vp_fw_name_prop_name = "audiocomms.vp.fw_name";
+static const char *    vp_fw_name_prop_default_value = "Unknown";
+static char            vp_fw_name[PROPERTY_VALUE_MAX];
 
 #define ACM_TTY "/dev/ttyGS0"
 
@@ -74,6 +96,22 @@ unsigned char response_raw[MAX_PACKET_SIZE + 1];
 
 unsigned int trans_id = 0;
 volatile int dump_level = DUMP_PACKET;
+
+static void detect_chip_version()
+{
+    property_get(vp_fw_name_prop_name, vp_fw_name, vp_fw_name_prop_default_value);
+    if (strstr(vp_fw_name, chipVersion2String[AUDIENCE_ES325]) != NULL) {
+
+        audience_chip = AUDIENCE_ES325;
+    } else if (strstr(vp_fw_name, chipVersion2String[AUDIENCE_ES305]) != NULL) {
+
+        audience_chip = AUDIENCE_ES305;
+    } else {
+
+        audience_chip = AUDIENCE_ES305;
+    }
+    RTRAC("Audience chip detected: '%s'.\n", chipVersion2String[audience_chip]);
+}
 
 static void ad_signal_handler(int signal)
 {
@@ -131,7 +169,21 @@ static void * ad_proxy_worker(void* data)
                     /* Cannot continue without the TTY */
                     break;
                 }
-            } else {
+            } else if (audience_chip == AUDIENCE_ES325) {
+                // Write byte to es325
+                RDBUG("Forward %d bytes to es325\n", readSize);
+                ad_i2c_write(packet_raw, readSize);
+                usleep(AUDIENCE_ACK_US_DELAY);
+                // Read es325 response(s) (same amount of writen bytes)
+                readSize = ad_i2c_read(buff, readSize);
+                if (readSize > 0) {
+                    // Send the respone to AuVid
+                    RDBUG("Returns %d bytes to AuViD\n", readSize);
+                    write(polls[ID_TTY].fd, buff, readSize);
+                } else {
+                    RDBUG("Read from es325 failed (%d)\n", readSize);
+                }
+            } else if (audience_chip == AUDIENCE_ES305) {
                 packet_raw[readSize] = 0;
 
                 if (dump_level == DUMP_PACKET) {
@@ -297,6 +349,9 @@ int main(int argc, char *argv[])
         RERRO("ERROR: %s open %s failed (%s)\n", __func__, AD_DEV_NODE, strerror(errno));
         goto EXIT;
     }
+
+    // Detect Audience chip
+    detect_chip_version();
 
     // start the proxy thread.
     pthread_attr_init(&attr);

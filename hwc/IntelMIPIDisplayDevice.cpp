@@ -548,7 +548,7 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
         onGeometryChanged(list);
 
         IntelWidiPlane* widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
-        if (widiStatusChanged && mDrm) {
+        if (widiStatusChanged) {
             if(mPlaneManager->isWidiActive()) {
                 mDrm->notifyWidi(true);
                 if(widiPlane->isBackgroundVideoMode())

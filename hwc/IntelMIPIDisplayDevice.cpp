@@ -229,6 +229,7 @@ bool IntelMIPIDisplayDevice::isPrimaryLayer(hwc_display_contents_1_t *list,
                 layer->hints = 0;
                 break;
             case IntelDisplayPlane::DISPLAY_PLANE_OVERLAY:
+            case IntelDisplayPlane::DISPLAY_PLANE_RGB_OVERLAY:
             case IntelDisplayPlane::DISPLAY_PLANE_SPRITE:
             default:
                 return false;
@@ -407,15 +408,123 @@ out_check:
     return useOverlay;
 }
 
-void IntelMIPIDisplayDevice::revisitLayerList(hwc_display_contents_1_t *list, bool isGeometryChanged)
+// A layer can be handled by a RGB overlay when:
+// 1) the layer is the most top layer & no blending is needed
+// 2) the layer is NOT the top layer but has no intersection with other layers
+bool IntelMIPIDisplayDevice::isRGBOverlayLayer(hwc_display_contents_1_t *list,
+                                               unsigned int index,
+                                               hwc_layer_1_t *layer,
+                                               int& flags)
 {
-    int zOrderConfig = IntelDisplayPlaneManager::ZORDER_OcOaP;
+    bool useRGBOverlay = false;
+    int srcWidth;
+    int srcHeight;
+    int dstWidth;
+    int dstHeight;
+    IntelWidiPlane* widiPlane;
+    drmModeFBPtr fbInfo;
 
+
+    if (!list || !layer)
+        return false;
+
+    intel_gralloc_buffer_handle_t *grallocHandle =
+        (intel_gralloc_buffer_handle_t*)layer->handle;
+
+    if (!grallocHandle)
+        return false;
+
+    // Don't use it when:
+    // 1) HDMI is connected
+    // 2) WIDI is active
+    // 3) there are YUV layers
+    widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
+    if ((mDrm->getDisplayMode() == OVERLAY_EXTEND) ||
+        (mDrm->getDisplayMode() == OVERLAY_CLONE_MIPI0) ||
+        (widiPlane->isActive()) ||
+        (mLayerList->getYUVLayerCount())) {
+        useRGBOverlay = false;
+        goto out_check;
+    }
+
+    if (mLayerList->getRGBLayerCount() > 2) {
+        useRGBOverlay = false;
+        goto out_check;
+    }
+
+    if ((layer->flags & HWC_SKIP_LAYER)) {
+        useRGBOverlay = false;
+        goto out_check;
+    }
+
+    if (layer->transform) {
+        useRGBOverlay = false;
+        goto out_check;
+    }
+
+    // check format
+    if (mLayerList->getLayerType(index) != IntelHWComposerLayer::LAYER_TYPE_RGB) {
+        useRGBOverlay = false;
+        goto out_check;
+    }
+
+    // check scaling
+    srcWidth = grallocHandle->width;
+    srcHeight = grallocHandle->height;
+    dstWidth = layer->displayFrame.right - layer->displayFrame.left;
+    dstHeight = layer->displayFrame.bottom - layer->displayFrame.top;
+
+    if ((srcWidth != dstWidth) || (srcHeight != dstHeight)) {
+        useRGBOverlay = false;
+        goto out_check;
+    }
+
+    // check src size, if it's too big (large then 1/8 screen size),not worth it
+    fbInfo = IntelHWComposerDrm::getInstance().getOutputFBInfo(OUTPUT_MIPI0);
+    if ((srcWidth * srcHeight) > ((fbInfo->width * fbInfo->height) >> 3)) {
+        useRGBOverlay = false;
+        goto out_check;
+    }
+
+    if (index != list->numHwLayers - 2 && index != list->numHwLayers - 3) {
+        useRGBOverlay = false;
+        goto out_check;
+    }
+
+    if (index == list->numHwLayers -2 &&
+        layer->blending == HWC_BLENDING_NONE) {
+        useRGBOverlay = true;
+        goto out_check;
+    }
+
+    // check whether this layer has intersection with other layers
+    for (size_t i = 0; i < list->numHwLayers - 1; i++) {
+        if (i == index)
+            continue;
+        if (areLayersIntersecting(&list->hwLayers[i], layer)) {
+            useRGBOverlay = false;
+            goto out_check;
+        }
+    }
+
+    useRGBOverlay = true;
+out_check:
+    if (useRGBOverlay) {
+        LOGD("isRGBOverlayLayer: got an RGB overlay layer");
+        layer->compositionType = HWC_OVERLAY;
+    }
+
+    flags = 0;
+    return useRGBOverlay;
+}
+
+void IntelMIPIDisplayDevice::revisitLayerList(hwc_display_contents_1_t *list,
+                                              bool isGeometryChanged)
+{
     if (!list)
         return;
 
     for (size_t i = 0; i < (size_t)mLayerList->getLayersCount(); i++) {
-        int flags = 0;
 
         // also need check whether a layer can be handled in general
         if (!isHWCLayer(&list->hwLayers[i]))
@@ -424,14 +533,8 @@ void IntelMIPIDisplayDevice::revisitLayerList(hwc_display_contents_1_t *list, bo
         // make sure all protected layers were marked as overlay
         if (mLayerList->isProtectedLayer(i))
             list->hwLayers[i].compositionType = HWC_OVERLAY;
-        // check if we can apply primary plane to an RGB layer
-        // if overlay plane was used for a YUV layer, force overlay layer to
-        // be the bottom layer.
-        if (mLayerList->getLayerType(i) != IntelHWComposerLayer::LAYER_TYPE_RGB) {
-            zOrderConfig = IntelDisplayPlaneManager::ZORDER_POcOa;
-            continue;
-        }
 
+        int flags = 0;
         if (isPrimaryLayer(list, i, &list->hwLayers[i], flags)) {
             bool ret = primaryPrepare(i, &list->hwLayers[i], flags);
             if (!ret) {
@@ -443,8 +546,17 @@ void IntelMIPIDisplayDevice::revisitLayerList(hwc_display_contents_1_t *list, bo
     }
 
     if (isGeometryChanged)
-        mPlaneManager->setZOrderConfig(zOrderConfig, 0);
+        updateZorderConfig();
+}
 
+void IntelMIPIDisplayDevice::updateZorderConfig()
+{
+    int zOrderConfig = IntelDisplayPlaneManager::ZORDER_POaOc;
+
+    if (mLayerList->getYUVLayerCount())
+            zOrderConfig = IntelDisplayPlaneManager::ZORDER_POcOa;
+
+    mPlaneManager->setZOrderConfig(zOrderConfig, 0);
 }
 
 // When the geometry changed, we need
@@ -482,12 +594,21 @@ void IntelMIPIDisplayDevice::onGeometryChanged(hwc_display_contents_1_t *list)
         // further check whether a layer can be handle by overlay/sprite
         int flags = 0;
         bool hasOverlay = mPlaneManager->hasFreeOverlays();
+        bool hasRGBOverlay = mPlaneManager->hasFreeRGBOverlays();
         bool hasSprite = mPlaneManager->hasFreeSprites();
 
         if (hasOverlay && isOverlayLayer(list, i, &list->hwLayers[i], flags)) {
             ret = overlayPrepare(i, &list->hwLayers[i], flags);
             if (!ret) {
                 ALOGE("%s: failed to prepare overlay\n", __func__);
+                list->hwLayers[i].compositionType = HWC_FRAMEBUFFER;
+                list->hwLayers[i].hints = 0;
+            }
+        } else if (hasRGBOverlay &&
+                   isRGBOverlayLayer(list, i, &list->hwLayers[i], flags)) {
+            ret = rgbOverlayPrepare(i, &list->hwLayers[i], flags);
+            if (!ret) {
+                LOGE("%s: failed to prepare RGB overlay\n", __func__);
                 list->hwLayers[i].compositionType = HWC_FRAMEBUFFER;
                 list->hwLayers[i].hints = 0;
             }
@@ -533,6 +654,7 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
     static int cnt = 0;
     if (mPlaneManager->hasReclaimedOverlays() && (!mIsScreenshotActive || ++cnt == 3)) {
         mPlaneManager->disableReclaimedPlanes(IntelDisplayPlane::DISPLAY_PLANE_OVERLAY);
+        mPlaneManager->disableReclaimedPlanes(IntelDisplayPlane::DISPLAY_PLANE_RGB_OVERLAY);
         cnt = 0;
     }
 
@@ -1061,7 +1183,7 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
                             if(mDrm->isMdsSurface(mWidiNativeWindow)) {
                                 widiplane->setNativeWindow(mWidiNativeWindow);
                                 LOGD_IF(ALLOW_HWC_PRINT,
-                                    "Native window is from MDS for widi at composer = 0x%x ", mWidiNativeWindow);
+                                    "Native window is from MDS for widi at composer = %p ", mWidiNativeWindow);
                             }
                             else {
                                 mWidiNativeWindow = NULL;
@@ -1073,7 +1195,7 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
                 else {
                     mWidiNativeWindow = NULL;
                     LOGD_IF(ALLOW_HWC_PRINT,
-                           "Native window from widiplane for background  = %d", mWidiNativeWindow);
+                           "Native window from widiplane for background = %p", mWidiNativeWindow);
                 }
                 widiplane->setOverlayData(grallocHandle, srcWidth, srcHeight);
                 continue;
@@ -1147,6 +1269,42 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
                 layer->compositionType = HWC_FRAMEBUFFER;
                 handled = false;
             }
+        } else if (planeType == IntelDisplayPlane::DISPLAY_PLANE_RGB_OVERLAY) {
+            IntelRGBOverlayPlane *rgbOverlayPlane =
+                reinterpret_cast<IntelRGBOverlayPlane*>(plane);
+            uint32_t yuvBufferHandle =
+                rgbOverlayPlane->convert((uint32_t)grallocHandle,
+                                          srcWidth, srcHeight,
+                                          srcX, srcY);
+            if (!yuvBufferHandle) {
+                LOGE("updateLayersData: failed to convert\n");
+                continue;
+            }
+
+            grallocHandle = (intel_gralloc_buffer_handle_t*)yuvBufferHandle;
+            bufferWidth = grallocHandle->width;
+            bufferHeight = grallocHandle->height;
+            bufferHandle = grallocHandle->fd[GRALLOC_SUB_BUFFER0];
+            format = grallocHandle->format;
+
+            uint32_t grallocStride = align_to(bufferWidth, 32);
+
+            dataBuffer->setFormat(format);
+            dataBuffer->setStride(grallocStride);
+            dataBuffer->setWidth(bufferWidth);
+            dataBuffer->setHeight(bufferHeight);
+            dataBuffer->setCrop(srcX, srcY, srcWidth, srcHeight);
+            dataBuffer->setDeinterlaceType(0);
+
+            // set the data buffer back to plane
+            ret = rgbOverlayPlane->setDataBuffer(bufferHandle,
+                                                 0, grallocHandle);
+            if (!ret) {
+                LOGE("%s: failed to update overlay data buffer\n", __func__);
+                mLayerList->detachPlane(i, plane);
+                layer->compositionType = HWC_FRAMEBUFFER;
+                handled = false;
+            }
         } else if (planeType == IntelDisplayPlane::DISPLAY_PLANE_SPRITE ||
                    planeType == IntelDisplayPlane::DISPLAY_PLANE_PRIMARY) {
 
@@ -1154,7 +1312,7 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
             // some test cases would fail due to a weird format!
             if (layer->blending == HWC_BLENDING_NONE) {
                 switch (format) {
-                    case HAL_PIXEL_FORMAT_BGRA_8888:
+                case HAL_PIXEL_FORMAT_BGRA_8888:
                     format = HAL_PIXEL_FORMAT_BGRX_8888;
                     break;
                 case HAL_PIXEL_FORMAT_RGBA_8888:
@@ -1238,7 +1396,7 @@ bool IntelMIPIDisplayDevice::flipFramebufferContexts(void *contexts)
 
     // config z order; switch z order may cause flicker
     if (forceBottom) {
-        context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRX8888;
+        context->cntr = INTEL_SPRITE_FORCE_BOTTOM;
     } else {
         context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRA8888;
     }

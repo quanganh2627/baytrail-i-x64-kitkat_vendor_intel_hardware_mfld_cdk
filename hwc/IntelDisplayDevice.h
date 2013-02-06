@@ -88,6 +88,10 @@ protected:
                         int index,
                         hwc_layer_1_t *layer,
                         int& flags);
+    virtual bool isRGBOverlayLayer(hwc_display_contents_1_t *list,
+                        int index,
+                        hwc_layer_1_t *layer,
+                        int& flags);
     virtual bool isSpriteLayer(hwc_display_contents_1_t *list,
                        int index,
                        hwc_layer_1_t *layer,
@@ -97,6 +101,7 @@ protected:
                        hwc_layer_1_t *layer,
                        int& flags);
     virtual bool overlayPrepare(int index, hwc_layer_1_t *layer, int flags);
+    virtual bool rgbOverlayPrepare(int index, hwc_layer_1_t *layer, int flags);
     virtual bool spritePrepare(int index, hwc_layer_1_t *layer, int flags);
     virtual bool primaryPrepare(int index, hwc_layer_1_t *layer, int flags);
 
@@ -140,12 +145,17 @@ protected:
                            int& w, int& h,
                            int& srcX, int& srcY, int& srcW, int& srcH, uint32_t& transform);
     void revisitLayerList(hwc_display_contents_1_t *list, bool isGeometryChanged);
+    void updateZorderConfig();
 
 protected:
     virtual bool isOverlayLayer(hwc_display_contents_1_t *list,
                         int index,
                         hwc_layer_1_t *layer,
                         int& flags);
+    virtual bool isRGBOverlayLayer(hwc_display_contents_1_t *list,
+                                   unsigned int index,
+                                   hwc_layer_1_t *layer,
+                                   int& flags);
     virtual bool isSpriteLayer(hwc_display_contents_1_t *list,
                        int index,
                        hwc_layer_1_t *layer,

@@ -147,6 +147,38 @@ bool IntelDisplayDevice::overlayPrepare(int index, hwc_layer_1_t *layer, int fla
     return true;
 }
 
+bool IntelDisplayDevice::rgbOverlayPrepare(int index,
+                                            hwc_layer_1_t *layer, int flags)
+{
+    if (!layer) {
+        LOGE("%s: Invalid layer\n", __func__);
+        return false;
+    }
+
+    // allocate overlay plane
+    IntelDisplayPlane *plane = mPlaneManager->getRGBOverlayPlane();
+    if (!plane) {
+        LOGE("%s: failed to create RGB overlay plane\n", __func__);
+        return false;
+    }
+
+    int dstLeft = layer->displayFrame.left;
+    int dstTop = layer->displayFrame.top;
+    int dstRight = layer->displayFrame.right;
+    int dstBottom = layer->displayFrame.bottom;
+
+    // setup plane parameters
+    plane->setPosition(dstLeft, dstTop, dstRight, dstBottom);
+
+    // always assign RGB overlays to MIPI
+    plane->setPipeByMode(OVERLAY_MIPI0);
+
+    // attach plane to hwc layer
+    mLayerList->attachPlane(index, plane, flags);
+
+    return true;
+}
+
 bool IntelDisplayDevice::spritePrepare(int index, hwc_layer_1_t *layer, int flags)
 {
     if (!layer) {
@@ -209,6 +241,15 @@ bool IntelDisplayDevice::isOverlayLayer(hwc_display_contents_1_t *list,
                                      int index,
                                      hwc_layer_1_t *layer,
                                      int& flags)
+{
+    return false;
+}
+
+// TODO: re-implement it for each device
+bool IntelDisplayDevice::isRGBOverlayLayer(hwc_display_contents_1_t *list,
+                                           int index,
+                                           hwc_layer_1_t *layer,
+                                           int& flags)
 {
     return false;
 }
@@ -326,11 +367,13 @@ bool IntelDisplayDevice::isScreenshotActive(hwc_display_contents_1_t *list)
 // TODO: list valid usages
 bool IntelDisplayDevice::isHWCUsage(int usage)
 {
+#if 0
     // For SW access buffer, should handle with
     // FB in order to avoid tearing
     if ((usage & GRALLOC_USAGE_SW_WRITE_OFTEN) &&
          (usage & GRALLOC_USAGE_SW_READ_OFTEN))
         return false;
+#endif
 
     if (!(usage & GRALLOC_USAGE_HW_COMPOSER))
         return false;

@@ -400,5 +400,7 @@ hwc_module_t HAL_MODULE_INFO_SYM = {
         name: "Intel Hardware Composer",
         author: "Intel MCG/PSI",
         methods: &hwc_module_methods,
+        dso: 0,
+        reserved: { 0 }
     }
 };

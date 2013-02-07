@@ -177,7 +177,7 @@ public:
     drmModeModeInfoPtr selectDisplayDrmMode(int disp, intel_display_mode_t *m_selected, int* modeIndex);
     bool setDisplayDrmMode(int disp, uint32_t fb_handler, drmModeModeInfoPtr mode);
     bool handleDisplayDisConnection(int disp);
-    bool detectMDSModeChange();
+    bool detectMDSModeChange(void *data);
 
     // DPMS
     bool setDisplayDpms(int disp, bool blank);
@@ -201,6 +201,7 @@ public:
     intel_overlay_mode_t getOldDisplayMode();
     bool isVideoPlaying();
     bool isOverlayOff();
+    bool setActiveDisplayMode(void *data);
     bool notifyMipi(bool);
     bool isMdsSurface(int *nativeWindow);
     bool notifyWidi(bool);

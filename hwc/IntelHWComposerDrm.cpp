@@ -178,6 +178,15 @@ intel_overlay_mode_t IntelHWComposerDrm::getDisplayMode()
     return mDrmOutputsState.display_mode;
 }
 
+bool IntelHWComposerDrm::setActiveDisplayMode(void *data)
+{
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+    if (mMonitor != NULL)
+        return mMonitor->setActiveDisplayMode(data);
+#endif
+    return false;
+}
+
 bool IntelHWComposerDrm::isVideoPlaying()
 {
 #ifdef TARGET_HAS_MULTIPLE_DISPLAY
@@ -264,10 +273,13 @@ int  IntelHWComposerDrm::checkOutputMode(void* data) {
     return -1;
 }
 
-bool IntelHWComposerDrm::detectMDSModeChange()
+bool IntelHWComposerDrm::detectMDSModeChange(void *data)
 {
 
 #ifdef TARGET_HAS_MULTIPLE_DISPLAY
+    if (data != NULL)
+        setActiveDisplayMode(data);
+
     drmModeConnection hdmi = getOutputConnection(OUTPUT_HDMI);
     int mdsMode = 0;
     if (mMonitor != 0) {
@@ -422,7 +434,7 @@ bool IntelHWComposerDrm::detectDrmModeInfo()
     drmModeConnection mipi1 = getOutputConnection(OUTPUT_MIPI1);
     drmModeConnection hdmi = getOutputConnection(OUTPUT_HDMI);
 
-    detectMDSModeChange();
+    detectMDSModeChange(NULL);
 
     ALOGD_IF(ALLOW_MONITOR_PRINT,
            "%s: mipi/lvds %s, mipi1 %s, hdmi %s, displayMode %d\n",

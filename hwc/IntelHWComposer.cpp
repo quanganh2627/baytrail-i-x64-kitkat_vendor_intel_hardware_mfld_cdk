@@ -90,7 +90,7 @@ void IntelHWComposer::waitForHpdCompletion()
     ALOGD("%s: receive hpd completion signal: %d\n", __func__, mHpdCompletion?1:0);
 }
 
-bool IntelHWComposer::handleDisplayModeChange()
+bool IntelHWComposer::handleDisplayModeChange(void *data)
 {
     android::Mutex::Autolock _l(mLock);
     ALOGD_IF(ALLOW_HWC_PRINT, "handleDisplayModeChange");
@@ -100,7 +100,7 @@ bool IntelHWComposer::handleDisplayModeChange()
          return false;
     }
 
-    mDrm->detectMDSModeChange();
+    mDrm->detectMDSModeChange(data);
 
     if (needSwitchVsyncSrc())
         vsyncControl_l(1);
@@ -162,7 +162,7 @@ bool IntelHWComposer::handleHotplugEvent(int hpd, void *data, int *modeIndex)
 out:
     if (ret) {
         ALOGD("%s: detected hdmi hotplug event:%s\n", __func__, hpd?"IN":"OUT");
-        handleDisplayModeChange();
+        handleDisplayModeChange(data);
 
         /* hwc_dev->procs is set right after the device is opened, but there is
          * still a race condition where a hotplug event might occur after the open
@@ -228,7 +228,7 @@ bool IntelHWComposer::onUEvent(const char *msg, int msgLen, int msgType, void *d
     }
 
     if (msgType == IntelExternalDisplayMonitor::MSG_TYPE_MDS)
-        ret = handleDisplayModeChange();
+        ret = handleDisplayModeChange(data);
 
     // handle hdmi plug in;
     if (msgType == IntelExternalDisplayMonitor::MSG_TYPE_MDS_HOTPLUG_IN)

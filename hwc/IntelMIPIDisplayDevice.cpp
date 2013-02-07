@@ -562,23 +562,22 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
             }
         }
 
-        if(mHotplugEvent) {
-            if(mPlaneManager->isWidiActive()) {
-                if(widiPlane->isExtVideoAllowed()) {
-                    // default fps to 0. widi stack will decide what correct fps should be
-                    int displayW = 0, displayH = 0, fps = 0, isInterlace = 0;
-                    if(mDrm->isVideoPlaying()) {
-                        if(mDrm->getVideoInfo(&displayW, &displayH, &fps, &isInterlace)) {
-                            if(fps < 0) fps = 0;
-                        }
-                    }
-                    widiPlane->setPlayerStatus(mDrm->isVideoPlaying(), fps);
+        mHotplugEvent = false;
 
-                    if(!widiPlane->isPlayerOn())
-                        mWidiNativeWindow = NULL;
+        if(mPlaneManager->isWidiActive()) {
+            if(widiPlane->isExtVideoAllowed()) {
+                // default fps to 0. widi stack will decide what correct fps should be
+                int displayW = 0, displayH = 0, fps = 0, isInterlace = 0;
+                if(mDrm->isVideoPlaying()) {
+                    if(mDrm->getVideoInfo(&displayW, &displayH, &fps, &isInterlace)) {
+                        if(fps < 0) fps = 0;
+                    }
                 }
+                widiPlane->setPlayerStatus(mDrm->isVideoPlaying(), fps);
+
+                if(!widiPlane->isPlayerOn())
+                    mWidiNativeWindow = NULL;
             }
-            mHotplugEvent = false;
         }
 
         intel_overlay_mode_t mode = mDrm->getDisplayMode();

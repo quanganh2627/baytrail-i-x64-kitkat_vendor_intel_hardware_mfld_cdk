@@ -110,7 +110,7 @@ private:
 #endif
 private:
     bool handleHotplugEvent(int hdp, void *data, int* modeIndex);
-    bool handleDisplayModeChange(void *data);
+    bool handleDisplayModeChange();
     bool handleDynamicModeSetting(void *data, int* modeIndex);
     uint32_t disableUnusedVsyncs(uint32_t target);
     uint32_t enableVsyncs(uint32_t target);

@@ -140,7 +140,8 @@ int IntelExternalDisplayMonitor::onMdsMessage(int msg, void *data, int size)
         }
 
         if (msg == MDS_MODE_CHANGE) {
-            ret = mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2, MSG_TYPE_MDS, data, NULL);
+            mActiveDisplayMode = *(int *)data;
+            ret = mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2, MSG_TYPE_MDS, NULL, NULL);
         }
     }
     return ret ? 0 : (-1);
@@ -174,13 +175,6 @@ bool IntelExternalDisplayMonitor::isOverlayOff()
        return true;
     }
     return false;
-}
-
-bool IntelExternalDisplayMonitor::setActiveDisplayMode(void *data)
-{
-    mActiveDisplayMode = *(int *)data;
-
-    return true;
 }
 
 void IntelExternalDisplayMonitor::binderDied(const wp<IBinder>& who)

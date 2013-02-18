@@ -90,7 +90,6 @@ public:
     bool notifyMipi(bool);
     bool isMdsSurface(int *nativeWindow);
     bool getVideoInfo(int *displayW, int *displayH, int *fps, int *isinterlace);
-    bool setActiveDisplayMode(void *data);
 private:
     //DeathReipient interface
     virtual void binderDied(const android::wp<android::IBinder>& who);

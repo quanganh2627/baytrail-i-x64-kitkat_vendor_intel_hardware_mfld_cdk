@@ -896,7 +896,7 @@ bool IntelOverlayContext::setDataBuffer(IntelDisplayDataBuffer& buffer)
     }
 
     if (IntelHWComposerDrm::getInstance().isOverlayOff())
-        mOverlayBackBuffer->OCMD &= ~OVERLAY_ENABLE;
+        disable();
     else
         mOverlayBackBuffer->OCMD |= OVERLAY_ENABLE;
 

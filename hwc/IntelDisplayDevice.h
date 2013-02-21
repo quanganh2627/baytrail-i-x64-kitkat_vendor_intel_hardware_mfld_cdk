@@ -193,7 +193,7 @@ public:
 class IntelHDMIDisplayDevice : public IntelDisplayDevice {
 protected:
     enum {
-        HDMI_BUF_NUM = 2,
+        HDMI_BUF_NUM = 3,
     };
 
     IMG_framebuffer_device_public_t *mFBDev;

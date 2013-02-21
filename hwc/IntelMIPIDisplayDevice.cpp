@@ -295,7 +295,8 @@ bool IntelMIPIDisplayDevice::isOverlayLayer(hwc_display_contents_1_t *list,
         }
 
         if(!(widiPlane->isExtVideoAllowed()) || (srcWidth < 176 || srcHeight < 176)
-            || (grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12)) {
+            || ((grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12) &&
+               (grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE))) {
            /* If extended video mode is not allowed or the resolution of video less than
             * 176 x 176 or Software decoder (e.g. VP8) is used, we stop here and let the
             * video to be rendered via GFx plane by surface flinger. Video encoder has

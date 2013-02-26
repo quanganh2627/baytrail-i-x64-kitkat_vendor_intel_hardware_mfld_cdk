@@ -47,8 +47,11 @@
 
 #include <IntelHWComposer.h>
 #include <IntelOverlayUtil.h>
-#include <IntelWidiPlane.h>
 #include <IntelHWComposerCfg.h>
+
+#ifdef INTEL_WIDI
+#include <WidiDisplayDevice.h>
+#endif
 
 IntelHWComposer::~IntelHWComposer()
 {
@@ -106,7 +109,8 @@ bool IntelHWComposer::handleDisplayModeChange()
         vsyncControl_l(1);
 
     for (size_t i=0; i<DISPLAY_NUM; i++)
-        mDisplayDevice[i]->onHotplugEvent(true);
+        if (mDisplayDevice[i])
+            mDisplayDevice[i]->onHotplugEvent(true);
 
     return true;
 }
@@ -213,20 +217,6 @@ bool IntelHWComposer::onUEvent(const char *msg, int msgLen, int msgType, void *d
 {
     bool ret = false;
 #ifdef TARGET_HAS_MULTIPLE_DISPLAY
-    // if mds sent orientation change message or set background video mode, inform widi plane and return
-    if (msgType == IntelExternalDisplayMonitor::MSG_TYPE_MDS_ORIENTATION_CHANGE) {
-        ALOGD("%s: got multiDisplay service orientation change event\n", __func__);
-    }
-
-    if (msgType == IntelExternalDisplayMonitor::MSG_TYPE_MDS_SET_BACKGROUND_VIDEO_MODE) {
-        ALOGD("%s: got multiDisplay service background video mode event\n", __func__);
-        if(mPlaneManager->isWidiActive()) {
-            IntelWidiPlane* widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
-            int value = *((int*)data);
-            widiPlane->setBackgroundVideoMode((bool)value);
-        }
-    }
-
     if (msgType == IntelExternalDisplayMonitor::MSG_TYPE_MDS)
         ret = handleDisplayModeChange();
 
@@ -386,17 +376,10 @@ enable_out:
 uint32_t IntelHWComposer::getTargetVsync()
 {
     uint32_t targetVsyncs = 0;
-    IntelWidiPlane* widiPlane = 0;
 
-    // use fake vsync for widi extend video mode
-    widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
-    if (widiPlane && widiPlane->isActive() &&
-        widiPlane->isExtVideoAllowed() &&
-        widiPlane->isPlayerOn()) {
-        targetVsyncs |= (1 << VSYNC_SRC_FAKE);
-    } else if (OVERLAY_EXTEND == mDrm->getDisplayMode()) {
+    if (OVERLAY_EXTEND == mDrm->getDisplayMode())
         targetVsyncs |= (1 << VSYNC_SRC_HDMI);
-    } else
+    else
         targetVsyncs |= (1 << VSYNC_SRC_MIPI);
 
     return targetVsyncs;
@@ -464,7 +447,8 @@ bool IntelHWComposer::release()
 
     // disable all devices
     for (size_t i=0 ; i<DISPLAY_NUM ; i++) {
-         mDisplayDevice[i]->release();
+        if (mDisplayDevice[i])
+            mDisplayDevice[i]->release();
     }
 
     return true;
@@ -566,7 +550,8 @@ bool IntelHWComposer::dump(char *buff,
     dumpDisplayStat();
 
     for (size_t i=0 ; i<DISPLAY_NUM ; i++) {
-         mDisplayDevice[i]->dump(mDumpBuf,  mDumpBuflen, &mDumpLen);
+        if (mDisplayDevice[i])
+            mDisplayDevice[i]->dump(mDumpBuf,  mDumpBuflen, &mDumpLen);
     }
 
     mPlaneManager->dump(mDumpBuf,  mDumpBuflen, &mDumpLen);
@@ -679,13 +664,21 @@ bool IntelHWComposer::initialize()
          if (i == HWC_DISPLAY_PRIMARY)
              mDisplayDevice[i] =
                  new IntelMIPIDisplayDevice(mBufferManager, mGrallocBufferManager,
-                                       mPlaneManager, mFBDev, mDrm, i);
+                                       mPlaneManager, mFBDev, mDrm, &mExtendedModeInfo, i);
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
          else if (i == HWC_DISPLAY_EXTERNAL)
              mDisplayDevice[i] =
                  new IntelHDMIDisplayDevice(mBufferManager, mGrallocBufferManager,
                                        mPlaneManager, mFBDev, mDrm, i);
+#endif
+#ifdef INTEL_WIDI
+         else if (i == HWC_NUM_DISPLAY_TYPES)
+             mDisplayDevice[i] =
+                 new WidiDisplayDevice(mBufferManager, mGrallocBufferManager,
+                                       mPlaneManager, mDrm, &mExtendedModeInfo, i);
+#endif
          else
-             break;
+             continue;
 
          if (!mDisplayDevice[i]) {
              ALOGE("%s: Failed to create plane manager\n", __func__);
@@ -695,6 +688,7 @@ bool IntelHWComposer::initialize()
 
     // init mHDMIBuffers
     memset(&mHDMIFBHandle, 0, sizeof(mHDMIFBHandle));
+    memset(&mExtendedModeInfo, 0, sizeof(mExtendedModeInfo));
 
     // do mode setting in HWC if HDMI is connected when boot up
     if (mDrm->detectDisplayConnection(OUTPUT_HDMI))
@@ -743,21 +737,56 @@ err:
     return false;
 }
 
+intel_gralloc_buffer_handle_t *IntelHWComposer::findVideoHandle(hwc_display_contents_1_t* list)
+{
+    intel_gralloc_buffer_handle_t *foundHandle = NULL;
+
+    if (list) {
+        for (size_t i = 0; i < list->numHwLayers-1; i++) {
+            hwc_layer_1_t& layer = list->hwLayers[i];
+            if (layer.compositionType != HWC_BACKGROUND && layer.handle) {
+                intel_gralloc_buffer_handle_t *grallocHandle = (intel_gralloc_buffer_handle_t*)layer.handle;
+                if (grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12 ||
+                    grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
+                    grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE)
+                {
+                    foundHandle = grallocHandle;
+                }
+            }
+        }
+    }
+
+    return foundHandle;
+}
+
 bool IntelHWComposer::prepareDisplays(size_t numDisplays,
                                       hwc_display_contents_1_t** displays)
 {
     android::Mutex::Autolock _l(mLock);
 
+    mExtendedModeInfo.widiExtHandle = NULL;
+
+    if (numDisplays >= HWC_NUM_DISPLAY_TYPES && displays[HWC_NUM_DISPLAY_TYPES])
+    {
+        intel_gralloc_buffer_handle_t *videoHandleMipi = findVideoHandle(displays[HWC_DISPLAY_PRIMARY]);
+        intel_gralloc_buffer_handle_t *videoHandleWidi = findVideoHandle(displays[HWC_NUM_DISPLAY_TYPES]);
+        if (videoHandleMipi == videoHandleWidi)
+            mExtendedModeInfo.widiExtHandle = videoHandleMipi;
+
+        // call prepare for widi out of order since it may cancel extended mode
+        mDisplayDevice[HWC_NUM_DISPLAY_TYPES]->prepare(displays[HWC_NUM_DISPLAY_TYPES]);
+    }
+
     for (size_t disp = 0; disp < numDisplays; disp++) {
-         if (disp >= DISPLAY_NUM)
-             break;
+        if (disp >= DISPLAY_NUM)
+            break;
 
-         hwc_display_contents_1_t *list = displays[disp];
-         if (list)
-             mDisplayDevice[disp]->prepare(list);
+        hwc_display_contents_1_t *list = displays[disp];
+        if (list && mDisplayDevice[disp] && disp != HWC_NUM_DISPLAY_TYPES)
+            mDisplayDevice[disp]->prepare(list);
 
-         if (disp && !list)
-             signalHpdCompletion();
+        if (disp == HWC_DISPLAY_EXTERNAL && !list)
+            signalHpdCompletion();
     }
 
     return true;
@@ -779,13 +808,13 @@ bool IntelHWComposer::commitDisplays(size_t numDisplays,
     int numBuffers = 0;
 
     for (size_t disp = 0; disp < numDisplays; disp++) {
-         if (disp >= DISPLAY_NUM)
-             break;
+        if (disp >= DISPLAY_NUM)
+            break;
 
-         hwc_display_contents_1_t *list = displays[disp];
+        hwc_display_contents_1_t *list = displays[disp];
 
-         if (list)
-             mDisplayDevice[disp]->commit(list, bufferHandles, numBuffers);
+        if (list && mDisplayDevice[disp])
+            mDisplayDevice[disp]->commit(list, bufferHandles, numBuffers);
     }
 
     void *context = mPlaneManager->getPlaneContexts();
@@ -823,7 +852,7 @@ bool IntelHWComposer::blankDisplay(int disp, int blank)
 bool IntelHWComposer::getDisplayConfigs(int disp, uint32_t* configs, 
                                         size_t* numConfigs)
 {
-    if (disp >= DISPLAY_NUM) {
+    if (disp >= DISPLAY_NUM || !mDisplayDevice[disp]) {
         ALOGW("%s: invalid disp num %d\n", __func__, disp);
         return false;
     }
@@ -838,7 +867,7 @@ bool IntelHWComposer::getDisplayConfigs(int disp, uint32_t* configs,
 bool IntelHWComposer::getDisplayAttributes(int disp, uint32_t config,
             const uint32_t* attributes, int32_t* values)
 {
-    if (disp >= DISPLAY_NUM) {
+    if (disp >= DISPLAY_NUM || !mDisplayDevice[disp]) {
         ALOGW("%s: invalid disp num %d\n", __func__, disp);
         return false;
     }

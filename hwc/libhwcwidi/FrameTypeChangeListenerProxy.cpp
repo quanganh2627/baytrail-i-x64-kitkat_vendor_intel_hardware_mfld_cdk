@@ -79,8 +79,6 @@ public:
         data.writeInt32(frameInfo.lumaUStride);
         data.writeInt32(frameInfo.chromaUStride);
         data.writeInt32(frameInfo.chromaVStride);
-        data.writeInt32(frameInfo.bufferChromaUStride);
-        data.writeInt32(frameInfo.bufferChromaVStride);
         data.writeInt32(frameInfo.contentFrameRateN);
         data.writeInt32(frameInfo.contentFrameRateD);
         status_t ret = remote()->transact(FRAME_TYPE_CHANGED, data, &reply);
@@ -110,8 +108,6 @@ status_t BnFrameTypeChangeListener::onTransact(
             frameInfo.lumaUStride = (uint16_t) data.readInt32();
             frameInfo.chromaUStride = (uint16_t) data.readInt32();
             frameInfo.chromaVStride = (uint16_t) data.readInt32();
-            frameInfo.bufferChromaUStride = (uint32_t) data.readInt32();
-            frameInfo.bufferChromaVStride = (uint32_t) data.readInt32();
             frameInfo.contentFrameRateN = (uint32_t) data.readInt32();
             frameInfo.contentFrameRateD = (uint32_t) data.readInt32();
             sp<IFrameListener> fl = frameTypeChanged(frameInfo);

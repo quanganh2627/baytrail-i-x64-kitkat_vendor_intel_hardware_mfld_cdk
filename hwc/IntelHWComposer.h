@@ -69,11 +69,7 @@ public:
         VSYNC_SRC_NUM,
     };
     enum {
-#ifdef TARGET_HAS_MULTIPLE_DISPLAY
-        DISPLAY_NUM = 2,
-#else
-        DISPLAY_NUM = 1,
-#endif
+        DISPLAY_NUM = 3,
     };
 private:
     IMG_framebuffer_device_public_t *mFBDev;
@@ -93,8 +89,8 @@ private:
         uint32_t kmhandle;
         uint32_t size;
     } mHDMIFBHandle;
+    WidiExtendedModeInfo mExtendedModeInfo;
 
-    int* mWidiNativeWindow;
     android::Mutex mLock;
     bool mInitialized;
     uint32_t mActiveVsyncs;
@@ -119,6 +115,7 @@ private:
     bool vsyncControl_l(int enabled);
     void signalHpdCompletion();
     void waitForHpdCompletion();
+    static intel_gralloc_buffer_handle_t *findVideoHandle(hwc_display_contents_1_t* list);
 public:
     bool onUEvent(const char *msg, int msgLen, int msgType, void *data, int* modeIndex);
     void vsync(int64_t timestamp, int pipe);

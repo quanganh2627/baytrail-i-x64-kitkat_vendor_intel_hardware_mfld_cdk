@@ -95,54 +95,37 @@ int IntelExternalDisplayMonitor::onMdsMessage(int msg, void *data, int size)
     int modeIndex = -1;
 
     ALOGD_IF(ALLOW_MONITOR_PRINT, "onMdsMessage: External display monitor onMdsMessage, %d size :%d ", msg, size);
-    if ((msg == MDS_ORIENTATION_CHANGE || msg == MDS_SET_BACKGROUND_VIDEO_MODE) && mWidiOn) {
-        switch(msg) {
-            case MDS_ORIENTATION_CHANGE: {
-                ALOGD_IF(ALLOW_MONITOR_PRINT, "onMdsMessage: MDS_ORIENTATION_CHANGE received");
-                ret = mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2,
-                    MSG_TYPE_MDS_ORIENTATION_CHANGE, data, NULL);
-            } break;
-            case MDS_SET_BACKGROUND_VIDEO_MODE: {
-                ALOGV("onMdsMessage: MDS_SET_BACKGROUND_VIDEO_MODE received");
-                ret = mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2,
-                    MSG_TYPE_MDS_SET_BACKGROUND_VIDEO_MODE, data, NULL);
-            } break;
-            default:
-                break;
+    if (msg == MDS_MODE_CHANGE) {
+        int mode = *((int*)data);
+
+        if (checkMode(mActiveDisplayMode, MDS_HDMI_CONNECTED) &&
+            !checkMode(mode, MDS_HDMI_CONNECTED)) {
+            ALOGD_IF(ALLOW_MONITOR_PRINT, "%s: HDMI is plugged out %d", __func__, mode);
+            mLastMsg = MSG_TYPE_MDS_HOTPLUG_OUT;
+            ret = mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2, mLastMsg, NULL, NULL);
         }
-    } else {
-        if (msg == MDS_MODE_CHANGE) {
-            int mode = *((int*)data);
-
-            if (checkMode(mActiveDisplayMode, MDS_HDMI_CONNECTED) &&
-                !checkMode(mode, MDS_HDMI_CONNECTED)) {
-                ALOGD_IF(ALLOW_MONITOR_PRINT, "%s: HDMI is plugged out %d", __func__, mode);
-                mLastMsg = MSG_TYPE_MDS_HOTPLUG_OUT;
-                ret = mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2, mLastMsg, NULL, NULL);
-            }
-        } else if (msg == MDS_SET_TIMING) {
-            MDSHDMITiming* timing = (MDSHDMITiming*)data;
-            intel_display_mode_t* mode = NULL;
-            if (mLastMsg == MSG_TYPE_MDS_HOTPLUG_OUT) {
-                ALOGD_IF(ALLOW_MONITOR_PRINT, "%s: HDMI is plugged in, should set HDMI timing", __func__);
-                mLastMsg = MSG_TYPE_MDS_HOTPLUG_IN;
-            } else {
-                ALOGD_IF(ALLOW_MONITOR_PRINT, "%s: Setting HDMI timing", __func__);
-                mLastMsg = MSG_TYPE_MDS_TIMING_DYNAMIC_SETTING;
-            }
-
-            ALOGD_IF(ALLOW_MONITOR_PRINT, "%s: Setting HDMI timing %dx%d@%dx%dx%d", __func__,
-                    timing->width, timing->height,
-                    timing->refresh, timing->ratio, timing->interlace);
-            ret = mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2,
-                    mLastMsg, (intel_display_mode_t *)data, &modeIndex);
-            return modeIndex;
+    } else if (msg == MDS_SET_TIMING) {
+        MDSHDMITiming* timing = (MDSHDMITiming*)data;
+        intel_display_mode_t* mode = NULL;
+        if (mLastMsg == MSG_TYPE_MDS_HOTPLUG_OUT) {
+            ALOGD_IF(ALLOW_MONITOR_PRINT, "%s: HDMI is plugged in, should set HDMI timing", __func__);
+            mLastMsg = MSG_TYPE_MDS_HOTPLUG_IN;
+        } else {
+            ALOGD_IF(ALLOW_MONITOR_PRINT, "%s: Setting HDMI timing", __func__);
+            mLastMsg = MSG_TYPE_MDS_TIMING_DYNAMIC_SETTING;
         }
 
-        if (msg == MDS_MODE_CHANGE) {
-            mActiveDisplayMode = *(int *)data;
-            ret = mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2, MSG_TYPE_MDS, NULL, NULL);
-        }
+        ALOGD_IF(ALLOW_MONITOR_PRINT, "%s: Setting HDMI timing %dx%d@%dx%dx%d", __func__,
+                timing->width, timing->height,
+                timing->refresh, timing->ratio, timing->interlace);
+        ret = mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2,
+                mLastMsg, (intel_display_mode_t *)data, &modeIndex);
+        return modeIndex;
+    }
+
+    if (msg == MDS_MODE_CHANGE) {
+        mActiveDisplayMode = *(int *)data;
+        ret = mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2, MSG_TYPE_MDS, NULL, NULL);
     }
     return ret ? 0 : (-1);
 }

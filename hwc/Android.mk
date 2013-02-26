@@ -36,7 +36,6 @@ LOCAL_COPY_HEADERS := \
     IntelOverlayHW.h \
     IntelOverlayPlane.h \
     IntelOverlayUtil.h \
-    IntelWidiPlane.h \
     IntelWsbm.h \
     IntelWsbmWrapper.h
 ifeq ($(TARGET_HAS_MULTIPLE_DISPLAY),true)
@@ -72,12 +71,6 @@ LOCAL_MODULE_TAGS := eng
 LOCAL_MODULE := hwcomposer.$(TARGET_DEVICE)
 LOCAL_CFLAGS:= -DLOG_TAG=\"hwcomposer\" -DLINUX
 
-ifeq ($(INTEL_WIDI), true)
-LOCAL_SHARED_LIBRARIES += libhwcwidi
-LOCAL_CFLAGS += -DINTEL_WIDI
-LOCAL_SRC_FILES += IntelWidiPlane.cpp FrameServer.cpp
-endif
-
 ifeq ($(TARGET_SUPPORT_HWC_SYS_LAYER), true)
 LOCAL_CFLAGS += -DTARGET_SUPPORT_HWC_SYS_LAYER -DINTEL_RGB_OVERLAY
 LOCAL_SRC_FILES += IntelHWCWrapper.cpp
@@ -103,6 +96,12 @@ ifeq ($(TARGET_HAS_MULTIPLE_DISPLAY),true)
     LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/display
     LOCAL_SHARED_LIBRARIES += libmultidisplay
     LOCAL_SRC_FILES += IntelExternalDisplayMonitor.cpp
+endif
+
+ifeq ($(INTEL_WIDI), true)
+    LOCAL_SHARED_LIBRARIES += libhwcwidi
+    LOCAL_CFLAGS += -DINTEL_WIDI
+    LOCAL_SRC_FILES += WidiDisplayDevice.cpp
 endif
 
 ifeq ($(BOARD_OVERLAY_USE_SECONDARY_GAMMA),true)

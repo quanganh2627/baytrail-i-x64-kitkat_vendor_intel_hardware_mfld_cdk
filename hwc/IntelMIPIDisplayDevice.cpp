@@ -31,7 +31,6 @@
 #include <IntelHWComposer.h>
 #include <IntelDisplayDevice.h>
 #include <IntelOverlayUtil.h>
-#include <IntelWidiPlane.h>
 #include <IntelHWComposerCfg.h>
 #define INTEL_EXT_SF_ANIMATION_HINT
 
@@ -40,10 +39,12 @@ IntelMIPIDisplayDevice::IntelMIPIDisplayDevice(IntelBufferManager *bm,
                                        IntelDisplayPlaneManager *pm,
                                        IMG_framebuffer_device_public_t *fbdev,
                                        IntelHWComposerDrm *drm,
+                                       WidiExtendedModeInfo *extinfo,
                                        uint32_t index)
                                      : IntelDisplayDevice(pm, drm, bm, gm, index),
                                        mFBDev(fbdev),
-                                       mWidiNativeWindow(NULL)
+                                       mExtendedModeInfo(extinfo),
+                                       mVideoSentToWidi(false)
 {
     ALOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
 
@@ -270,8 +271,6 @@ bool IntelMIPIDisplayDevice::isOverlayLayer(hwc_display_contents_1_t *list,
     if (!grallocHandle)
         return false;
 
-    IntelWidiPlane* widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
-
     // clear hints
     layer->hints = 0;
 
@@ -279,44 +278,6 @@ bool IntelMIPIDisplayDevice::isOverlayLayer(hwc_display_contents_1_t *list,
     if (mLayerList->getLayerType(index) != IntelHWComposerLayer::LAYER_TYPE_YUV) {
         useOverlay = false;
         goto out_check;
-    }
-
-    // Got a YUV layer, check external display status for extend video mode
-    if (widiPlane->isActive()) {
-        int srcWidth = layer->sourceCrop.right - layer->sourceCrop.left;
-        int srcHeight = layer->sourceCrop.bottom - layer->sourceCrop.top;
-
-        if(widiPlane->isBackgroundVideoMode() && widiPlane->isStreaming() && (mWidiNativeWindow != NULL)) {
-            if(!(widiPlane->isSurfaceMatching(grallocHandle))) {
-                useOverlay = false;
-                goto out_check;
-            }
-        }
-
-        if(!(widiPlane->isExtVideoAllowed()) || (srcWidth < 176 || srcHeight < 176)
-            || ((grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED) &&
-               (grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE))) {
-           /* If extended video mode is not allowed or the resolution of video less than
-            * 176 x 176 or Software decoder (e.g. VP8) is used, we stop here and let the
-            * video to be rendered via GFx plane by surface flinger. Video encoder has
-            * limitation that HW encoder can't encode video that is less than QCIF (176 x 144).
-            * Since video rotation metadata may tell us to rotate the image after decoding,
-            * our width and height fields might be reversed from the resolution that will
-            * be sent to WiDi. So we set the minimum resolution to 176x176 to guarantee
-            * that we can support the resolution even if rotation will be done, before trying
-            * to use extended mode.
-            */
-            useOverlay = false;
-            goto out_check;
-        }
-        if(widiPlane->isPlayerOn() && widiPlane->isExtVideoAllowed()) {
-            LOGD_IF(ALLOW_HWC_PRINT, "isOverlayLayer: widi video on and force overlay");
-            forceOverlay = true;
-        }
-    }
-    else
-    {
-        mWidiNativeWindow = NULL;
     }
 
     // force to use overlay in video extend mode
@@ -419,7 +380,6 @@ bool IntelMIPIDisplayDevice::isRGBOverlayLayer(hwc_display_contents_1_t *list,
     int srcHeight;
     int dstWidth;
     int dstHeight;
-    IntelWidiPlane* widiPlane;
     drmModeFBPtr fbInfo;
 
 
@@ -434,12 +394,9 @@ bool IntelMIPIDisplayDevice::isRGBOverlayLayer(hwc_display_contents_1_t *list,
 
     // Don't use it when:
     // 1) HDMI is connected
-    // 2) WIDI is active
-    // 3) there are YUV layers
-    widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
+    // 2) there are YUV layers
     if ((mDrm->getDisplayMode() == OVERLAY_EXTEND) ||
         (mDrm->getDisplayMode() == OVERLAY_CLONE_MIPI0) ||
-        (widiPlane->isActive()) ||
         (mLayerList->getYUVLayerCount())) {
         useRGBOverlay = false;
         goto out_check;
@@ -584,10 +541,22 @@ void IntelMIPIDisplayDevice::onGeometryChanged(hwc_display_contents_1_t *list)
         goto out_check;
     }
 
+    mVideoSentToWidi = false;
+
     for (size_t i = 0; list && i < (size_t)mLayerList->getLayersCount(); i++) {
         // check whether a layer can be handled in general
         if (!isHWCLayer(&list->hwLayers[i]))
             continue;
+
+        if (list->hwLayers[i].compositionType != HWC_BACKGROUND &&
+            mExtendedModeInfo->widiExtHandle != NULL &&
+            mExtendedModeInfo->widiExtHandle == (intel_gralloc_buffer_handle_t*)list->hwLayers[i].handle)
+        {
+            list->hwLayers[i].compositionType = HWC_OVERLAY;
+            list->hwLayers[i].hints |= HWC_HINT_DISABLE_ANIMATION;
+            mVideoSentToWidi = true;
+            continue;
+        }
 
         // further check whether a layer can be handle by overlay/sprite
         int flags = 0;
@@ -659,51 +628,16 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
     // clear force swap buffer flag
     mForceSwapBuffer = false;
 
-    bool widiStatusChanged = mPlaneManager->isWidiStatusChanged();
-
     // handle geometry changing. attach display planes to layers
     // which can be handled by HWC.
     // plane control information (e.g. position) will be set here
-    if (!list || (list->flags & HWC_GEOMETRY_CHANGED) || mHotplugEvent
-        || widiStatusChanged) {
+    if (!list || (list->flags & HWC_GEOMETRY_CHANGED) || mHotplugEvent) {
         onGeometryChanged(list);
-
-        IntelWidiPlane* widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
-        if (widiStatusChanged) {
-            if(mPlaneManager->isWidiActive()) {
-                mDrm->notifyWidi(true);
-                if(widiPlane->isBackgroundVideoMode())
-                    mDrm->notifyMipi(true);
-                else
-                    mDrm->notifyMipi(!widiPlane->isStreaming());
-            }
-            else
-            {
-                mDrm->notifyWidi(false);
-            }
-        }
-
         mHotplugEvent = false;
 
-        if(mPlaneManager->isWidiActive()) {
-            if(widiPlane->isExtVideoAllowed()) {
-                // default fps to 0. widi stack will decide what correct fps should be
-                int displayW = 0, displayH = 0, fps = 0, isInterlace = 0;
-                if(mDrm->isVideoPlaying()) {
-                    if(mDrm->getVideoInfo(&displayW, &displayH, &fps, &isInterlace)) {
-                        if(fps < 0) fps = 0;
-                    }
-                }
-                widiPlane->setPlayerStatus(mDrm->isVideoPlaying(), fps);
-
-                if(!widiPlane->isPlayerOn())
-                    mWidiNativeWindow = NULL;
-            }
-        }
-
-        intel_overlay_mode_t mode = mDrm->getDisplayMode();
-        if (list && (mode == OVERLAY_EXTEND ||  widiPlane->isStreaming()) &&
-            (list->flags & HWC_GEOMETRY_CHANGED)) {
+        if (list && (list->flags & HWC_GEOMETRY_CHANGED) &&
+            (mVideoSentToWidi || mDrm->getDisplayMode() == OVERLAY_EXTEND))
+        {
             bool hasSkipLayer = false;
             ALOGD_IF(ALLOW_HWC_PRINT,
                     "layers num:%d", mLayerList->getLayersCount());
@@ -715,6 +649,7 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
             }
 
             if (!hasSkipLayer) {
+                mDrm->notifyWidi(mVideoSentToWidi);
                 if (mLayerList->getLayersCount() == 1)
                     mDrm->notifyMipi(false);
                 else
@@ -784,15 +719,6 @@ bool IntelMIPIDisplayDevice::commit(hwc_display_contents_1_t *list,
     if (!mPlaneManager->primaryAvailable(0)) {
         ALOGD_IF(ALLOW_HWC_PRINT, "%s: primary plane in use\n", __func__);
         needSwapBuffer = false;
-    }
-
-    if(mPlaneManager->isWidiActive()) {
-        IntelDisplayPlane *p = mPlaneManager->getWidiPlane();
-        ALOGD_IF(ALLOW_HWC_PRINT, "Widi Plane is %p",p);
-         if (p)
-             p->flip(context, 0);
-         else
-             ALOGE("Widi Plane is NULL");
     }
 
     {
@@ -865,8 +791,6 @@ bool IntelMIPIDisplayDevice::commit(hwc_display_contents_1_t *list,
                 continue;
             if (list->hwLayers[i].compositionType != HWC_OVERLAY)
                 continue;
-            if (mPlaneManager->isWidiActive())
-                continue;
 
             plane->waitForFlipCompletion();
         }
@@ -892,7 +816,6 @@ bool IntelMIPIDisplayDevice::useOverlayRotation(hwc_layer_1_t *layer,
 {
     bool useOverlay = false;
     uint32_t hwcLayerTransform;
-    IntelWidiPlane* widiplane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
 
     // FIXME: workaround for rotation issue, remove it later
     static int counter = 0;
@@ -910,8 +833,6 @@ bool IntelMIPIDisplayDevice::useOverlayRotation(hwc_layer_1_t *layer,
 
     // detect video mode change
     displayMode = mDrm->getDisplayMode();
-    if(widiplane->isStreaming())
-        displayMode = OVERLAY_EXTEND;
 
     if (grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
         grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) {
@@ -1091,12 +1012,8 @@ bool IntelMIPIDisplayDevice::isBobDeinterlace(hwc_layer_1_t *layer)
 bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
 {
     IntelDisplayPlane *plane = 0;
-    IntelWidiPlane* widiplane = NULL;
     bool ret = true;
     bool handled = true;
-
-    if (mPlaneManager->isWidiActive())
-         widiplane = (IntelWidiPlane*) mPlaneManager->getWidiPlane();
 
     for (size_t i=0 ; i<(size_t)mLayerList->getLayersCount(); i++) {
         hwc_layer_1_t *layer = &list->hwLayers[i];
@@ -1173,32 +1090,6 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
         uint32_t transform = layer->transform;
 
         if (planeType == IntelDisplayPlane::DISPLAY_PLANE_OVERLAY) {
-            if (widiplane) {
-                if(widiplane->isBackgroundVideoMode() && widiplane->isPlayerOn()) {
-                    if(mWidiNativeWindow == NULL) {
-                        widiplane->getNativeWindow(mWidiNativeWindow, grallocHandle);
-                        if(mWidiNativeWindow != NULL) {
-                            if(mDrm->isMdsSurface(mWidiNativeWindow)) {
-                                widiplane->setNativeWindow(mWidiNativeWindow);
-                                LOGD_IF(ALLOW_HWC_PRINT,
-                                    "Native window is from MDS for widi at composer = %p ", mWidiNativeWindow);
-                            }
-                            else {
-                                mWidiNativeWindow = NULL;
-                                LOGI("Native window is not from MDS");
-                            }
-                        }
-                    }
-                }
-                else {
-                    mWidiNativeWindow = NULL;
-                    LOGD_IF(ALLOW_HWC_PRINT,
-                           "Native window from widiplane for background = %p", mWidiNativeWindow);
-                }
-                widiplane->setOverlayData(grallocHandle, srcWidth, srcHeight);
-                continue;
-            }
-
             int flags = mLayerList->getFlags(i);
             if (flags & IntelDisplayPlane::DELAY_DISABLE) {
                 ALOGD_IF(ALLOW_HWC_PRINT,

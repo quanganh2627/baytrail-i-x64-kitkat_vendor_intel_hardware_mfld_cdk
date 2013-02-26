@@ -60,6 +60,9 @@ class IntelDisplayVsync {
 //FIXME: IMPLEMENT IT LATER
 };
 
+struct WidiExtendedModeInfo {
+    intel_gralloc_buffer_handle_t* widiExtHandle;
+};
 
 class IntelDisplayDevice : public IntelHWComposerDump {
 protected:
@@ -140,7 +143,8 @@ public:
 class IntelMIPIDisplayDevice : public IntelDisplayDevice {
 protected:
     IMG_framebuffer_device_public_t *mFBDev;
-    int* mWidiNativeWindow;
+    WidiExtendedModeInfo *mExtendedModeInfo;
+    bool mVideoSentToWidi;
 
 protected:
     bool isForceOverlay(hwc_layer_1_t *layer);
@@ -178,6 +182,7 @@ public:
                            IntelDisplayPlaneManager *pm,
                            IMG_framebuffer_device_public_t *fbdev,
                            IntelHWComposerDrm *drm,
+                           WidiExtendedModeInfo *extinfo,
                            uint32_t index);
     ~IntelMIPIDisplayDevice();
     virtual bool prepare(hwc_display_contents_1_t *hdc);

@@ -31,7 +31,6 @@
 #include <IntelHWComposer.h>
 #include <IntelDisplayDevice.h>
 #include <IntelOverlayUtil.h>
-#include <IntelWidiPlane.h>
 #include <IntelHWComposerCfg.h>
 
 IntelHDMIDisplayDevice::IntelHDMIDisplayDevice(IntelBufferManager *bm,

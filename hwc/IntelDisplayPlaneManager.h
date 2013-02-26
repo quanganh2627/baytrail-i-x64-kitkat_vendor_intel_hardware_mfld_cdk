@@ -313,8 +313,6 @@ public:
     bool flush_bottom_field(uint32_t flags);
 };
 
-class IntelWidiPlane; // forward declaration
-
 class IntelOverlayPlane : public IntelDisplayPlane {
 private:
     enum {
@@ -332,7 +330,6 @@ private:
         int grallocBuffFd;
     } mDataBuffers[OVERLAY_DATA_BUFFER_NUM_MAX];
     int mNextBuffer;
-    IntelWidiPlane* mWidiPlane;
 
 public:
     IntelOverlayPlane(int fd, int index, IntelBufferManager *bufferManager);
@@ -351,8 +348,6 @@ public:
     virtual void forceBottom(bool bottom);
     virtual uint32_t onDrmModeChange();
     virtual bool setOverlayOnTop(bool isOnTop);
-
-    virtual bool setWidiPlane(IntelDisplayPlane*);
 };
 
 class IntelRGBOverlayPlane : public IntelOverlayPlane {
@@ -467,7 +462,6 @@ private:
     IntelDisplayPlane **mPrimaryPlanes;
     IntelDisplayPlane **mOverlayPlanes;
     IntelDisplayPlane **mRGBOverlayPlanes;
-    IntelDisplayPlane *mWidiPlane;
 
     // Bitmap of free planes. Bit0 - plane A, bit 1 - plane B, etc.
     uint32_t mFreeSpritePlanes;
@@ -512,7 +506,6 @@ public:
     IntelDisplayPlane* getPrimaryPlane(int pipe);
     IntelDisplayPlane* getOverlayPlane();
     IntelDisplayPlane* getRGBOverlayPlane();
-    IntelDisplayPlane* getWidiPlane();
 
     bool hasFreeSprites();
     bool hasFreeOverlays();
@@ -520,8 +513,6 @@ public:
     bool hasFreeRGBOverlays();
     bool primaryAvailable(int index);
 
-    bool isWidiActive();
-    bool isWidiStatusChanged();
     void reclaimPlane(IntelDisplayPlane *plane);
     void disableReclaimedPlanes(int type);
     void *getPlaneContexts() const;

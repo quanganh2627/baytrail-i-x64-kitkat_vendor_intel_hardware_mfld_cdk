@@ -445,7 +445,13 @@ bool IntelOverlayContext::bufferOffsetSetup(IntelDisplayDataBuffer &buf)
      * NOTE: this is the decoded video format, align the height to 32B
      * as it's defined by video driver
      */
-    case HAL_PIXEL_FORMAT_INTEL_HWC_NV12:    /*NV12*/
+    case HAL_PIXEL_FORMAT_INTEL_HWC_NV12:    /*normal NV12*/
+        mOverlayBackBuffer->OBUF_0Y = 0;
+        mOverlayBackBuffer->OBUF_0U = yStride * h;
+        mOverlayBackBuffer->OBUF_0V = 0;
+        mOverlayBackBuffer->OCMD |= OVERLAY_FORMAT_PLANAR_NV12_2;
+        break;
+    case HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED:    /*NV12_VED, NV12 for video decoding*/
         mOverlayBackBuffer->OBUF_0Y = 0;
         mOverlayBackBuffer->OBUF_0U = yStride * align_to(h, 32);
         mOverlayBackBuffer->OBUF_0V = 0;
@@ -541,6 +547,7 @@ bool IntelOverlayContext::coordinateSetup(IntelDisplayDataBuffer& buf)
     case HAL_PIXEL_FORMAT_YV12:              /*YV12*/
     case HAL_PIXEL_FORMAT_INTEL_HWC_I420:    /*I420*/
     case HAL_PIXEL_FORMAT_INTEL_HWC_NV12:    /*NV12*/
+    case HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED:    /*NV12*/
     case HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE:    /*NV12_TILE*/
         break;
     case HAL_PIXEL_FORMAT_INTEL_HWC_YUY2:    /*YUY2*/
@@ -1396,9 +1403,9 @@ IntelOverlayPlane::IntelOverlayPlane(int fd, int index, IntelBufferManager *bm)
     bool ret;
     ALOGD_IF(ALLOW_OVERLAY_PRINT, "%s\n", __func__);
 
-    // create data buffer, pixel format set to NV12 by default
+    // create data buffer, pixel format set to NV12_VED by default
     IntelDisplayBuffer *dataBuffer =
-        new IntelDisplayDataBuffer(HAL_PIXEL_FORMAT_INTEL_HWC_NV12, 0, 0);
+        new IntelDisplayDataBuffer(HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED, 0, 0);
     if (!dataBuffer) {
         ALOGE("%s: Failed to create overlay data buffer\n", __func__);
         return;
@@ -1506,6 +1513,7 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
         uvStride = align_to(yStride >> 1, 64);
         break;
     case HAL_PIXEL_FORMAT_INTEL_HWC_NV12:
+    case HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED:
     case HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE:
         yStride = align_to(grallocStride, 64);
         uvStride = yStride;
@@ -1544,7 +1552,7 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
     // update data buffer's yuv strides and continue
     overlayDataBuffer->setStride(yStride, uvStride);
 
-    int grallocBuffFd = (nHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12 ||
+    int grallocBuffFd = (nHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
                      nHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) ?
                      nHandle->fd[GRALLOC_SUB_BUFFER1] : 0;
 

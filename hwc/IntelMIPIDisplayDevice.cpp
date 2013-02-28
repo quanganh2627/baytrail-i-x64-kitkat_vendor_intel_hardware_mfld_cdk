@@ -295,7 +295,7 @@ bool IntelMIPIDisplayDevice::isOverlayLayer(hwc_display_contents_1_t *list,
         }
 
         if(!(widiPlane->isExtVideoAllowed()) || (srcWidth < 176 || srcHeight < 176)
-            || ((grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12) &&
+            || ((grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED) &&
                (grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE))) {
            /* If extended video mode is not allowed or the resolution of video less than
             * 176 x 176 or Software decoder (e.g. VP8) is used, we stop here and let the
@@ -793,7 +793,7 @@ bool IntelMIPIDisplayDevice::useOverlayRotation(hwc_layer_1_t *layer,
     if(widiplane->isStreaming())
         displayMode = OVERLAY_EXTEND;
 
-    if (grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12 ||
+    if (grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
         grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) {
         // map payload buffer
         IntelDisplayBuffer *buffer =
@@ -901,7 +901,7 @@ bool IntelMIPIDisplayDevice::isForceOverlay(hwc_layer_1_t *layer)
     if (!grallocHandle)
         return false;
 
-    if (grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12 ||
+    if (grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
         grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) {
         // map payload buffer
         IntelDisplayBuffer *buffer =
@@ -944,7 +944,7 @@ bool IntelMIPIDisplayDevice::isBobDeinterlace(hwc_layer_1_t *layer)
         return bobDeinterlace;
     }
 
-    if (grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12 &&
+    if (grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED &&
         grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE)
         return bobDeinterlace;
 
@@ -1014,7 +1014,7 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
             }
         }
         // need to wait for video buffer ready before setting data buffer
-        if (grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12 ||
+        if (grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
             grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) {
             // map payload buffer
             IntelDisplayBuffer *buffer =

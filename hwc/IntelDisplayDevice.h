@@ -66,6 +66,8 @@ protected:
     //IntelDisplayConfig mConfig;
     IntelDisplayPlaneManager *mPlaneManager;
     IntelHWComposerDrm *mDrm;
+    IntelBufferManager *mBufferManager;
+    IntelBufferManager *mGrallocBufferManager;
     IntelHWComposerLayerList *mLayerList;
     uint32_t mDisplayIndex;
     bool mForceSwapBuffer;
@@ -108,6 +110,8 @@ protected:
     virtual void dumpLayerList(hwc_display_contents_1_t *list);
     virtual bool isScreenshotActive(hwc_display_contents_1_t *list);
     virtual bool isVideoPutInWindow(int output, hwc_layer_1_t *layer);
+    virtual int  getMetaDataTransform(hwc_layer_1_t *layer,
+            uint32_t &transform);
 
 public:
     virtual bool initCheck() { return mInitialized; }
@@ -126,6 +130,8 @@ public:
 
     IntelDisplayDevice(IntelDisplayPlaneManager *pm,
                        IntelHWComposerDrm *drm,
+                       IntelBufferManager *bm,
+                       IntelBufferManager *gm,
                        uint32_t index);
 
     virtual ~IntelDisplayDevice();
@@ -133,8 +139,6 @@ public:
 
 class IntelMIPIDisplayDevice : public IntelDisplayDevice {
 protected:
-    IntelBufferManager *mBufferManager;
-    IntelBufferManager *mGrallocBufferManager;
     IMG_framebuffer_device_public_t *mFBDev;
     int* mWidiNativeWindow;
 
@@ -192,8 +196,6 @@ protected:
         HDMI_BUF_NUM = 2,
     };
 
-    IntelBufferManager *mBufferManager;
-    IntelBufferManager *mGrallocBufferManager;
     IMG_framebuffer_device_public_t *mFBDev;
 
     struct hdmi_buffer{

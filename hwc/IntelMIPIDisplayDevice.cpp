@@ -41,9 +41,7 @@ IntelMIPIDisplayDevice::IntelMIPIDisplayDevice(IntelBufferManager *bm,
                                        IMG_framebuffer_device_public_t *fbdev,
                                        IntelHWComposerDrm *drm,
                                        uint32_t index)
-                                     : IntelDisplayDevice(pm, drm, index),
-                                       mBufferManager(bm),
-                                       mGrallocBufferManager(gm),
+                                     : IntelDisplayDevice(pm, drm, bm, gm, index),
                                        mFBDev(fbdev),
                                        mWidiNativeWindow(NULL)
 {

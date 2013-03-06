@@ -18,7 +18,7 @@ SOURCES += Vibrator.cpp \
 
 HEADERS += Vibrator.h
 
-INCLUDEPATH += ../utility/event-listener ../utility/property ../../PRIVATE/parameter-framework/parameter ../../../../bionic/libc/kernel/common ../../simulation
+INCLUDEPATH += ../utility/event-listener ../utility/property ../../PRIVATE/audiocomms/parameter-framework/parameter ../../../../bionic/libc/kernel/common ../../simulation
 
 CONFIG(debug, debug|release) {
     DESTDIR = ../build/debug

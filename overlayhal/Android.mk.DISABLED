@@ -26,9 +26,9 @@ LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
 LOCAL_CFLAGS:= -Wno-unused-parameter
 LOCAL_C_INCLUDES := $(addprefix $(LOCAL_PATH)/../../, $(SGX_INCLUDES)) \
             $(TARGET_OUT_HEADERS)/eurasia/pvr2d \
-            hardware/intel/libdrm/libdrm \
-            hardware/intel/libdrm/shared-core \
-            hardware/intel/libwsbm/src
+            vendor/intel/hardware/libdrm/libdrm \
+            vendor/intel/hardware/libdrm/shared-core \
+            vendor/intel/hardware/libwsbm/src
 
 LOCAL_SRC_FILES := PVROverlayModule.cpp \
             PVROverlayHAL.cpp \

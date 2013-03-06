@@ -123,10 +123,20 @@ void IntelHDMIDisplayDevice::onGeometryChanged(hwc_display_contents_1_t *list)
                 list->hwLayers[i].compositionType = HWC_OVERLAY;
                 list->hwLayers[i].hints = 0;
 
-                // Check if the video is placed to a window
-                if (isVideoPutInWindow(OUTPUT_HDMI, &(list->hwLayers[i]))) {
+                // Set graphic plane invisible when
+                // 1) the video is placed to a window
+                // 2) only video layer exists.(Exclude FramebufferTarget)
+                bool isVideoInWin = isVideoPutInWindow(OUTPUT_HDMI, &(list->hwLayers[i]));
+                if (isVideoInWin || list->numHwLayers == 2) {
+                    ALOGD_IF(ALLOW_HWC_PRINT,
+                            "%s: In window mode:%d layer num:%d",
+                            __func__, isVideoInWin, list->numHwLayers);
+                    // Disable graphic plane
                     mGraphicPlaneVisible = false;
-                    ALOGD_IF(ALLOW_HWC_PRINT, "%s: In window mode", __func__);
+                    struct drm_psb_disp_ctrl dp_ctrl;
+                    memset(&dp_ctrl, 0, sizeof(dp_ctrl));
+                    dp_ctrl.cmd = DRM_PSB_DISP_PLANEB_DISABLE;
+                    drmCommandWriteRead(mDrm->getDrmFd(), DRM_PSB_HDMI_FB_CMD, &dp_ctrl, sizeof(dp_ctrl));
                 } else {
                     mGraphicPlaneVisible = true;
                 }

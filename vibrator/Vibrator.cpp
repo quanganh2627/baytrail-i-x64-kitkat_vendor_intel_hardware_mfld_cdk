@@ -254,7 +254,7 @@ bool CVibrator::onHangup(int iFd)
 //
 // Worker thread context
 //
-void CVibrator::onTimeout()
+void CVibrator::onAlarm()
 {
     if (_bLogsOn) {
 
@@ -265,7 +265,7 @@ void CVibrator::onTimeout()
     doSwitch(false);
 
     // Sleep forever
-    _pEventThread->setTimeoutMs(-1);
+    _pEventThread->cancelAlarm();
 }
 
 //
@@ -290,7 +290,13 @@ bool CVibrator::onProcess(uint16_t)
     doSwitch(_bOnRequested);
 
     // Timeout
-    _pEventThread->setTimeoutMs(_bOnRequested ? _uiRequestedDurationMs : -1);
+    if (_bOnRequested) {
+
+        _pEventThread->startAlarm(_uiRequestedDurationMs);
+    } else {
+
+        _pEventThread->cancelAlarm();
+    }
 
     // Fd to poll did not change, return false
     return false;

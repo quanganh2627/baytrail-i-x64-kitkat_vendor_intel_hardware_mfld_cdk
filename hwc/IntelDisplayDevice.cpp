@@ -35,9 +35,13 @@
 #include <IntelHWComposerCfg.h>
 
 IntelDisplayDevice::IntelDisplayDevice(IntelDisplayPlaneManager *pm,
-                             IntelHWComposerDrm *drm, uint32_t index)
+                                IntelHWComposerDrm *drm,
+                                IntelBufferManager *bm,
+                                IntelBufferManager *gm,
+                                uint32_t index)
        :  IntelHWComposerDump(),
-          mPlaneManager(pm), mDrm(drm), mLayerList(0),
+          mPlaneManager(pm), mDrm(drm), mBufferManager(bm),
+          mGrallocBufferManager(gm), mLayerList(0),
           mDisplayIndex(index), mForceSwapBuffer(false),
           mHotplugEvent(false), mIsConnected(false),
           mInitialized(false), mIsScreenshotActive(false),
@@ -49,6 +53,41 @@ IntelDisplayDevice::IntelDisplayDevice(IntelDisplayPlaneManager *pm,
 IntelDisplayDevice::IntelDisplayDevice::~IntelDisplayDevice()
 {
     ALOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
+}
+
+
+int IntelDisplayDevice::getMetaDataTransform(hwc_layer_1_t *layer,
+        uint32_t &transform) {
+    if (!layer || !mGrallocBufferManager)
+        return -1;
+
+    intel_gralloc_buffer_handle_t *grallocHandle =
+        (intel_gralloc_buffer_handle_t*)layer->handle;
+    if(!grallocHandle) {
+        ALOGE("%s: gralloc handle invalid.\n", __func__);
+        return -1;
+    }
+
+    IntelDisplayBuffer *buffer =
+        mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
+    if (!buffer) {
+        ALOGE("%s: failed to map payload buffer.\n", __func__);
+        return -1;
+    }
+
+    intel_gralloc_payload_t *payload =
+        (intel_gralloc_payload_t*)buffer->getCpuAddr();
+    if (!payload) {
+        ALOGE("%s: invalid address\n", __func__);
+        return -1;
+    }
+
+    transform = payload->metadata_transform;
+
+    // unmap payload buffer
+    mGrallocBufferManager->unmap(buffer);
+
+    return 0;
 }
 
 bool IntelDisplayDevice::isVideoPutInWindow(int output, hwc_layer_1_t *layer) {
@@ -70,6 +109,17 @@ bool IntelDisplayDevice::isVideoPutInWindow(int output, hwc_layer_1_t *layer) {
 
     int srcWidth = layer->sourceCrop.right - layer->sourceCrop.left;
     int srcHeight = layer->sourceCrop.bottom - layer->sourceCrop.top;
+    uint32_t metadata_transform = 0;
+    if (getMetaDataTransform(layer, metadata_transform) == -1) {
+        ALOGE("Get meta data transform failed!");
+        return false;
+    }
+
+    if (metadata_transform == HAL_TRANSFORM_ROT_90 ||
+            metadata_transform == HAL_TRANSFORM_ROT_270) {
+        int temp;
+        temp = srcWidth; srcWidth = srcHeight; srcHeight = temp;
+    }
 
     int dstWidth = layer->displayFrame.right - layer->displayFrame.left;
     int dstHeight = layer->displayFrame.bottom - layer->displayFrame.top;
@@ -147,6 +197,38 @@ bool IntelDisplayDevice::overlayPrepare(int index, hwc_layer_1_t *layer, int fla
     return true;
 }
 
+bool IntelDisplayDevice::rgbOverlayPrepare(int index,
+                                            hwc_layer_1_t *layer, int flags)
+{
+    if (!layer) {
+        LOGE("%s: Invalid layer\n", __func__);
+        return false;
+    }
+
+    // allocate overlay plane
+    IntelDisplayPlane *plane = mPlaneManager->getRGBOverlayPlane();
+    if (!plane) {
+        LOGE("%s: failed to create RGB overlay plane\n", __func__);
+        return false;
+    }
+
+    int dstLeft = layer->displayFrame.left;
+    int dstTop = layer->displayFrame.top;
+    int dstRight = layer->displayFrame.right;
+    int dstBottom = layer->displayFrame.bottom;
+
+    // setup plane parameters
+    plane->setPosition(dstLeft, dstTop, dstRight, dstBottom);
+
+    // always assign RGB overlays to MIPI
+    plane->setPipeByMode(OVERLAY_MIPI0);
+
+    // attach plane to hwc layer
+    mLayerList->attachPlane(index, plane, flags);
+
+    return true;
+}
+
 bool IntelDisplayDevice::spritePrepare(int index, hwc_layer_1_t *layer, int flags)
 {
     if (!layer) {
@@ -209,6 +291,15 @@ bool IntelDisplayDevice::isOverlayLayer(hwc_display_contents_1_t *list,
                                      int index,
                                      hwc_layer_1_t *layer,
                                      int& flags)
+{
+    return false;
+}
+
+// TODO: re-implement it for each device
+bool IntelDisplayDevice::isRGBOverlayLayer(hwc_display_contents_1_t *list,
+                                           int index,
+                                           hwc_layer_1_t *layer,
+                                           int& flags)
 {
     return false;
 }
@@ -326,11 +417,13 @@ bool IntelDisplayDevice::isScreenshotActive(hwc_display_contents_1_t *list)
 // TODO: list valid usages
 bool IntelDisplayDevice::isHWCUsage(int usage)
 {
+#if 0
     // For SW access buffer, should handle with
     // FB in order to avoid tearing
     if ((usage & GRALLOC_USAGE_SW_WRITE_OFTEN) &&
          (usage & GRALLOC_USAGE_SW_READ_OFTEN))
         return false;
+#endif
 
     if (!(usage & GRALLOC_USAGE_HW_COMPOSER))
         return false;

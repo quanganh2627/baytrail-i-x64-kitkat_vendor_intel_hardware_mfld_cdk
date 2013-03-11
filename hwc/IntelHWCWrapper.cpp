@@ -161,6 +161,7 @@ bool IntelHWCWrapper::isYUVLayer(hwc_layer_1_t* hwcl)
 
     return (grallocHandle &&
             (grallocHandle->format == HAL_PIXEL_FORMAT_YV12 ||
+             grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
              grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12 ||
              grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_YUY2 ||
              grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_UYVY ||

@@ -83,8 +83,8 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
 
     // allocate primary plane pool
     if (mPrimaryPlaneCount) {
-        mPrimaryPlanes =
-            (IntelDisplayPlane**)malloc(mPrimaryPlaneCount *sizeof(IntelDisplayPlane*));
+        mPrimaryPlanes = (IntelDisplayPlane**)calloc(mPrimaryPlaneCount,
+                                                sizeof(IntelDisplayPlane*));
         if (!mPrimaryPlanes) {
             ALOGE("%s: failed to allocate primary plane pool\n", __func__);
             goto primary_alloc_err;
@@ -106,8 +106,8 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
 
     // allocate sprite plane pool
     if (mSpritePlaneCount) {
-        mSpritePlanes =
-            (IntelDisplayPlane**)malloc(mSpritePlaneCount * sizeof(IntelDisplayPlane*));
+        mSpritePlanes = (IntelDisplayPlane**)calloc(mSpritePlaneCount,
+                                                sizeof(IntelDisplayPlane*));
         if (!mSpritePlanes) {
             ALOGE("%s: failed to allocate sprite plane pool\n", __func__);
             goto primary_init_err;
@@ -127,8 +127,8 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
 
     if (mOverlayPlaneCount) {
         // allocate overlay plane pool
-        mOverlayPlanes =
-            (IntelDisplayPlane**)malloc(mOverlayPlaneCount *sizeof(IntelDisplayPlane*));
+        mOverlayPlanes = (IntelDisplayPlane**)calloc(mOverlayPlaneCount,
+                                                sizeof(IntelDisplayPlane*));
         if (!mOverlayPlanes) {
             ALOGE("%s: failed to allocate overlay plane pool\n", __func__);
             goto sprite_init_err;
@@ -144,16 +144,33 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
             // reset overlay plane
             mOverlayPlanes[i]->reset();
         }
+
+        // allocate RGB overlay plane pool
+        mRGBOverlayPlanes = (IntelDisplayPlane**)calloc(mOverlayPlaneCount,
+                                                    sizeof(IntelDisplayPlane*));
+        if (!mRGBOverlayPlanes) {
+            LOGE("%s: failed to allocate RGB overlay plane pool\n", __func__);
+            goto overlay_alloc_err;
+        }
+
+        for (i = 0; i < mOverlayPlaneCount; i++) {
+            mRGBOverlayPlanes[i] =
+                new IntelRGBOverlayPlane(mDrmFd, i, mGrallocBufferManager);
+            if (!mRGBOverlayPlanes[i]) {
+                LOGE("%s: failed to allocate RGB overlay plane %d\n",
+                     __func__, i);
+                goto rgb_alloc_err;
+            }
+            mRGBOverlayPlanes[i]->reset();
+        }
     }
 
     // allocate zorder configs
-    mZOrderConfigs = (int *)malloc(mPrimaryPlaneCount * sizeof(int));
+    mZOrderConfigs = (int *)calloc(mPrimaryPlaneCount, sizeof(int));
     if (!mZOrderConfigs) {
         ALOGE("%s: failed to allocated ZOrderConfigs\n", __func__);
-        goto overlay_alloc_err;
+        goto rgb_alloc_err;
     }
-
-    memset(mZOrderConfigs, 0, sizeof(*mZOrderConfigs));
 
     // allocate Widi plane
     mWidiPlane = new IntelWidiPlane(mDrmFd,mOverlayPlaneCount, mGrallocBufferManager);
@@ -175,6 +192,17 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
 
 zorder_config_err:
     free(mZOrderConfigs);
+rgb_alloc_err:
+    if (mRGBOverlayPlanes) {
+        for (int i = 0; i < mOverlayPlaneCount; i++) {
+            if (mRGBOverlayPlanes[i]) {
+                mRGBOverlayPlanes[i]->reset();
+                delete mRGBOverlayPlanes[i];
+            }
+        }
+        free(mRGBOverlayPlanes);
+        mRGBOverlayPlanes = 0;
+    }
 overlay_alloc_err:
     if (mOverlayPlanes) {
         for (int i = 0; i < mOverlayPlaneCount; i++) {
@@ -240,6 +268,18 @@ IntelDisplayPlaneManager::~IntelDisplayPlaneManager()
         }
         free(mPrimaryPlanes);
         mPrimaryPlanes = 0;
+    }
+
+    // delete RGB overlay planes
+    if (mRGBOverlayPlanes) {
+        for (int i = 0; i < mOverlayPlaneCount; i++) {
+            if (mRGBOverlayPlanes[i]) {
+                mRGBOverlayPlanes[i]->reset();
+                delete mRGBOverlayPlanes[i];
+            }
+        }
+        free(mRGBOverlayPlanes);
+        mRGBOverlayPlanes = 0;
     }
 
     // delete overlay planes
@@ -396,6 +436,30 @@ IntelDisplayPlane* IntelDisplayPlaneManager::getOverlayPlane()
     return mOverlayPlanes[freePlaneIndex];
 }
 
+IntelDisplayPlane* IntelDisplayPlaneManager::getRGBOverlayPlane()
+{
+    if (!initCheck()) {
+        LOGE("%s: plane manager was not initialized\n", __func__);
+        return 0;
+    }
+
+    int freePlaneIndex;
+
+    // check reclaimed overlay planes
+    freePlaneIndex = getPlane(mReclaimedOverlayPlanes);
+    if (freePlaneIndex < 0) {
+       // check free overlay planes
+       freePlaneIndex = getPlane(mFreeOverlayPlanes);
+    }
+
+    if (freePlaneIndex < 0) {
+       LOGE("%s: failed to get a RGB overlay plane\n", __func__);
+       return 0;
+    }
+
+    return mRGBOverlayPlanes[freePlaneIndex];
+}
+
 bool IntelDisplayPlaneManager::hasFreeSprites()
 {
     if (!initCheck())
@@ -418,6 +482,11 @@ bool IntelDisplayPlaneManager::hasReclaimedOverlays()
         return false;
 
     return (mReclaimedOverlayPlanes) ? true : false;
+}
+
+bool IntelDisplayPlaneManager::hasFreeRGBOverlays()
+{
+	return hasFreeOverlays();
 }
 
 bool IntelDisplayPlaneManager::primaryAvailable(int pipe)
@@ -443,12 +512,13 @@ void IntelDisplayPlaneManager::reclaimPlane(IntelDisplayPlane *plane)
 
     ALOGD_IF(ALLOW_PLANE_PRINT, "%s: reclaimPlane %d\n", __func__, index);
 
-    if (plane->mType == IntelDisplayPlane::DISPLAY_PLANE_OVERLAY)
+    if (plane->mType == IntelDisplayPlane::DISPLAY_PLANE_OVERLAY ||
+        plane->mType == IntelDisplayPlane::DISPLAY_PLANE_RGB_OVERLAY)
         putPlane(index, mReclaimedOverlayPlanes);
     else if (plane->mType == IntelDisplayPlane::DISPLAY_PLANE_SPRITE)
         putPlane(index, mReclaimedSpritePlanes);
     else if (plane->mType == IntelDisplayPlane::DISPLAY_PLANE_PRIMARY)
-	putPlane(index, mReclaimedPrimaryPlanes);
+        putPlane(index, mReclaimedPrimaryPlanes);
     else
         ALOGE("%s: invalid plane type %d\n", __func__, plane->mType);
 }
@@ -499,15 +569,23 @@ void IntelDisplayPlaneManager::disableReclaimedPlanes(int type)
     }
 
     // disable reclaimed overlay planes
-    if (type == IntelDisplayPlane::DISPLAY_PLANE_OVERLAY &&
-        mOverlayPlanes && mReclaimedOverlayPlanes) {
+    if ((type == IntelDisplayPlane::DISPLAY_PLANE_OVERLAY ||
+         type == IntelDisplayPlane::DISPLAY_PLANE_RGB_OVERLAY) &&
+        mOverlayPlanes && mRGBOverlayPlanes && mReclaimedOverlayPlanes) {
         for (int i = 0; i < mOverlayPlaneCount; i++) {
             int bit = (1 << i);
             if (mReclaimedOverlayPlanes & bit) {
                 if (mOverlayPlanes[i]) {
                     mOverlayPlanes[i]->disable();
+                    mOverlayPlanes[i]->waitForFlipCompletion();
+
                     mOverlayPlanes[i]->invalidateDataBuffer();
                 }
+            }
+
+            if (mRGBOverlayPlanes[i]) {
+                mRGBOverlayPlanes[i]->disable();
+                mRGBOverlayPlanes[i]->invalidateDataBuffer();
             }
         }
         // merge into free overlay bitmap

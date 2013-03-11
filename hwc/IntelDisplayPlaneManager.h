@@ -47,6 +47,7 @@
 
 #include <cutils/log.h>
 #include <cutils/atomic.h>
+#include <utils/KeyedVector.h>
 #include <hardware/hardware.h>
 #include <hardware/gralloc.h>
 #include <hal_public.h>
@@ -88,6 +89,7 @@ public:
             DISPLAY_PLANE_SPRITE = 1,
             DISPLAY_PLANE_PRIMARY,
             DISPLAY_PLANE_OVERLAY,
+            DISPLAY_PLANE_RGB_OVERLAY,
     };
 
         // flush flags
@@ -100,6 +102,7 @@ public:
             BOB_DEINTERLACE  = 0x00000020UL,
             DELAY_DISABLE    = 0x00000040UL,
             WMS_NEEDED       = 0x00000080UL,
+            FLASH_GAMMA      = 0x00000100UL,
         };
 protected:
     int mDrmFd;
@@ -303,15 +306,9 @@ public:
 class IntelOverlayContextMfld : public IntelOverlayContext
 {
 public:
-    IntelOverlayContextMfld(int drmFd, IntelBufferManager *bufferManager = NULL) {
-        mHandle = 0;
-        mContext = 0;
-        mOverlayBackBuffer = 0;
-        mBackBuffer = 0;
-        mSize = 0;
-        mDrmFd = drmFd;
-        mBufferManager = bufferManager;
-    }
+    IntelOverlayContextMfld(int drmFd,
+            IntelBufferManager *bufferManager = NULL)
+        : IntelOverlayContext(drmFd, bufferManager) {}
     bool flush_frame_or_top_field(uint32_t flags);
     bool flush_bottom_field(uint32_t flags);
 };
@@ -339,7 +336,7 @@ private:
 
 public:
     IntelOverlayPlane(int fd, int index, IntelBufferManager *bufferManager);
-    ~IntelOverlayPlane();
+    virtual ~IntelOverlayPlane();
     virtual void setPosition(int left, int top, int right, int bottom);
     virtual bool setDataBuffer(uint32_t handle, uint32_t flags, intel_gralloc_buffer_handle_t* nHandle);
     virtual bool setDataBuffer(IntelDisplayBuffer& buffer);
@@ -356,7 +353,34 @@ public:
     virtual bool setOverlayOnTop(bool isOnTop);
 
     virtual bool setWidiPlane(IntelDisplayPlane*);
+};
 
+class IntelRGBOverlayPlane : public IntelOverlayPlane {
+public:
+	virtual uint32_t convert(uint32_t handle, int w, int h, int x, int y);
+	virtual bool invalidateDataBuffer();
+	virtual uint32_t onDrmModeChange();
+	virtual void waitForFlipCompletion();
+public:
+	IntelRGBOverlayPlane(int fd, int index,
+                            IntelBufferManager *bufferManager);
+	virtual ~IntelRGBOverlayPlane();
+private:
+    class PixelFormatConverter {
+    public:
+        PixelFormatConverter();
+        ~PixelFormatConverter();
+        bool initialize();
+        uint32_t convertBuffer(uint32_t handle, int w, int h, int x, int y);
+        void reset();
+    private:
+        IMG_gralloc_module_public_t *mGrallocModule;
+        alloc_device_t *mAllocDev;
+        android::KeyedVector<uint64_t, uint32_t> mBufferMapping;
+        uint32_t mCurrentBuffer;
+    };
+
+    PixelFormatConverter *mPixelFormatConverter;
 };
 
 // sprite plane formats
@@ -442,6 +466,7 @@ private:
     IntelDisplayPlane **mSpritePlanes;
     IntelDisplayPlane **mPrimaryPlanes;
     IntelDisplayPlane **mOverlayPlanes;
+    IntelDisplayPlane **mRGBOverlayPlanes;
     IntelDisplayPlane *mWidiPlane;
 
     // Bitmap of free planes. Bit0 - plane A, bit 1 - plane B, etc.
@@ -486,11 +511,13 @@ public:
     IntelDisplayPlane* getSpritePlane();
     IntelDisplayPlane* getPrimaryPlane(int pipe);
     IntelDisplayPlane* getOverlayPlane();
+    IntelDisplayPlane* getRGBOverlayPlane();
     IntelDisplayPlane* getWidiPlane();
 
     bool hasFreeSprites();
     bool hasFreeOverlays();
     bool hasReclaimedOverlays();
+    bool hasFreeRGBOverlays();
     bool primaryAvailable(int index);
 
     bool isWidiActive();

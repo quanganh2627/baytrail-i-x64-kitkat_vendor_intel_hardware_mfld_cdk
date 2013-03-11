@@ -58,7 +58,7 @@
 IntelDisplayDataBuffer::IntelDisplayDataBuffer(uint32_t format,
                                                uint32_t w,
                                                uint32_t h)
-        : mFormat(format), mWidth(w), mHeight(h), mBuffer(0), mBobDeinterlace(0)
+        : mBobDeinterlace(0), mFormat(format), mWidth(w), mHeight(h), mBuffer(0)
 {
     ALOGD_IF(ALLOW_BUFFER_PRINT, "%s: width %d, format 0x%x\n", __func__, w, format);
 
@@ -718,7 +718,7 @@ IntelDisplayBuffer* IntelPVRBufferManager::curAlloc(int w, int h)
                                          uFlags,
                                &(pvr2dMemInfo));
     if (err != PVR2D_OK) {
-       LOGE("%s: failed to map handle 0x%x\n", __func__, mPVR2DHandle);
+       LOGE("%s: failed to map handle %p\n", __func__, mPVR2DHandle);
     }
     void *virtAddr = pvr2dMemInfo->pBase;
     uint32_t size = pvr2dMemInfo->ui32MemSize;
@@ -727,12 +727,12 @@ IntelDisplayBuffer* IntelPVRBufferManager::curAlloc(int w, int h)
     bool ret = gttMap(pvr2dMemInfo, &gttOffsetInPage,
                       (uint32_t)virtAddr, size, 1);
     if (!ret) {
-        ALOGE("%s: failed to map 0x%x to GTT\n", __func__, pvr2dMemInfo);
+        ALOGE("%s: failed to map %p to GTT\n", __func__, pvr2dMemInfo);
         PVR2DMemFree(mPVR2DHandle, pvr2dMemInfo);
         return 0;
     }
     ALOGD_IF(ALLOW_BUFFER_PRINT,
-           "%s: mapped handle 0x%x, gtt %d\n", __func__, pvr2dMemInfo,
+           "%s: mapped handle %p, gtt %d\n", __func__, pvr2dMemInfo,
          gttOffsetInPage);
    if (virtAddr){
       drawSingleDigital((uint8_t *)(virtAddr), w, h, w, w * h * 4);
@@ -817,7 +817,7 @@ bool IntelBCDBufferManager::gttUnmap(uint32_t devId, uint32_t bufferId)
     struct psb_gtt_mapping_arg arg;
 
     ALOGD_IF(ALLOW_BUFFER_PRINT,
-           "%s: unmapping from gtt. buffer %p\n", __func__, bufferId);
+           "%s: unmapping from gtt. buffer 0x%x\n", __func__, bufferId);
 
     if(mDrmFd < 0) {
         ALOGE("%s: drm is not ready\n", __func__);

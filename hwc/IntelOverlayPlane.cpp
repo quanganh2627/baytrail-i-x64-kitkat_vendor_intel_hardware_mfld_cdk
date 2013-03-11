@@ -312,7 +312,7 @@ bool IntelOverlayContext::flush(uint32_t flags)
     struct drm_psb_register_rw_arg arg;
 
     memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
-    arg.overlay_write_mask = 1;
+    arg.overlay_write_mask = OV_REGRWBITS_OVADD;
     arg.overlay_read_mask = 0;
     arg.overlay.b_wms = 0;
     arg.overlay.b_wait_vblank = (flags & IntelDisplayPlane::WAIT_VBLANK) ? 1 : 0;
@@ -321,6 +321,18 @@ bool IntelOverlayContext::flush(uint32_t flags)
     arg.overlay.OVADD |= mContext->pipe;
     if (flags & IntelDisplayPlane::UPDATE_COEF)
         arg.overlay.OVADD |= 1;
+
+    // flush gamma
+    if (flags & IntelDisplayPlane::FLASH_GAMMA) {
+        arg.overlay_write_mask |= OV_REGRWBITS_OGAM_ALL;
+        arg.overlay.OGAMC0 = OVERLAY_INIT_GAMMA0;
+        arg.overlay.OGAMC1 = OVERLAY_INIT_GAMMA1;
+        arg.overlay.OGAMC2 = OVERLAY_INIT_GAMMA2;
+        arg.overlay.OGAMC3 = OVERLAY_INIT_GAMMA3;
+        arg.overlay.OGAMC4 = OVERLAY_INIT_GAMMA4;
+        arg.overlay.OGAMC5 = OVERLAY_INIT_GAMMA5;
+    }
+
     int ret = drmCommandWriteRead(mDrmFd,
                                   DRM_PSB_REGISTER_RW,
                                   &arg, sizeof(arg));
@@ -445,7 +457,13 @@ bool IntelOverlayContext::bufferOffsetSetup(IntelDisplayDataBuffer &buf)
      * NOTE: this is the decoded video format, align the height to 32B
      * as it's defined by video driver
      */
-    case HAL_PIXEL_FORMAT_INTEL_HWC_NV12:    /*NV12*/
+    case HAL_PIXEL_FORMAT_INTEL_HWC_NV12:    /*normal NV12*/
+        mOverlayBackBuffer->OBUF_0Y = 0;
+        mOverlayBackBuffer->OBUF_0U = yStride * h;
+        mOverlayBackBuffer->OBUF_0V = 0;
+        mOverlayBackBuffer->OCMD |= OVERLAY_FORMAT_PLANAR_NV12_2;
+        break;
+    case HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED:    /*NV12_VED, NV12 for video decoding*/
         mOverlayBackBuffer->OBUF_0Y = 0;
         mOverlayBackBuffer->OBUF_0U = yStride * align_to(h, 32);
         mOverlayBackBuffer->OBUF_0V = 0;
@@ -541,6 +559,7 @@ bool IntelOverlayContext::coordinateSetup(IntelDisplayDataBuffer& buf)
     case HAL_PIXEL_FORMAT_YV12:              /*YV12*/
     case HAL_PIXEL_FORMAT_INTEL_HWC_I420:    /*I420*/
     case HAL_PIXEL_FORMAT_INTEL_HWC_NV12:    /*NV12*/
+    case HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED:    /*NV12*/
     case HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE:    /*NV12_TILE*/
         break;
     case HAL_PIXEL_FORMAT_INTEL_HWC_YUY2:    /*YUY2*/
@@ -1135,7 +1154,8 @@ bool IntelOverlayContext::reset()
     ALOGD_IF(ALLOW_OVERLAY_PRINT, "%s: reset overlay...\n", __func__);
     backBufferInit();
     bool ret = flush((IntelDisplayPlane::FLASH_NEEDED |
-                      IntelDisplayPlane::WAIT_VBLANK));
+                      IntelDisplayPlane::WAIT_VBLANK |
+                      IntelDisplayPlane::FLASH_GAMMA));
     if (ret == false) {
         ALOGE("%s: failed to reset overlay\n", __func__);
         unlock();
@@ -1265,12 +1285,10 @@ void IntelOverlayContext::forceBottom(bool bottom)
 }
 
 // DRM mode change handle
-intel_overlay_mode_t
-IntelOverlayContext::onDrmModeChange()
+intel_overlay_mode_t IntelOverlayContext::onDrmModeChange()
 {
     intel_overlay_mode_t oldDisplayMode;
     intel_overlay_mode_t newDisplayMode = OVERLAY_UNKNOWN;
-    struct drm_psb_register_rw_arg arg;
     uint32_t overlayAPipe = 0;
     bool ret = true;
 
@@ -1362,8 +1380,6 @@ bool IntelOverlayContextMfld::flush_frame_or_top_field(uint32_t flags)
         return false;
     }
 
-    mOverlayBackBuffer->OCMD |= OVERLAY_ENABLE;
-
     struct drm_psb_register_rw_arg arg;
 
     memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
@@ -1396,9 +1412,9 @@ IntelOverlayPlane::IntelOverlayPlane(int fd, int index, IntelBufferManager *bm)
     bool ret;
     ALOGD_IF(ALLOW_OVERLAY_PRINT, "%s\n", __func__);
 
-    // create data buffer, pixel format set to NV12 by default
+    // create data buffer, pixel format set to NV12_VED by default
     IntelDisplayBuffer *dataBuffer =
-        new IntelDisplayDataBuffer(HAL_PIXEL_FORMAT_INTEL_HWC_NV12, 0, 0);
+        new IntelDisplayDataBuffer(HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED, 0, 0);
     if (!dataBuffer) {
         ALOGE("%s: Failed to create overlay data buffer\n", __func__);
         return;
@@ -1506,6 +1522,7 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
         uvStride = align_to(yStride >> 1, 64);
         break;
     case HAL_PIXEL_FORMAT_INTEL_HWC_NV12:
+    case HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED:
     case HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE:
         yStride = align_to(grallocStride, 64);
         uvStride = yStride;
@@ -1544,7 +1561,7 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
     // update data buffer's yuv strides and continue
     overlayDataBuffer->setStride(yStride, uvStride);
 
-    int grallocBuffFd = (nHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12 ||
+    int grallocBuffFd = (nHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
                      nHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) ?
                      nHandle->fd[GRALLOC_SUB_BUFFER1] : 0;
 
@@ -1637,6 +1654,8 @@ bool IntelOverlayPlane::setDataBuffer(IntelDisplayBuffer& buffer)
         ret = overlayContext->setDataBuffer(*overlayDataBuffer);
         if (ret == false)
             ALOGE("%s: failed to set overlay data buffer\n", __func__);
+
+        // overlayContext->forceBottom(mForceBottom);
     }
 
     return ret;
@@ -1806,3 +1825,184 @@ bool IntelOverlayPlane::setOverlayOnTop(bool isOnTop)
     return (uint32_t)overlayContext->setOverlayOnTop(isOnTop);
 }
 
+//-----------------------------------------------------------------------------
+IntelRGBOverlayPlane::IntelRGBOverlayPlane(int fd, int index,
+                         IntelBufferManager *bufferManager)
+    : IntelOverlayPlane(fd, index, bufferManager)
+{
+	// update plane type
+    mType = IntelDisplayPlane::DISPLAY_PLANE_RGB_OVERLAY;
+
+    // create pixel format converter
+    PixelFormatConverter *converter = new PixelFormatConverter();
+    bool ret = converter->initialize();
+    if (ret == false) {
+        LOGW("IntelOverlayPlane: failed to initialize converter\n");
+        mInitialized = false;
+    }
+
+    mPixelFormatConverter = converter;
+}
+
+IntelRGBOverlayPlane::~IntelRGBOverlayPlane()
+{
+
+}
+
+// override onDrmModeChange
+uint32_t IntelRGBOverlayPlane::onDrmModeChange()
+{
+    // need to nothing
+	return 0;
+}
+
+// override invalidateDataBuffer
+bool IntelRGBOverlayPlane::invalidateDataBuffer()
+{
+	bool ret = IntelOverlayPlane::invalidateDataBuffer();
+	// reset pixel format converter
+	if (ret)
+		mPixelFormatConverter->reset();
+	return ret;
+}
+
+// override waitForFlipCompletion
+// don't need it since RGB overlay don't have backbuffer sync issue
+void IntelRGBOverlayPlane::waitForFlipCompletion()
+{
+	return;
+}
+
+uint32_t IntelRGBOverlayPlane::convert(uint32_t handle,
+                                           int w, int h,
+                                           int x, int y)
+{
+    return mPixelFormatConverter->convertBuffer(handle, w, h, x, y);
+}
+
+IntelRGBOverlayPlane::PixelFormatConverter::PixelFormatConverter()
+    : mGrallocModule(0), mAllocDev(0), mCurrentBuffer(0)
+{
+    // NOTE: maintain 3 buffers in case that triple buffering is active
+    mBufferMapping.setCapacity(3);
+    mBufferMapping.clear();
+}
+
+IntelRGBOverlayPlane::PixelFormatConverter::~PixelFormatConverter()
+{
+
+}
+
+bool IntelRGBOverlayPlane::PixelFormatConverter::initialize()
+{
+    int err = 0;
+    // get gralloc module & alloc device
+    hw_module_t const* module;
+    err = hw_get_module(GRALLOC_HARDWARE_MODULE_ID, &module);
+    if (err) {
+        LOGE("PixelFormatConverter: failed to load gralloc\n");
+        return false;
+    }
+
+    IMG_gralloc_module_public_t *imgGrallocModule;
+    imgGrallocModule = (IMG_gralloc_module_public_t*)module;
+
+    alloc_device_t *allocDev;
+    err = imgGrallocModule->base.common.methods->open((const hw_module_t *)module,
+                                                 GRALLOC_HARDWARE_GPU0,
+                                                 (hw_device_t **)&allocDev);
+    if (err) {
+        LOGE("PixelFormatConverter: failed to open alloc device\n");
+        return false;
+    }
+
+    // initialize
+    mGrallocModule = imgGrallocModule;
+    mAllocDev = allocDev;
+
+    LOGI("PixelFormatConverter: initialized\n");
+
+    return true;
+}
+
+uint32_t
+IntelRGBOverlayPlane::PixelFormatConverter::convertBuffer(uint32_t handle,
+                                                         int w, int h,
+                                                         int x, int y)
+{
+    int err = 0;
+    int yStride;
+    buffer_handle_t yuvBufferHandle = 0;
+
+    if (!handle || !w || !h) {
+        LOGE("convertBuffer: invalid buffer handle\n");
+        return 0;
+    }
+
+    intel_gralloc_buffer_handle_t* rgbBufferHandle =
+        (intel_gralloc_buffer_handle_t*)handle;
+
+    LOGD_IF(ALLOW_OVERLAY_PRINT, "convertBuffer: handle 0x%x\n", handle);
+
+    // check if we've allocated a buffer for this handle
+    ssize_t index = mBufferMapping.indexOfKey(rgbBufferHandle->ui64Stamp);
+    if (index >= 0) {
+        yuvBufferHandle = (buffer_handle_t)mBufferMapping.valueAt(index);
+        LOGD_IF(ALLOW_OVERLAY_PRINT,
+                "convertBuffer: found handle 0x%x at %ld value %p",
+                handle, index, yuvBufferHandle);
+        goto blit_out;
+    }
+
+    // if not, allocate a new gralloc buffer
+    err = mAllocDev->alloc(mAllocDev, w, h,
+                           HAL_PIXEL_FORMAT_INTEL_HWC_NV12,
+                           GRALLOC_USAGE_HW_RENDER |
+                           GRALLOC_USAGE_HW_TEXTURE |
+                           GRALLOC_USAGE_HW_COMPOSER,
+                           &yuvBufferHandle,
+                           &yStride);
+    if (err) {
+        LOGE("convertBuffer: failed to allocate YUV buffer\n");
+        return 0;
+    }
+
+    // update bufferMapping
+    mBufferMapping.add((uint32_t)rgbBufferHandle->ui64Stamp,
+                       (uint32_t)yuvBufferHandle);
+
+blit_out:
+    if (mCurrentBuffer != handle) {
+        // kick off a RGB to YUV Blit
+        err = mGrallocModule->Blit2(mGrallocModule,
+                                    (buffer_handle_t)rgbBufferHandle,
+                                    (buffer_handle_t)yuvBufferHandle,
+                                    w, h, x, y);
+        if (err) {
+            LOGE("convertBuffer: failed to kick off converting");
+            goto err_out;
+        }
+
+        mCurrentBuffer = handle;
+    }
+
+    return (uint32_t)yuvBufferHandle;
+err_out:
+    mAllocDev->free(mAllocDev, yuvBufferHandle);
+    mBufferMapping.removeItem(rgbBufferHandle->ui64Stamp);
+    return 0;
+}
+
+void IntelRGBOverlayPlane::PixelFormatConverter::reset()
+{
+    LOGD_IF(ALLOW_OVERLAY_PRINT,"PixelFormatConverter: reset");
+
+    // free allocated buffer
+    for (uint32_t i = 0; i < mBufferMapping.size(); i++) {
+        buffer_handle_t yuvBufferHandle =
+            (buffer_handle_t)mBufferMapping.valueAt(i);
+        mAllocDev->free(mAllocDev, yuvBufferHandle);
+    }
+    mCurrentBuffer = 0;
+    mBufferMapping.clear();
+}

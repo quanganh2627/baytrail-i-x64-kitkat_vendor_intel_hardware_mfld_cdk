@@ -66,6 +66,8 @@ protected:
     //IntelDisplayConfig mConfig;
     IntelDisplayPlaneManager *mPlaneManager;
     IntelHWComposerDrm *mDrm;
+    IntelBufferManager *mBufferManager;
+    IntelBufferManager *mGrallocBufferManager;
     IntelHWComposerLayerList *mLayerList;
     uint32_t mDisplayIndex;
     bool mForceSwapBuffer;
@@ -88,6 +90,10 @@ protected:
                         int index,
                         hwc_layer_1_t *layer,
                         int& flags);
+    virtual bool isRGBOverlayLayer(hwc_display_contents_1_t *list,
+                        int index,
+                        hwc_layer_1_t *layer,
+                        int& flags);
     virtual bool isSpriteLayer(hwc_display_contents_1_t *list,
                        int index,
                        hwc_layer_1_t *layer,
@@ -97,12 +103,15 @@ protected:
                        hwc_layer_1_t *layer,
                        int& flags);
     virtual bool overlayPrepare(int index, hwc_layer_1_t *layer, int flags);
+    virtual bool rgbOverlayPrepare(int index, hwc_layer_1_t *layer, int flags);
     virtual bool spritePrepare(int index, hwc_layer_1_t *layer, int flags);
     virtual bool primaryPrepare(int index, hwc_layer_1_t *layer, int flags);
 
     virtual void dumpLayerList(hwc_display_contents_1_t *list);
     virtual bool isScreenshotActive(hwc_display_contents_1_t *list);
     virtual bool isVideoPutInWindow(int output, hwc_layer_1_t *layer);
+    virtual int  getMetaDataTransform(hwc_layer_1_t *layer,
+            uint32_t &transform);
 
 public:
     virtual bool initCheck() { return mInitialized; }
@@ -121,6 +130,8 @@ public:
 
     IntelDisplayDevice(IntelDisplayPlaneManager *pm,
                        IntelHWComposerDrm *drm,
+                       IntelBufferManager *bm,
+                       IntelBufferManager *gm,
                        uint32_t index);
 
     virtual ~IntelDisplayDevice();
@@ -128,8 +139,6 @@ public:
 
 class IntelMIPIDisplayDevice : public IntelDisplayDevice {
 protected:
-    IntelBufferManager *mBufferManager;
-    IntelBufferManager *mGrallocBufferManager;
     IMG_framebuffer_device_public_t *mFBDev;
     int* mWidiNativeWindow;
 
@@ -140,12 +149,17 @@ protected:
                            int& w, int& h,
                            int& srcX, int& srcY, int& srcW, int& srcH, uint32_t& transform);
     void revisitLayerList(hwc_display_contents_1_t *list, bool isGeometryChanged);
+    void updateZorderConfig();
 
 protected:
     virtual bool isOverlayLayer(hwc_display_contents_1_t *list,
                         int index,
                         hwc_layer_1_t *layer,
                         int& flags);
+    virtual bool isRGBOverlayLayer(hwc_display_contents_1_t *list,
+                                   unsigned int index,
+                                   hwc_layer_1_t *layer,
+                                   int& flags);
     virtual bool isSpriteLayer(hwc_display_contents_1_t *list,
                        int index,
                        hwc_layer_1_t *layer,
@@ -182,8 +196,6 @@ protected:
         HDMI_BUF_NUM = 2,
     };
 
-    IntelBufferManager *mBufferManager;
-    IntelBufferManager *mGrallocBufferManager;
     IMG_framebuffer_device_public_t *mFBDev;
 
     struct hdmi_buffer{

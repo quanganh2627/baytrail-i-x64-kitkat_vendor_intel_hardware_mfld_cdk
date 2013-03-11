@@ -49,7 +49,7 @@ LOCAL_PRELINK_MODULE := false
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
 LOCAL_SHARED_LIBRARIES := liblog libEGL libcutils libdrm libpvr2d \
                           libwsbm libsrv_um libui libutils libbinder\
-                          libhardware libGLESv1_CM
+                          libhardware
 LOCAL_SRC_FILES := IntelHWComposerModule.cpp \
                    IntelHWComposer.cpp \
                    IntelDisplayDevice.cpp \
@@ -85,7 +85,6 @@ endif
 
 LOCAL_C_INCLUDES := $(addprefix $(LOCAL_PATH)/../../, $(SGX_INCLUDES)) \
             frameworks/native/include/media/openmax \
-            frameworks/native/opengl/include \
             hardware/libhardware_legacy/include/hardware_legacy \
             $(KERNEL_SRC_DIR)/drivers/staging/intel_media/common \
             $(TARGET_OUT_HEADERS)/pvr/hal \

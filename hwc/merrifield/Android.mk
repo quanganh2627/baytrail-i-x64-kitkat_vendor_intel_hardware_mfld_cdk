@@ -20,64 +20,41 @@ LOCAL_PATH := $(call my-dir)
 # hw/<OVERLAY_HARDWARE_MODULE_ID>.<ro.product.board>.so
 include $(CLEAR_VARS)
 
-ifeq ($(INTEL_WIDI), true)
-LOCAL_COPY_HEADERS_TO := hwc
-LOCAL_COPY_HEADERS := \
-    IntelBufferManager.h \
-    IntelDisplayPlaneManager.h \
-    IntelExternalDisplayMonitor.h \
-    IntelHWCUEventObserver.h \
-    IntelHWComposer.h \
-    IntelHWComposerDrm.h \
-    IntelHWComposerDump.h \
-    IntelHWComposerLayer.h \
-    IntelOverlayContext.h \
-    IntelOverlayHW.h \
-    IntelOverlayPlane.h \
-    IntelOverlayUtil.h \
-    IntelWidiPlane.h \
-    IntelWsbm.h \
-    IntelWsbmWrapper.h
-include $(BUILD_COPY_HEADERS)
-endif
-
 LOCAL_PRELINK_MODULE := false
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
-LOCAL_SHARED_LIBRARIES := liblog libEGL libcutils libdrm libpvr2d \
-                          libwsbm libui libutils libbinder\
-                          libhardware libGLESv1_CM
-LOCAL_SRC_FILES := IntelHWComposerModule.cpp \
-                   IntelHWComposer.cpp \
-                   IntelDisplayDevice.cpp \
-                   IntelMIPIDisplayDevice.cpp \
-                   IntelHDMIDisplayDevice.cpp \
-                   IntelHWComposerLayer.cpp \
-                   IntelHWComposerDump.cpp \
-                   IntelBufferManager.cpp \
-                   IntelDisplayPlaneManager.cpp \
-                   IntelHWComposerDrm.cpp \
-                   IntelOverlayPlane.cpp \
-                   IntelSpritePlane.cpp \
-                   MedfieldSpritePlane.cpp \
+LOCAL_SHARED_LIBRARIES := liblog libcutils libdrm \
+                          libwsbm libutils libhardware
+LOCAL_SRC_FILES := Hwcomposer.cpp \
+                   DisplayPlaneManager.cpp \
+                   HwcLayerList.cpp \
+                   DisplayDevice.cpp \
+                   VsyncEventObserver.cpp \
+                   HotplugEventObserver.cpp \
+                   OverlayPlane.cpp \
+                   SpritePlane.cpp \
+                   TTMBuffer.cpp \
+                   TTMBufferMapper.cpp \
                    IntelWsbm.cpp \
                    IntelWsbmWrapper.c \
-                   IntelHWCUEventObserver.cpp \
-                   IntelVsyncEventHandler.cpp \
-                   IntelFakeVsyncEvent.cpp
+                   Drm.cpp \
+                   Dump.cpp \
+                   Log.cpp \
+                   HwcConfig.cpp
+
+LOCAL_SRC_FILES += merrifield/MrflDisplayPlaneManager.cpp \
+                   merrifield/MrflHwcomposer.cpp \
+                   merrifield/MrflHwcModule.cpp \
+                   merrifield/MrflGrallocBuffer.cpp \
+                   merrifield/MrflGrallocBufferMapper.cpp \
+                   merrifield/MrflPrimaryPlane.cpp \
+                   merrifield/MrflSpritePlane.cpp \
+                   merrifield/MrflOverlayPlane.cpp \
+                   merrifield/MrflMipiDevice.cpp \
+                   merrifield/MrflHdmiDevice.cpp
+
 LOCAL_MODULE_TAGS := eng
 LOCAL_MODULE := hwcomposer.$(TARGET_DEVICE)
 LOCAL_CFLAGS:= -DLOG_TAG=\"hwcomposer\" -DLINUX
-
-ifeq ($(INTEL_WIDI), true)
-LOCAL_SHARED_LIBRARIES += libwidistreaming libhwcwidi
-LOCAL_CFLAGS += -DINTEL_WIDI=1
-LOCAL_SRC_FILES += IntelWidiPlane.cpp
-endif
-
-ifeq ($(TARGET_SUPPORT_HWC_SYS_LAYER), true)
-LOCAL_CFLAGS += -DTARGET_SUPPORT_HWC_SYS_LAYER -DINTEL_RGB_OVERLAY
-LOCAL_SRC_FILES += IntelHWCWrapper.cpp
-endif
 
 LOCAL_C_INCLUDES := $(addprefix $(LOCAL_PATH)/../../, $(SGX_INCLUDES)) \
             frameworks/native/include/media/openmax \
@@ -91,21 +68,10 @@ LOCAL_C_INCLUDES := $(addprefix $(LOCAL_PATH)/../../, $(SGX_INCLUDES)) \
             $(TARGET_OUT_HEADERS)/libdrm \
             $(TARGET_OUT_HEADERS)/libdrm/shared-core \
             $(TARGET_OUT_HEADERS)/libwsbm/wsbm \
-            $(TARGET_OUT_HEADERS)/libttm \
-            $(TARGET_OUT_HEADERS)/widi \
-            $(addprefix $(LOCAL_PATH),libhwcwidi)
+            $(TARGET_OUT_HEADERS)/libttm
 
-ifeq ($(TARGET_HAS_MULTIPLE_DISPLAY),true)
-    LOCAL_CFLAGS += -DTARGET_HAS_MULTIPLE_DISPLAY
-    LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/display
-    LOCAL_SHARED_LIBRARIES += libmultidisplay
-    LOCAL_SRC_FILES += IntelExternalDisplayMonitor.cpp
-endif
+LOCAL_C_INCLUDES += $(LOCAL_PATH)/merrifield
 
 include $(BUILD_SHARED_LIBRARY)
-
-ifeq ($(INTEL_WIDI), true)
-include $(LOCAL_PATH)/../libhwcwidi/Android.mk
-endif
 
 endif

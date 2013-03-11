@@ -52,7 +52,6 @@ IntelWidiPlane::IntelWidiPlane(int fd, int index, IntelBufferManager *bm)
     : IntelDisplayPlane(fd, IntelDisplayPlane::DISPLAY_PLANE_OVERLAY, index, bm),
       mAllowExtVideoMode(true),
       mSetBackgroudVideoMode(false),
-      mBackgroundWidiNw(NULL),
       mState(WIDI_PLANE_STATE_INITIALIZED),
       mWidiStatusChanged(false),
       mPlayerStatus(false),
@@ -64,6 +63,7 @@ IntelWidiPlane::IntelWidiPlane(int fd, int index, IntelBufferManager *bm)
       mUseRotateHandle(false),
       mExtWidth(0),
       mExtHeight(0),
+      mBackgroundWidiNw(NULL),
       mWidiFrameType(HWC_FRAMETYPE_FRAME_BUFFER)
 {
     ALOGD_IF(ALLOW_WIDI_PRINT, "Intel Widi Plane constructor");
@@ -237,7 +237,8 @@ IntelWidiPlane::isSurfaceMatching(intel_gralloc_buffer_handle_t* nHandle) {
     widiPayloadBuffer_t payload;
     ssize_t index = mExtVideoBuffersMapping.indexOfKey(nHandle);
     if (index == NAME_NOT_FOUND) {
-        mapPayloadBuffer(nHandle, &payload);
+        if (!mapPayloadBuffer(nHandle, &payload))
+            return false;
     }
     else {
         payload = mExtVideoBuffersMapping.valueAt(index);

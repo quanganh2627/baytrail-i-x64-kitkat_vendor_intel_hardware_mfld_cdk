@@ -43,8 +43,6 @@
  *
  */
 #include <IntelHWComposerLayer.h>
-#include <GLES/gl.h>
-#include <GLES/glext.h>
 #include <IntelHWComposerCfg.h>
 
 IntelHWComposerLayer::IntelHWComposerLayer()
@@ -164,6 +162,7 @@ void IntelHWComposerLayerList::updateLayerList(hwc_display_contents_1_t *layerLi
 
         if (grallocHandle->format == HAL_PIXEL_FORMAT_YV12 ||
             grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12 ||
+            grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
             grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_YUY2 ||
             grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_UYVY ||
             grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_I420 ||

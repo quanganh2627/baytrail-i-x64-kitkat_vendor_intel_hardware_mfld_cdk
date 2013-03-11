@@ -294,6 +294,10 @@ bool IntelMIPIDisplayDevice::isOverlayLayer(hwc_display_contents_1_t *list,
         ALOGD_IF(ALLOW_HWC_PRINT, "isOverlayLayer: protected video/force Overlay");
         mDrm->setDisplayIed(true);
         forceOverlay = true;
+    } else if (mVideoSeekingActive) {
+        useOverlay = false;
+        forceOverlay = false;
+        goto out_check;
     }
 
     // check blending, overlay cannot support blending
@@ -638,10 +642,15 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
     // clear force swap buffer flag
     mForceSwapBuffer = false;
 
+    int index = checkVideoLayerHint(list, GRALLOC_HAL_HINT_TIME_SEEKING);
+    bool forceCheckingList = ((index >= 0) != mVideoSeekingActive);
+    mVideoSeekingActive = (index >= 0);
+
     // handle geometry changing. attach display planes to layers
     // which can be handled by HWC.
     // plane control information (e.g. position) will be set here
-    if (!list || (list->flags & HWC_GEOMETRY_CHANGED) || mHotplugEvent) {
+    if (!list || (list->flags & HWC_GEOMETRY_CHANGED) ||
+            mHotplugEvent || forceCheckingList) {
         onGeometryChanged(list);
         mHotplugEvent = false;
 

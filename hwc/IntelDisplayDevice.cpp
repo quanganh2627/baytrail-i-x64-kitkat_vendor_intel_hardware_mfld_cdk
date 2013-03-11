@@ -44,7 +44,7 @@ IntelDisplayDevice::IntelDisplayDevice(IntelDisplayPlaneManager *pm,
           mDisplayIndex(index), mForceSwapBuffer(false),
           mHotplugEvent(false), mIsConnected(false),
           mInitialized(false), mIsScreenshotActive(false),
-          mIsBlank(false)
+          mIsBlank(false), mVideoSeekingActive(false)
 {
     ALOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
 }
@@ -153,6 +153,40 @@ bool IntelDisplayDevice::isVideoPutInWindow(int output, hwc_layer_1_t *layer) {
     }
 
     return inWindow;
+}
+
+int IntelDisplayDevice::checkVideoLayerHint(
+        hwc_display_contents_1_t *list, uint32_t hint) {
+    int index = -1;
+
+    if (!list || list->numHwLayers == 0) {
+        return -1;
+    }
+
+    // TODO:Replace the check with number of active devices
+    if (mDrm && mDrm->getDisplayMode() != OVERLAY_EXTEND) {
+        return -1;
+    }
+
+    for (size_t i = 0; i < (size_t)list->numHwLayers - 1; i++) {
+        hwc_layer_1_t *layer = &list->hwLayers[i];
+        if (!layer)
+            continue;
+
+        intel_gralloc_buffer_handle_t *grallocHandle =
+            (intel_gralloc_buffer_handle_t*)layer->handle;
+        if (!grallocHandle)
+            continue;
+
+        if (!(grallocHandle->usage & GRALLOC_USAGE_PROTECTED) &&
+             (grallocHandle->hint & hint)) {
+            ALOGV("Find the hint in layer:%d", i);
+            index = i;
+            break;
+        }
+    }
+
+    return index;
 }
 
 bool IntelDisplayDevice::overlayPrepare(int index, hwc_layer_1_t *layer, int flags)

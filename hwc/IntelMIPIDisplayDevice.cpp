@@ -295,8 +295,7 @@ bool IntelMIPIDisplayDevice::isOverlayLayer(hwc_display_contents_1_t *list,
         }
 
         if(!(widiPlane->isExtVideoAllowed()) || (srcWidth < 176 || srcHeight < 176)
-            || ((grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12) &&
-               (grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE))) {
+            || (grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12)) {
            /* If extended video mode is not allowed or the resolution of video less than
             * 176 x 176 or Software decoder (e.g. VP8) is used, we stop here and let the
             * video to be rendered via GFx plane by surface flinger. Video encoder has
@@ -563,22 +562,23 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
             }
         }
 
-        mHotplugEvent = false;
-
-        if(mPlaneManager->isWidiActive()) {
-            if(widiPlane->isExtVideoAllowed()) {
-                // default fps to 0. widi stack will decide what correct fps should be
-                int displayW = 0, displayH = 0, fps = 0, isInterlace = 0;
-                if(mDrm->isVideoPlaying()) {
-                    if(mDrm->getVideoInfo(&displayW, &displayH, &fps, &isInterlace)) {
-                        if(fps < 0) fps = 0;
+        if(mHotplugEvent) {
+            if(mPlaneManager->isWidiActive()) {
+                if(widiPlane->isExtVideoAllowed()) {
+                    // default fps to 0. widi stack will decide what correct fps should be
+                    int displayW = 0, displayH = 0, fps = 0, isInterlace = 0;
+                    if(mDrm->isVideoPlaying()) {
+                        if(mDrm->getVideoInfo(&displayW, &displayH, &fps, &isInterlace)) {
+                            if(fps < 0) fps = 0;
+                        }
                     }
-                }
-                widiPlane->setPlayerStatus(mDrm->isVideoPlaying(), fps);
+                    widiPlane->setPlayerStatus(mDrm->isVideoPlaying(), fps);
 
-                if(!widiPlane->isPlayerOn())
-                    mWidiNativeWindow = NULL;
+                    if(!widiPlane->isPlayerOn())
+                        mWidiNativeWindow = NULL;
+                }
             }
+            mHotplugEvent = false;
         }
 
         intel_overlay_mode_t mode = mDrm->getDisplayMode();

@@ -85,6 +85,11 @@ IntelMIPIDisplayDevice::IntelMIPIDisplayDevice(IntelBufferManager *bm,
         goto init_err;
     }
 
+    mSkipComposition = false;
+    mHasGlesComposition = false;
+    mHasSkipLayer = false;
+    memset(&mLastHandles[0], 0, sizeof(mLastHandles));
+
     mInitialized = true;
     return;
 
@@ -673,7 +678,64 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
         revisitLayerList(list, false);
     }
 
+    handleSmartComposition(list);
+
     return true;
+}
+
+void IntelMIPIDisplayDevice::handleSmartComposition(hwc_display_contents_1_t *list)
+{
+    int i;
+    bool bDirty = false;
+
+    if (!list) return;
+
+    // when geometry change, set layer dirty to switch out smart composition,
+    // also update GLES composition status for later using.
+    if (list->flags & HWC_GEOMETRY_CHANGED) {
+        bDirty = true;
+        mHasGlesComposition = false;
+        mHasSkipLayer = false;
+        for (i = 0; i < list->numHwLayers - 1; i++) {
+            mHasGlesComposition = mHasGlesComposition ||
+                (list->hwLayers[i].compositionType == HWC_FRAMEBUFFER);
+            mHasSkipLayer = mHasSkipLayer ||
+                (list->hwLayers[i].flags & HWC_SKIP_LAYER);
+        }
+    }
+
+    // Only check if there is YUV overlay, has composition on framebuffer
+    // and the layer number is limited.
+    if (mYUVOverlay < 0 || !mHasGlesComposition || mHasSkipLayer ||
+        list->numHwLayers > 6){
+        ALOGD_IF(mSkipComposition, "Leave smart composition mode");
+        mSkipComposition = false;
+        return;
+    }
+
+    // check layer update except FB_TARGET and YUV overlay
+    for (i = 0; i < list->numHwLayers - 1; i++) {
+        bDirty = bDirty ||
+            (i != mYUVOverlay && list->hwLayers[i].handle != mLastHandles[i]);
+        mLastHandles[i] = list->hwLayers[i].handle;
+    }
+
+    // Smart composition state change
+    if (mSkipComposition == bDirty) {
+        mSkipComposition = !mSkipComposition;
+
+        if (mSkipComposition)
+            ALOGD("Enter smart composition mode");
+        else
+            ALOGD("Leave smart composition mode");
+
+        // Update compositeType
+        for (i = 0; i < list->numHwLayers - 1; i++) {
+            if (i != mYUVOverlay)
+                list->hwLayers[i].compositionType =
+                        mSkipComposition ? HWC_OVERLAY : HWC_FRAMEBUFFER;
+        }
+    }
 }
 
 bool IntelMIPIDisplayDevice::commit(hwc_display_contents_1_t *list,
@@ -733,7 +795,7 @@ bool IntelMIPIDisplayDevice::commit(hwc_display_contents_1_t *list,
     {
         buffer_handle_t *bufferHandles = bh;
         // setup primary plane contexts if swap buffers is needed
-        if (needSwapBuffer &&
+        if ((needSwapBuffer || mSkipComposition) &&
             mLayerList->getLayersCount() > 0 &&
             list->hwLayers[list->numHwLayers-1].handle &&
             list->hwLayers[list->numHwLayers-1].compositionType ==
@@ -1024,6 +1086,8 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
     bool ret = true;
     bool handled = true;
 
+    mYUVOverlay = -1;
+
     for (size_t i=0 ; i<(size_t)mLayerList->getLayersCount(); i++) {
         hwc_layer_1_t *layer = &list->hwLayers[i];
         // layer safety check
@@ -1167,6 +1231,8 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
                 layer->compositionType = HWC_FRAMEBUFFER;
                 handled = false;
             }
+            if (layer->compositionType == HWC_OVERLAY)
+                mYUVOverlay = i;
         } else if (planeType == IntelDisplayPlane::DISPLAY_PLANE_RGB_OVERLAY) {
             IntelRGBOverlayPlane *rgbOverlayPlane =
                 reinterpret_cast<IntelRGBOverlayPlane*>(plane);

@@ -89,8 +89,8 @@ status_t BnFrameListener::onTransact(
             CHECK_INTERFACE(IFrameListener, data, reply);
             int khandle = data.readInt32();
             int64_t timestamp = data.readInt64();
-            bufferAvailable(khandle, timestamp);
-            reply->writeInt32(NO_ERROR);
+            status_t ret = bufferAvailable(khandle, timestamp);
+            reply->writeInt32(ret);
             return NO_ERROR;
         } break;
         default:

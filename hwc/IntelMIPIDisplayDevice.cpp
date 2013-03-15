@@ -508,8 +508,17 @@ void IntelMIPIDisplayDevice::updateZorderConfig()
 {
     int zOrderConfig = IntelDisplayPlaneManager::ZORDER_POaOc;
 
-    if (mLayerList->getYUVLayerCount())
+    if (mLayerList->getYUVLayerCount()) {
+        int layersCount = mLayerList->getLayersCount();
+        // For corner case: YUV layer is on the top in the layer list
+        // and there's other rgb layers.
+        // Change the Z-order if so.
+        if (layersCount > 1 &&
+                mLayerList->getLayerType(layersCount - 1) == IntelHWComposerLayer::LAYER_TYPE_YUV)
+            zOrderConfig = IntelDisplayPlaneManager::ZORDER_OcOaP;
+        else
             zOrderConfig = IntelDisplayPlaneManager::ZORDER_POcOa;
+    }
 
     mPlaneManager->setZOrderConfig(zOrderConfig, 0);
 }

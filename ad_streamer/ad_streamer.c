@@ -63,7 +63,7 @@
 
 #define ES3X5_CHANNEL_SELECT_FIELD 3
 
-#define DEFAULT_OUTPUT_FILE    "/data/ad_stream_capture.bin"
+#define DEFAULT_OUTPUT_FILE    "/data/ad_streamer_capture.bin"
 #define DEFAULT_CAPTURE_DURATION_IN_SEC 5
 
 //Total byte of buffer size would be ES3X5_BUFFER_SIZE * ES3X5_BUFFER_COUNT
@@ -85,17 +85,19 @@
 #define MAX_FILE_PATH_SIZE 80
 #define READ_ACK_BUF_SIZE  8
 
-//Time out used by the run_writefile thread to detect
-//that the capture thread has stopped and does not produce
-//buffer anymore. Assuming a bandwith of about 70KB/s for the
-//catpure thread, and a buffer size of 1024B, the capture thread
-//should produce a buffer about every 14 ms. Since the time out
-//value must be in seconds, the closest value is 1 second.
+// Time out used by the run_writefile thread to detect
+// that the capture thread has stopped and does not produce
+// buffer anymore. Assuming a bandwith of about 70KB/s for the
+// catpure thread, and a buffer size of 1024B, the capture thread
+// should produce a buffer about every 14 ms. Since the time out
+// value must be in seconds, the closest value is 1 second.
 #define READ_TIMEOUT_IN_SEC 1
-//wait for streaming capture starts
+// wait for streaming capture starts
 #define START_TIMEOUT_IN_SEC 1
-//Waiting until all audience stream is flushed in micro seconds
+// Waiting until all audience stream is flushed in micro seconds
 #define THREAD_EXIT_WAIT_IN_US 100000
+// Maximum number of channel to capture
+#define MAX_CAPTURE_CHANNEL 2
 
 typedef enum {
     AUDIENCE_ES305,
@@ -129,8 +131,11 @@ static unsigned int written_bytes = 0;
 static unsigned int read_bytes = 0;
 static unsigned char data[ES3X5_BUFFER_COUNT][ES3X5_BUFFER_SIZE];
 static int duration_in_sec = DEFAULT_CAPTURE_DURATION_IN_SEC;
-static int channel_flag = 0;
 static char fname[MAX_FILE_PATH_SIZE] = DEFAULT_OUTPUT_FILE;
+// Number of channel to be captured
+static unsigned int captureChannelsNumber = 0;
+// Channel IDs of the channels to be captured
+static unsigned int channels[MAX_CAPTURE_CHANNEL] = {0, 0};
 
 
 static sem_t sem_read;
@@ -298,41 +303,46 @@ int check_numeric(char *number)
 }
 
 void display_help(){
-    printf("Format: [-t seconds] [-f /path/filename] [-c chip] channelId \n");
-    printf("Channel IDs for %s\n", chipVersion2String[AUDIENCE_ES305]);
-    printf("    Primary Mic   = %d\n", ES305_CH_PRI_MIC);
-    printf("    Secondary Mic = %d\n", ES305_CH_SEC_MIC);
-    printf("    Clean Speech  = %d\n", ES305_CH_CLEAN_SPEECH);
-    printf("    Far End In    = %d\n", ES305_CH_FAR_END_IN);
-    printf("    Far End out   = %d\n", ES305_CH_FAR_END_OUT);
-    printf("    Example: ad_streamer -c es305 -t 10 -f /sdcard/aud_stream.bin 9\n");
-    printf("    (Capture Primary Mic and Far End In (9 = 1 + 8))\n");
-    printf("Channel IDs for %s\n", chipVersion2String[AUDIENCE_ES325]);
-    printf("    Primary Mic   = %d\n", ES325_CH_PRI_MIC);
-    printf("    Secondary Mic = %d\n", ES325_CH_SEC_MIC);
-    printf("    Third Mic     = %d\n", ES325_CH_THIRD_MIC);
-    printf("    Fourth Mic    = %d\n", ES325_CH_FOURTH_MIC);
-    printf("    Far End In    = %d\n", ES325_CH_FAR_END_INPUT);
-    printf("    Audio in 1    = %d\n", ES325_CH_AUDIO_INPUT_1);
-    printf("    Audio in 2    = %d\n", ES325_CH_AUDIO_INPUT_2);
-    printf("    Audio in 3    = %d\n", ES325_CH_AUDIO_INPUT_3);
-    printf("    Audio in 4    = %d\n", ES325_CH_AUDIO_INPUT_4);
-    printf("    UI tone 1     = %d\n", ES325_CH_UI_TONE_1);
-    printf("    UI tone 2     = %d\n", ES325_CH_UI_TONE_2);
-    printf("    Spk ref 1     = %d\n", ES325_CH_SPK_REF_1);
-    printf("    Spk ref 2     = %d\n", ES325_CH_SPK_REF_2);
-    printf("    Clean Speech  = %d\n", ES325_CH_CLEAN_SPEECH);
-    printf("    Far End out 1 = %d\n", ES325_CH_FAR_END_OUT_1);
-    printf("    Far End out 2 = %d\n", ES325_CH_FAR_END_OUT_2);
-    printf("    Audio out 1   = %d\n", ES325_CH_AUDIO_OUTPUT_1);
-    printf("    Audio out 2   = %d\n", ES325_CH_AUDIO_OUTPUT_2);
-    printf("    Audio out 3   = %d\n", ES325_CH_AUDIO_OUTPUT_3);
-    printf("    Audio out 4   = %d\n", ES325_CH_AUDIO_OUTPUT_4);
-    printf("    Example: ad_streamer -c es325 -t 10 -f /sdcard/aud_stream.bin 16\n");
-    printf("    (Capture Clean Speech)\n");
-    printf("f option: output file path (default: %s)\n", DEFAULT_OUTPUT_FILE);
-    printf("t option: capture duration in seconds (default: %d)\n", DEFAULT_CAPTURE_DURATION_IN_SEC);
-    printf("c option (deprecated): force chip selection in <%s|%s> (default: chip autodetection)\n", chipVersion2String[AUDIENCE_ES305], chipVersion2String[AUDIENCE_ES325]);
+    printf("Format: [-t seconds] [-f /path/filename] [-c chip] channelId [channelId]\n");
+    printf("\nArguments Details\n");
+    printf("\tchannelId:\tAudience channel to be captured (see channel IDs)\n");
+    printf("\t[channelId]:\tOptionnal second Audience channel to be captured (see channel IDs)\n");
+    printf("\tf (optional):\tOutput file path (default: %s)\n", DEFAULT_OUTPUT_FILE);
+    printf("\tt (optional):\tCapture duration in seconds (default: %d)\n", DEFAULT_CAPTURE_DURATION_IN_SEC);
+    printf("\tc (optional) (deprecated):\tforce chip selection in <%s|%s> (default: chip autodetection)\n\n", chipVersion2String[AUDIENCE_ES305], chipVersion2String[AUDIENCE_ES325]);
+
+    printf("\nChannel IDs for %s\n", chipVersion2String[AUDIENCE_ES305]);
+    printf("\tPrimary Mic   = %d\n", ES305_CH_PRI_MIC);
+    printf("\tSecondary Mic = %d\n", ES305_CH_SEC_MIC);
+    printf("\tClean Speech  = %d\n", ES305_CH_CLEAN_SPEECH);
+    printf("\tFar End In    = %d\n", ES305_CH_FAR_END_IN);
+    printf("\tFar End out   = %d\n", ES305_CH_FAR_END_OUT);
+    printf("\nChannel IDs for %s\n", chipVersion2String[AUDIENCE_ES325]);
+    printf("\tPrimary Mic   = %d\n", ES325_CH_PRI_MIC);
+    printf("\tSecondary Mic = %d\n", ES325_CH_SEC_MIC);
+    printf("\tThird Mic     = %d\n", ES325_CH_THIRD_MIC);
+    printf("\tFourth Mic    = %d\n", ES325_CH_FOURTH_MIC);
+    printf("\tFar End In    = %d\n", ES325_CH_FAR_END_INPUT);
+    printf("\tAudio in 1    = %d\n", ES325_CH_AUDIO_INPUT_1);
+    printf("\tAudio in 2    = %d\n", ES325_CH_AUDIO_INPUT_2);
+    printf("\tAudio in 3    = %d\n", ES325_CH_AUDIO_INPUT_3);
+    printf("\tAudio in 4    = %d\n", ES325_CH_AUDIO_INPUT_4);
+    printf("\tUI tone 1     = %d\n", ES325_CH_UI_TONE_1);
+    printf("\tUI tone 2     = %d\n", ES325_CH_UI_TONE_2);
+    printf("\tSpk ref 1     = %d\n", ES325_CH_SPK_REF_1);
+    printf("\tSpk ref 2     = %d\n", ES325_CH_SPK_REF_2);
+    printf("\tClean Speech  = %d\n", ES325_CH_CLEAN_SPEECH);
+    printf("\tFar End out 1 = %d\n", ES325_CH_FAR_END_OUT_1);
+    printf("\tFar End out 2 = %d\n", ES325_CH_FAR_END_OUT_2);
+    printf("\tAudio out 1   = %d\n", ES325_CH_AUDIO_OUTPUT_1);
+    printf("\tAudio out 2   = %d\n", ES325_CH_AUDIO_OUTPUT_2);
+    printf("\tAudio out 3   = %d\n", ES325_CH_AUDIO_OUTPUT_3);
+    printf("\tAudio out 4   = %d\n", ES325_CH_AUDIO_OUTPUT_4);
+    printf("\nExample\n");
+    printf("\tad_streamer -t 10 -f /sdcard/aud_stream.bin 1 2\n\n\tCapture Primary Mic and Secondary Mic for 10 seconds to /sdcard/aud_stream.bin\n");
+    printf("\nNotes\n");
+    printf("\t* Dual channels capture requires the I2C bus to be overclocked to have enough bandwidth (refer to ad_streamer user guide).\n");
+    printf("\t* This tool shall be used only while in call (CSV or VOIP) (refer to ad_streamer user guide).\n");
 }
 
 int parse_cmd_line(int argc, char** argv){
@@ -372,24 +382,38 @@ int parse_cmd_line(int argc, char** argv){
             }
             duration_in_sec = atoi(optarg);
             break;
-        case '?':
-            if ((optopt == 'f') || (optopt == 's')) {
-                fprintf (stderr, "Option -%c requires an argument.\n", optopt);
-            }
         default:
             display_help();
             return -1;
         }
 
-    // Non-optional arguments
+    // Non-optional arguments: channel ID to be captured
+    captureChannelsNumber = 0;
     for (index = optind; index < argc; index++){
-        if (check_numeric(argv[optind])) {
+        if (check_numeric(argv[index])) {
+
+            printf("\nERROR: please use valid numeric value for channel flag\n");
             display_help();
-            printf("\n*Please use valid numeric value for channel flag\n");
             return -1;
         }
         // Set streaming channel flag
-        channel_flag = atoi(argv[optind]);
+        if (captureChannelsNumber < MAX_CAPTURE_CHANNEL) {
+
+            channels[captureChannelsNumber] = atoi(argv[index]);
+            captureChannelsNumber++;
+        } else {
+
+            printf("ERROR: Too many arguments\n");
+            display_help();
+            return -1;
+        }
+    }
+    // Check that at least one channel has to be recorded
+    if (captureChannelsNumber == 0) {
+
+        printf("ERROR: Missing channel ID\n");
+        display_help();
+        return -1;
     }
     return 0;
 }
@@ -434,14 +458,35 @@ int main(int argc, char **argv) {
     printf("Outputing raw streaming data to %s\n", fname);
 
     // Set streaming channels
-    setChannelCmd[ES3X5_CHANNEL_SELECT_FIELD] = channel_flag;
-    printf("Setting streaming channels: 0x%02x\n", setChannelCmd[ES3X5_CHANNEL_SELECT_FIELD]);
+    if (chip_version == AUDIENCE_ES305) {
 
-    rc = write(fd, setChannelCmd, sizeof(setChannelCmd));
-    if (rc < 0) {
-        printf("audience set channel command failed: %d\n", rc);
-        cleanup();
-        return rc;
+        // es305: A single command with a bit field of channels to be recorder
+        // In case of single channel capture, channels[1] is equal to zero.
+        // Maximum number of channels: MAX_CAPTURE_CHANNEL
+        setChannelCmd[ES3X5_CHANNEL_SELECT_FIELD] = channels[0] | channels[1];
+
+        rc = write(fd, setChannelCmd, sizeof(setChannelCmd));
+        if (rc < 0) {
+            printf("audience set channel command failed: %d\n", rc);
+            cleanup();
+            return rc;
+        }
+    } else if (chip_version == AUDIENCE_ES325){
+
+        // es325: As much command(s) as channel(s) to be recorded
+        // Maximum number of channels: MAX_CAPTURE_CHANNEL
+        unsigned int channel;
+
+        for (channel = 0; channel < captureChannelsNumber; channel++) {
+
+            setChannelCmd[ES3X5_CHANNEL_SELECT_FIELD] = channels[channel];
+            rc = write(fd, setChannelCmd, sizeof(setChannelCmd));
+            if (rc < 0) {
+                printf("audience set channel command failed: %d\n", rc);
+                cleanup();
+                return rc;
+            }
+        }
     }
 
     // Initialze semaphore and threads

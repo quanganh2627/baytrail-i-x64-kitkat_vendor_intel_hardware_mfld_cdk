@@ -28,7 +28,6 @@
 #include <sys/select.h>
 #include <sys/ioctl.h>
 #include <semaphore.h>
-#include <cutils/properties.h>
 #include <ctype.h>
 
 #include "hardware_legacy/power.h"
@@ -64,7 +63,7 @@
 
 #define ES3X5_CHANNEL_SELECT_FIELD 3
 
-#define DEFAULT_OUTPUT_FILE    "/data/a1026_stream.bin"
+#define DEFAULT_OUTPUT_FILE    "/data/ad_stream_capture.bin"
 #define DEFAULT_CAPTURE_DURATION_IN_SEC 5
 
 //Total byte of buffer size would be ES3X5_BUFFER_SIZE * ES3X5_BUFFER_COUNT
@@ -73,6 +72,12 @@
 #define ES3X5_BUFFER_SIZE        164
 /* ES3X5_BUFFER_COUNT must be a power of 2 */
 #define ES3X5_BUFFER_COUNT       256
+
+/* Audience command size in bytes */
+#define AD_CMD_SIZE              4
+/* Delay to wait after a command before to read the chip response (us),
+ * as per Audience recommendations. */
+#define AD_CMD_DELAY_US          20000
 
 #define false   0
 #define true    1
@@ -96,25 +101,26 @@ typedef enum {
     AUDIENCE_ES305,
     AUDIENCE_ES325,
     AUDIENCE_UNKNOWN
-} fw_version_t;
+} chip_version_t;
 
 // Private data
-static const unsigned char startStreamCmd[4] = { 0x80, 0x25, 0x00, 0x01 };
-static const unsigned char stopStreamCmd[4] = { 0x80, 0x25, 0x00, 0x00 };
-static const unsigned char setOutputKnownSignal[4] = { 0x80, 0x1E, 0x00, 0x05 };
-static unsigned char setChannelCmd[4] = { 0x80, 0x28, 0x00, 0x03 };
+static const unsigned char startStreamCmd[AD_CMD_SIZE] = { 0x80, 0x25, 0x00, 0x01 };
+static const unsigned char stopStreamCmd[AD_CMD_SIZE] = { 0x80, 0x25, 0x00, 0x00 };
+static const unsigned char setOutputKnownSignal[AD_CMD_SIZE] = { 0x80, 0x1E, 0x00, 0x05 };
+static unsigned char setChannelCmd[AD_CMD_SIZE] = { 0x80, 0x28, 0x00, 0x03 };
+static unsigned char chipIdCmd[AD_CMD_SIZE] = { 0x80, 0x0E, 0x00, 0x00 };
 
-static const char*    vp_fw_name_prop_name = "audiocomms.vp.fw_name";
-static const char*    vp_fw_name_prop_default_value = "Unknown";
-static char           vp_fw_name[PROPERTY_VALUE_MAX];
+// Chip ID code
+#define AD_CHIP_ID_ES305     0x1008
+#define AD_CHIP_ID_ES325     0x1101
 
-static const char* fwVersion2String[] = {
+static const char* chipVersion2String[] = {
     "es305",
     "es325",
     "Unknown"
 };
 
-static fw_version_t fw_version = AUDIENCE_UNKNOWN;
+static chip_version_t chip_version = AUDIENCE_UNKNOWN;
 
 static int fd = -1;
 static FILE *outfile = NULL;
@@ -135,26 +141,83 @@ static char lockid[32];
 static volatile long int cap_idx = 0;
 static volatile long int wrt_idx = 0;
 
-int get_fw_version()
+int setup_ad_chip()
 {
-    if (fw_version != AUDIENCE_UNKNOWN){
+    int status = 0;
+    int rc;
+    unsigned int chipId = 0;
+    unsigned char chipIdCmdResponse[AD_CMD_SIZE];
+
+    /// Chip detection
+    // Is chip forced at command line ?
+    if (chip_version != AUDIENCE_UNKNOWN) {
+
         // chip selection has been forced as cmd line argument
         // keep it.
-        printf("Audience chip forced to '%s'.\n", fwVersion2String[fw_version]);
-        return 0;
-    }
-    property_get(vp_fw_name_prop_name, vp_fw_name, vp_fw_name_prop_default_value);
-    if (strstr(vp_fw_name,"es325") != NULL){
-        fw_version = AUDIENCE_ES325;
-        // According eS325 specifications, bit #15 of commands must be set to 1
-        setChannelCmd[2] = 0x80;
-    } else if (strstr(vp_fw_name,"es305") != NULL){
-        fw_version = AUDIENCE_ES305;
+        printf("Deprecated: Audience chip forced to '%s'.\n",
+               chipVersion2String[chip_version]);
     } else {
-        fw_version = AUDIENCE_UNKNOWN;
+
+        // Send the identification command
+        rc = write(fd, chipIdCmd, sizeof(chipIdCmd));
+        if (rc < 0) {
+            printf("Audience command failed (Chip Identification): %s\n",
+                   strerror(errno));
+            return rc;
+        }
+        // Wait for command execution
+        usleep(AD_CMD_DELAY_US);
+        // Read back the response
+        rc = read(fd, chipIdCmdResponse, sizeof(chipIdCmdResponse));
+        if (rc < 0) {
+            printf("Audience command response read failed (Chip ID): %s\n",
+                   strerror(errno));
+            return rc;
+        }
+        if (chipIdCmdResponse[0] == chipIdCmd[0] &&
+                chipIdCmdResponse[1] == chipIdCmd[1]) {
+
+            // Retrieve the chip ID from the response:
+            chipId = chipIdCmdResponse[2] << 8 | chipIdCmdResponse[3];
+
+            // Check the chip ID
+            if (chipId == AD_CHIP_ID_ES325) {
+
+                chip_version = AUDIENCE_ES325;
+            } else if (chipId == AD_CHIP_ID_ES305) {
+
+                chip_version = AUDIENCE_ES305;
+            } else {
+
+                // Unknown ID means unsupported chip
+                printf("Unsupported Audience chip ID: 0x%04x\n", chipId);
+                chip_version = AUDIENCE_UNKNOWN;
+                status = -1;
+            }
+        } else {
+
+            printf("Audience chip ID command failed. Chip returned 0x%02x%02x%02x%02x\n",
+                    chipIdCmdResponse[0],
+                    chipIdCmdResponse[1],
+                    chipIdCmdResponse[2],
+                    chipIdCmdResponse[3]);
+            // Unable to detect the chip
+            chip_version = AUDIENCE_UNKNOWN;
+            status = -1;
+        }
     }
-    printf("Audience chip detected: '%s'.\n", fwVersion2String[fw_version]);
-    return 0;
+
+    printf("Audience chip detected: '%s'.\n", chipVersion2String[chip_version]);
+
+    /// Chip setup
+    // es325 specific setup
+    if (chip_version == AUDIENCE_ES325) {
+
+        // According eS325 specifications, bit #15 of setChannel command must be set to 1
+        setChannelCmd[2] = 0x80;
+    }
+
+    return status;
 }
 
 // Thread to keep track of time
@@ -236,7 +299,7 @@ int check_numeric(char *number)
 
 void display_help(){
     printf("Format: [-t seconds] [-f /path/filename] [-c chip] channelId \n");
-    printf("Channel IDs for %s\n", fwVersion2String[AUDIENCE_ES305]);
+    printf("Channel IDs for %s\n", chipVersion2String[AUDIENCE_ES305]);
     printf("    Primary Mic   = %d\n", ES305_CH_PRI_MIC);
     printf("    Secondary Mic = %d\n", ES305_CH_SEC_MIC);
     printf("    Clean Speech  = %d\n", ES305_CH_CLEAN_SPEECH);
@@ -244,7 +307,7 @@ void display_help(){
     printf("    Far End out   = %d\n", ES305_CH_FAR_END_OUT);
     printf("    Example: ad_streamer -c es305 -t 10 -f /sdcard/aud_stream.bin 9\n");
     printf("    (Capture Primary Mic and Far End In (9 = 1 + 8))\n");
-    printf("Channel IDs for %s\n", fwVersion2String[AUDIENCE_ES325]);
+    printf("Channel IDs for %s\n", chipVersion2String[AUDIENCE_ES325]);
     printf("    Primary Mic   = %d\n", ES325_CH_PRI_MIC);
     printf("    Secondary Mic = %d\n", ES325_CH_SEC_MIC);
     printf("    Third Mic     = %d\n", ES325_CH_THIRD_MIC);
@@ -269,7 +332,7 @@ void display_help(){
     printf("    (Capture Clean Speech)\n");
     printf("f option: output file path (default: %s)\n", DEFAULT_OUTPUT_FILE);
     printf("t option: capture duration in seconds (default: %d)\n", DEFAULT_CAPTURE_DURATION_IN_SEC);
-    printf("c option: force chip selection in <%s|%s> (default: chip autodetection)\n", fwVersion2String[AUDIENCE_ES305], fwVersion2String[AUDIENCE_ES325]);
+    printf("c option (deprecated): force chip selection in <%s|%s> (default: chip autodetection)\n", chipVersion2String[AUDIENCE_ES305], chipVersion2String[AUDIENCE_ES325]);
 }
 
 int parse_cmd_line(int argc, char** argv){
@@ -291,11 +354,9 @@ int parse_cmd_line(int argc, char** argv){
         case 'c':
             cvalue = optarg;
             if (strncmp(cvalue, "es305", 5) == 0) {
-                fw_version = AUDIENCE_ES305;
+                chip_version = AUDIENCE_ES305;
             } else if (strncmp(cvalue, "es325", 5) == 0) {
-                fw_version = AUDIENCE_ES325;
-                // According eS325 specifications, bit #15 of commands must be set to 1
-                setChannelCmd[2] = 0x80;
+                chip_version = AUDIENCE_ES325;
             } else {
                 display_help();
                 printf("\n*Please use valid chip value\n");
@@ -349,11 +410,6 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    // Get the Audience FW version
-    if (get_fw_version() == -1) {
-        return -1;
-    };
-
     // Initialize
     fd = open(ES3X5_DEVICE_PATH, O_RDWR | O_NONBLOCK, 0);
 
@@ -361,6 +417,13 @@ int main(int argc, char **argv) {
         printf("Cannot open %s\n", ES3X5_DEVICE_PATH);
         return -1;
     }
+
+    // Get the Audience FW version
+    rc = setup_ad_chip();
+    if (rc < 0) {
+        cleanup();
+        return rc;
+    };
 
     outfile = fopen(fname, "w+b");
     if (!outfile) {

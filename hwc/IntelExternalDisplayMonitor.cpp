@@ -92,7 +92,6 @@ void IntelExternalDisplayMonitor::initialize()
 int IntelExternalDisplayMonitor::onMdsMessage(int msg, void *data, int size)
 {
     bool ret = true;
-    int modeIndex = -1;
 
     ALOGD_IF(ALLOW_MONITOR_PRINT, "onMdsMessage: External display monitor onMdsMessage, %d size :%d ", msg, size);
     if (msg == MDS_MODE_CHANGE) {
@@ -102,7 +101,7 @@ int IntelExternalDisplayMonitor::onMdsMessage(int msg, void *data, int size)
             !checkMode(mode, MDS_HDMI_CONNECTED)) {
             ALOGD_IF(ALLOW_MONITOR_PRINT, "%s: HDMI is plugged out %d", __func__, mode);
             mLastMsg = MSG_TYPE_MDS_HOTPLUG_OUT;
-            ret = mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2, mLastMsg, NULL, NULL);
+            ret = mComposer->onUEvent(mLastMsg, NULL, 0);
         }
     } else if (msg == MDS_SET_TIMING) {
         MDSHDMITiming* timing = (MDSHDMITiming*)data;
@@ -118,14 +117,12 @@ int IntelExternalDisplayMonitor::onMdsMessage(int msg, void *data, int size)
         ALOGD_IF(ALLOW_MONITOR_PRINT, "%s: Setting HDMI timing %dx%d@%dx%dx%d", __func__,
                 timing->width, timing->height,
                 timing->refresh, timing->ratio, timing->interlace);
-        ret = mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2,
-                mLastMsg, (intel_display_mode_t *)data, &modeIndex);
-        return modeIndex;
+        return mComposer->onUEvent(mLastMsg, data, size);
     }
 
     if (msg == MDS_MODE_CHANGE) {
         mActiveDisplayMode = *(int *)data;
-        ret = mComposer->onUEvent(mUeventMessage, UEVENT_MSG_LEN - 2, MSG_TYPE_MDS, NULL, NULL);
+        ret = mComposer->onUEvent(MSG_TYPE_MDS, data, size);
     }
     return ret ? 0 : (-1);
 }
@@ -229,9 +226,7 @@ bool IntelExternalDisplayMonitor::threadLoop()
     if(nr > 0 && fds.revents == POLLIN) {
         int count = recv(mUeventFd, mUeventMessage, UEVENT_MSG_LEN - 2, 0);
         if (count > 0)
-            mComposer->onUEvent(mUeventMessage,
-                                UEVENT_MSG_LEN - 2,
-                                MSG_TYPE_UEVENT, NULL, NULL);
+            mComposer->onUEvent(MSG_TYPE_UEVENT, mUeventMessage, UEVENT_MSG_LEN - 2);
     }
 
     return true;

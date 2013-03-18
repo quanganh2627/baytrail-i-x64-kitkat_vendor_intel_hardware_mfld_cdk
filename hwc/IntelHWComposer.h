@@ -105,9 +105,9 @@ private:
     IntelHWCWrapper mWrapper;
 #endif
 private:
-    bool handleHotplugEvent(int hdp, void *data, int* modeIndex);
+    bool handleHotplugEvent(int hdp, void *data);
     bool handleDisplayModeChange();
-    bool handleDynamicModeSetting(void *data, int* modeIndex);
+    bool handleDynamicModeSetting(void *data);
     uint32_t disableUnusedVsyncs(uint32_t target);
     uint32_t enableVsyncs(uint32_t target);
     uint32_t getTargetVsync();
@@ -117,7 +117,7 @@ private:
     void waitForHpdCompletion();
     static intel_gralloc_buffer_handle_t *findVideoHandle(hwc_display_contents_1_t* list);
 public:
-    bool onUEvent(const char *msg, int msgLen, int msgType, void *data, int* modeIndex);
+    bool onUEvent(int msgType, void* msg, int msgLen);
     void vsync(int64_t timestamp, int pipe);
 public:
     bool initCheck() { return mInitialized; }

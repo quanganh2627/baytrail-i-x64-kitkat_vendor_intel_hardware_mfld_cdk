@@ -407,11 +407,6 @@ bool IntelMIPIDisplayDevice::isRGBOverlayLayer(hwc_display_contents_1_t *list,
         goto out_check;
     }
 
-    if (mLayerList->getRGBLayerCount() > 2) {
-        useRGBOverlay = false;
-        goto out_check;
-    }
-
     if ((layer->flags & HWC_SKIP_LAYER)) {
         useRGBOverlay = false;
         goto out_check;

@@ -50,7 +50,7 @@ private:
     virtual bool onEvent(int iFd);
     virtual bool onError(int iFd);
     virtual bool onHangup(int iFd);
-    virtual void onAlarm();
+    virtual void onTimeout();
     virtual void onPollError();
     virtual bool onProcess(uint16_t uiEvent);
 

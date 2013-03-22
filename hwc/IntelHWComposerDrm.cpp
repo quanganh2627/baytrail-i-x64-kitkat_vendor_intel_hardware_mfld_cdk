@@ -810,7 +810,6 @@ bool IntelHWComposerDrm::handleDisplayDisConnection(int disp)
         setOutputConnection(disp, connection);
         memset(&mode, 0, sizeof(drmModeModeInfo));
         setOutputMode(disp, &mode, 1);
-        deleteDrmFb(disp);
     }
 
     return true;

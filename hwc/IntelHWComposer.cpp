@@ -123,7 +123,7 @@ bool IntelHWComposer::handleHotplugEvent(int hpd, void *data)
 
     if (!mDrm) {
         ALOGW("%s: mDrm is not intialized!\n", __func__);
-        goto out;
+        return false;
     }
 
     if (hpd) {
@@ -131,10 +131,8 @@ bool IntelHWComposer::handleHotplugEvent(int hpd, void *data)
         intel_display_mode_t *s_mode = (intel_display_mode_t *)data;
         drmModeModeInfoPtr mode;
         mode = mDrm->selectDisplayDrmMode(OUTPUT_HDMI, s_mode);
-        if (!mode) {
-            ret = false;
-            goto out;
-        }
+        if (!mode)
+            return false;
 
         // alloc buffer;
         mHDMIFBHandle.size = mode->vdisplay * align_to(mode->hdisplay * 4, 64);
@@ -142,28 +140,13 @@ bool IntelHWComposer::handleHotplugEvent(int hpd, void *data)
                                       &mHDMIFBHandle.umhandle,
                                       &mHDMIFBHandle.kmhandle);
         if (!ret)
-            goto out;
+            return false;
 
         // mode setting;
         ret = mDrm->setDisplayDrmMode(OUTPUT_HDMI, mHDMIFBHandle.kmhandle, mode);
         if (!ret)
-            goto out;
-    } else {
-        // rm FB
-        ret = mDrm->handleDisplayDisConnection(OUTPUT_HDMI);
-        if (!ret)
-            goto out;
+            return false;
 
-        // release buffer;
-        ret = mGrallocBufferManager->dealloc(mHDMIFBHandle.umhandle);
-        if (!ret)
-            goto out;
-
-        memset(&mHDMIFBHandle, 0, sizeof(mHDMIFBHandle));
-    }
-
-out:
-    if (ret) {
         ALOGD("%s: detected hdmi hotplug event:%s\n", __func__, hpd?"IN":"OUT");
         handleDisplayModeChange();
 
@@ -173,9 +156,32 @@ out:
         if (mProcs && mProcs->vsync) {
             mProcs->hotplug(mProcs, HWC_DISPLAY_EXTERNAL, hpd);
         }
-    }
+    } else {
+        ret = mDrm->handleDisplayDisConnection(OUTPUT_HDMI);
+        if (!ret)
+            return false;
 
-    return ret;
+        ALOGD("%s: detected hdmi hotplug event:%s\n", __func__, hpd?"IN":"OUT");
+        handleDisplayModeChange();
+
+        /* hwc_dev->procs is set right after the device is opened, but there is
+         * still a race condition where a hotplug event might occur after the open
+         * but before the procs are registered. */
+        if (mProcs && mProcs->vsync) {
+            mProcs->hotplug(mProcs, HWC_DISPLAY_EXTERNAL, hpd);
+        }
+        // TODO: here we need to wait for the plug-out take effect.
+        waitForHpdCompletion();
+        // rm FB
+        mDrm->deleteDrmFb(OUTPUT_HDMI);
+        // release buffer;
+        ret = mGrallocBufferManager->dealloc(mHDMIFBHandle.umhandle);
+        if (!ret)
+            return false;
+
+        memset(&mHDMIFBHandle, 0, sizeof(mHDMIFBHandle));
+    }
+    return true;
 }
 
 bool IntelHWComposer::handleDynamicModeSetting(void *data)
@@ -196,9 +202,6 @@ bool IntelHWComposer::handleDynamicModeSetting(void *data)
         ALOGW("%s: send fake unplug event failed!\n", __func__);
         goto out;
     }
-
-    // TODO: here we need to wait for the plug-out take effect.
-    waitForHpdCompletion();
 
     // then change the mode and send plug-in to SF
     ret = handleHotplugEvent(1, data);

@@ -97,11 +97,12 @@ typedef struct {
     intel_overlay_mode_t old_display_mode;
 } intel_drm_output_state_t;
 
+// this structure must match MDSHDMITiming
 typedef struct {
     uint32_t vrefresh;
     uint32_t hdisplay;
     uint32_t vdisplay;
-    uint32_t flags;
+    uint32_t interlace;
     uint32_t ratio;
 } intel_display_mode_t;
 
@@ -117,6 +118,7 @@ class IntelHWComposer;
 class IntelHWComposerDrm {
 private:
     int mDrmFd;
+    drmModeConnectorPtr mHdmiConnector;
     intel_drm_output_state_t mDrmOutputsState;
     static IntelHWComposerDrm *mInstance;
 #ifdef TARGET_HAS_MULTIPLE_DISPLAY
@@ -138,6 +140,7 @@ private:
 private:
      // basic function set
     drmModeConnectorPtr getConnector(int disp);
+    drmModeConnectorPtr getHdmiConnector();
     void freeConnector(drmModeConnectorPtr connector);
     drmModeEncoderPtr getEncoder(int disp);
     void freeEncoder(drmModeEncoderPtr encoder);
@@ -150,9 +153,9 @@ private:
     bool setHDMIScaling(int type);
 
     // mode and Fb functions
-    bool isModeChanged(drmModeModeInfoPtr mode, intel_display_mode_t *m_selected);
-    drmModeModeInfoPtr getSelectMode(intel_display_mode_t *m_selected,
-                                    drmModeConnectorPtr connector, int* modeIndex);
+    bool isModeChanged(drmModeModeInfoPtr mode, intel_display_mode_t *displayMode);
+    drmModeModeInfoPtr getSelectMode(intel_display_mode_t *displayMode,
+                                    drmModeConnectorPtr connector);
     bool setupDrmFb(int disp, uint32_t fb_handler, drmModeModeInfoPtr mode);
     void deleteDrmFb(int disp);
 
@@ -174,7 +177,7 @@ public:
 
     // Connection and Mode setting
     bool detectDisplayConnection(int disp);
-    drmModeModeInfoPtr selectDisplayDrmMode(int disp, intel_display_mode_t *m_selected, int* modeIndex);
+    drmModeModeInfoPtr selectDisplayDrmMode(int disp, intel_display_mode_t *displayMode);
     bool setDisplayDrmMode(int disp, uint32_t fb_handler, drmModeModeInfoPtr mode);
     bool handleDisplayDisConnection(int disp);
     bool detectMDSModeChange();
@@ -205,7 +208,8 @@ public:
     bool isMdsSurface(int *nativeWindow);
     bool notifyWidi(bool);
     bool getVideoInfo(int *displayW, int *displayH, int *fps, int *isinterlace);
-    int  checkOutputMode(void* data);
+    bool isDrmModeChanged(intel_display_mode_t* displayMode);
+    bool isDrmModeFlagsMatched(drmModeModeInfoPtr mode, intel_display_mode_t* displayMode);
 };
 
 #endif /*__INTEL_HWCOMPOSER_DRM_H__*/

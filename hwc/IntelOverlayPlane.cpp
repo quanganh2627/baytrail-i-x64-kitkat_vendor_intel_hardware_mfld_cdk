@@ -49,7 +49,6 @@
 #include <IntelHWComposerDrm.h>
 #include <IntelOverlayPlane.h>
 #include <IntelOverlayUtil.h>
-#include <IntelWidiPlane.h>
 
 IntelOverlayContext::~IntelOverlayContext()
 {
@@ -1441,7 +1440,6 @@ IntelOverlayPlane::IntelOverlayPlane(int fd, int index, IntelBufferManager *bm)
     // initialized successfully
     mDataBuffer = dataBuffer;
     mContext = overlayContext;
-    mWidiPlane = NULL;
     mInitialized = true;
     return;
 overlay_init_err:
@@ -1690,15 +1688,6 @@ bool IntelOverlayPlane::flip(void *contexts, uint32_t flags)
         if (flags & IntelDisplayPlane::DELAY_DISABLE) {
             // return false as overlay context flip is bypassed
             ret = false;
-        } else if ((mWidiPlane && mWidiPlane->isActive()) ||
-                   IntelHWComposerDrm::getInstance().isOverlayOff()){
-            ALOGD_IF(ALLOW_OVERLAY_PRINT,
-                    "%s: disable overlay context!\n", __func__);
-            ret = disable();
-            if (ret == false)
-                ALOGE("%s: failed to disable overlay\n", __func__);
-            // return false as overlay context flip below is bypassed.
-            ret = false;
         } else {
             flags |= IntelDisplayPlane::UPDATE_COEF;
 
@@ -1808,14 +1797,6 @@ uint32_t IntelOverlayPlane::onDrmModeChange()
     }
 
     return 0;
-}
-
-bool IntelOverlayPlane::setWidiPlane(IntelDisplayPlane* wplane) {
-
-    if(wplane != NULL)
-        mWidiPlane = (IntelWidiPlane*)wplane;
-
-    return true;
 }
 
 bool IntelOverlayPlane::setOverlayOnTop(bool isOnTop)

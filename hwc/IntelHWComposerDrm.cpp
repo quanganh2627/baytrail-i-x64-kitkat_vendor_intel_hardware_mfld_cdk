@@ -75,6 +75,7 @@ bool IntelHWComposerDrm::drmInit()
     }
 
     mDrmFd = fd;
+    mHdmiConnector = NULL;
     ALOGD("%s: successfully. mDrmFd %d\n", __func__, fd);
     return true;
 }
@@ -237,31 +238,9 @@ intel_overlay_mode_t IntelHWComposerDrm::getOldDisplayMode()
     return mDrmOutputsState.old_display_mode;
 }
 
-int  IntelHWComposerDrm::checkOutputMode(void* data) {
-    intel_display_mode_t* s_mode = (intel_display_mode_t*)data;
+bool IntelHWComposerDrm::isDrmModeChanged(intel_display_mode_t* displayMode) {
     drmModeModeInfoPtr mode = getOutputMode(OUTPUT_HDMI);
-    drmModeConnectorPtr connector = NULL;
-    //If it is a new different timing
-    if (isModeChanged(mode, s_mode))
-        return -1;
-    //If not, need to get mode index
-    connector = getConnector(OUTPUT_HDMI);
-    if (!connector) {
-        ALOGW("%s: Fail to get drm connector\n", __func__);
-        return -1;
-    }
-    for (int i = 0; i < connector->count_modes; i++) {
-        ALOGD_IF(ALLOW_MONITOR_PRINT, "%dx%dx%dHz",
-                connector->modes[i].hdisplay,
-                connector->modes[i].vdisplay,
-                connector->modes[i].vrefresh);
-        if (connector->modes[i].vrefresh == mode->vrefresh &&
-                connector->modes[i].vdisplay == mode->vdisplay &&
-                connector->modes[i].hdisplay == mode->hdisplay) {
-            return i;
-        }
-    }
-    return -1;
+    return isModeChanged(mode, displayMode);
 }
 
 bool IntelHWComposerDrm::detectMDSModeChange()
@@ -443,7 +422,7 @@ IntelHWComposerDrm::getConnector(int disp)
         ALOGE("%s: invalid drm FD\n", __func__);
         return NULL;
     }
-
+    ALOGD("Entering %s, %d", __func__, disp);
     uint32_t req_connector_type = 0;
     uint32_t req_connector_type_id = 1;
 
@@ -490,13 +469,28 @@ IntelHWComposerDrm::getConnector(int disp)
     if (connector == NULL)
         ALOGW("%s: fail to get required connector\n", __func__);
 
+    ALOGD("Leaving %s, %d", __func__, disp);
     return connector;
 }
 
 void IntelHWComposerDrm::freeConnector(drmModeConnectorPtr connector)
 {
-    if (connector != NULL)
+    if (connector != NULL) {
         drmModeFreeConnector(connector);
+        if (connector->connector_type == DRM_MODE_CONNECTOR_DVID)
+            mHdmiConnector = NULL;
+    }
+}
+
+drmModeConnectorPtr
+IntelHWComposerDrm::getHdmiConnector() {
+    if (mHdmiConnector == NULL)
+        mHdmiConnector = getConnector(OUTPUT_HDMI);
+    if (mHdmiConnector == NULL || mHdmiConnector->modes == NULL) {
+        LOGE("%s: Failed to get HDMI connector", __func__);
+        return NULL;
+    }
+    return mHdmiConnector;
 }
 
 drmModeEncoderPtr
@@ -621,22 +615,27 @@ bool IntelHWComposerDrm::setHDMIScaling(int type) {
 }
 
 drmModeModeInfoPtr
-IntelHWComposerDrm::selectDisplayDrmMode(int disp, intel_display_mode_t *m_selected, int* modeIndex)
+IntelHWComposerDrm::selectDisplayDrmMode(int disp, intel_display_mode_t *displayMode)
 {
-    drmModeModeInfoPtr mode = getOutputMode(disp);
+    if (disp != OUTPUT_HDMI)
+        return NULL;
+    drmModeModeInfoPtr mode = getOutputMode(OUTPUT_HDMI);
 
     // If mode no change, return current mode
-    if (m_selected && !isModeChanged(mode, m_selected))
+    if (displayMode && !isModeChanged(mode, displayMode))
         return mode;
-
+    if (mHdmiConnector != NULL) {
+        freeConnector(mHdmiConnector);
+        mHdmiConnector = NULL;
+    }
     drmModeConnectorPtr connector;
-    connector = getConnector(disp);
+    connector = getHdmiConnector();
     if (!connector) {
         ALOGW("%s: fail to get drm connector\n", __func__);
         return NULL;
     }
 
-    mode = getSelectMode(m_selected, connector, modeIndex);
+    mode = getSelectMode(displayMode, connector);
 
     if (!mode) {
         ALOGW("%s: fail to get selected mode or any other mode! \n", __func__);
@@ -644,21 +643,21 @@ IntelHWComposerDrm::selectDisplayDrmMode(int disp, intel_display_mode_t *m_selec
     }
 
     // update current mode to be selected
-    setOutputMode(disp, mode, 1);
+    setOutputMode(OUTPUT_HDMI, mode, 1);
 
-    freeConnector(connector);
+    //freeConnector(connector);
 
-    mode = getOutputMode(disp);
-    LOGD("%s: mode vref: %d h:%d v:%d f:0x%x\n", __func__,
-             mode->vrefresh, mode->hdisplay, mode->vdisplay, mode->flags);
+    mode = getOutputMode(OUTPUT_HDMI);
+    LOGD("%s: mode is %dx%d@%dHz, 0x%x\n", __func__,
+             mode->hdisplay, mode->vdisplay, mode->vrefresh, mode->flags);
 
     return mode;
 }
 
 // mode and Fb functions
 drmModeModeInfoPtr
-IntelHWComposerDrm::getSelectMode(intel_display_mode_t *m_selected,
-                                  drmModeConnectorPtr connector, int* modeIndex)
+IntelHWComposerDrm::getSelectMode(intel_display_mode_t *displayMode,
+                                  drmModeConnectorPtr connector)
 {
     int index = -1;
     int i = 0;
@@ -668,20 +667,21 @@ IntelHWComposerDrm::getSelectMode(intel_display_mode_t *m_selected,
 
     // mode sort as big --> small
     for (i = 0; i < connector->count_modes; i++) {
-        mode = & connector->modes[i];
+        mode = &connector->modes[i];
 
         // set to requested mode if found
-        if (m_selected &&
-            m_selected->vrefresh == mode->vrefresh &&
-            m_selected->hdisplay == mode->hdisplay &&
-            m_selected->vdisplay == mode->vdisplay ) {
-            //m_selected->flags == mode->flags) {
+        if (displayMode &&
+            displayMode->vrefresh == mode->vrefresh &&
+            displayMode->hdisplay == mode->hdisplay &&
+            displayMode->vdisplay == mode->vdisplay &&
+            isDrmModeFlagsMatched(mode, displayMode)) {
             index = i;
             break;
         }
         // Get prefer mode
         if (mode->type & DRM_MODE_TYPE_PREFERRED)
             preferred = i;
+
         // Get the max timing
         if ((connector->modes[i].hdisplay > connector->modes[max].hdisplay) &&
             (connector->modes[i].vdisplay > connector->modes[max].vdisplay)) {
@@ -692,43 +692,56 @@ IntelHWComposerDrm::getSelectMode(intel_display_mode_t *m_selected,
             (connector->modes[i].vrefresh > connector->modes[max].vrefresh)) {
             max = i;
         }
-        ALOGV("%dx%d@%dHz, %d, %d, %d, %d",
-                connector->modes[i].hdisplay,
-                connector->modes[i].vdisplay,
-                connector->modes[i].vrefresh, i, index, max, preferred);
     }
-    // could not find required mode
+    // could not find requested mode
     if (index == -1) {
-        if (preferred != -1) {
-            //Select the max if the preferred < the max
-            if (connector->modes[preferred].hdisplay < connector->modes[max].hdisplay ||
-                connector->modes[preferred].vdisplay < connector->modes[max].vdisplay ||
-                connector->modes[preferred].vrefresh < connector->modes[max].vrefresh)
-                index = max;
-            else
-                index = preferred;
-        } else
+        if (preferred != -1)
+            index = preferred;
+        else
             index = max;
     }
-    LOGD("Get the timing index, %d, %d, %d", preferred, max, index);
-    if (modeIndex != NULL)
-        *modeIndex = index;
+    LOGD("Get the timing, %d, %d, %d", preferred, max, index);
     return &connector->modes[index];
 }
 
 bool IntelHWComposerDrm::isModeChanged(drmModeModeInfoPtr mode,
-                                       intel_display_mode_t *m_selected)
+                                       intel_display_mode_t *displayMode)
 {
     // set to requested mode if found
-    if (m_selected && mode &&
-        m_selected->vrefresh == mode->vrefresh &&
-        m_selected->hdisplay == mode->hdisplay &&
-        m_selected->vdisplay == mode->vdisplay ) {
-       // m_selected->flags == mode->flags) {
+    if (mode == NULL || displayMode == NULL) {
+        return true;
+    }
+
+    if (displayMode->vrefresh == mode->vrefresh &&
+        displayMode->hdisplay == mode->hdisplay &&
+        displayMode->vdisplay == mode->vdisplay &&
+        isDrmModeFlagsMatched(mode, displayMode)) {
         return false;
     } else {
         return true;
     }
+}
+
+bool IntelHWComposerDrm::isDrmModeFlagsMatched(drmModeModeInfoPtr mode, intel_display_mode_t* displayMode)
+{
+    if (mode == NULL || displayMode == NULL)
+        return true;
+    uint32_t flags = 0;
+    if (displayMode->interlace)
+        flags |= DRM_MODE_FLAG_INTERLACE;
+    if (displayMode->ratio == 1)
+        flags |= DRM_MODE_FLAG_PAR16_9;
+    else if (displayMode->ratio == 2)
+        flags |= DRM_MODE_FLAG_PAR4_3;
+
+    LOGD("%s: 0x%x, 0x%x", __func__, flags, mode->flags);
+    if (flags == 0)
+        return true;
+
+    if ((mode->flags & flags) == flags)
+        return true;
+
+    return false;
 }
 
 bool IntelHWComposerDrm::setupDrmFb(int disp,
@@ -788,9 +801,12 @@ void IntelHWComposerDrm::deleteDrmFb(int disp)
 bool IntelHWComposerDrm::handleDisplayDisConnection(int disp)
 {
     if (disp == OUTPUT_HDMI) {
+        if (mHdmiConnector != NULL) {
+            drmModeFreeConnector(mHdmiConnector);
+            mHdmiConnector = NULL;
+        }
         drmModeModeInfo mode;
         drmModeConnection connection = DRM_MODE_DISCONNECTED;
-
         setOutputConnection(disp, connection);
         memset(&mode, 0, sizeof(drmModeModeInfo));
         setOutputMode(disp, &mode, 1);
@@ -826,11 +842,9 @@ bool IntelHWComposerDrm::detectDisplayConnection(int disp)
     }
 
     //update mode info
-#if 1
-    mode = getSelectMode(NULL, connector, NULL);
+    mode = getSelectMode(NULL, connector);
     if (mode)
         setOutputMode(disp, mode, 1);
-#endif
 
     freeConnector(connector);
 
@@ -854,24 +868,25 @@ bool IntelHWComposerDrm::setDisplayDrmMode(int disp,
         ALOGE("%s: invalid fb handler\n", __func__);
         return false;
     }
-
-    connector = getConnector(disp);
+    if (disp != OUTPUT_HDMI)
+        return false;
+    connector = getHdmiConnector();
     if (!connector) {
         ALOGW("%s: fail to get drm connector\n", __func__);
         return false;
     }
 
-    setOutputConnection(disp, connector->connection);
+    setOutputConnection(OUTPUT_HDMI, connector->connection);
 
     // re-check connection status
     if (connector->connection != DRM_MODE_CONNECTED) {
-        drmModeFreeConnector(connector);
+        freeConnector(connector);
         return false;
     }
 
     // get fb_id
-    if (setupDrmFb(disp, fb_handler, mode))
-        fb_id = getOutputFBId(disp);
+    if (setupDrmFb(OUTPUT_HDMI, fb_handler, mode))
+        fb_id = getOutputFBId(OUTPUT_HDMI);
 
     if (!fb_id) {
         ALOGW("%s: fail to get drm fb id\n", __func__);
@@ -880,7 +895,7 @@ bool IntelHWComposerDrm::setDisplayDrmMode(int disp,
     }
 
     // get crtc_id
-    crtc_id = getCrtcId(disp);
+    crtc_id = getCrtcId(OUTPUT_HDMI);
     if (!crtc_id) {
         ALOGW("%s: fail to get drm crtc id\n", __func__);
         freeConnector(connector);
@@ -895,8 +910,6 @@ bool IntelHWComposerDrm::setDisplayDrmMode(int disp,
         freeConnector(connector);
         return false;
     }
-
-    freeConnector(connector);
 
     return true;
 }

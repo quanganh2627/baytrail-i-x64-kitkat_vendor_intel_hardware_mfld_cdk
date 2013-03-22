@@ -78,8 +78,6 @@ struct FrameInfo {
     uint16_t lumaUStride;
     uint16_t chromaUStride;
     uint16_t chromaVStride;
-    uint32_t bufferChromaUStride;
-    uint32_t bufferChromaVStride;
     uint16_t contentFrameRateN;
     uint16_t contentFrameRateD;
 };

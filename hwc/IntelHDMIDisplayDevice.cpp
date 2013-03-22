@@ -31,7 +31,6 @@
 #include <IntelHWComposer.h>
 #include <IntelDisplayDevice.h>
 #include <IntelOverlayUtil.h>
-#include <IntelWidiPlane.h>
 #include <IntelHWComposerCfg.h>
 
 IntelHDMIDisplayDevice::IntelHDMIDisplayDevice(IntelBufferManager *bm,
@@ -228,7 +227,7 @@ bool IntelHDMIDisplayDevice::commit(hwc_display_contents_1_t *list,
         else
             bufferHandles[numBuffers++] = target_layer->handle;
     } else if (list)
-        ALOGW("%s: layernum: %d, no found of framebuffer_target!\n",
+        ALOGV("%s: layernum: %d, no found of framebuffer_target!\n",
                                        __func__, list->numHwLayers);
     else
         ALOGW("%s: Invalid list, no found of framebuffer_target!\n",

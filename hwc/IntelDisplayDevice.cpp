@@ -31,7 +31,6 @@
 #include <IntelHWComposer.h>
 #include <IntelDisplayDevice.h>
 #include <IntelOverlayUtil.h>
-#include <IntelWidiPlane.h>
 #include <IntelHWComposerCfg.h>
 
 IntelDisplayDevice::IntelDisplayDevice(IntelDisplayPlaneManager *pm,
@@ -372,11 +371,6 @@ bool IntelDisplayDevice::isScreenshotActive(hwc_display_contents_1_t *list)
 
     // Bypass ext video mode
     if (mDrm->getDisplayMode() == OVERLAY_EXTEND)
-        return false;
-
-    // Bypass widi
-    IntelWidiPlane* widiPlane = (IntelWidiPlane*)mPlaneManager->getWidiPlane();
-    if (widiPlane && widiPlane->isActive())
         return false;
 
     // bypass protected video

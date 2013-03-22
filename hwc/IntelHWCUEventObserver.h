@@ -57,9 +57,8 @@ private:
     bool mReadyToRun;
 private:
     static void *threadLoop(void *data);
-    static void ueventHandler(void *data, const char *msg, int msgLen);
 protected:
-    virtual bool onUEvent(const char *msg, int msgLen, int msgType, void *data);
+    virtual bool onUEvent(int msgType, void* msg, int msgLen);
 public:
     IntelHWCUEventObserver();
     virtual ~IntelHWCUEventObserver();

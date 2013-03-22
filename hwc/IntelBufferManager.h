@@ -260,15 +260,6 @@ typedef struct {
     void *native_window;
 } intel_gralloc_payload_t;
 
-typedef struct {
-    uint32_t width;
-    uint32_t height;
-    uint32_t luma_stride;
-    uint32_t chroma_u_stride;
-    uint32_t chroma_v_stride;
-    uint32_t format;
-} intel_widi_ext_buffer_meta_t;
-
 class IntelPVRBufferManager : public IntelBufferManager {
 private:
     PVR2DCONTEXTHANDLE mPVR2DHandle;

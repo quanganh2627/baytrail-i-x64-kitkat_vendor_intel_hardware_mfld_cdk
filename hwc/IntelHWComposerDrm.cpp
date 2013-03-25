@@ -476,9 +476,10 @@ IntelHWComposerDrm::getConnector(int disp)
 void IntelHWComposerDrm::freeConnector(drmModeConnectorPtr connector)
 {
     if (connector != NULL) {
-        drmModeFreeConnector(connector);
         if (connector->connector_type == DRM_MODE_CONNECTOR_DVID)
             mHdmiConnector = NULL;
+
+        drmModeFreeConnector(connector);
     }
 }
 

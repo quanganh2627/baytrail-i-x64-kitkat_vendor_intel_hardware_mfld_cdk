@@ -118,6 +118,11 @@ void IntelHDMIDisplayDevice::onGeometryChanged(hwc_display_contents_1_t *list)
         mGraphicPlaneVisible = false;
     } else if (mode == OVERLAY_EXTEND) {
         for (size_t i = 0; list && i < list->numHwLayers-1; i++) {
+            /* Because some dim layer will set skip flag and will effect compositionType set,
+              * So delete this flag first, change for bug 82263.
+              */
+            if (list->hwLayers[i].flags & HWC_SKIP_LAYER)
+                list->hwLayers[i].flags &= ~HWC_SKIP_LAYER;
             if (mLayerList->getLayerType(i) ==
                     IntelHWComposerLayer::LAYER_TYPE_YUV) {
                 list->hwLayers[i].compositionType = HWC_OVERLAY;

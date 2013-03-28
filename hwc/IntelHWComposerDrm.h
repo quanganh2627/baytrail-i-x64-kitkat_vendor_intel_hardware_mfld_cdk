@@ -210,6 +210,7 @@ public:
     bool isDrmModeChanged(intel_display_mode_t* displayMode);
     bool isDrmModeFlagsMatched(drmModeModeInfoPtr mode, intel_display_mode_t* displayMode);
     void deleteDrmFb(int disp);
+    bool setDisplayIed(bool on);
 };
 
 #endif /*__INTEL_HWCOMPOSER_DRM_H__*/

@@ -999,3 +999,12 @@ bool IntelHWComposerDrm::setDisplayVsyncs(int disp, bool on) {
 bool IntelHWComposerDrm::setDisplayScaling(int disp, int type) {
     return true;
 }
+
+bool IntelHWComposerDrm::setDisplayIed(bool on)
+{
+    int ret;
+
+    ret = drmCommandNone(mDrmFd, DRM_PSB_HDCP_DISPLAY_IED_ON);
+
+    return (ret == 0) ? true : false;
+}

@@ -277,17 +277,30 @@ IntelDisplayPlaneManager::~IntelDisplayPlaneManager()
 
 void IntelDisplayPlaneManager::detect()
 {
-    mSpritePlaneCount = 0;
-    mPrimaryPlaneCount = INTEL_SPRITE_PLANE_NUM;
-    mOverlayPlaneCount = INTEL_OVERLAY_PLANE_NUM;
+    int ret=0;
+    struct drm_psb_dc_info dc_info;
+
+    memset(&dc_info, 0, sizeof(drm_psb_dc_info));
+    ret = drmCommandRead(mDrmFd,
+            DRM_PSB_GET_DC_INFO, &dc_info, sizeof(dc_info));
+
+    if (ret==0) {
+        mSpritePlaneCount = dc_info.sprite_plane_count;
+        mPrimaryPlaneCount = dc_info.primary_plane_count;
+        mOverlayPlaneCount = dc_info.overlay_plane_count;
+    }
+
     mTotalPlaneCount = mSpritePlaneCount + mPrimaryPlaneCount + mOverlayPlaneCount;
     mMaxPlaneCount = mSpritePlaneCount + mOverlayPlaneCount + 1;
-    // Platform dependent, no sprite plane on Medfield
-    mFreeSpritePlanes = 0x0;
-    // plane A, B & C
-    mFreePrimaryPlanes = 0x7;
-    // both overlay A & C
-    mFreeOverlayPlanes = 0x3;
+    // Platform dependent, no sprite plane on Medfield/CTP
+    mFreeSpritePlanes = (0x1 << mSpritePlaneCount) - 1;
+    // plane A, B & C on MDFLD; A, B on CTP
+    mFreePrimaryPlanes = (0x1 << mPrimaryPlaneCount) - 1;
+    // both overlay A & C on MDFLD; A on CTP
+    mFreeOverlayPlanes = (0x1 << mOverlayPlaneCount) - 1;
+
+    ALOGI("Sprite count: %d, Primary count: %d, Overlay count: %d\n",
+                 mSpritePlaneCount, mPrimaryPlaneCount, mOverlayPlaneCount);
 }
 
 int IntelDisplayPlaneManager::getPlane(uint32_t& mask)

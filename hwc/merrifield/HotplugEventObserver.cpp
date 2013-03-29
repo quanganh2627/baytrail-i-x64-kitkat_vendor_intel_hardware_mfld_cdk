@@ -65,7 +65,10 @@ void HotplugEventObserver::onUEvent(const char *msg, int msgLen)
             log.d("HotplugEventObserver::onUEvent: disp %d,",
                   mDisplayDevice.getType());
             //connection = IDisplayDevice::DEVICE_CONNECTED;
-            break;
+
+            // notify device
+            mDisplayDevice.onHotplug(connection);
+            return;
         }// else if (!strncmp(msg, "HOTPLUG_OUT=1", strlen("HOTPLUG_OUT=1"))) {
          //   log.d("HotplugEventObserver::onUEvent: disp %d, plugged out",
          //         mDisplayDevice.getType());
@@ -75,9 +78,6 @@ void HotplugEventObserver::onUEvent(const char *msg, int msgLen)
 
         msg += strlen(msg) + 1;
     } while (*msg);
-
-    // notify device
-    mDisplayDevice.onHotplug(connection);
 }
 
 bool HotplugEventObserver::threadLoop()

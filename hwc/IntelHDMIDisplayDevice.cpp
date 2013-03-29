@@ -140,7 +140,8 @@ void IntelHDMIDisplayDevice::onGeometryChanged(hwc_display_contents_1_t *list)
                 // 1) the video is placed to a window
                 // 2) only video layer exists.(Exclude FramebufferTarget)
                 bool isVideoInWin = isVideoPutInWindow(OUTPUT_HDMI, &(list->hwLayers[i]));
-                if (isVideoInWin || list->numHwLayers == 2) {
+                if (isVideoInWin || list->numHwLayers == 2 ||
+                        list->flags & HWC_ROTATION_IN_PROGRESS) {
                     ALOGD_IF(ALLOW_HWC_PRINT,
                             "%s: In window mode:%d layer num:%d",
                             __func__, isVideoInWin, list->numHwLayers);
@@ -154,7 +155,8 @@ void IntelHDMIDisplayDevice::onGeometryChanged(hwc_display_contents_1_t *list)
             }
         }
     }
-    if (mGraphicPlaneVisible == true) {
+
+    if (mGraphicPlaneVisible) {
         struct drm_psb_disp_ctrl dp_ctrl;
         memset(&dp_ctrl, 0, sizeof(dp_ctrl));
         dp_ctrl.cmd = DRM_PSB_DISP_PLANEB_ENABLE;

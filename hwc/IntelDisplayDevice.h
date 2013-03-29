@@ -146,6 +146,14 @@ protected:
     WidiExtendedModeInfo *mExtendedModeInfo;
     bool mVideoSentToWidi;
 
+    // detect fb layers state to bypass fb composition.
+    int mYUVOverlay;
+    buffer_handle_t mLastHandles[5];
+    bool mSkipComposition;
+    bool mHasGlesComposition;
+    bool mHasSkipLayer;
+    void handleSmartComposition(hwc_display_contents_1_t *list);
+
 protected:
     bool isForceOverlay(hwc_layer_1_t *layer);
     bool isBobDeinterlace(hwc_layer_1_t *layer);

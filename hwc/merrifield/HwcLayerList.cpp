@@ -137,6 +137,7 @@ bool HwcLayer::update(hwc_layer_1_t *layer, int disp)
                               layer->sourceCrop.top,
                               layer->sourceCrop.right - layer->sourceCrop.left,
                               layer->sourceCrop.bottom - layer->sourceCrop.top);
+        mPlane->setTransform(layer->transform);
         ret = mPlane->setDataBuffer((uint32_t)layer->handle);
     }
 

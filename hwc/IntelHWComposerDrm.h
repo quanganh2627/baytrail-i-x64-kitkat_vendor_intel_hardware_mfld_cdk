@@ -157,7 +157,6 @@ private:
     drmModeModeInfoPtr getSelectMode(intel_display_mode_t *displayMode,
                                     drmModeConnectorPtr connector);
     bool setupDrmFb(int disp, uint32_t fb_handler, drmModeModeInfoPtr mode);
-    void deleteDrmFb(int disp);
 
 public:
     ~IntelHWComposerDrm();
@@ -210,6 +209,7 @@ public:
     bool getVideoInfo(int *displayW, int *displayH, int *fps, int *isinterlace);
     bool isDrmModeChanged(intel_display_mode_t* displayMode);
     bool isDrmModeFlagsMatched(drmModeModeInfoPtr mode, intel_display_mode_t* displayMode);
+    void deleteDrmFb(int disp);
 };
 
 #endif /*__INTEL_HWCOMPOSER_DRM_H__*/

@@ -109,19 +109,24 @@ IMPLEMENT_META_INTERFACE(FrameServer, "android.widi.IFrameServer");
 
 // ----------------------------------------------------------------------
 
-status_t BnFrameServer::onTransact(
-    uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
-{
-    // Check permission and ensure that no one except
-    //  mediaserver process is making the call.
+// Return true if the calling process is mediaserver, false if not
+bool hasPermission() {
     const int uid = IPCThreadState::self()->getCallingUid();
     if(uid != AID_MEDIA) {
         ALOGE("%s: Permission denied! Calling process uid=%d is not authorized", __func__, uid);
-        return PERMISSION_DENIED;
+        return false;
     }
+    return true;
+}
 
+status_t BnFrameServer::onTransact(
+    uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
+{
     switch(code) {
         case START: {
+            if(!hasPermission()) {
+                return PERMISSION_DENIED;
+            }
             CHECK_INTERFACE(IFrameServer, data, reply);
             sp<IFrameTypeChangeListener> frameTypeChangeListener = interface_cast<IFrameTypeChangeListener>(data.readStrongBinder());
             status_t ret = start(frameTypeChangeListener);
@@ -129,6 +134,9 @@ status_t BnFrameServer::onTransact(
             return NO_ERROR;
         } break;
         case STOP: {
+            if(!hasPermission()) {
+                return PERMISSION_DENIED;
+            }
             bool isConnected = false;
             CHECK_INTERFACE(IFrameServer, data, reply);
             isConnected = data.readInt32() == 1;
@@ -137,6 +145,9 @@ status_t BnFrameServer::onTransact(
             return NO_ERROR;
         } break;
         case NOTIFY_BUFFER_RETURNED: {
+            if(!hasPermission()) {
+                return PERMISSION_DENIED;
+            }
             CHECK_INTERFACE(IFrameServer, data, reply);
             int32_t index = data.readInt32();
             status_t ret = notifyBufferReturned(index);

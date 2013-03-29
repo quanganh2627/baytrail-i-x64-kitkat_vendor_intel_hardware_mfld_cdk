@@ -144,6 +144,12 @@ void IntelHDMIDisplayDevice::onGeometryChanged(hwc_display_contents_1_t *list)
     } else {
         mGraphicPlaneVisible = true;
     }
+    if (mGraphicPlaneVisible == true) {
+        struct drm_psb_disp_ctrl dp_ctrl;
+        memset(&dp_ctrl, 0, sizeof(dp_ctrl));
+        dp_ctrl.cmd = DRM_PSB_DISP_PLANEB_ENABLE;
+        drmCommandWriteRead(mDrm->getDrmFd(), DRM_PSB_HDMI_FB_CMD, &dp_ctrl, sizeof(dp_ctrl));
+    }
 }
 
 bool IntelHDMIDisplayDevice::prepare(hwc_display_contents_1_t *list)

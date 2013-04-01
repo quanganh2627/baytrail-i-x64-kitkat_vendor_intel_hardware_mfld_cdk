@@ -292,6 +292,7 @@ bool IntelMIPIDisplayDevice::isOverlayLayer(hwc_display_contents_1_t *list,
     // check buffer usage
     if ((grallocHandle->usage & GRALLOC_USAGE_PROTECTED) || isForceOverlay(layer)) {
         ALOGD_IF(ALLOW_HWC_PRINT, "isOverlayLayer: protected video/force Overlay");
+        mDrm->setDisplayIed(true);
         forceOverlay = true;
     } else if (mVideoSeekingActive) {
         useOverlay = false;

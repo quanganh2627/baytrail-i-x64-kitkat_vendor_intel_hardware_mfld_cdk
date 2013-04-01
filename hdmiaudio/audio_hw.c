@@ -165,78 +165,78 @@ static int set_hardware_params(struct hdmi_stream_out *out)
         return -ENODEV;
     }
 
-    err = snd_pcm_hw_params_any(out->handle, hardware_params);
-    if (err < 0) {
-        ALOGE("Unable to configure hardware: %s", snd_strerror(err));
-        goto error_exit;
-    }
-
-    // Set the interleaved read and write format.
-    err = snd_pcm_hw_params_set_access(out->handle, hardware_params,
+    if (hardware_params) {
+       err = snd_pcm_hw_params_any(out->handle, hardware_params);
+       if (err < 0) {
+           ALOGE("Unable to configure hardware: %s", snd_strerror(err));
+           goto error_exit;
+       }
+       // Set the interleaved read and write format.
+       err = snd_pcm_hw_params_set_access(out->handle, hardware_params,
                                        SND_PCM_ACCESS_RW_INTERLEAVED);
-    if (err < 0) {
-        ALOGE("Unable to configure PCM read/write format: %s", snd_strerror(err));
-        goto error_exit;
-     }
+       if (err < 0) {
+           ALOGE("Unable to configure PCM read/write format: %s", snd_strerror(err));
+           goto error_exit;
+       }
 
-    err = snd_pcm_hw_params_set_format(out->handle, hardware_params, out->pcm_config.format);
-    if (err < 0) {
-        goto error_exit;
-    }
+       err = snd_pcm_hw_params_set_format(out->handle, hardware_params, out->pcm_config.format);
+       if (err < 0) {
+           goto error_exit;
+       }
 
-    err = snd_pcm_hw_params_set_channels(out->handle, hardware_params, channels);
-    if (err < 0) {
-        ALOGE("Unable to set channel count to %i: %s", channels, snd_strerror(err));
-        goto error_exit;
-    }
-    ALOGV("Channels : %d\n", channels);
+       err = snd_pcm_hw_params_set_channels(out->handle, hardware_params, channels);
+       if (err < 0) {
+           ALOGE("Unable to set channel count to %i: %s", channels, snd_strerror(err));
+           goto error_exit;
+       }
+       ALOGV("Channels : %d\n", channels);
 
-    err = snd_pcm_hw_params_set_rate_near(out->handle, hardware_params,
+       err = snd_pcm_hw_params_set_rate_near(out->handle, hardware_params,
                                           &requested_rate, 0);
-    if (err < 0) {
-        ALOGE("Unable to set sample rate to %u: %s", out->pcm_config.rate,
+       if (err < 0) {
+           ALOGE("Unable to set sample rate to %u: %s", out->pcm_config.rate,
                         snd_strerror(err));
-        out->sample_rate = requested_rate;
-    }
-    ALOGV("sampling rate : %d\n", requested_rate);
+           out->sample_rate = requested_rate;
+       }
+       ALOGV("sampling rate : %d\n", requested_rate);
 
-    // Setup buffers for latency
-    buffer_size = out->pcm_config.period_size * out->pcm_config.period_count;
+       // Setup buffers for latency
+       buffer_size = out->pcm_config.period_size * out->pcm_config.period_count;
 
-    //Ensure that the driver and ALSA lib allocates the requested buffer and period size.
-    ALOGV("Requested buffer size: %d", (int)buffer_size);
+       //Ensure that the driver and ALSA lib allocates the requested buffer and period size.
+       ALOGV("Requested buffer size: %d", (int)buffer_size);
 
-    err = snd_pcm_hw_params_set_buffer_size_near(out->handle,
+       err = snd_pcm_hw_params_set_buffer_size_near(out->handle,
           hardware_params, &buffer_size);
-    if (err < 0) {
-        ALOGE("Unable to set the buffer size : %s", snd_strerror(err));
-        goto error_exit;
+       if (err < 0) {
+           ALOGE("Unable to set the buffer size : %s", snd_strerror(err));
+           goto error_exit;
+       }
+
+       ALOGV("Obtained buffer size: %d", (int)buffer_size);
+
+       snd_pcm_uframes_t period_size = buffer_size / out->pcm_config.period_count;
+
+       ALOGV("Requested period size: %d", (int)period_size);
+
+       err = snd_pcm_hw_params_set_period_size_near(out->handle,
+             hardware_params,
+             &period_size,
+             0);
+       if (err < 0) {
+           ALOGE("Unable to set the period size: %s", snd_strerror(err));
+           goto error_exit;
+       }
+
+       ALOGV("Obtained period size: %d", (int)period_size);
+
+       // Commit the hardware parameters back to the device.
+       err = snd_pcm_hw_params(out->handle, hardware_params);
+       if (err < 0)
+           ALOGE("Unable to set hardware parameters: %s", snd_strerror(err));
+       out->pcm_config.period_size = period_size;
+       out->pcm_config.buffer_size = buffer_size;
     }
-
-    ALOGV("Obtained buffer size: %d", (int)buffer_size);
-
-    snd_pcm_uframes_t period_size = buffer_size / out->pcm_config.period_count;
-
-    ALOGV("Requested period size: %d", (int)period_size);
-
-    err = snd_pcm_hw_params_set_period_size_near(out->handle,
-          hardware_params,
-          &period_size,
-          0);
-    if (err < 0) {
-        ALOGE("Unable to set the period size: %s", snd_strerror(err));
-        goto error_exit;
-    }
-
-    ALOGV("Obtained period size: %d", (int)period_size);
-
-    // Commit the hardware parameters back to the device.
-    err = snd_pcm_hw_params(out->handle, hardware_params);
-    if (err < 0)
-        ALOGE("Unable to set hardware parameters: %s", snd_strerror(err));
-
-    out->pcm_config.period_size = period_size;
-    out->pcm_config.buffer_size = buffer_size;
 
 error_exit:
     if(hardware_params)
@@ -263,10 +263,12 @@ static int set_software_params(struct hdmi_stream_out *out)
     }
 
     // Get the current software parameters
-    err = snd_pcm_sw_params_current(out->handle, software_params);
-    if (err < 0) {
-        ALOGE("Unable to get software parameters: %s", snd_strerror(err));
-        goto error_exit;
+    if (software_params) {
+       err = snd_pcm_sw_params_current(out->handle, software_params);
+       if (err < 0) {
+           ALOGE("Unable to get software parameters: %s", snd_strerror(err));
+           goto error_exit;
+       }
     }
 
     // Configure ALSA to start the transfer when the buffer is almost full.
@@ -326,16 +328,21 @@ static int open_device(struct hdmi_stream_out *out)
     char readbuffer[10];
 
     fp = fopen(PLATFORM_ID_PATH,"rb");
-    readbytes = fread(&readbuffer,1,4,fp);
-    if(fp)
+    if (fp) {
+       readbytes = fread(&readbuffer,1,4,fp);
        fclose(fp);
-    platform_id=atoi(readbuffer);
-
+    }
+    if ((readbytes > 0) && (readbytes <= 4)) {
+       platform_id=strtol(readbuffer,(char **)NULL,10);
+    }
     fp = fopen(HARDWARE_ID_PATH,"rb");
-    readbytes = fread(&readbuffer,1,4,fp);
-    if(fp)
+    if (fp) {
+       readbytes = fread(&readbuffer,1,4,fp);
        fclose(fp);
-    hw_id=atoi(readbuffer);
+    }
+    if ((readbytes > 0) && (readbytes <= 4)) {
+       hw_id=strtol(readbuffer,(char **)NULL,10);
+    }
 
     ALOGD("platform id = %d hardware id = %d",platform_id,hw_id);
 
@@ -626,35 +633,42 @@ static char * out_get_parameters(const struct audio_stream *stream, const char *
     struct hdmi_stream_out *out = (struct hdmi_stream_out *)stream;
     struct audio_device *adev = out->dev;
     struct str_parms *params_in = str_parms_create_str(keys);
-    char *str;
-    char value[256];
+    char *str = NULL;
+    char value[256] = {0};
     int ret;
 
     struct str_parms *params_out = str_parms_create();
 
     ALOGV("%s Entered %s", __func__,keys);
 
-    ret = str_parms_get_str(params_in, AUDIO_PARAMETER_STREAM_SUP_CHANNELS, value, sizeof(value));
-    if (ret >= 0) {
-	/*read the channel support from sink*/
-	out_read_edid(out);
+    if (params_in) {
+       ret = str_parms_get_str(params_in, AUDIO_PARAMETER_STREAM_SUP_CHANNELS, value, sizeof(value));
+       if (ret >= 0) {
+	   /*read the channel support from sink*/
+	   out_read_edid(out);
 
-	if(adev->sink_sup_channels == AUDIO_CHANNEL_OUT_5POINT1){
-            strcat(value,"AUDIO_CHANNEL_OUT_5POINT1");
-	}
-	else{
-           strcat(value,"AUDIO_CHANNEL_OUT_STEREO");
-	}
+	   if(adev->sink_sup_channels == AUDIO_CHANNEL_OUT_5POINT1){
+               strcat(value,"AUDIO_CHANNEL_OUT_5POINT1");
+	   }
+	   else{
+              strcat(value,"AUDIO_CHANNEL_OUT_STEREO");
+	   }
+       }
+    }
+    if (params_out) {
+       str_parms_add_str(params_out, AUDIO_PARAMETER_STREAM_SUP_CHANNELS, value);
+       str = str_parms_to_str(params_out);
     } else {
         str = strdup(keys);
     }
 
-    str_parms_add_str(params_out, AUDIO_PARAMETER_STREAM_SUP_CHANNELS, value);
-    str = strdup(str_parms_to_str(params_out));
-
     ALOGV("%s AUDIO_PARAMETER_STREAM_SUP_CHANNELS %s", __func__,str);
-    str_parms_destroy(params_in);
-    str_parms_destroy(params_out);
+    if (params_in) {
+        str_parms_destroy(params_in);
+    }
+    if (params_out) {
+        str_parms_destroy(params_out);
+    }
 
     return str;
 }

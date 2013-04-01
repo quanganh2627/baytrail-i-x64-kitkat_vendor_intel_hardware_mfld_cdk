@@ -697,13 +697,16 @@ void IntelMIPIDisplayDevice::handleSmartComposition(hwc_display_contents_1_t *li
 
     // when geometry change, set layer dirty to switch out smart composition,
     // also update GLES composition status for later using.
+    // BZ96412: Video layer compositionType is maybe changed in non-geometry
+    // prepare, exclude it from smart composition.
     if (list->flags & HWC_GEOMETRY_CHANGED) {
         bDirty = true;
         mHasGlesComposition = false;
         mHasSkipLayer = false;
         for (i = 0; i < list->numHwLayers - 1; i++) {
             mHasGlesComposition = mHasGlesComposition ||
-                (list->hwLayers[i].compositionType == HWC_FRAMEBUFFER);
+                (list->hwLayers[i].compositionType == HWC_FRAMEBUFFER &&
+                 mLayerList->getLayerType(i) != IntelHWComposerLayer::LAYER_TYPE_YUV);
             mHasSkipLayer = mHasSkipLayer ||
                 (list->hwLayers[i].flags & HWC_SKIP_LAYER);
         }

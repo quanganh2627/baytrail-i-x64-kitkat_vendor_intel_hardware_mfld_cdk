@@ -755,12 +755,8 @@ static status_t s_standby(alsa_handle_t *handle)
     s_drain(handle);
 
     if (h) {
-        if (mFmIsAnalog && handle->curFmRxMode == AudioSystem::MODE_FM_ON) {
-            snd_pcm_drop(h);
-        } else {
-            err = snd_pcm_close(h);
-            handle->handle = NULL;
-        }
+        err = snd_pcm_close(h);
+        handle->handle = NULL;
     }
 
     LOGD("%s out \n", __func__);

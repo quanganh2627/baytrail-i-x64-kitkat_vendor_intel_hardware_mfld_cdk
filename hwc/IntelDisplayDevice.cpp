@@ -67,6 +67,12 @@ int IntelDisplayDevice::getMetaDataTransform(hwc_layer_1_t *layer,
         return -1;
     }
 
+    if (grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED &&
+        grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) {
+        ALOGV("%s: SW decoder, ignore this checking.", __func__);
+        return 0;
+    }
+
     IntelDisplayBuffer *buffer =
         mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
     if (!buffer) {

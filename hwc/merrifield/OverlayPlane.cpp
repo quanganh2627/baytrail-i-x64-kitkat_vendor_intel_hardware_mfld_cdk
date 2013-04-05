@@ -502,20 +502,14 @@ void OverlayPlane::checkPosition(int& x, int& y, int& w, int& h)
     if (!drmCrtc->mode_valid || !mode->hdisplay || !mode->vdisplay)
         return;
 
-    if (outputIndex == Drm::OUTPUT_HDMI) {
-        x = y = 0;
-        w = mode->hdisplay;
-        h = mode->vdisplay;
-    } else {
-        if (x < 0)
-            x = 0;
-        if (y < 0)
-            y = 0;
-        if ((x + w) > mode->hdisplay)
-            w = mode->hdisplay - x;
-        if ((y + h) > mode->vdisplay)
-            h = mode->vdisplay - y;
-    }
+    if (x < 0)
+        x = 0;
+    if (y < 0)
+        y = 0;
+    if ((x + w) > mode->hdisplay)
+        w = mode->hdisplay - x;
+    if ((y + h) > mode->vdisplay)
+        h = mode->vdisplay - y;
 }
 
 bool OverlayPlane::bufferOffsetSetup(IBufferMapper& mapper)

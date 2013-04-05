@@ -14,7 +14,6 @@
 
 LOCAL_PATH := $(call my-dir)
 
-include $(LOCAL_PATH)/merrifield/Android.mk
 
 ifeq ($(INTEL_HWC),true)
 

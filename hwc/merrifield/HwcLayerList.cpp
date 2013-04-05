@@ -486,6 +486,7 @@ bool HwcLayerList::update(hwc_display_contents_1_t *list)
     mList = list;
 
     do {
+        updateError = false;
         // update all layers, call each layer's update()
         for (size_t i = 0; i < list->numHwLayers; i++) {
             HwcLayer *hwcLayer = mLayers.itemAt(i);

@@ -35,6 +35,7 @@
 #include <IntelHWComposerLayer.h>
 #include <IntelHWComposerDump.h>
 
+
 class IntelDisplayConfig {
 private:
     uint32_t mRefreshRate;
@@ -80,6 +81,8 @@ protected:
     bool mIsScreenshotActive;
     bool mIsBlank;
     bool mVideoSeekingActive;
+        // detect fb layers state to bypass fb composition.
+    int mYUVOverlay;
 
 protected:
     virtual bool isHWCUsage(int usage);
@@ -118,6 +121,16 @@ protected:
             uint32_t &transform);
     virtual int checkVideoLayerHint(hwc_display_contents_1_t *list,
             uint32_t hint);
+    //*not virtual as not intend for override.Just for implemetation inheritence*/
+    bool updateLayersData(hwc_display_contents_1_t *list);
+    void revisitLayerList(hwc_display_contents_1_t *list,
+                                              bool isGeometryChanged);
+private:
+    void updateZorderConfig();
+    bool isBobDeinterlace(hwc_layer_1_t *layer);
+    bool useOverlayRotation(hwc_layer_1_t *layer, int index, uint32_t& handle,
+                           int& w, int& h,
+                           int& srcX, int& srcY, int& srcW, int& srcH, uint32_t& transform);
 
 public:
     virtual bool initCheck() { return mInitialized; }
@@ -149,8 +162,7 @@ protected:
     WidiExtendedModeInfo *mExtendedModeInfo;
     bool mVideoSentToWidi;
 
-    // detect fb layers state to bypass fb composition.
-    int mYUVOverlay;
+
     buffer_handle_t mLastHandles[5];
     bool mSkipComposition;
     bool mHasGlesComposition;
@@ -161,12 +173,8 @@ protected:
 
 protected:
     bool isForceOverlay(hwc_layer_1_t *layer);
-    bool isBobDeinterlace(hwc_layer_1_t *layer);
-    bool useOverlayRotation(hwc_layer_1_t *layer, int index, uint32_t& handle,
-                           int& w, int& h,
-                           int& srcX, int& srcY, int& srcW, int& srcH, uint32_t& transform);
-    void revisitLayerList(hwc_display_contents_1_t *list, bool isGeometryChanged);
     void updateZorderConfig();
+    bool shouldHide(hwc_layer_1_t *layer);
 
 protected:
     virtual bool isOverlayLayer(hwc_display_contents_1_t *list,
@@ -187,7 +195,6 @@ protected:
                        int& flags);
 
     virtual void onGeometryChanged(hwc_display_contents_1_t *list);
-    virtual bool updateLayersData(hwc_display_contents_1_t *list);
     virtual bool flipFramebufferContexts(void *contexts);
     virtual bool overlayPrepare(int index, hwc_layer_1_t *layer, int flags);
 public:
@@ -225,9 +232,18 @@ protected:
 
 protected:
     virtual void onGeometryChanged(hwc_display_contents_1_t *list);
-    virtual bool updateLayersData(hwc_display_contents_1_t *list);
     virtual bool flipFramebufferContexts(void *contexts, hwc_layer_1_t *target_layer);
     virtual bool overlayPrepare(int index, hwc_layer_1_t *layer, int flags);
+private:
+    bool flipOverlayerPlane(void* context,hwc_display_contents_1_t *list,
+                                    buffer_handle_t *bh,
+                                    int &numBuffers);
+    bool flipFrameBufferTarget(void* context,hwc_display_contents_1_t *list,
+                                    buffer_handle_t *bh,
+                                    int &numBuffers);
+    bool needFlipOverlay(hwc_display_contents_1_t *list);
+    bool determineGraphicVisibilityInExtendMode(hwc_display_contents_1_t *list,int index);
+    void enableHDMIGraphicPlane(bool enable);
 public:
     IntelHDMIDisplayDevice(IntelBufferManager *bm,
                        IntelBufferManager *gm,

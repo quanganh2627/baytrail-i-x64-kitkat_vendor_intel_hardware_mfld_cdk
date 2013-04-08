@@ -478,3 +478,10 @@ bool IntelHDMIDisplayDevice::getDisplayAttributes(uint32_t config,
 
     return true;
 }
+
+//TODO:pierr
+bool IntelHDMIDisplayDevice::overlayPrepare(int index, hwc_layer_1_t *layer, int flags)
+{
+  return false;
+}
+

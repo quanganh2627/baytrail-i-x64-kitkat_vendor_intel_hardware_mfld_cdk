@@ -1494,3 +1494,51 @@ bool IntelMIPIDisplayDevice::getDisplayAttributes(uint32_t config,
 
     return true;
 }
+
+bool IntelMIPIDisplayDevice::overlayPrepare(int index, hwc_layer_1_t *layer, int flags)
+{
+    if (!layer) {
+        ALOGE("%s: Invalid layer\n", __func__);
+        return false;
+    }
+
+    // allocate overlay plane
+    IntelDisplayPlane *plane = mPlaneManager->getOverlayPlane();
+    if (!plane) {
+        ALOGE("%s: failed to create overlay plane\n", __func__);
+        return false;
+    }
+
+    int dstLeft = layer->displayFrame.left;
+    int dstTop = layer->displayFrame.top;
+    int dstRight = layer->displayFrame.right;
+    int dstBottom = layer->displayFrame.bottom;
+
+    IntelOverlayPlane *overlayP =
+        reinterpret_cast<IntelOverlayPlane *>(plane);
+    if (mDrm->getDisplayMode() == OVERLAY_EXTEND) {
+        // Put overlay on top if no other layers exist
+        overlayP->setOverlayOnTop(mLayerList->getLayersCount() == 1);
+
+        // Check if the video is placed to a window
+        if (isVideoPutInWindow(OUTPUT_MIPI0, layer)) {
+            overlayP->setOverlayOnTop(true);
+
+            struct drm_psb_disp_ctrl dp_ctrl;
+            memset(&dp_ctrl, 0, sizeof(dp_ctrl));
+            dp_ctrl.cmd = DRM_PSB_DISP_PLANEB_DISABLE;
+            drmCommandWriteRead(mDrm->getDrmFd(), DRM_PSB_HDMI_FB_CMD, &dp_ctrl, sizeof(dp_ctrl));
+        }
+    }
+
+    // setup plane parameters
+    overlayP->setPosition(dstLeft, dstTop, dstRight, dstBottom);
+
+    overlayP->setPipeByMode(mDrm->getDisplayMode());
+
+    // attach plane to hwc layer
+    mLayerList->attachPlane(index, overlayP, flags);
+
+    return true;
+}
+

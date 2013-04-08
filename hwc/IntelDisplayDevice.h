@@ -106,7 +106,7 @@ protected:
                        int index,
                        hwc_layer_1_t *layer,
                        int& flags);
-    virtual bool overlayPrepare(int index, hwc_layer_1_t *layer, int flags);
+    virtual bool overlayPrepare(int index, hwc_layer_1_t *layer, int flags){return false;} ;
     virtual bool rgbOverlayPrepare(int index, hwc_layer_1_t *layer, int flags);
     virtual bool spritePrepare(int index, hwc_layer_1_t *layer, int flags);
     virtual bool primaryPrepare(int index, hwc_layer_1_t *layer, int flags);
@@ -189,6 +189,7 @@ protected:
     virtual void onGeometryChanged(hwc_display_contents_1_t *list);
     virtual bool updateLayersData(hwc_display_contents_1_t *list);
     virtual bool flipFramebufferContexts(void *contexts);
+    virtual bool overlayPrepare(int index, hwc_layer_1_t *layer, int flags);
 public:
     IntelMIPIDisplayDevice(IntelBufferManager *bm,
                            IntelBufferManager *gm,
@@ -226,6 +227,7 @@ protected:
     virtual void onGeometryChanged(hwc_display_contents_1_t *list);
     virtual bool updateLayersData(hwc_display_contents_1_t *list);
     virtual bool flipFramebufferContexts(void *contexts, hwc_layer_1_t *target_layer);
+    virtual bool overlayPrepare(int index, hwc_layer_1_t *layer, int flags);
 public:
     IntelHDMIDisplayDevice(IntelBufferManager *bm,
                        IntelBufferManager *gm,

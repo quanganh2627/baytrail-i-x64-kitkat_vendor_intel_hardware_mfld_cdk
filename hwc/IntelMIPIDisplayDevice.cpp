@@ -405,8 +405,7 @@ bool IntelMIPIDisplayDevice::isRGBOverlayLayer(hwc_display_contents_1_t *list,
     // Don't use it when:
     // 1) HDMI is connected
     // 2) there are YUV layers
-    if ((mDrm->getDisplayMode() == OVERLAY_EXTEND) ||
-        (mDrm->getDisplayMode() == OVERLAY_CLONE_MIPI0) ||
+    if ((mDrm->isHdmiConnected()) ||
         (mLayerList->getYUVLayerCount())) {
         useRGBOverlay = false;
         goto out_check;

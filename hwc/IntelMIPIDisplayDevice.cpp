@@ -565,7 +565,11 @@ void IntelMIPIDisplayDevice::onGeometryChanged(hwc_display_contents_1_t *list)
             mExtendedModeInfo->widiExtHandle != NULL &&
             mExtendedModeInfo->widiExtHandle == (intel_gralloc_buffer_handle_t*)list->hwLayers[i].handle)
         {
-            list->hwLayers[i].compositionType = HWC_OVERLAY;
+            if(mVideoSeekingActive)
+                list->hwLayers[i].compositionType = HWC_FRAMEBUFFER;
+            else
+                list->hwLayers[i].compositionType = HWC_OVERLAY;
+
             list->hwLayers[i].hints |= HWC_HINT_DISABLE_ANIMATION;
             mVideoSentToWidi = true;
             continue;
@@ -641,7 +645,7 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
     // clear force swap buffer flag
     mForceSwapBuffer = false;
 
-    int index = checkVideoLayerHint(list, GRALLOC_HAL_HINT_TIME_SEEKING);
+    int index = checkVideoLayerHint(list, GRALLOC_HAL_HINT_TIME_SEEKING, mVideoSentToWidi);
     bool forceCheckingList = ((index >= 0) != mVideoSeekingActive);
     mVideoSeekingActive = (index >= 0);
 

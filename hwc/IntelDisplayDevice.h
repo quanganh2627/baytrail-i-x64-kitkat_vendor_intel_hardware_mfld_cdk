@@ -117,7 +117,7 @@ protected:
     virtual int  getMetaDataTransform(hwc_layer_1_t *layer,
             uint32_t &transform);
     virtual int checkVideoLayerHint(hwc_display_contents_1_t *list,
-            uint32_t hint);
+            uint32_t hint, bool widiVideoActive);
 
 public:
     virtual bool initCheck() { return mInitialized; }

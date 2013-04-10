@@ -44,6 +44,7 @@
  */
 #include <cutils/log.h>
 #include <cutils/atomic.h>
+#include <cutils/properties.h>
 
 #include <IntelHWComposer.h>
 #include <IntelOverlayUtil.h>
@@ -695,6 +696,11 @@ bool IntelHWComposer::initialize()
     if (mDrm->detectDisplayConnection(OUTPUT_HDMI))
         handleHotplugEvent(1, NULL);
 
+    char value[PROPERTY_VALUE_MAX];
+    property_get("hwcomposer.debug.dumpPost2", value, "0");
+    if (atoi(value))
+        mForceDumpPostBuffer = true;
+
     // startObserver();
     mInitialized = true;
 
@@ -819,6 +825,7 @@ bool IntelHWComposer::commitDisplays(size_t numDisplays,
     }
 
     void *context = mPlaneManager->getPlaneContexts();
+    bool ret = true;
 
     // commit plane contexts
     if (mFBDev && numBuffers) {
@@ -830,11 +837,16 @@ bool IntelHWComposer::commitDisplays(size_t numDisplays,
                 mPlaneManager->getContextLength());
         if (err) {
             ALOGE("%s: Post2 failed with errno %d\n", __func__, err);
-            return false;
+            ret = false;
         }
     }
 
-    return true;
+    if ( ret == false || mForceDumpPostBuffer) {
+        dumpPost2Buffers(numBuffers, bufferHandles);
+        dumpLayerLists(numDisplays, displays);
+    }
+
+    return ret;
 }
 
 bool IntelHWComposer::blankDisplay(int disp, int blank)
@@ -959,4 +971,53 @@ bool IntelHWComposer::setFramecount(int cmd, int count, int x, int y)
        mCursorBufferManager = 0;
        delete mCursorBufferManager;
        return false;
+}
+
+int IntelHWComposer::dumpLayerLists(size_t numDisplays,
+                                     hwc_display_contents_1_t** displays)
+{
+    int disp, i;
+    for (disp = 0; disp < numDisplays; disp++)
+    {
+        if (displays[disp]) {
+            ALOGD("%d hwc_layers in display %d", displays[disp]->numHwLayers, disp);
+            for (i = 0; i < displays[disp]->numHwLayers; i++) {
+                intel_gralloc_buffer_handle_t* handle =
+                       (intel_gralloc_buffer_handle_t*)displays[disp]->hwLayers[i].handle;
+		if (handle) {
+                    ALOGD("handle=%p type=%d format=%x usage=%x stamp=%d fd[0]=%d",
+			    handle,
+                            displays[disp]->hwLayers[i].compositionType,
+			    handle->format,
+			    handle->usage,
+			    handle->ui64Stamp,
+			    handle->fd[0]
+			    );
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+int IntelHWComposer::dumpPost2Buffers(int num, buffer_handle_t* buffer)
+{
+    int i;
+
+    ALOGD("%d buffer handle in Post2", num);
+    for (i = 0; i < num; i++) {
+        intel_gralloc_buffer_handle_t* handle =
+                (intel_gralloc_buffer_handle_t*)buffer[i];
+        if (handle) {
+            ALOGD("handle=%p format=%x usage=%x stamp=%d fd[0]=%d",
+                handle,
+                handle->format,
+                handle->usage,
+                handle->ui64Stamp,
+                handle->fd[0]
+                );
+        }
+    }
+
+    return 0;
 }

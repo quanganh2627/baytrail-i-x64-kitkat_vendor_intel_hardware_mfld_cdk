@@ -476,9 +476,10 @@ IntelHWComposerDrm::getConnector(int disp)
 void IntelHWComposerDrm::freeConnector(drmModeConnectorPtr connector)
 {
     if (connector != NULL) {
-        drmModeFreeConnector(connector);
         if (connector->connector_type == DRM_MODE_CONNECTOR_DVID)
             mHdmiConnector = NULL;
+
+        drmModeFreeConnector(connector);
     }
 }
 
@@ -998,4 +999,13 @@ bool IntelHWComposerDrm::setDisplayVsyncs(int disp, bool on) {
 // Scaling
 bool IntelHWComposerDrm::setDisplayScaling(int disp, int type) {
     return true;
+}
+
+bool IntelHWComposerDrm::setDisplayIed(bool on)
+{
+    int ret;
+
+    ret = drmCommandNone(mDrmFd, DRM_PSB_HDCP_DISPLAY_IED_ON);
+
+    return (ret == 0) ? true : false;
 }

@@ -117,6 +117,15 @@ void IntelHDMIDisplayDevice::onGeometryChanged(hwc_display_contents_1_t *list)
         mGraphicPlaneVisible = false;
     } else if (mode == OVERLAY_EXTEND) {
         for (size_t i = 0; list && i < list->numHwLayers-1; i++) {
+            /*When do HDMI extend mode, press power key will start ElectronBeam application. *
+              * it will create a Dim layer to do GLES compostion. So mark the Dim layer to overlay *
+              *to avoid do GLES  compostion. change for Bug82263      */
+            if( (mLayerList->getLayerType(i) ==
+                    IntelHWComposerLayer::LAYER_TYPE_INVALID) &&
+                 (list->hwLayers[i].flags & HWC_SKIP_LAYER)) {
+                list->hwLayers[i].flags &= ~HWC_SKIP_LAYER;
+                list->hwLayers[i].compositionType = HWC_OVERLAY;
+            }
             if (mLayerList->getLayerType(i) ==
                     IntelHWComposerLayer::LAYER_TYPE_YUV) {
                 list->hwLayers[i].compositionType = HWC_OVERLAY;

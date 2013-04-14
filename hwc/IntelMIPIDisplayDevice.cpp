@@ -658,6 +658,7 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
             mHotplugEvent || forceCheckingList) {
         onGeometryChanged(list);
         mHotplugEvent = false;
+        mExtendedModeInfo->videoSentToWidi = mVideoSentToWidi;
 
         if (list && (list->flags & HWC_GEOMETRY_CHANGED) &&
             (mVideoSentToWidi || mDrm->getDisplayMode() == OVERLAY_EXTEND))

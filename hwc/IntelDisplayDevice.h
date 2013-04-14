@@ -62,6 +62,7 @@ class IntelDisplayVsync {
 
 struct WidiExtendedModeInfo {
     intel_gralloc_buffer_handle_t* widiExtHandle;
+    bool videoSentToWidi;
 };
 
 class IntelDisplayDevice : public IntelHWComposerDump {

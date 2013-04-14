@@ -381,8 +381,11 @@ uint32_t IntelHWComposer::getTargetVsync()
 
     if (OVERLAY_EXTEND == mDrm->getDisplayMode())
         targetVsyncs |= (1 << VSYNC_SRC_HDMI);
-    else
+    else if (mExtendedModeInfo.videoSentToWidi && mDrm->isVideoPlaying()) {
+        targetVsyncs |= (1 << VSYNC_SRC_FAKE);
+    } else {
         targetVsyncs |= (1 << VSYNC_SRC_MIPI);
+    }
 
     return targetVsyncs;
 }

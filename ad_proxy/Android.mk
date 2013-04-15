@@ -12,7 +12,7 @@ common_shared_libraries := \
 
 include $(CLEAR_VARS)
 
-LOCAL_SRC_FILES := proxy_main.c ad_i2c.c ad_protocol.c ad_usb_tty.c
+LOCAL_SRC_FILES := proxy_main.c ad_i2c.c ad_usb_tty.c
 
 LOCAL_SHARED_LIBRARIES := $(common_shared_libraries)
 

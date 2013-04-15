@@ -34,14 +34,12 @@
 #include <sys/types.h>
 #include <sys/poll.h>
 #include <sys/ioctl.h>
-#include <cutils/properties.h>
 
 #include "ad_log.h"
 #include "ad_i2c.h"
 #include "ad_usb_tty.h"
-#include "ad_protocol.h"
 
-#define AD_VERSION "V1.2"
+#define AD_VERSION "V1.3"
 
 
 #define TTY_RDY_WAIT	       100   /* in ms */
@@ -61,37 +59,11 @@ enum {
     ID_NB
 };
 
-enum {
-    DUMP_NONE,
-    DUMP_PACKET,
-    DUMP_PAYLOAD
-};
-
 typedef enum {
-    AUDIENCE_ES305,
-    AUDIENCE_ES325,
-    AUDIENCE_UNKNOWN,
-    // Last enum element
-    AUDIENCE_NOF_VERSION
-} chip_version_t;
-
-typedef enum {
-    ES325_WAIT_COMMAND,
-    ES325_READ_ACK,
-    ES325_WAIT_DATA_BLOCK
-} es325_protocol_state_t;
-
-static const char* chipVersion2String[AUDIENCE_NOF_VERSION] = {
-    "es305",
-    "es325",
-    "Unknown"
-};
-
-static chip_version_t audience_chip = AUDIENCE_UNKNOWN;
-
-static const char *    vp_fw_name_prop_name = "audiocomms.vp.fw_name";
-static const char *    vp_fw_name_prop_default_value = "Unknown";
-static char            vp_fw_name[PROPERTY_VALUE_MAX];
+    STATE_WAIT_COMMAND,
+    STATE_READ_ACK,
+    STATE_WAIT_DATA_BLOCK
+} protocol_state_t;
 
 #define ACM_TTY "/dev/ttyGS0"
 
@@ -103,29 +75,6 @@ int fds[ID_NB] = {-1};
 struct pollfd polls[ID_NB];
 
 pthread_t proxy_thread;
-
-#define MAX_PACKET_SIZE  1024
-unsigned char packet_raw[MAX_PACKET_SIZE + 1];
-unsigned char response_raw[MAX_PACKET_SIZE + 1];
-
-unsigned int trans_id = 0;
-volatile int dump_level = DUMP_PACKET;
-
-static void detect_chip_version()
-{
-    property_get(vp_fw_name_prop_name, vp_fw_name, vp_fw_name_prop_default_value);
-    if (strstr(vp_fw_name, chipVersion2String[AUDIENCE_ES325]) != NULL) {
-
-        audience_chip = AUDIENCE_ES325;
-    } else if (strstr(vp_fw_name, chipVersion2String[AUDIENCE_ES305]) != NULL) {
-
-        audience_chip = AUDIENCE_ES305;
-    } else {
-
-        audience_chip = AUDIENCE_ES305;
-    }
-    RTRAC("Audience chip detected: '%s'.\n", chipVersion2String[audience_chip]);
-}
 
 static void ad_signal_handler(int signal)
 {
@@ -144,23 +93,23 @@ static void ad_signal_handler(int signal)
     exit(0);
 }
 
-static void* ad_proxy_worker_es325(void* data)
+static void* ad_proxy_worker(void* data)
 
 {
-    static es325_protocol_state_t state = ES325_WAIT_COMMAND;
+    static protocol_state_t state = STATE_WAIT_COMMAND;
 
     int data_block_session = 0;
     size_t data_block_size = 0;
 
     int status;
 
-    RTRAC("Start proxy worker thread for es325\n");
+    RTRAC("Start proxy worker thread");
     while (!quit) {
 
         RDBUG("State: %d", state);
         switch (state) {
             default:
-            case ES325_WAIT_COMMAND: {
+            case STATE_WAIT_COMMAND: {
                 unsigned char audience_cmb_buf[AUDIENCE_CMD_SIZE];
                 // Read a command from AuViD
                 status = read(polls[ID_TTY].fd, audience_cmb_buf, sizeof(audience_cmb_buf));
@@ -188,10 +137,10 @@ static void* ad_proxy_worker_es325(void* data)
                     RDBUG("Starting Data Block session for %d bytes", data_block_size);
                 }
                 // Need to handle the chip ACK response
-                state = ES325_READ_ACK;
+                state = STATE_READ_ACK;
                 break;
             }
-            case ES325_READ_ACK: {
+            case STATE_READ_ACK: {
                 unsigned char audience_cmb_ack_buf[AUDIENCE_CMD_SIZE];
                 // Wait before to read ACK
                 usleep(AUDIENCE_ACK_US_DELAY);
@@ -214,16 +163,16 @@ static void* ad_proxy_worker_es325(void* data)
                 if (data_block_session == 1) {
 
                     // Next step is Data Block to handle
-                    state = ES325_WAIT_DATA_BLOCK;
+                    state = STATE_WAIT_DATA_BLOCK;
                 } else {
 
                     // Next step is to handle a next command
-                    state = ES325_WAIT_COMMAND;
+                    state = STATE_WAIT_COMMAND;
                 }
                 break;
             }
-            case ES325_WAIT_DATA_BLOCK: {
-                unsigned char* data_block_payload = malloc(data_block_size);
+            case STATE_WAIT_DATA_BLOCK: {
+                unsigned char* data_block_payload = (unsigned char *) malloc(data_block_size);
                 if (data_block_payload == NULL) {
 
                     RERRO("ERROR: %s Read Data Block memory allocation failed.\n", __func__);
@@ -253,127 +202,11 @@ static void* ad_proxy_worker_es325(void* data)
                 // No more in data block session
                 data_block_session = 0;
                 // Need to handle ACK of datablock session
-                state = ES325_READ_ACK;
+                state = STATE_READ_ACK;
                 break;
             }
         }
     }
-    RDBUG("Exit Working Thread");
-    pthread_exit(NULL);
-    /* To avoid warning, must return a void* */
-    return NULL;
-}
-
-static void * ad_proxy_worker_es305b(void* data)
-{
-    int ret;
-    int pollResult;
-    int readSize;
-    struct packet_t pkt;
-    struct response_t rsp;
-    int writeSize;
-    unsigned char status;
-    unsigned char buff[MAX_PACKET_SIZE];
-
-    RTRAC("Start proxy worker thread for es305b\n");
-    while (!quit) {
-        // poll fds.
-        RDBUG("Poll");
-        polls[ID_TTY].events = POLLIN;
-        polls[ID_TTY].revents = 0;
-        pollResult = poll(&polls[ID_TTY], 1, 1000);
-        if (pollResult <= 0) {
-            RERRO("pollResult %d errno %d", pollResult, errno);
-            continue;
-        }
-
-        // read events from available fds.
-        if (polls[ID_TTY].revents & POLLIN) {
-            RTRAC("Try to read data...");
-            readSize = read(polls[ID_TTY].fd, packet_raw, MAX_PACKET_SIZE);
-            if (readSize <= 0) {
-                usleep(100000);
-                RDBUG("Close & re open TTY");
-                close(polls[ID_TTY].fd);
-                polls[ID_TTY].fd = -1;
-                // try to re-open the tty.
-                polls[ID_TTY].fd = ad_open_tty(ACM_TTY,  B115200);
-                if (polls[ID_TTY].fd < 0) {
-                    RERRO("ERROR: %s open %s failed (%s)\n",  __func__, ACM_TTY, strerror(errno));
-                    /* Cannot continue without the TTY */
-                    break;
-                }
-            } else {
-                packet_raw[readSize] = 0;
-
-                if (dump_level == DUMP_PACKET) {
-                    RDBUG("[%d]: RECV [%d] bytes:", trans_id, readSize);
-                    ad_dump_buffer(packet_raw, readSize);
-                }
-
-                // parse the packet.
-                if (ad_parse_packet(&pkt, packet_raw, readSize)) {
-                    continue;
-                }
-
-                if (dump_level == DUMP_PAYLOAD) {
-                    if (!pkt.rw && pkt.len) {
-                        RDBUG("[%d]: [%s] [%d]", trans_id, pkt.rw?"r":"w", pkt.len);
-                        ad_dump_buffer(pkt.data, pkt.len);
-                    }
-                }
-
-                // route the packet to audience.
-                if (pkt.rw) {
-                    // read from audience.
-                    ret = ad_i2c_read(buff, pkt.len);
-                    if (ret != pkt.len) {
-                        status = S_BE;
-                        pkt.len = 0;
-                        pkt.data = NULL;
-                    } else {
-                        status =  S_OK;
-                        pkt.data = buff; // for read, point to the read data.
-                    }
-                } else {
-                    // write.
-                    status = S_OK;
-                    if (ad_i2c_write(pkt.data, pkt.len) != pkt.len)
-                        status = S_BE;
-                    pkt.data = NULL; // for write, no data in the response.
-                }
-
-                // pack the response.
-                if (ad_pack_response(&rsp, pkt.rw, AD_I2C_ADDRESS, pkt.len, status, pkt.data)) {
-                    continue;
-                }
-
-                // write back the response.
-                writeSize = ad_response_serialize(&rsp, response_raw, MAX_PACKET_SIZE);
-                if (writeSize > 0) {
-                    if ((ret = write(polls[ID_TTY].fd, response_raw, writeSize))  != writeSize) {
-                        RERRO("Error: %s write response [%s]", __func__, strerror(errno));
-                        continue;
-                    }
-
-                    // dump the packets.
-                    if (dump_level == DUMP_PACKET) {
-                        RDBUG("[%d]: SEND [%d] bytes", trans_id, writeSize);
-                        ad_dump_buffer(response_raw, writeSize);
-                    } else if (dump_level == DUMP_PAYLOAD) {
-                        if (rsp.rw && rsp.len > 0 && rsp.data != NULL) {
-                            RDBUG("[%d]: [%s] [%d]", trans_id, rsp.rw?"r":"w", rsp.len);
-                            ad_dump_buffer(rsp.data, rsp.len);
-                        }
-                    }
-                }
-
-                // success got one packet.
-                trans_id++;
-            }
-        }
-    }
-
     RDBUG("Exit Working Thread");
     pthread_exit(NULL);
     /* To avoid warning, must return a void* */
@@ -403,7 +236,6 @@ int main(int argc, char *argv[])
     struct sigaction sigact;
     pthread_attr_t attr;
     int thread_started = 0;
-    void *(*ad_proxy_worker) (void *);
 
     RTRAC("-->ad_proxy startup (Version %s)", AD_VERSION);
 
@@ -433,18 +265,10 @@ int main(int argc, char *argv[])
                 if (tmp >= 0 && tmp <= AD_I2C_OP_MAX_DELAY)
                     i2c_delay = tmp;
                 RTRAC("i2c operation wait request = %s]; i2c operation wait set = %d", p+3, i2c_delay);
-            // Parse the dump level.
-            } else if (p[0] ==  '-' && p[1] == 'd') {
-                p[3] = 0;
-                tmp = atoi(p+2);
-                if (tmp >= DUMP_NONE && tmp <= DUMP_PAYLOAD)
-                    dump_level = tmp;
-                RTRAC("Dump level request = %s; Dump level set = %d", p+2, dump_level);
             // Parse the usage request.
             } else {
                 fprintf(stdout, "Audience proxy %s\nUsage:\n", AD_VERSION);
                 fprintf(stdout, "-iw[i2c operation wait (0 to %d us)]\n", AD_I2C_OP_MAX_DELAY);
-                fprintf(stdout, "-d[dump level 0:no dump; 1:dump packet; 2:dump payload]\n");
                 goto EXIT;
             }
             argc--;
@@ -468,22 +292,6 @@ int main(int argc, char *argv[])
     // open the audience device node.
     if (ad_i2c_init(i2c_delay) < 0) {
         RERRO("ERROR: %s open %s failed (%s)\n", __func__, AD_DEV_NODE, strerror(errno));
-        goto EXIT;
-    }
-
-    // Detect Audience chip
-    detect_chip_version();
-
-    // start the proxy thread.
-    if (audience_chip == AUDIENCE_ES325) {
-
-        ad_proxy_worker = ad_proxy_worker_es325;
-    } else if (audience_chip == AUDIENCE_ES305) {
-
-        ad_proxy_worker = ad_proxy_worker_es305b;
-    } else {
-
-        RERRO("ERROR: Unsupported AUdience chip.\n");
         goto EXIT;
     }
 
@@ -522,18 +330,6 @@ int main(int argc, char *argv[])
         case 'Q':
             fprintf(stderr, "Quit\n");
             quit = 1;
-            break;
-        case 'd':
-        case 'D':
-            cmd[2] = 0;
-            tmp = atoi(&cmd[1]);
-            if (tmp >= DUMP_NONE && tmp <= DUMP_PAYLOAD) {
-                fprintf(stderr, "Dump level: %d\n", tmp);
-                dump_level = tmp;
-            } else {
-                fprintf(stderr, "Invalid dump level\n\n");
-                dump_command_help();
-            }
             break;
          case 'v':
          case 'V':

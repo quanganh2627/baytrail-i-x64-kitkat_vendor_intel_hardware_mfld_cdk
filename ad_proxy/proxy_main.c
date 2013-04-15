@@ -41,13 +41,19 @@
 #include "ad_usb_tty.h"
 #include "ad_protocol.h"
 
-#define AD_VERSION "V1.1"
+#define AD_VERSION "V1.2"
 
 
 #define TTY_RDY_WAIT	       100   /* in ms */
 #define AUDIENCE_ACK_US_DELAY  20000 /* in us */
 
 #define AUDIENCE_CMD_SIZE      4 /* in bytes */
+
+#define AD_WRITE_DATA_BLOCK_OPCODE 0x802F
+
+#define isOpcode(cmdArray, opCode) (\
+    ((cmdArray)[0] == (((opCode) >> 8) & 0xFF)) && ((cmdArray)[1] == ((opCode) & 0xFF)) \
+    )
 
 enum {
     ID_STD = 0,
@@ -71,7 +77,8 @@ typedef enum {
 
 typedef enum {
     ES325_WAIT_COMMAND,
-    ES325_READ_ACK
+    ES325_READ_ACK,
+    ES325_WAIT_DATA_BLOCK
 } es325_protocol_state_t;
 
 static const char* chipVersion2String[AUDIENCE_NOF_VERSION] = {
@@ -142,10 +149,10 @@ static void* ad_proxy_worker_es325(void* data)
 {
     static es325_protocol_state_t state = ES325_WAIT_COMMAND;
 
-    unsigned char audience_cmb_buf[AUDIENCE_CMD_SIZE];
-    unsigned char audience_cmb_ack_buf[AUDIENCE_CMD_SIZE];
+    int data_block_session = 0;
+    size_t data_block_size = 0;
 
-    int err;
+    int status;
 
     RTRAC("Start proxy worker thread for es325\n");
     while (!quit) {
@@ -153,50 +160,102 @@ static void* ad_proxy_worker_es325(void* data)
         RDBUG("State: %d", state);
         switch (state) {
             default:
-            case ES325_WAIT_COMMAND:
+            case ES325_WAIT_COMMAND: {
+                unsigned char audience_cmb_buf[AUDIENCE_CMD_SIZE];
                 // Read a command from AuViD
-                err = read(polls[ID_TTY].fd, audience_cmb_buf, sizeof(audience_cmb_buf));
-                if (err !=  sizeof(audience_cmb_buf)) {
+                status = read(polls[ID_TTY].fd, audience_cmb_buf, sizeof(audience_cmb_buf));
+                if (status != sizeof(audience_cmb_buf)) {
 
                     RERRO("ERROR: %s Read CMD from AuViD failed\n", __func__);
                     quit = 1;
                     break;
                 }
                 // Forward the command to the chip
-                err = ad_i2c_write(audience_cmb_buf, sizeof(audience_cmb_buf));
-                if (err != sizeof(audience_cmb_buf)) {
+                status = ad_i2c_write(audience_cmb_buf, sizeof(audience_cmb_buf));
+                if (status != sizeof(audience_cmb_buf)) {
 
                     RERRO("ERROR: %s Write CMD to chip failed\n", __func__);
                     quit = 1;
                     break;
                 }
+                // Is it a Data Block command ?
+                if (isOpcode(audience_cmb_buf, AD_WRITE_DATA_BLOCK_OPCODE)) {
+
+                    data_block_session = 1;
+                    // Block Size is in 16bits command's arg
+                    data_block_size = audience_cmb_buf[2] << 8 | audience_cmb_buf[3];
+
+                    RDBUG("Starting Data Block session for %d bytes", data_block_size);
+                }
                 // Need to handle the chip ACK response
                 state = ES325_READ_ACK;
                 break;
-
-            case ES325_READ_ACK:
+            }
+            case ES325_READ_ACK: {
+                unsigned char audience_cmb_ack_buf[AUDIENCE_CMD_SIZE];
                 // Wait before to read ACK
                 usleep(AUDIENCE_ACK_US_DELAY);
-                err = ad_i2c_read(audience_cmb_ack_buf, sizeof(audience_cmb_ack_buf));
-                if (err != sizeof(audience_cmb_ack_buf)) {
+                status = ad_i2c_read(audience_cmb_ack_buf, sizeof(audience_cmb_ack_buf));
+                if (status != sizeof(audience_cmb_ack_buf)) {
 
                     RERRO("ERROR: %s Read ACK from chip failed\n", __func__);
                     quit = 1;
                     break;
                 }
                 // Send back the ACK to AuViD
-                err = write(polls[ID_TTY].fd, audience_cmb_ack_buf, sizeof(audience_cmb_ack_buf));
-                if (err != sizeof(audience_cmb_ack_buf)) {
+                status = write(polls[ID_TTY].fd, audience_cmb_ack_buf,
+                               sizeof(audience_cmb_ack_buf));
+                if (status != sizeof(audience_cmb_ack_buf)) {
 
                     RERRO("ERROR: %s Write ACK to AuVid failed\n", __func__);
                     quit = 1;
                     break;
                 }
+                if (data_block_session == 1) {
 
-                // Next step is to handle a next command
-                state = ES325_WAIT_COMMAND;
+                    // Next step is Data Block to handle
+                    state = ES325_WAIT_DATA_BLOCK;
+                } else {
 
+                    // Next step is to handle a next command
+                    state = ES325_WAIT_COMMAND;
+                }
                 break;
+            }
+            case ES325_WAIT_DATA_BLOCK: {
+                unsigned char* data_block_payload = malloc(data_block_size);
+                if (data_block_payload == NULL) {
+
+                    RERRO("ERROR: %s Read Data Block memory allocation failed.\n", __func__);
+                    quit = 1;
+                    break;
+                }
+                // Read data block from AuViD
+                status = read(polls[ID_TTY].fd, data_block_payload, data_block_size);
+                if (status != (int)data_block_size) {
+
+                    RERRO("ERROR: %s Read Data Block failed\n", __func__);
+
+                    free(data_block_payload);
+                    quit = 1;
+                    break;
+                }
+                // Forward these bytes to the chip
+                status = ad_i2c_write(data_block_payload, data_block_size);
+                free(data_block_payload);
+
+                if (status != (int)data_block_size) {
+
+                    RERRO("ERROR: %s Write Data Block failed\n", __func__);
+                    quit = 1;
+                    break;
+                }
+                // No more in data block session
+                data_block_session = 0;
+                // Need to handle ACK of datablock session
+                state = ES325_READ_ACK;
+                break;
+            }
         }
     }
     RDBUG("Exit Working Thread");

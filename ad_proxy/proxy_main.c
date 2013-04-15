@@ -47,6 +47,8 @@
 #define TTY_RDY_WAIT	       100   /* in ms */
 #define AUDIENCE_ACK_US_DELAY  20000 /* in us */
 
+#define AUDIENCE_CMD_SIZE      4 /* in bytes */
+
 enum {
     ID_STD = 0,
     ID_TTY,
@@ -66,6 +68,11 @@ typedef enum {
     // Last enum element
     AUDIENCE_NOF_VERSION
 } chip_version_t;
+
+typedef enum {
+    ES325_WAIT_COMMAND,
+    ES325_READ_ACK
+} es325_protocol_state_t;
 
 static const char* chipVersion2String[AUDIENCE_NOF_VERSION] = {
     "es305",
@@ -130,7 +137,75 @@ static void ad_signal_handler(int signal)
     exit(0);
 }
 
-static void * ad_proxy_worker(void* data)
+static void* ad_proxy_worker_es325(void* data)
+
+{
+    static es325_protocol_state_t state = ES325_WAIT_COMMAND;
+
+    unsigned char audience_cmb_buf[AUDIENCE_CMD_SIZE];
+    unsigned char audience_cmb_ack_buf[AUDIENCE_CMD_SIZE];
+
+    int err;
+
+    RTRAC("Start proxy worker thread for es325\n");
+    while (!quit) {
+
+        RDBUG("State: %d", state);
+        switch (state) {
+            default:
+            case ES325_WAIT_COMMAND:
+                // Read a command from AuViD
+                err = read(polls[ID_TTY].fd, audience_cmb_buf, sizeof(audience_cmb_buf));
+                if (err !=  sizeof(audience_cmb_buf)) {
+
+                    RERRO("ERROR: %s Read CMD from AuViD failed\n", __func__);
+                    quit = 1;
+                    break;
+                }
+                // Forward the command to the chip
+                err = ad_i2c_write(audience_cmb_buf, sizeof(audience_cmb_buf));
+                if (err != sizeof(audience_cmb_buf)) {
+
+                    RERRO("ERROR: %s Write CMD to chip failed\n", __func__);
+                    quit = 1;
+                    break;
+                }
+                // Need to handle the chip ACK response
+                state = ES325_READ_ACK;
+                break;
+
+            case ES325_READ_ACK:
+                // Wait before to read ACK
+                usleep(AUDIENCE_ACK_US_DELAY);
+                err = ad_i2c_read(audience_cmb_ack_buf, sizeof(audience_cmb_ack_buf));
+                if (err != sizeof(audience_cmb_ack_buf)) {
+
+                    RERRO("ERROR: %s Read ACK from chip failed\n", __func__);
+                    quit = 1;
+                    break;
+                }
+                // Send back the ACK to AuViD
+                err = write(polls[ID_TTY].fd, audience_cmb_ack_buf, sizeof(audience_cmb_ack_buf));
+                if (err != sizeof(audience_cmb_ack_buf)) {
+
+                    RERRO("ERROR: %s Write ACK to AuVid failed\n", __func__);
+                    quit = 1;
+                    break;
+                }
+
+                // Next step is to handle a next command
+                state = ES325_WAIT_COMMAND;
+
+                break;
+        }
+    }
+    RDBUG("Exit Working Thread");
+    pthread_exit(NULL);
+    /* To avoid warning, must return a void* */
+    return NULL;
+}
+
+static void * ad_proxy_worker_es305b(void* data)
 {
     int ret;
     int pollResult;
@@ -141,7 +216,7 @@ static void * ad_proxy_worker(void* data)
     unsigned char status;
     unsigned char buff[MAX_PACKET_SIZE];
 
-    RTRAC("Start proxy worker thread\n");
+    RTRAC("Start proxy worker thread for es305b\n");
     while (!quit) {
         // poll fds.
         RDBUG("Poll");
@@ -169,21 +244,7 @@ static void * ad_proxy_worker(void* data)
                     /* Cannot continue without the TTY */
                     break;
                 }
-            } else if (audience_chip == AUDIENCE_ES325) {
-                // Write byte to es325
-                RDBUG("Forward %d bytes to es325\n", readSize);
-                ad_i2c_write(packet_raw, readSize);
-                usleep(AUDIENCE_ACK_US_DELAY);
-                // Read es325 response(s) (same amount of writen bytes)
-                readSize = ad_i2c_read(buff, readSize);
-                if (readSize > 0) {
-                    // Send the respone to AuVid
-                    RDBUG("Returns %d bytes to AuViD\n", readSize);
-                    write(polls[ID_TTY].fd, buff, readSize);
-                } else {
-                    RDBUG("Read from es325 failed (%d)\n", readSize);
-                }
-            } else if (audience_chip == AUDIENCE_ES305) {
+            } else {
                 packet_raw[readSize] = 0;
 
                 if (dump_level == DUMP_PACKET) {
@@ -256,7 +317,7 @@ static void * ad_proxy_worker(void* data)
 
     RDBUG("Exit Working Thread");
     pthread_exit(NULL);
-    /* To avoid warning, must return a void * */
+    /* To avoid warning, must return a void* */
     return NULL;
 }
 
@@ -283,8 +344,9 @@ int main(int argc, char *argv[])
     struct sigaction sigact;
     pthread_attr_t attr;
     int thread_started = 0;
+    void *(*ad_proxy_worker) (void *);
 
-    RTRAC("-->ad_proxy startup");
+    RTRAC("-->ad_proxy startup (Version %s)", AD_VERSION);
 
     // Set signal handler
     if (sigemptyset(&sigact.sa_mask) == -1) {
@@ -354,6 +416,18 @@ int main(int argc, char *argv[])
     detect_chip_version();
 
     // start the proxy thread.
+    if (audience_chip == AUDIENCE_ES325) {
+
+        ad_proxy_worker = ad_proxy_worker_es325;
+    } else if (audience_chip == AUDIENCE_ES305) {
+
+        ad_proxy_worker = ad_proxy_worker_es305b;
+    } else {
+
+        RERRO("ERROR: Unsupported AUdience chip.\n");
+        goto EXIT;
+    }
+
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
     if (pthread_create(&proxy_thread, &attr, ad_proxy_worker, NULL) != 0) {

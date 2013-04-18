@@ -35,7 +35,9 @@
 #include <sys/poll.h>
 #include <sys/ioctl.h>
 
-#include "ad_log.h"
+#define LOG_TAG "ad_proxy"
+#include "cutils/log.h"
+
 #include "ad_i2c.h"
 #include "ad_usb_tty.h"
 
@@ -78,7 +80,7 @@ pthread_t proxy_thread;
 
 static void ad_signal_handler(int signal)
 {
-    RDBUG("Signal [%d]", signal);
+    ALOGD("Signal [%d]", signal);
     /* Signal exit to the proxy thread */
     quit = 1;
     /* Wait for the proxy thread exit */
@@ -103,10 +105,10 @@ static void* ad_proxy_worker(void* data)
 
     int status;
 
-    RTRAC("Start proxy worker thread");
+    ALOGD("Start proxy worker thread");
     while (!quit) {
 
-        RDBUG("State: %d", state);
+        ALOGD("State: %d", state);
         switch (state) {
             default:
             case STATE_WAIT_COMMAND: {
@@ -115,7 +117,7 @@ static void* ad_proxy_worker(void* data)
                 status = read(polls[ID_TTY].fd, audience_cmb_buf, sizeof(audience_cmb_buf));
                 if (status != sizeof(audience_cmb_buf)) {
 
-                    RERRO("ERROR: %s Read CMD from AuViD failed\n", __func__);
+                    ALOGE("%s Read CMD from AuViD failed\n", __func__);
                     quit = 1;
                     break;
                 }
@@ -123,7 +125,7 @@ static void* ad_proxy_worker(void* data)
                 status = ad_i2c_write(audience_cmb_buf, sizeof(audience_cmb_buf));
                 if (status != sizeof(audience_cmb_buf)) {
 
-                    RERRO("ERROR: %s Write CMD to chip failed\n", __func__);
+                    ALOGE("%s Write CMD to chip failed\n", __func__);
                     quit = 1;
                     break;
                 }
@@ -134,7 +136,7 @@ static void* ad_proxy_worker(void* data)
                     // Block Size is in 16bits command's arg
                     data_block_size = audience_cmb_buf[2] << 8 | audience_cmb_buf[3];
 
-                    RDBUG("Starting Data Block session for %d bytes", data_block_size);
+                    ALOGD("Starting Data Block session for %d bytes", data_block_size);
                 }
                 // Need to handle the chip ACK response
                 state = STATE_READ_ACK;
@@ -147,7 +149,7 @@ static void* ad_proxy_worker(void* data)
                 status = ad_i2c_read(audience_cmb_ack_buf, sizeof(audience_cmb_ack_buf));
                 if (status != sizeof(audience_cmb_ack_buf)) {
 
-                    RERRO("ERROR: %s Read ACK from chip failed\n", __func__);
+                    ALOGE("%s Read ACK from chip failed\n", __func__);
                     quit = 1;
                     break;
                 }
@@ -156,7 +158,7 @@ static void* ad_proxy_worker(void* data)
                                sizeof(audience_cmb_ack_buf));
                 if (status != sizeof(audience_cmb_ack_buf)) {
 
-                    RERRO("ERROR: %s Write ACK to AuVid failed\n", __func__);
+                    ALOGE("%s Write ACK to AuVid failed\n", __func__);
                     quit = 1;
                     break;
                 }
@@ -175,7 +177,7 @@ static void* ad_proxy_worker(void* data)
                 unsigned char* data_block_payload = (unsigned char *) malloc(data_block_size);
                 if (data_block_payload == NULL) {
 
-                    RERRO("ERROR: %s Read Data Block memory allocation failed.\n", __func__);
+                    ALOGE("%s Read Data Block memory allocation failed.\n", __func__);
                     quit = 1;
                     break;
                 }
@@ -183,19 +185,19 @@ static void* ad_proxy_worker(void* data)
                 status = read(polls[ID_TTY].fd, data_block_payload, data_block_size);
                 if (status != (int)data_block_size) {
 
-                    RERRO("ERROR: %s Read Data Block failed\n", __func__);
-
+                    ALOGE("%s Read Data Block failed\n", __func__);
                     free(data_block_payload);
                     quit = 1;
                     break;
                 }
+
                 // Forward these bytes to the chip
                 status = ad_i2c_write(data_block_payload, data_block_size);
                 free(data_block_payload);
 
                 if (status != (int)data_block_size) {
 
-                    RERRO("ERROR: %s Write Data Block failed\n", __func__);
+                    ALOGE("%s Write Data Block failed\n", __func__);
                     quit = 1;
                     break;
                 }
@@ -207,7 +209,7 @@ static void* ad_proxy_worker(void* data)
             }
         }
     }
-    RDBUG("Exit Working Thread");
+    ALOGD("Exit Working Thread");
     pthread_exit(NULL);
     /* To avoid warning, must return a void* */
     return NULL;
@@ -237,7 +239,7 @@ int main(int argc, char *argv[])
     pthread_attr_t attr;
     int thread_started = 0;
 
-    RTRAC("-->ad_proxy startup (Version %s)", AD_VERSION);
+    ALOGD("-->ad_proxy startup (Version %s)", AD_VERSION);
 
     // Set signal handler
     if (sigemptyset(&sigact.sa_mask) == -1) {
@@ -264,7 +266,7 @@ int main(int argc, char *argv[])
                 tmp = atoi(p+3);
                 if (tmp >= 0 && tmp <= AD_I2C_OP_MAX_DELAY)
                     i2c_delay = tmp;
-                RTRAC("i2c operation wait request = %s]; i2c operation wait set = %d", p+3, i2c_delay);
+                ALOGD("i2c operation wait request = %s]; i2c operation wait set = %d", p+3, i2c_delay);
             // Parse the usage request.
             } else {
                 fprintf(stdout, "Audience proxy %s\nUsage:\n", AD_VERSION);
@@ -284,21 +286,21 @@ int main(int argc, char *argv[])
     // open the acm tty.
     polls[ID_TTY].fd = ad_open_tty(ACM_TTY,  B115200);
     if (polls[ID_TTY].fd < 0) {
-        RERRO("ERROR: %s open %s failed (%s)\n",  __func__, ACM_TTY, strerror(errno));
+        ALOGE("%s open %s failed (%s)\n",  __func__, ACM_TTY, strerror(errno));
         ret = -1;
         goto EXIT;
     }
 
     // open the audience device node.
     if (ad_i2c_init(i2c_delay) < 0) {
-        RERRO("ERROR: %s open %s failed (%s)\n", __func__, AD_DEV_NODE, strerror(errno));
+        ALOGE("%s open %s failed (%s)\n", __func__, AD_DEV_NODE, strerror(errno));
         goto EXIT;
     }
 
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
     if (pthread_create(&proxy_thread, &attr, ad_proxy_worker, NULL) != 0) {
-        RERRO("ERROR: %s Thread creation has failed (%s)\n", __func__, strerror(errno));
+        ALOGE("%s Thread creation has failed (%s)\n", __func__, strerror(errno));
         goto EXIT;
     }
     pthread_attr_destroy(&attr);
@@ -312,7 +314,7 @@ int main(int argc, char *argv[])
         pollResult = poll(&polls[ID_STD], 1, -1);
         if (pollResult <= 0) {
             if (errno != EINTR) {
-                RERRO("ERROR: %s poll failed (%s)\n", __func__, strerror(errno));
+                ALOGE("%s poll failed (%s)\n", __func__, strerror(errno));
             }
         }
 
@@ -382,7 +384,7 @@ int main(int argc, char *argv[])
 EXIT:
     /* Wait for the proxy thread exit */
     if (thread_started) {
-        RDBUG("Waiting working thread");
+        ALOGD("Waiting working thread");
         pthread_join(proxy_thread, NULL);
     }
 
@@ -391,7 +393,7 @@ EXIT:
     }
     ad_i2c_exit();
 
-    RTRAC("-->ad_proxy exit(%d)", ret);
+    ALOGD("-->ad_proxy exit(%d)", ret);
 
     pthread_exit(NULL);
     return ret;

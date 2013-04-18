@@ -35,7 +35,9 @@
 #include <sys/poll.h>
 #include <sys/ioctl.h>
 
-#include "ad_log.h"
+#define LOG_TAG "ad_proxy:usb"
+#include "cutils/log.h"
+
 #include "ad_usb_tty.h"
 
 #define RETRY_MAX    20
@@ -49,7 +51,7 @@ int ad_open_tty(const char *tty_name, int baudrate)
     int fd = -1;
     struct termios tio;
 
-    RTRAC("-->%s(%s)", __func__, tty_name);
+    ALOGD("-->%s(%s)", __func__, tty_name);
 
     for (i=0; i<RETRY_MAX; i++) {
         fd = open(tty_name, O_RDWR | O_NOCTTY);
@@ -59,7 +61,7 @@ int ad_open_tty(const char *tty_name, int baudrate)
         usleep(MS_TO_US(RETRY_DELAY));
     }
     if (fd < 0) {
-        RERRO("ERROR: %s open error %d", __func__, fd);
+        ALOGE("%s open error %d", __func__, fd);
         return -1;
     }
 
@@ -74,7 +76,7 @@ int ad_open_tty(const char *tty_name, int baudrate)
     cfsetispeed(&tio, baudrate);
     tcsetattr(fd, TCSANOW, &tio);
 
-    RTRAC("<--%s: fd[%d]", __func__, fd);
+    ALOGD("<--%s: fd[%d]", __func__, fd);
 
     return fd;
 }

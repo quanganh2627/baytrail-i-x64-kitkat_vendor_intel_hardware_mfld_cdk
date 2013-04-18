@@ -33,7 +33,9 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 
-#include "ad_log.h"
+#define LOG_TAG "ad_proxy:i2c"
+#include "cutils/log.h"
+
 #include "ad_i2c.h"
 
 int ad_i2c_fd = -1;
@@ -51,7 +53,7 @@ int ad_i2c_sync(void)
     if (ad_i2c_write(sync, 4) == 4) {
         for (i=0; i < AD_I2C_SYNC_RETRIES; i++) {
             if (ad_i2c_read(sync, 4) == 4) {
-                RTRAC("SYNC RES: 0x%02x%02x%02x%02x", sync[0], sync[1], sync[2], sync[3]);
+                ALOGD("SYNC RES: 0x%02x%02x%02x%02x", sync[0], sync[1], sync[2], sync[3]);
                 if ((res[0] == sync[0]) && (res[1] == sync[1]) &&
                     (res[2] == sync[2]) && (res[3] == sync[3])) {
                     ret = 0;
@@ -61,10 +63,10 @@ int ad_i2c_sync(void)
             usleep(ad_i2c_op_delay);
         }
     } else {
-        RERRO("ERROR: %s write sync error", __func__);
+        ALOGE("%s write sync error", __func__);
     }
 
-    RDBUG("%s [%d]", __func__, ret);
+    ALOGD("%s [%d]", __func__, ret);
     return ret;
 }
 
@@ -73,20 +75,20 @@ int ad_i2c_init(int op_delay)
     int ret;
 
     if (op_delay >= 0 && op_delay <= AD_I2C_OP_MAX_DELAY) {
-        RERRO("ERROR: %s i2c operation delay [%d]", __func__, op_delay);
+        ALOGE("%s i2c operation delay [%d]", __func__, op_delay);
         ad_i2c_op_delay = op_delay;
     } else
         ad_i2c_op_delay = AD_I2C_OP_DEFAULT_DELAY;
 
     ad_i2c_fd = open(ad_path, O_RDWR);
     if (ad_i2c_fd < 0) {
-        RERRO("ERROR: %s open error (%s)", __func__, strerror(errno));
+        ALOGE("%s open error (%s)", __func__, strerror(errno));
         return -1;
     }
 
     ret = ioctl(ad_i2c_fd, AD_ENABLE_CLOCK);
     if(ret) {
-        RERRO("ERROR: %s ioctl  ENABLE_CLOCK error (%s)", __func__, strerror(errno));
+        ALOGE("%s ioctl  ENABLE_CLOCK error (%s)", __func__, strerror(errno));
         return -1;
     }
     close(ad_i2c_fd);
@@ -108,13 +110,13 @@ int ad_i2c_read(unsigned char *buf, int len)
 
     ad_i2c_fd = open(ad_path, O_RDWR);
     if (ad_i2c_fd < 0) {
-        RERRO("ERROR: %s open error (%s)", __func__, strerror(errno));
+        ALOGE("%s open error (%s)", __func__, strerror(errno));
         return -1;
     }
 
     readSize = read(ad_i2c_fd, buf, len);
     if (readSize != len) {
-        RERRO("ERROR: %s: read %d len %d error (%s)", __func__, readSize, len, strerror(errno));
+        ALOGE("%s: read %d len %d error (%s)", __func__, readSize, len, strerror(errno));
     }
 
     close(ad_i2c_fd);
@@ -128,18 +130,18 @@ int ad_i2c_write(unsigned char *buf, int len)
 
     ad_i2c_fd = open(ad_path, O_RDWR);
     if (ad_i2c_fd < 0) {
-        RERRO("ERROR: %s open error (%s)", __func__, strerror(errno));
+        ALOGE("%s open error (%s)", __func__, strerror(errno));
         return -1;
     }
     ret = ioctl(ad_i2c_fd, AD_ENABLE_CLOCK);
     if(ret) {
-        RERRO("ERROR %s: ioctl  ENABLE_CLOCK error (%s)", __func__, strerror(errno));
+        ALOGE("%s: ioctl  ENABLE_CLOCK error (%s)", __func__, strerror(errno));
         return ret;
     }
 
     writeSize = write(ad_i2c_fd, buf, len);
     if (writeSize != len) {
-        RERRO("ERROR: %s: write %d len %d error (%s)", __func__, writeSize, len, strerror(errno));
+        ALOGE("%s: write %d len %d error (%s)", __func__, writeSize, len, strerror(errno));
     }
 
 

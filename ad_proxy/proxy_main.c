@@ -47,13 +47,7 @@
 #define TTY_RDY_WAIT	       100   /* in ms */
 #define AUDIENCE_ACK_US_DELAY  20000 /* in us */
 
-#define AUDIENCE_CMD_SIZE      4 /* in bytes */
-
 #define AD_WRITE_DATA_BLOCK_OPCODE 0x802F
-
-#define isOpcode(cmdArray, opCode) (\
-    ((cmdArray)[0] == (((opCode) >> 8) & 0xFF)) && ((cmdArray)[1] == ((opCode) & 0xFF)) \
-    )
 
 enum {
     ID_STD = 0,
@@ -66,6 +60,13 @@ typedef enum {
     STATE_READ_ACK,
     STATE_WAIT_DATA_BLOCK
 } protocol_state_t;
+
+/**
+ * Type to contain a 4-bytes Audience command
+ */
+typedef struct {
+    unsigned char bytes[4];
+} audience_command_t;
 
 #define ACM_TTY "/dev/ttyGS0"
 
@@ -95,6 +96,31 @@ static void ad_signal_handler(int signal)
     exit(0);
 }
 
+/**
+ * Returns the Audience command opcode. The opcode is in the upper 16bits of the command.
+ *
+ * @param[in] cmd audience_command_t
+ *
+ * @return integer value of the command 16bits opcode
+ */
+static unsigned int get_command_opcode(audience_command_t* cmd)
+{
+    // Opcode is 16bits, HI in byte #0, LO in byte #1
+    return cmd->bytes[0] << 8 | cmd->bytes[1];
+}
+/**
+ * Returns the Audience command argument. The argument is in the lower 16bits of the command.
+ *
+ * @param[in] cmd audience_command_t
+ *
+ * @return integer value of the command 16bits argument
+ */
+static unsigned int get_command_arg(audience_command_t* cmd)
+{
+    // Arg is 16bits, HI in byte #2, LO in byte #3
+    return cmd->bytes[2] << 8 | cmd->bytes[3];
+}
+
 static void* ad_proxy_worker(void* data)
 
 {
@@ -112,29 +138,30 @@ static void* ad_proxy_worker(void* data)
         switch (state) {
             default:
             case STATE_WAIT_COMMAND: {
-                unsigned char audience_cmb_buf[AUDIENCE_CMD_SIZE];
+                audience_command_t audience_cmb_buf;
                 // Read a command from AuViD
-                status = read(polls[ID_TTY].fd, audience_cmb_buf, sizeof(audience_cmb_buf));
-                if (status != sizeof(audience_cmb_buf)) {
+                status = read(polls[ID_TTY].fd, audience_cmb_buf.bytes,
+                              sizeof(audience_cmb_buf.bytes));
+                if (status != sizeof(audience_cmb_buf.bytes)) {
 
                     ALOGE("%s Read CMD from AuViD failed\n", __func__);
                     quit = 1;
                     break;
                 }
                 // Forward the command to the chip
-                status = ad_i2c_write(audience_cmb_buf, sizeof(audience_cmb_buf));
-                if (status != sizeof(audience_cmb_buf)) {
+                status = ad_i2c_write(audience_cmb_buf.bytes, sizeof(audience_cmb_buf.bytes));
+                if (status != sizeof(audience_cmb_buf.bytes)) {
 
                     ALOGE("%s Write CMD to chip failed\n", __func__);
                     quit = 1;
                     break;
                 }
                 // Is it a Data Block command ?
-                if (isOpcode(audience_cmb_buf, AD_WRITE_DATA_BLOCK_OPCODE)) {
+                if (get_command_opcode(&audience_cmb_buf) == AD_WRITE_DATA_BLOCK_OPCODE) {
 
                     data_block_session = 1;
                     // Block Size is in 16bits command's arg
-                    data_block_size = audience_cmb_buf[2] << 8 | audience_cmb_buf[3];
+                    data_block_size = get_command_arg(&audience_cmb_buf);
 
                     ALOGD("Starting Data Block session for %d bytes", data_block_size);
                 }
@@ -143,20 +170,21 @@ static void* ad_proxy_worker(void* data)
                 break;
             }
             case STATE_READ_ACK: {
-                unsigned char audience_cmb_ack_buf[AUDIENCE_CMD_SIZE];
+                audience_command_t audience_cmb_ack_buf;
                 // Wait before to read ACK
                 usleep(AUDIENCE_ACK_US_DELAY);
-                status = ad_i2c_read(audience_cmb_ack_buf, sizeof(audience_cmb_ack_buf));
-                if (status != sizeof(audience_cmb_ack_buf)) {
+                status = ad_i2c_read(audience_cmb_ack_buf.bytes,
+                                     sizeof(audience_cmb_ack_buf.bytes));
+                if (status != sizeof(audience_cmb_ack_buf.bytes)) {
 
                     ALOGE("%s Read ACK from chip failed\n", __func__);
                     quit = 1;
                     break;
                 }
                 // Send back the ACK to AuViD
-                status = write(polls[ID_TTY].fd, audience_cmb_ack_buf,
-                               sizeof(audience_cmb_ack_buf));
-                if (status != sizeof(audience_cmb_ack_buf)) {
+                status = write(polls[ID_TTY].fd, audience_cmb_ack_buf.bytes,
+                               sizeof(audience_cmb_ack_buf.bytes));
+                if (status != sizeof(audience_cmb_ack_buf.bytes)) {
 
                     ALOGE("%s Write ACK to AuVid failed\n", __func__);
                     quit = 1;

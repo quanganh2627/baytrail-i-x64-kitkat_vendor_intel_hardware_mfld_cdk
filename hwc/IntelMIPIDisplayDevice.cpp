@@ -401,7 +401,9 @@ return false;
     // Don't use it when:
     // 1) HDMI is connected
     // 2) there are YUV layers
+    // 3) video starts to playing
     if ((mDrm->isHdmiConnected()) ||
+        (mDrm->isVideoPrepared()) ||
         (mLayerList->getYUVLayerCount())) {
         useRGBOverlay = false;
         goto out_check;
@@ -645,11 +647,21 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
     bool forceCheckingList = ((index >= 0) != mVideoSeekingActive);
     mVideoSeekingActive = (index >= 0);
 
+    // check whether video player status changed and then
+    // determine whether traversing the layer list and
+    // disable or enable RGBOverlay
+    static bool isVideoPrepared = false;
+    bool isPlayerStatusChanged =
+                (isVideoPrepared != mDrm->isVideoPrepared()) ? true : false;
+
+    if (isPlayerStatusChanged)
+        isVideoPrepared = mDrm->isVideoPrepared();
+
     // handle geometry changing. attach display planes to layers
     // which can be handled by HWC.
     // plane control information (e.g. position) will be set here
     if (!list || (list->flags & HWC_GEOMETRY_CHANGED) ||
-            mHotplugEvent || forceCheckingList) {
+            mHotplugEvent || forceCheckingList || isPlayerStatusChanged) {
         onGeometryChanged(list);
         mHotplugEvent = false;
         mExtendedModeInfo->videoSentToWidi = mVideoSentToWidi;

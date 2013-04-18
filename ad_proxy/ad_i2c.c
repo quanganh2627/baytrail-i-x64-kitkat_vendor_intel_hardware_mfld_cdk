@@ -39,12 +39,20 @@
 #include "ad_i2c.h"
 
 int ad_i2c_fd = -1;
-int ad_i2c_op_delay;
 char ad_path[] = AD_DEV_NODE;
+
+/**
+ * Maximum number of SYNC reply read retry.
+ */
+#define AD_I2C_SYNC_RETRIES 20
+
+/**
+ * Delay to wait before to retry to read the reply of a SYNC command.
+ */
+#define AD_I2C_SYNC_RETRIES_DELAY 20000
 
 int ad_i2c_sync(void)
 {
-#define AD_I2C_SYNC_RETRIES 20
     int i;
     int ret = -1;
     unsigned char sync[4] = {0x80, 0x00, 0x00, 0x00};
@@ -60,7 +68,8 @@ int ad_i2c_sync(void)
                     break;
                 }
             }
-            usleep(ad_i2c_op_delay);
+            /* Chip has not yet a SYNC reply ready, wait before to re-read */
+            usleep(AD_I2C_SYNC_RETRIES_DELAY);
         }
     } else {
         ALOGE("%s write sync error", __func__);
@@ -70,15 +79,9 @@ int ad_i2c_sync(void)
     return ret;
 }
 
-int ad_i2c_init(int op_delay)
+int ad_i2c_init(void)
 {
     int ret;
-
-    if (op_delay >= 0 && op_delay <= AD_I2C_OP_MAX_DELAY) {
-        ALOGE("%s i2c operation delay [%d]", __func__, op_delay);
-        ad_i2c_op_delay = op_delay;
-    } else
-        ad_i2c_op_delay = AD_I2C_OP_DEFAULT_DELAY;
 
     ad_i2c_fd = open(ad_path, O_RDWR);
     if (ad_i2c_fd < 0) {
@@ -92,7 +95,6 @@ int ad_i2c_init(int op_delay)
         return -1;
     }
     close(ad_i2c_fd);
-    usleep(ad_i2c_op_delay);
 
     ad_i2c_sync();
 
@@ -146,7 +148,5 @@ int ad_i2c_write(unsigned char *buf, int len)
 
 
     close(ad_i2c_fd);
-    usleep(ad_i2c_op_delay);
-
     return writeSize;
 }

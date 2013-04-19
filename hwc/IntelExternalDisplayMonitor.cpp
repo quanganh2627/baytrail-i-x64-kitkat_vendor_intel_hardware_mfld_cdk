@@ -148,6 +148,13 @@ bool IntelExternalDisplayMonitor::isVideoPlaying()
     return false;
 }
 
+bool IntelExternalDisplayMonitor::isHdmiConnected()
+{
+    if (checkMode(mActiveDisplayMode, MDS_HDMI_CONNECTED))
+       return true;
+    return false;
+}
+
 bool IntelExternalDisplayMonitor::isOverlayOff()
 {
     if (checkMode(mActiveDisplayMode, MDS_OVERLAY_OFF)) {

@@ -86,6 +86,7 @@ public:
     int getDisplayMode();
     bool isVideoPlaying();
     bool isOverlayOff();
+    bool isHdmiConnected();
     bool notifyWidi(bool);
     bool notifyMipi(bool);
     bool isMdsSurface(int *nativeWindow);

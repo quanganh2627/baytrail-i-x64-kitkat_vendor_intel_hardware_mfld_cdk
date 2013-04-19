@@ -47,12 +47,14 @@
 
 #define AUDIENCE_ACK_US_DELAY  20000 /* in us */
 
-#define AD_WRITE_DATA_BLOCK_OPCODE 0x802F
+#define AD_WRITE_DATA_BLOCK_OPCODE   0x802F
+#define AD_BAUD_RATE_OPCODE          0x7000
 
 typedef enum {
     STATE_WAIT_COMMAND,
     STATE_READ_ACK,
-    STATE_WAIT_DATA_BLOCK
+    STATE_WAIT_DATA_BLOCK,
+    STATE_WRITE_COMMAND
 } protocol_state_t;
 
 /**
@@ -93,6 +95,8 @@ static void ad_proxy_worker(int usb_tty_fd)
 {
     static protocol_state_t state = STATE_WAIT_COMMAND;
 
+    audience_command_t audience_cmb_buf = { .bytes = { 0, 0, 0, 0 } };
+
     int data_block_session = 0;
     size_t data_block_size = 0;
 
@@ -105,7 +109,6 @@ static void ad_proxy_worker(int usb_tty_fd)
         switch (state) {
             default:
             case STATE_WAIT_COMMAND: {
-                audience_command_t audience_cmb_buf;
                 // Read a command from AuViD
                 status = read(usb_tty_fd, audience_cmb_buf.bytes, sizeof(audience_cmb_buf.bytes));
                 if (status != sizeof(audience_cmb_buf.bytes)) {
@@ -114,7 +117,29 @@ static void ad_proxy_worker(int usb_tty_fd)
                     quit = 1;
                     break;
                 }
-                // Forward the command to the chip
+
+                if (get_command_opcode(&audience_cmb_buf) == AD_BAUD_RATE_OPCODE) {
+
+                    // In normal operation, the baud rate command is used as handshake command by
+                    // AuViV. This command shall be ignored and just returned back as it to AuViD.
+                    status = write(usb_tty_fd, audience_cmb_buf.bytes,
+                                   sizeof(audience_cmb_buf.bytes));
+                    if (status != sizeof(audience_cmb_buf.bytes)) {
+
+                        ALOGE("%s Write to AuVid failed\n", __func__);
+                        quit = 1;
+                        break;
+                    }
+                    state = STATE_WAIT_COMMAND;
+                } else {
+
+                    // Otherwise, we need to forward the command to the chip
+                    state = STATE_WRITE_COMMAND;
+                }
+                break;
+            }
+            case STATE_WRITE_COMMAND: {
+                // Write the command to the chip
                 status = ad_i2c_write(audience_cmb_buf.bytes, sizeof(audience_cmb_buf.bytes));
                 if (status != sizeof(audience_cmb_buf.bytes)) {
 

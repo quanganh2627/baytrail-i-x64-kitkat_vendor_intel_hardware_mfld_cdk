@@ -34,6 +34,7 @@
 #include <sys/types.h>
 #include <sys/poll.h>
 #include <sys/ioctl.h>
+#include "full_rw.h"
 
 #define LOG_TAG "ad_proxy"
 #include "cutils/log.h"
@@ -95,7 +96,9 @@ static void ad_proxy_worker(int usb_tty_fd)
 {
     static protocol_state_t state = STATE_WAIT_COMMAND;
 
-    audience_command_t audience_cmb_buf = { .bytes = { 0, 0, 0, 0 } };
+    audience_command_t audience_cmb_buf = {
+        { 0, 0, 0, 0 }
+    };
 
     int data_block_session = 0;
     size_t data_block_size = 0;
@@ -110,7 +113,7 @@ static void ad_proxy_worker(int usb_tty_fd)
             default:
             case STATE_WAIT_COMMAND: {
                 // Read a command from AuViD
-                status = read(usb_tty_fd, audience_cmb_buf.bytes, sizeof(audience_cmb_buf.bytes));
+                status = full_read(usb_tty_fd, audience_cmb_buf.bytes, sizeof(audience_cmb_buf.bytes));
                 if (status != sizeof(audience_cmb_buf.bytes)) {
 
                     ALOGE("%s Read CMD from AuViD failed\n", __func__);
@@ -122,8 +125,8 @@ static void ad_proxy_worker(int usb_tty_fd)
 
                     // In normal operation, the baud rate command is used as handshake command by
                     // AuViV. This command shall be ignored and just returned back as it to AuViD.
-                    status = write(usb_tty_fd, audience_cmb_buf.bytes,
-                                   sizeof(audience_cmb_buf.bytes));
+                    status = full_write(usb_tty_fd, audience_cmb_buf.bytes,
+                                        sizeof(audience_cmb_buf.bytes));
                     if (status != sizeof(audience_cmb_buf.bytes)) {
 
                         ALOGE("%s Write to AuVid failed\n", __func__);
@@ -173,7 +176,7 @@ static void ad_proxy_worker(int usb_tty_fd)
                     break;
                 }
                 // Send back the ACK to AuViD
-                status = write(usb_tty_fd, audience_cmb_ack_buf.bytes,
+                status = full_write(usb_tty_fd, audience_cmb_ack_buf.bytes,
                                sizeof(audience_cmb_ack_buf.bytes));
                 if (status != sizeof(audience_cmb_ack_buf.bytes)) {
 
@@ -201,7 +204,7 @@ static void ad_proxy_worker(int usb_tty_fd)
                     break;
                 }
                 // Read data block from AuViD
-                status = read(usb_tty_fd, data_block_payload, data_block_size);
+                status = full_read(usb_tty_fd, data_block_payload, data_block_size);
                 if (status != (int)data_block_size) {
 
                     ALOGE("%s Read Data Block failed\n", __func__);

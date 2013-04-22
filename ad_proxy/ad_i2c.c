@@ -32,6 +32,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/ioctl.h>
+#include <full_rw.h>
 
 #define LOG_TAG "ad_proxy:i2c"
 #include "cutils/log.h"
@@ -116,7 +117,7 @@ int ad_i2c_read(unsigned char *buf, int len)
         return -1;
     }
 
-    readSize = read(ad_i2c_fd, buf, len);
+    readSize = full_read(ad_i2c_fd, buf, len);
     if (readSize != len) {
         ALOGE("%s: read %d len %d error (%s)", __func__, readSize, len, strerror(errno));
     }
@@ -141,7 +142,7 @@ int ad_i2c_write(unsigned char *buf, int len)
         return ret;
     }
 
-    writeSize = write(ad_i2c_fd, buf, len);
+    writeSize = full_write(ad_i2c_fd, buf, len);
     if (writeSize != len) {
         ALOGE("%s: write %d len %d error (%s)", __func__, writeSize, len, strerror(errno));
     }

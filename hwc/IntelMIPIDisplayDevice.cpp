@@ -718,7 +718,7 @@ void IntelMIPIDisplayDevice::handleSmartComposition(hwc_display_contents_1_t *li
     // Only check if there is YUV overlay, has composition on framebuffer
     // and the layer number is limited.
     if (mYUVOverlay < 0 || !mHasGlesComposition || mHasSkipLayer ||
-        list->numHwLayers > 6){
+        list->numHwLayers > 6 || list->numHwLayers < 4){
         ALOGD_IF(mSkipComposition, "Leave smart composition mode");
         mSkipComposition = false;
         return;
@@ -1252,7 +1252,8 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
                 layer->compositionType = HWC_FRAMEBUFFER;
                 handled = false;
             }
-            if (layer->compositionType == HWC_OVERLAY)
+            if (layer->compositionType == HWC_OVERLAY &&
+                format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12)
                 mYUVOverlay = i;
         } else if (planeType == IntelDisplayPlane::DISPLAY_PLANE_RGB_OVERLAY) {
             IntelRGBOverlayPlane *rgbOverlayPlane =

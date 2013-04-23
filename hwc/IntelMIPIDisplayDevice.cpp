@@ -641,8 +641,8 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
 
     handleSmartComposition(list);
 
-    if (list->flags & HWC_GEOMETRY_CHANGED)
-	    memset(&mPrevFlipHandles[0], 0, sizeof(mPrevFlipHandles));
+    if (list && (list->flags & HWC_GEOMETRY_CHANGED))
+        memset(&mPrevFlipHandles[0], 0, sizeof(mPrevFlipHandles));
 
     return true;
 }

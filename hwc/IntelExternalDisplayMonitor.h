@@ -85,6 +85,7 @@ public:
 public:
     int getDisplayMode();
     bool isVideoPlaying();
+    bool isVideoPrepared();
     bool isOverlayOff();
     bool notifyWidi(bool);
     bool notifyMipi(bool);
@@ -108,6 +109,7 @@ private:
     android::Mutex mLock;
     android::Condition mModeChanged;
     int mActiveDisplayMode;
+    int mVideoPrepareState;
     bool mWidiOn;
     bool mInitialized;
     IntelHWComposer *mComposer;

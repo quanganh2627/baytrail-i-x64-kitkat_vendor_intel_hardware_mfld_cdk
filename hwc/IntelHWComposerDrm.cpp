@@ -188,6 +188,15 @@ bool IntelHWComposerDrm::isVideoPlaying()
     return false;
 }
 
+bool IntelHWComposerDrm::isVideoPrepared()
+{
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+    if (mMonitor != NULL)
+        return mMonitor->isVideoPrepared();
+#endif
+    return false;
+}
+
 bool IntelHWComposerDrm::isOverlayOff()
 {
 #ifdef TARGET_HAS_MULTIPLE_DISPLAY

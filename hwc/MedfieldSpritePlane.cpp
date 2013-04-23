@@ -50,6 +50,7 @@ MedfieldSpritePlane::MedfieldSpritePlane(int fd, int index, IntelBufferManager *
 {
     memset(mDataBuffers, 0, sizeof(mDataBuffers));
     mNextBuffer = 0;
+    mPrevHitSlot = -1;
 }
 
 MedfieldSpritePlane::~MedfieldSpritePlane()
@@ -196,44 +197,50 @@ bool MedfieldSpritePlane::setDataBuffer(uint32_t handle, uint32_t flags, intel_g
     int i;
 
     if (!initCheck()) {
-        ALOGE("%s: overlay plane wasn't initialized\n", __func__);
+        ALOGE("%s: sprite plane wasn't initialized\n", __func__);
         return false;
     }
-
-    ALOGD_IF(ALLOW_SPRITE_PRINT, "%s: next buffer %d\n", __func__, mNextBuffer);
 
     // Notice!!! Maybe handle can be reused, it will cause problem.
     for (i = 0; i < SPRITE_DATA_BUFFER_NUM_MAX; i++) {
         if (mDataBuffers[i].ui64Stamp == ui64Stamp) {
             buffer = mDataBuffers[i].buffer;
+            mPrevHitSlot = i;
             break;
         }
     }
 
     if (!buffer) {
-            // release the buffer in the next slot
-            if (mDataBuffers[mNextBuffer].ui64Stamp ||
-                            mDataBuffers[mNextBuffer].buffer) {
-                    ALOGD_IF(ALLOW_SPRITE_PRINT,
-                            "%s: releasing buffer %d...\n", __func__, mNextBuffer);
-                    mBufferManager->unmap(mDataBuffers[mNextBuffer].buffer);
-                    mDataBuffers[mNextBuffer].ui64Stamp = 0;
-                    mDataBuffers[mNextBuffer].handle = 0;
-                    mDataBuffers[mNextBuffer].buffer = 0;
-            }
-
-            buffer = mBufferManager->map(handle);
-            if (!buffer) {
-                    ALOGE("%s: failed to map handle %d\n", __func__, handle);
-                    disable();
-                    return false;
-            }
-
-            mDataBuffers[mNextBuffer].ui64Stamp = ui64Stamp;
-            mDataBuffers[mNextBuffer].handle = handle;
-            mDataBuffers[mNextBuffer].buffer = buffer;
-            // move mNextBuffer pointer
+        // don't release buffer mapping for the previous hit slot,
+        // display controller may still use the buffer for displaying,
+        // unmapping it will cause black screen issue.
+        if (mPrevHitSlot == mNextBuffer)
             mNextBuffer = (mNextBuffer + 1) % SPRITE_DATA_BUFFER_NUM_MAX;
+
+        // release the buffer in the next slot
+        if (mDataBuffers[mNextBuffer].ui64Stamp ||
+                mDataBuffers[mNextBuffer].buffer) {
+            ALOGD_IF(ALLOW_SPRITE_PRINT,
+                    "%s: releasing buffer %d...\n", __func__, mNextBuffer);
+            mBufferManager->unmap(mDataBuffers[mNextBuffer].buffer);
+            mDataBuffers[mNextBuffer].ui64Stamp = 0;
+            mDataBuffers[mNextBuffer].handle = 0;
+            mDataBuffers[mNextBuffer].buffer = 0;
+        }
+
+        buffer = mBufferManager->map(handle);
+        if (!buffer) {
+            ALOGE("%s: failed to map handle %d\n", __func__, handle);
+            disable();
+            return false;
+        }
+
+        mDataBuffers[mNextBuffer].ui64Stamp = ui64Stamp;
+        mDataBuffers[mNextBuffer].handle = handle;
+        mDataBuffers[mNextBuffer].buffer = buffer;
+        mPrevHitSlot = mNextBuffer;
+
+        mNextBuffer = (mNextBuffer + 1) % SPRITE_DATA_BUFFER_NUM_MAX;
     }
 
     IntelDisplayDataBuffer *spriteDataBuffer =

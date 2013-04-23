@@ -27,6 +27,7 @@
  */
 #include <cutils/log.h>
 #include <cutils/atomic.h>
+#include <cutils/properties.h>
 
 #include <IntelHWComposer.h>
 #include <IntelDisplayDevice.h>
@@ -37,12 +38,10 @@
 IntelMIPIDisplayDevice::IntelMIPIDisplayDevice(IntelBufferManager *bm,
                                        IntelBufferManager *gm,
                                        IntelDisplayPlaneManager *pm,
-                                       IMG_framebuffer_device_public_t *fbdev,
                                        IntelHWComposerDrm *drm,
                                        WidiExtendedModeInfo *extinfo,
                                        uint32_t index)
                                      : IntelDisplayDevice(pm, drm, bm, gm, index),
-                                       mFBDev(fbdev),
                                        mExtendedModeInfo(extinfo),
                                        mVideoSentToWidi(false)
 {
@@ -57,12 +56,6 @@ IntelMIPIDisplayDevice::IntelMIPIDisplayDevice(IntelBufferManager *bm,
     // check buffer manager for gralloc buffer
     if (!mGrallocBufferManager) {
         ALOGE("%s: Invalid Gralloc buffer manager\n", __func__);
-        goto init_err;
-    }
-
-    // check IMG frame buffer device
-    if (!mFBDev) {
-        ALOGE("%s: failed to open IMG FB device\n", __func__);
         goto init_err;
     }
 
@@ -394,6 +387,7 @@ bool IntelMIPIDisplayDevice::isRGBOverlayLayer(hwc_display_contents_1_t *list,
     int dstHeight;
     drmModeFBPtr fbInfo;
 
+return false;
 
     if (!list || !layer)
         return false;
@@ -757,6 +751,8 @@ void IntelMIPIDisplayDevice::handleSmartComposition(hwc_display_contents_1_t *li
 
 bool IntelMIPIDisplayDevice::commit(hwc_display_contents_1_t *list,
                                     buffer_handle_t *bh,
+                                    int* acquireFenceFd,
+                                    int** releaseFenceFd,
                                     int &numBuffers)
 {
     ALOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
@@ -812,13 +808,15 @@ bool IntelMIPIDisplayDevice::commit(hwc_display_contents_1_t *list,
     {
         buffer_handle_t *bufferHandles = bh;
         // setup primary plane contexts if swap buffers is needed
+        hwc_layer_1_t* fb_layer = &list->hwLayers[list->numHwLayers-1];
         if ((needSwapBuffer || mSkipComposition) &&
             mLayerList->getLayersCount() > 0 &&
-            list->hwLayers[list->numHwLayers-1].handle &&
-            list->hwLayers[list->numHwLayers-1].compositionType ==
-                                            HWC_FRAMEBUFFER_TARGET) {
-            flipFramebufferContexts(context);
-            bufferHandles[numBuffers++] = list->hwLayers[list->numHwLayers-1].handle;
+            fb_layer->handle &&
+            fb_layer->compositionType == HWC_FRAMEBUFFER_TARGET) {
+            flipFramebufferContexts(context, fb_layer);
+            acquireFenceFd[numBuffers] = fb_layer->acquireFenceFd;
+            releaseFenceFd[numBuffers] = &fb_layer->releaseFenceFd;
+            bufferHandles[numBuffers++] = fb_layer->handle;
         }
 
         // Call plane's flip for each layer in hwc_layer_list, if a plane has
@@ -854,6 +852,8 @@ bool IntelMIPIDisplayDevice::commit(hwc_display_contents_1_t *list,
                     // SGX deadlock issue
                     ALOGD("same RGB buffer handle %p", handle);
                 } else {
+                acquireFenceFd[numBuffers] = list->hwLayers[i].acquireFenceFd;
+                releaseFenceFd[numBuffers] = &list->hwLayers[i].releaseFenceFd;
                     bufferHandles[numBuffers++] =
                         (buffer_handle_t)plane->getDataBufferHandle();
                     if (i < 10) {
@@ -869,21 +869,6 @@ bool IntelMIPIDisplayDevice::commit(hwc_display_contents_1_t *list,
             // remove clear fb hints
             list->hwLayers[i].hints &= ~HWC_HINT_CLEAR_FB;
         }
-#if 0
-        // commit plane contexts
-        if (mFBDev && numBuffers) {
-            ALOGD_IF(ALLOW_HWC_PRINT, "%s: commits %d buffers\n", __func__, numBuffers);
-            int err = mFBDev->Post2(&mFBDev->base,
-                                    bufferHandles,
-                                    numBuffers,
-                                    context,
-                                    mPlaneManager->getContextLength());
-            if (err) {
-                ALOGE("%s: Post2 failed with errno %d\n", __func__, err);
-                return false;
-            }
-        }
-#endif
     }
 
 #if 0
@@ -1352,63 +1337,6 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
     return handled;
 }
 
-bool IntelMIPIDisplayDevice::flipFramebufferContexts(void *contexts)
-{
-    ALOGD_IF(ALLOW_HWC_PRINT, "flipFrameBufferContexts");
-    intel_sprite_context_t *context;
-    mdfld_plane_contexts_t *planeContexts;
-    uint32_t fbWidth, fbHeight;
-    int zOrderConfig;
-    bool forceBottom = false;
-
-    if (!contexts) {
-        ALOGE("%s: Invalid plane contexts\n", __func__);
-        return false;
-    }
-
-    planeContexts = (mdfld_plane_contexts_t*)contexts;
-
-    drmModeConnection connection = mDrm->getOutputConnection(mDisplayIndex);
-    if (connection != DRM_MODE_CONNECTED)
-        return false;
-
-    drmModeFBPtr fbInfo = mDrm->getOutputFBInfo(mDisplayIndex);
-
-    fbWidth = fbInfo->width;
-    fbHeight = fbInfo->height;
-
-    zOrderConfig = mPlaneManager->getZOrderConfig(mDisplayIndex);
-    if ((zOrderConfig == IntelDisplayPlaneManager::ZORDER_OcOaP) ||
-        (zOrderConfig == IntelDisplayPlaneManager::ZORDER_OaOcP))
-        forceBottom = true;
-
-    context = &planeContexts->primary_contexts[mDisplayIndex];
-
-    // update context
-    context->update_mask = SPRITE_UPDATE_ALL;
-    context->index = mDisplayIndex;
-    context->pipe = mDisplayIndex;
-    context->linoff = 0;
-    context->stride = align_to((4 * fbWidth), 64);
-    context->pos = 0;
-    context->size = ((fbHeight - 1) & 0xfff) << 16 | ((fbWidth - 1) & 0xfff);
-    context->surf = 0;
-
-    // config z order; switch z order may cause flicker
-    if (forceBottom) {
-        context->cntr = INTEL_SPRITE_FORCE_BOTTOM;
-    } else {
-        context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRA8888;
-    }
-
-    context->cntr |= 0x80000000;
-
-    // update active primary
-    planeContexts->active_primaries |= (1 << mDisplayIndex);
-
-    return true;
-}
-
 bool IntelMIPIDisplayDevice::dump(char *buff,
                            int buff_len, int *cur_len)
 {
@@ -1463,6 +1391,8 @@ bool IntelMIPIDisplayDevice::getDisplayConfig(uint32_t* configs,
 bool IntelMIPIDisplayDevice::getDisplayAttributes(uint32_t config,
             const uint32_t* attributes, int32_t* values)
 {
+    char val[PROPERTY_VALUE_MAX];
+
     if (config != 0)
         return false;
 
@@ -1472,22 +1402,28 @@ bool IntelMIPIDisplayDevice::getDisplayAttributes(uint32_t config,
     if (mDrm->getOutputConnection(mDisplayIndex) != DRM_MODE_CONNECTED)
         return false;
 
+    drmModeModeInfoPtr mode = mDrm->getOutputMode(mDisplayIndex);
+
     while (*attributes != HWC_DISPLAY_NO_ATTRIBUTE) {
         switch (*attributes) {
         case HWC_DISPLAY_VSYNC_PERIOD:
-            *values = 1e9 / mFBDev->base.fps;
+            *values = 1e9 /  mode->vrefresh;
             break;
         case HWC_DISPLAY_WIDTH:
-            *values = mFBDev->base.width;
+            *values = mode->hdisplay;
             break;
         case HWC_DISPLAY_HEIGHT:
-            *values = mFBDev->base.height;
+            *values = mode->vdisplay;
             break;
         case HWC_DISPLAY_DPI_X:
-            *values = mFBDev->base.xdpi * 1000.0f;
+            property_get("panel.physicalWidthmm", val, "47");
+            *values = (atoi(val) == 0) ? 144000.0f :
+                (mode->hdisplay * 25000.4f / atoi(val));
             break;
         case HWC_DISPLAY_DPI_Y:
-            *values = mFBDev->base.ydpi * 1000.0f;
+            property_get("panel.physicalHeightmm", val, "82");
+            *values = (atoi(val) == 0) ? 144000.0f :
+                (mode->hdisplay * 25000.4f / atoi(val));
             break;
         default:
             break;

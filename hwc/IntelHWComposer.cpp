@@ -572,31 +572,9 @@ bool IntelHWComposer::initialize()
     int bufferType = IntelBufferManager::TTM_BUFFER;
 
     ALOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
-    // open IMG frame buffer device
-    hw_module_t const* module;
-    if (hw_get_module(GRALLOC_HARDWARE_MODULE_ID, &module) != 0) {
+    if (hw_get_module(GRALLOC_HARDWARE_MODULE_ID,
+            (const hw_module_t**)&mGrallocModule) != 0) {
         ALOGE("%s: failed to open IMG GRALLOC module\n", __func__);
-        goto err;
-    }
-
-    if (module) {
-        IMG_gralloc_module_public_t *imgGrallocModule;
-        imgGrallocModule = (IMG_gralloc_module_public_t*)module;
-        mFBDev = imgGrallocModule->psFrameBufferDevice;
-
-        if (!mFBDev) {
-            // try again to open FBDev if it is NULL in GrallocModule
-            framebuffer_open(module, (framebuffer_device_t**)&mFBDev);
-        }
-
-        if (!mFBDev) {
-            ALOGE("%s: failed to open IMG FB device\n", __func__);
-            goto err;
-        }
-        // set hwcRef to protect FBDev from being closed
-        mFBDev->hwcRef = true;
-    } else {
-        ALOGE("%s: IMG GRALLOC module is NULL\n", __func__);
         goto err;
     }
 
@@ -605,7 +583,7 @@ bool IntelHWComposer::initialize()
         mDrm = &IntelHWComposerDrm::getInstance();
         if (!mDrm) {
             ALOGE("%s: Invalid DRM object\n", __func__);
-            goto fbdev_err;
+            goto err;
         }
 
         ret = mDrm->initialize(this);
@@ -669,12 +647,12 @@ bool IntelHWComposer::initialize()
          if (i == HWC_DISPLAY_PRIMARY)
              mDisplayDevice[i] =
                  new IntelMIPIDisplayDevice(mBufferManager, mGrallocBufferManager,
-                                       mPlaneManager, mFBDev, mDrm, &mExtendedModeInfo, i);
+                                       mPlaneManager, mDrm, &mExtendedModeInfo, i);
 #ifdef TARGET_HAS_MULTIPLE_DISPLAY
          else if (i == HWC_DISPLAY_EXTERNAL)
              mDisplayDevice[i] =
                  new IntelHDMIDisplayDevice(mBufferManager, mGrallocBufferManager,
-                                       mPlaneManager, mFBDev, mDrm, i);
+                                       mPlaneManager, mDrm, i);
 #endif
 #ifdef INTEL_WIDI
          else if (i == HWC_NUM_DISPLAY_TYPES)
@@ -737,12 +715,6 @@ drm_err:
         delete mDrm;
     mDrm = 0;
 
-fbdev_err:
-    if (mFBDev) {
-        mFBDev->hwcRef = false;
-        framebuffer_close((framebuffer_device_t*)mFBDev);
-        mFBDev = NULL;
-    }
 err:
     return false;
 }
@@ -814,33 +786,50 @@ bool IntelHWComposer::commitDisplays(size_t numDisplays,
 
     mPlaneManager->resetPlaneContexts();
 
+    size_t disp;
     buffer_handle_t bufferHandles[INTEL_DISPLAY_PLANE_NUM];
-    int numBuffers = 0;
-
-    for (size_t disp = 0; disp < numDisplays; disp++) {
-        if (disp >= DISPLAY_NUM)
-            break;
-
+    int acquireFenceFd[INTEL_DISPLAY_PLANE_NUM];
+    int* releaseFenceFd[INTEL_DISPLAY_PLANE_NUM];
+    int i, numBuffers = 0;
+    bool ret = true;
+ 
+    for (disp = 0; disp < numDisplays && disp < DISPLAY_NUM; disp++) {
         hwc_display_contents_1_t *list = displays[disp];
 
-        if (list && mDisplayDevice[disp])
-            mDisplayDevice[disp]->commit(list, bufferHandles, numBuffers);
-    }
+        if (list && mDisplayDevice[disp]) {
+            for (int i = 0; i < list->numHwLayers; i++) {
+                list->hwLayers[i].releaseFenceFd = -1;
+            }
+            mDisplayDevice[disp]->commit(list, bufferHandles,
+                acquireFenceFd, releaseFenceFd, numBuffers);
+        }
+     }
 
     void *context = mPlaneManager->getPlaneContexts();
-    bool ret = true;
 
     // commit plane contexts
-    if (mFBDev && numBuffers) {
+    if (numBuffers) {
         ALOGD_IF(ALLOW_HWC_PRINT, "%s: commits %d buffers\n", __func__, numBuffers);
-        int err = mFBDev->Post2(&mFBDev->base,
-                bufferHandles,
-                numBuffers,
-                context,
-                mPlaneManager->getContextLength());
+        int err = mGrallocModule->PostBuffers(mGrallocModule,
+                                              bufferHandles,
+                                              acquireFenceFd,
+                                              releaseFenceFd,
+                                              numBuffers,
+                                              context,
+                                              mPlaneManager->getContextLength());
         if (err) {
             ALOGE("%s: Post2 failed with errno %d\n", __func__, err);
             ret = false;
+        }
+    }
+
+    for (disp = 0; disp < numDisplays && disp < DISPLAY_NUM; disp++) {
+        hwc_display_contents_1_t *list = displays[disp];
+        if (list) {
+            for (i = 0; i < list->numHwLayers; i++) {
+                if (list->hwLayers[i].acquireFenceFd >= 0)
+                    close(list->hwLayers[i].acquireFenceFd);
+            }
         }
     }
 
@@ -897,9 +886,6 @@ bool IntelHWComposer::getDisplayAttributes(int disp, uint32_t config,
 
 bool IntelHWComposer::compositionComplete(int disp)
 {
-    if (mFBDev) {
-        mFBDev->base.compositionComplete(&mFBDev->base);
-    }
     return true;
 }
 

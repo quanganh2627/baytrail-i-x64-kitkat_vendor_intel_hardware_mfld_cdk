@@ -82,6 +82,15 @@ protected:
     bool mIsBlank;
     bool mVideoSeekingActive;
 
+    enum {
+        NUM_FB_BUFFERS = 3,
+    };
+    struct fb_buffer{
+        unsigned long long ui64Stamp;
+        IntelDisplayBuffer *buffer;
+    } mFBBuffers[NUM_FB_BUFFERS];
+    int mNextBuffer;
+
 protected:
     virtual bool isHWCUsage(int usage);
     virtual bool isHWCFormat(int format);
@@ -111,6 +120,7 @@ protected:
     virtual bool rgbOverlayPrepare(int index, hwc_layer_1_t *layer, int flags);
     virtual bool spritePrepare(int index, hwc_layer_1_t *layer, int flags);
     virtual bool primaryPrepare(int index, hwc_layer_1_t *layer, int flags);
+    virtual bool flipFramebufferContexts(void *contexts, hwc_layer_1_t *layer);
 
     virtual void dumpLayerList(hwc_display_contents_1_t *list);
     virtual bool isScreenshotActive(hwc_display_contents_1_t *list);
@@ -123,9 +133,9 @@ protected:
 public:
     virtual bool initCheck() { return mInitialized; }
     virtual bool prepare(hwc_display_contents_1_t *hdc) {return true;}
-    virtual bool commit(hwc_display_contents_1_t *hdc) {return true;}
-    virtual bool commit(hwc_display_contents_1_t *hdc,
-                        buffer_handle_t *bh, int &numBuffers) {return true;}
+    virtual bool commit(hwc_display_contents_1_t *hdc, buffer_handle_t *bh,
+                        int* acqureFenceFd, int** releaseFenceFd,
+                        int &numBuffers) { return true; }
     virtual bool release();
     virtual bool dump(char *buff, int buff_len, int *cur_len);
     virtual bool blank(int blank);
@@ -146,7 +156,6 @@ public:
 
 class IntelMIPIDisplayDevice : public IntelDisplayDevice {
 protected:
-    IMG_framebuffer_device_public_t *mFBDev;
     WidiExtendedModeInfo *mExtendedModeInfo;
     bool mVideoSentToWidi;
 
@@ -189,19 +198,17 @@ protected:
 
     virtual void onGeometryChanged(hwc_display_contents_1_t *list);
     virtual bool updateLayersData(hwc_display_contents_1_t *list);
-    virtual bool flipFramebufferContexts(void *contexts);
 public:
     IntelMIPIDisplayDevice(IntelBufferManager *bm,
                            IntelBufferManager *gm,
                            IntelDisplayPlaneManager *pm,
-                           IMG_framebuffer_device_public_t *fbdev,
                            IntelHWComposerDrm *drm,
                            WidiExtendedModeInfo *extinfo,
                            uint32_t index);
     ~IntelMIPIDisplayDevice();
     virtual bool prepare(hwc_display_contents_1_t *hdc);
-    virtual bool commit(hwc_display_contents_1_t *hdc,
-                        buffer_handle_t *bh, int &numBuffers);
+    virtual bool commit(hwc_display_contents_1_t *hdc, buffer_handle_t *bh,
+                        int* acqureFenceFd, int** releaseFenceFd, int &numBuffers);
     virtual bool dump(char *buff, int buff_len, int *cur_len);
 
     virtual bool getDisplayConfig(uint32_t* configs, size_t* numConfigs);
@@ -211,34 +218,19 @@ public:
 
 class IntelHDMIDisplayDevice : public IntelDisplayDevice {
 protected:
-    enum {
-        HDMI_BUF_NUM = 3,
-    };
-
-    IMG_framebuffer_device_public_t *mFBDev;
-
-    struct hdmi_buffer{
-        unsigned long long ui64Stamp;
-        IntelDisplayBuffer *buffer;
-    } mHDMIBuffers[HDMI_BUF_NUM];
-    int mNextBuffer;
-
-protected:
     virtual void onGeometryChanged(hwc_display_contents_1_t *list);
     virtual bool updateLayersData(hwc_display_contents_1_t *list);
-    virtual bool flipFramebufferContexts(void *contexts, hwc_layer_1_t *target_layer);
 public:
     IntelHDMIDisplayDevice(IntelBufferManager *bm,
                        IntelBufferManager *gm,
                        IntelDisplayPlaneManager *pm,
-                       IMG_framebuffer_device_public_t *fbdev,
                        IntelHWComposerDrm *drm,
                        uint32_t index);
 
     ~IntelHDMIDisplayDevice();
     virtual bool prepare(hwc_display_contents_1_t *hdc);
-    virtual bool commit(hwc_display_contents_1_t *hdc,
-                        buffer_handle_t *bh, int &numBuffers);
+    virtual bool commit(hwc_display_contents_1_t *hdc, buffer_handle_t *bh,
+                        int* acqureFenceFd, int** releaseFenceFd, int &numBuffers);
     virtual bool dump(char *buff, int buff_len, int *cur_len);
 
     virtual bool getDisplayConfig(uint32_t* configs, size_t* numConfigs);

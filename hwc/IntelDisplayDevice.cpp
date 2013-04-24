@@ -67,6 +67,12 @@ int IntelDisplayDevice::getMetaDataTransform(hwc_layer_1_t *layer,
         return -1;
     }
 
+    if (grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED &&
+        grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) {
+        ALOGV("%s: SW decoder, ignore this checking.", __func__);
+        return 0;
+    }
+
     IntelDisplayBuffer *buffer =
         mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
     if (!buffer) {
@@ -150,7 +156,7 @@ bool IntelDisplayDevice::isVideoPutInWindow(int output, hwc_layer_1_t *layer) {
 }
 
 int IntelDisplayDevice::checkVideoLayerHint(
-        hwc_display_contents_1_t *list, uint32_t hint) {
+        hwc_display_contents_1_t *list, uint32_t hint, bool widiVideoActive) {
     int index = -1;
 
     if (!list || list->numHwLayers == 0) {
@@ -158,10 +164,10 @@ int IntelDisplayDevice::checkVideoLayerHint(
     }
 
     // TODO:Replace the check with number of active devices
-    if (mDrm && mDrm->getDisplayMode() != OVERLAY_EXTEND) {
+    // Add check for widi.
+    if (mDrm && mDrm->getDisplayMode() != OVERLAY_EXTEND && !widiVideoActive) {
         return -1;
     }
-
     for (size_t i = 0; i < (size_t)list->numHwLayers - 1; i++) {
         hwc_layer_1_t *layer = &list->hwLayers[i];
         if (!layer)

@@ -197,6 +197,15 @@ bool IntelHWComposerDrm::isOverlayOff()
     return false;
 }
 
+bool IntelHWComposerDrm::isHdmiConnected()
+{
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+    if (mMonitor != NULL)
+        return mMonitor->isHdmiConnected();
+#endif
+    return false;
+}
+
 bool IntelHWComposerDrm::notifyWidi(bool on)
 {
 #ifdef TARGET_HAS_MULTIPLE_DISPLAY

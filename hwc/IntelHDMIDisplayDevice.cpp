@@ -178,7 +178,7 @@ bool IntelHDMIDisplayDevice::prepare(hwc_display_contents_1_t *list)
         return false;
     }
 
-    int index = checkVideoLayerHint(list, GRALLOC_HAL_HINT_TIME_SEEKING);
+    int index = checkVideoLayerHint(list, GRALLOC_HAL_HINT_TIME_SEEKING, false);
     bool findHint = (index >= 0);
     bool forceCheckingList = (findHint != mVideoSeekingActive);
     mVideoSeekingActive = findHint;

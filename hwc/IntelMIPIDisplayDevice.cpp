@@ -90,6 +90,8 @@ IntelMIPIDisplayDevice::IntelMIPIDisplayDevice(IntelBufferManager *bm,
     mHasSkipLayer = false;
     memset(&mLastHandles[0], 0, sizeof(mLastHandles));
 
+    memset(&mPrevFlipHandles[0], 0, sizeof(mPrevFlipHandles));
+
     mInitialized = true;
     return;
 
@@ -405,8 +407,7 @@ bool IntelMIPIDisplayDevice::isRGBOverlayLayer(hwc_display_contents_1_t *list,
     // Don't use it when:
     // 1) HDMI is connected
     // 2) there are YUV layers
-    if ((mDrm->getDisplayMode() == OVERLAY_EXTEND) ||
-        (mDrm->getDisplayMode() == OVERLAY_CLONE_MIPI0) ||
+    if ((mDrm->isHdmiConnected()) ||
         (mLayerList->getYUVLayerCount())) {
         useRGBOverlay = false;
         goto out_check;
@@ -566,7 +567,11 @@ void IntelMIPIDisplayDevice::onGeometryChanged(hwc_display_contents_1_t *list)
             mExtendedModeInfo->widiExtHandle != NULL &&
             mExtendedModeInfo->widiExtHandle == (intel_gralloc_buffer_handle_t*)list->hwLayers[i].handle)
         {
-            list->hwLayers[i].compositionType = HWC_OVERLAY;
+            if(mVideoSeekingActive)
+                list->hwLayers[i].compositionType = HWC_FRAMEBUFFER;
+            else
+                list->hwLayers[i].compositionType = HWC_OVERLAY;
+
             list->hwLayers[i].hints |= HWC_HINT_DISABLE_ANIMATION;
             mVideoSentToWidi = true;
             continue;
@@ -642,7 +647,7 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
     // clear force swap buffer flag
     mForceSwapBuffer = false;
 
-    int index = checkVideoLayerHint(list, GRALLOC_HAL_HINT_TIME_SEEKING);
+    int index = checkVideoLayerHint(list, GRALLOC_HAL_HINT_TIME_SEEKING, mVideoSentToWidi);
     bool forceCheckingList = ((index >= 0) != mVideoSeekingActive);
     mVideoSeekingActive = (index >= 0);
 
@@ -685,6 +690,9 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
 
     handleSmartComposition(list);
 
+    if (list->flags & HWC_GEOMETRY_CHANGED)
+	    memset(&mPrevFlipHandles[0], 0, sizeof(mPrevFlipHandles));
+
     return true;
 }
 
@@ -697,13 +705,16 @@ void IntelMIPIDisplayDevice::handleSmartComposition(hwc_display_contents_1_t *li
 
     // when geometry change, set layer dirty to switch out smart composition,
     // also update GLES composition status for later using.
+    // BZ96412: Video layer compositionType is maybe changed in non-geometry
+    // prepare, exclude it from smart composition.
     if (list->flags & HWC_GEOMETRY_CHANGED) {
         bDirty = true;
         mHasGlesComposition = false;
         mHasSkipLayer = false;
         for (i = 0; i < list->numHwLayers - 1; i++) {
             mHasGlesComposition = mHasGlesComposition ||
-                (list->hwLayers[i].compositionType == HWC_FRAMEBUFFER);
+                (list->hwLayers[i].compositionType == HWC_FRAMEBUFFER &&
+                 mLayerList->getLayerType(i) != IntelHWComposerLayer::LAYER_TYPE_YUV);
             mHasSkipLayer = mHasSkipLayer ||
                 (list->hwLayers[i].flags & HWC_SKIP_LAYER);
         }
@@ -829,9 +840,27 @@ bool IntelMIPIDisplayDevice::commit(hwc_display_contents_1_t *list,
             bool ret = plane->flip(context, flags);
             if (!ret)
                 ALOGW("%s: failed to flip plane %d context !\n", __func__, i);
-            else
-                bufferHandles[numBuffers++] =
-                (buffer_handle_t)plane->getDataBufferHandle();
+            else {
+                int planeType = plane->getPlaneType();
+                buffer_handle_t handle =
+                    (buffer_handle_t)plane->getDataBufferHandle();
+
+                if ((planeType == IntelDisplayPlane::DISPLAY_PLANE_PRIMARY ||
+                     planeType == IntelDisplayPlane::DISPLAY_PLANE_SPRITE) &&
+                    (i < 10 && handle == mPrevFlipHandles[i])) {
+                    // If we post two consecutive same buffers through
+                    // primary plane, don't pass buffer handle to avoid
+                    // SGX deadlock issue
+                    ALOGD("same RGB buffer handle %p", handle);
+                } else {
+                    bufferHandles[numBuffers++] =
+                        (buffer_handle_t)plane->getDataBufferHandle();
+                    if (i < 10) {
+                        mPrevFlipHandles[i] =
+			    (buffer_handle_t)plane->getDataBufferHandle();
+                    }
+                }
+            }
 
             // clear flip flags, except for DELAY_DISABLE
             mLayerList->setFlags(i, flags & IntelDisplayPlane::DELAY_DISABLE);
@@ -1101,6 +1130,29 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
 
         intel_gralloc_buffer_handle_t *grallocHandle =
             (intel_gralloc_buffer_handle_t*)layer->handle;
+        // need to wait for video buffer ready before setting data buffer
+        if (grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
+            grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) {
+            // map payload buffer
+            IntelDisplayBuffer *buffer =
+                mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
+            if (!buffer) {
+                ALOGE("%s: failed to map payload buffer.\n", __func__);
+                return false;
+            }
+
+            intel_gralloc_payload_t *payload =
+                (intel_gralloc_payload_t*)buffer->getCpuAddr();
+
+            // unmap payload buffer
+            mGrallocBufferManager->unmap(buffer);
+            if (!payload) {
+                ALOGE("%s: invalid address\n", __func__);
+                return false;
+            }
+            //wait video buffer idle
+            mGrallocBufferManager->waitIdle(payload->khandle);
+        }
 
         // check plane
         plane = mLayerList->getPlane(i);
@@ -1125,31 +1177,9 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
             if (mDrm->isOverlayOff()) {
                 plane->disable();
                 handled = false;
+                layer->compositionType = HWC_FRAMEBUFFER;
                 continue;
             }
-        }
-        // need to wait for video buffer ready before setting data buffer
-        if (grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
-            grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) {
-            // map payload buffer
-            IntelDisplayBuffer *buffer =
-                mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
-            if (!buffer) {
-                ALOGE("%s: failed to map payload buffer.\n", __func__);
-                return false;
-            }
-
-            intel_gralloc_payload_t *payload =
-                (intel_gralloc_payload_t*)buffer->getCpuAddr();
-
-            // unmap payload buffer
-            mGrallocBufferManager->unmap(buffer);
-            if (!payload) {
-                ALOGE("%s: invalid address\n", __func__);
-                return false;
-            }
-            //wait video buffer idle
-            mGrallocBufferManager->waitIdle(payload->khandle);
         }
 
         // get & setup data buffer and buffer format

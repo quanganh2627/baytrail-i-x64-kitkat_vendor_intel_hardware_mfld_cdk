@@ -44,13 +44,22 @@ protected:
         IntelBufferManager* grallocBufferManager;
         IntelDisplayBuffer* displayBuffer;
     };
+    struct Configuration {
+        android::sp<IFrameTypeChangeListener> typeChangeListener;
+        android::sp<IFrameListener> frameListener;
+        FrameProcessingPolicy policy;
+        bool extendedModeEnabled;
+        bool forceNotify;
+    };
+    android::Mutex mConfigLock;
+    Configuration mCurrentConfig;
+    Configuration mNextConfig;
+
     WidiExtendedModeInfo *mExtendedModeInfo;
     uint32_t mExtLastKhandle;
     int64_t mExtLastTimestamp;
 
     android::Mutex mListenerLock;
-    android::sp<IFrameTypeChangeListener> mTypeChangeListener;
-    android::sp<IFrameListener> mFrameListener;
     FrameInfo mLastFrameInfo;
 
     android::KeyedVector<intel_gralloc_buffer_handle_t*, android::sp<CachedBuffer> > mDisplayBufferCache;
@@ -71,9 +80,10 @@ public:
     ~WidiDisplayDevice();
 
     // IFrameServer methods
-    virtual android::status_t start(android::sp<IFrameTypeChangeListener> frameTypeChangeListener);
+    virtual android::status_t start(android::sp<IFrameTypeChangeListener> frameTypeChangeListener, bool disableExtVideoMode);
     virtual android::status_t stop(bool isConnected);
     virtual android::status_t notifyBufferReturned(int index);
+    virtual android::status_t setResolution(const FrameProcessingPolicy& policy, android::sp<IFrameListener> listener);
 
     virtual bool prepare(hwc_display_contents_1_t *list);
     virtual bool commit(hwc_display_contents_1_t *list,

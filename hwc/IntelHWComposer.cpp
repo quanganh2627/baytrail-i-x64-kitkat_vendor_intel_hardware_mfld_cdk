@@ -886,6 +886,7 @@ bool IntelHWComposer::getDisplayAttributes(int disp, uint32_t config,
 
 bool IntelHWComposer::compositionComplete(int disp)
 {
+    mGrallocModule->compositionComplete(mGrallocModule);
     return true;
 }
 

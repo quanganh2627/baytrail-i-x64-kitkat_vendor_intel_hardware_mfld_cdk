@@ -776,18 +776,7 @@ bool IntelDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
         } else if (planeType == IntelDisplayPlane::DISPLAY_PLANE_SPRITE ||
                    planeType == IntelDisplayPlane::DISPLAY_PLANE_PRIMARY) {
 
-            // adjust the buffer format if no blending is needed
-            // some test cases would fail due to a weird format!
-            if (layer->blending == HWC_BLENDING_NONE) {
-                switch (format) {
-                case HAL_PIXEL_FORMAT_BGRA_8888:
-                    format = HAL_PIXEL_FORMAT_BGRX_8888;
-                    break;
-                case HAL_PIXEL_FORMAT_RGBA_8888:
-                    format = HAL_PIXEL_FORMAT_RGBX_8888;
-                    break;
-                }
-            }
+            format = adjustSpriteBufferFormat(list, i, format);
 
             // set data buffer format
             dataBuffer->setFormat(format);
@@ -818,6 +807,54 @@ bool IntelDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
     }
 
     return handled;
+}
+
+int IntelDisplayDevice::adjustSpriteBufferFormat(hwc_display_contents_1_t *list,
+                                                 int index, int format)
+{
+    bool needAdjust = false;
+    hwc_layer_1_t *layer = &list->hwLayers[index];
+
+    if (layer->blending == HWC_BLENDING_NONE) {
+        // adjust the buffer format if no blending is needed
+        // some test cases would fail due to a weird format!
+        needAdjust = true;
+    } else if (layer->blending == HWC_BLENDING_PREMULT) {
+        // For a premult buffer with alpha == 0, it is black if
+        // displayed through our sprite plane.
+        // Need to ignore alpha to get this layer displayed correctly.
+        // only do this if this layer is the bottom layer
+
+        // If this is the only layer or the bottom layer
+        if (mLayerList->getLayersCount() == 1 || index == 0) {
+            needAdjust = true;
+        } else {
+            // check whether sprite layer covers underneath layer
+            needAdjust = true;
+            for (int i = index - 1; i >= 0; i--) {
+                if (areLayersIntersecting(&list->hwLayers[i], layer)) {
+                    ALOGD_IF(ALLOW_HWC_PRINT,
+                             "%s: sprite %d is covered by layer %d\n",
+                             __func__, index, i);
+                    needAdjust = false;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (needAdjust) {
+        switch (format) {
+        case HAL_PIXEL_FORMAT_BGRA_8888:
+            format = HAL_PIXEL_FORMAT_BGRX_8888;
+            break;
+        case HAL_PIXEL_FORMAT_RGBA_8888:
+            format = HAL_PIXEL_FORMAT_RGBX_8888;
+            break;
+        }
+    }
+
+    return format;
 }
 
 void IntelDisplayDevice::revisitLayerList(hwc_display_contents_1_t *list,

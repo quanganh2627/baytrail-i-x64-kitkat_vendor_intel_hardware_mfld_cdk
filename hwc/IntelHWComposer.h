@@ -116,10 +116,6 @@ private:
     void signalHpdCompletion();
     void waitForHpdCompletion();
     static intel_gralloc_buffer_handle_t *findVideoHandle(hwc_display_contents_1_t* list);
-
-    bool mForceDumpPostBuffer;
-    int dumpPost2Buffers(int num, buffer_handle_t* buffer);
-    int dumpLayerLists(size_t numDisplays, hwc_display_contents_1_t** displays);
 public:
     bool onUEvent(int msgType, void* msg, int msgLen);
     void vsync(int64_t timestamp, int pipe);
@@ -148,7 +144,7 @@ public:
           mCursorBufferManager(0), cursorDataBuffer(0),
           mPlaneManager(0),mProcs(0), mVsync(0), mFakeVsync(0),
           mLastVsync(0), mInitialized(false),
-          mActiveVsyncs(0), mHpdCompletion(true), mForceDumpPostBuffer(false) {}
+          mActiveVsyncs(0), mHpdCompletion(true) {}
     ~IntelHWComposer();
 };
 

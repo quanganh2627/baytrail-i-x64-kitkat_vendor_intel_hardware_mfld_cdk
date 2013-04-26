@@ -1142,7 +1142,6 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
             if (mDrm->isOverlayOff()) {
                 plane->disable();
                 handled = false;
-                layer->compositionType = HWC_FRAMEBUFFER;
                 continue;
             }
         }

@@ -387,8 +387,6 @@ bool IntelMIPIDisplayDevice::isRGBOverlayLayer(hwc_display_contents_1_t *list,
     int dstHeight;
     drmModeFBPtr fbInfo;
 
-return false;
-
     if (!list || !layer)
         return false;
 

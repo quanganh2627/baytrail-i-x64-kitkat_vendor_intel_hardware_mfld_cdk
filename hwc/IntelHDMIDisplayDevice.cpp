@@ -107,15 +107,25 @@ IntelHDMIDisplayDevice::~IntelHDMIDisplayDevice()
 // 2) attach planes to these layers which can be handled by HWC
 void IntelHDMIDisplayDevice::onGeometryChanged(hwc_display_contents_1_t *list)
 {
-    //TODO: need to implement this function for HDMI display.
 
+     ALOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
+
+    // reclaim all planes
+    bool ret = mLayerList->invalidatePlanes();
+    if (!ret) {
+        ALOGE("%s: failed to reclaim allocated planes\n", __func__);
+        return;
+    }
+    //1.prepare graphic layer
     // update layer list with new list
     mLayerList->updateLayerList(list);
+    mGraphicPlaneVisible = true;
 
     intel_overlay_mode_t mode = mDrm->getDisplayMode();
-    if (mode == OVERLAY_MIPI0) {
-        mGraphicPlaneVisible = false;
-    } else if (mode == OVERLAY_EXTEND) {
+
+    bool graphicPlaneVisibility = (mode==OVERLAY_MIPI0)?false:true;
+
+    if (mode == OVERLAY_EXTEND) {
         for (size_t i = 0; list && i < list->numHwLayers-1; i++) {
             /*When do HDMI extend mode, press power key will start ElectronBeam application. *
               * it will create a Dim layer to do GLES compostion. So mark the Dim layer to overlay *
@@ -131,35 +141,60 @@ void IntelHDMIDisplayDevice::onGeometryChanged(hwc_display_contents_1_t *list)
                 list->hwLayers[i].compositionType = HWC_OVERLAY;
                 list->hwLayers[i].hints = 0;
 
-                // Set graphic plane invisible when
-                // 1) the video is placed to a window
-                // 2) only video layer exists.(Exclude FramebufferTarget)
-                bool isVideoInWin = isVideoPutInWindow(OUTPUT_HDMI, &(list->hwLayers[i]));
-                if (isVideoInWin || list->numHwLayers == 2) {
-                    ALOGD_IF(ALLOW_HWC_PRINT,
-                            "%s: In window mode:%d layer num:%d",
-                            __func__, isVideoInWin, list->numHwLayers);
-                    // Disable graphic plane
-                    mGraphicPlaneVisible = false;
-                    struct drm_psb_disp_ctrl dp_ctrl;
-                    memset(&dp_ctrl, 0, sizeof(dp_ctrl));
-                    dp_ctrl.cmd = DRM_PSB_DISP_PLANEB_DISABLE;
-                    drmCommandWriteRead(mDrm->getDrmFd(), DRM_PSB_HDMI_FB_CMD, &dp_ctrl, sizeof(dp_ctrl));
-                } else {
-                    mGraphicPlaneVisible = true;
-                }
+                // If the seeking is active, ignore the following logic
+                if (mVideoSeekingActive)
+                    continue;
+
+                overlayPrepare(i, &list->hwLayers[i],0);
+
+                graphicPlaneVisibility = determineGraphicVisibilityInExtendMode(list,i);
             }
         }
-    } else {
-        mGraphicPlaneVisible = true;
     }
-    if (mGraphicPlaneVisible == true) {
-        struct drm_psb_disp_ctrl dp_ctrl;
-        memset(&dp_ctrl, 0, sizeof(dp_ctrl));
-        dp_ctrl.cmd = DRM_PSB_DISP_PLANEB_ENABLE;
-        drmCommandWriteRead(mDrm->getDrmFd(), DRM_PSB_HDMI_FB_CMD, &dp_ctrl, sizeof(dp_ctrl));
-    }
+
+
+    ALOGE(" HDMIDevice graphicPlaneVisibility %d\n",graphicPlaneVisibility);
+
+    enableHDMIGraphicPlane(graphicPlaneVisibility);
 }
+
+
+bool IntelHDMIDisplayDevice::determineGraphicVisibilityInExtendMode(hwc_display_contents_1_t *list,int index)
+{
+
+  bool result = true;
+
+   // Set graphic plane invisible when
+   // 1) the video is placed to a window
+   // 2) only video layer exists.(Exclude FramebufferTarget)
+   bool isVideoInWin = isVideoPutInWindow(OUTPUT_HDMI, &(list->hwLayers[index]));
+   if (isVideoInWin || list->numHwLayers == 2||
+       list->flags & HWC_ROTATION_IN_PROGRESS) {
+       ALOGD_IF(ALLOW_HWC_PRINT,
+               "%s: In window mode:%d layer num:%d",
+               __func__, isVideoInWin, list->numHwLayers);
+       // Disable graphic plane
+       result = false;
+   }
+
+   return result;
+
+
+}
+
+void IntelHDMIDisplayDevice::enableHDMIGraphicPlane(bool enable)
+{
+    //set the flag
+    mGraphicPlaneVisible = enable;
+    //do the job
+    int cmd = enable?DRM_PSB_DISP_PLANEB_ENABLE:DRM_PSB_DISP_PLANEB_DISABLE;
+    struct drm_psb_disp_ctrl dp_ctrl;
+    memset(&dp_ctrl, 0, sizeof(dp_ctrl));
+    dp_ctrl.cmd = cmd;
+    drmCommandWriteRead(mDrm->getDrmFd(), DRM_PSB_HDMI_FB_CMD, &dp_ctrl, sizeof(dp_ctrl));
+
+}
+
 
 bool IntelHDMIDisplayDevice::prepare(hwc_display_contents_1_t *list)
 {
@@ -175,8 +210,19 @@ bool IntelHDMIDisplayDevice::prepare(hwc_display_contents_1_t *list)
         return false;
     }
 
-    if (!list || (list->flags & HWC_GEOMETRY_CHANGED)) {
+    int index = checkVideoLayerHint(list, GRALLOC_HAL_HINT_TIME_SEEKING);
+    bool findHint = (index >= 0);
+    bool forceCheckingList = (findHint != mVideoSeekingActive);
+    mVideoSeekingActive = findHint;
+
+    if (!list || (list->flags & HWC_GEOMETRY_CHANGED) || forceCheckingList) {
         onGeometryChanged(list);
+
+        if (findHint) {
+            hwc_layer_1_t *layer = &list->hwLayers[index];
+            if (layer != NULL)
+                layer->compositionType = HWC_FRAMEBUFFER;
+        }
     }
 
     // handle hotplug event here
@@ -185,6 +231,11 @@ bool IntelHDMIDisplayDevice::prepare(hwc_display_contents_1_t *list)
         mHotplugEvent = false;
     }
 
+   // handle buffer changing. setup data buffer.
+   if (list && !updateLayersData(list)) {
+       ALOGD_IF(ALLOW_HWC_PRINT, "prepare: revisiting layer list\n");
+       revisitLayerList(list, false);
+   }
     return true;
 }
 
@@ -200,7 +251,7 @@ bool IntelHDMIDisplayDevice::commit(hwc_display_contents_1_t *list,
     }
 
     if (mIsBlank) {
-        //ALOGW("%s: HWC is blank, bypass", __func__);
+        ALOGW("%s: HWC is blank, bypass", __func__);
         return false;
     }
 
@@ -217,16 +268,30 @@ bool IntelHDMIDisplayDevice::commit(hwc_display_contents_1_t *list,
         return false;
     }
 
-    if (!mGraphicPlaneVisible) {
-        ALOGV("%s: Skip FRAMEBUFFER_TARGET flip\n", __func__);
-        return false;
-    }
-
     void *context = mPlaneManager->getPlaneContexts();
     if (!context) {
         ALOGW("%s: invalid plane contexts\n", __func__);
         return false;
     }
+    if(mGraphicPlaneVisible){
+        flipFrameBufferTarget(context,list,bh,numBuffers);
+    }
+
+    //flip overlayer plan if any
+    if(needFlipOverlay(list)){
+        flipOverlayerPlane(context,list,bh,numBuffers);
+    }
+
+    return true;
+}
+
+bool IntelHDMIDisplayDevice::flipFrameBufferTarget(void* context,hwc_display_contents_1_t *list,
+                                    buffer_handle_t *bh,
+                                    int &numBuffers)
+{
+
+
+    ALOGD_IF(ALLOW_HWC_PRINT, "%s \n", __func__);
 
     if (list &&
         list->numHwLayers>0 &&
@@ -237,23 +302,86 @@ bool IntelHDMIDisplayDevice::commit(hwc_display_contents_1_t *list,
         buffer_handle_t *bufferHandles = bh;
 
         bool ret = flipFramebufferContexts(context, target_layer);
-        if (!ret)
+        if (!ret){
             ALOGV("%s: skip to flip HDMI fb context !\n", __func__);
-        else
+        }else{
             bufferHandles[numBuffers++] = target_layer->handle;
-    } else if (list)
+        }
+    } else if (list){
         ALOGV("%s: layernum: %d, no found of framebuffer_target!\n",
                                        __func__, list->numHwLayers);
-    else
+    }else{
         ALOGW("%s: Invalid list, no found of framebuffer_target!\n",
                                        __func__);
+    }
+
+
+    return true;
+
+
+}
+bool IntelHDMIDisplayDevice::flipOverlayerPlane(void *context,hwc_display_contents_1_t *list,
+                                    buffer_handle_t *bh,
+                                    int &numBuffers)
+{
+
+    ALOGE("%s: enter", __func__);
+
+    buffer_handle_t *bufferHandles = bh;
+    ALOGE("%s layer count %d ",__func__,mLayerList->getLayersCount());
+
+    for (size_t i=0 ; list && i<(size_t)mLayerList->getLayersCount(); i++) {
+       IntelDisplayPlane *plane = mLayerList->getPlane(i);
+       int flags = mLayerList->getFlags(i);
+
+       if (!plane){
+        //debug - we at lease should have one overlayPlane attached
+        ALOGE("%s %d has no plane",__func__,i);
+           continue;
+       }
+       //TODO:revisit
+       //if (list->hwLayers[i].flags & HWC_SKIP_LAYER)
+       //    continue;
+       ALOGD("%s type %d\n",__func__,list->hwLayers[i].compositionType);
+       if (list->hwLayers[i].compositionType != HWC_OVERLAY)
+           continue;
+
+       ALOGD_IF(ALLOW_HWC_PRINT, "%s: flip plane %d, flags: 0x%x\n",
+           __func__, i, flags);
+
+       bool ret = plane->flip(context, flags);
+       if (!ret)
+           ALOGW("%s: failed to flip plane %d context !\n", __func__, i);
+       else
+           bufferHandles[numBuffers++] =
+           (buffer_handle_t)plane->getDataBufferHandle();
+
+       // clear flip flags, except for DELAY_DISABLE
+       mLayerList->setFlags(i, flags & IntelDisplayPlane::DELAY_DISABLE);
+
+       // remove clear fb hints
+       list->hwLayers[i].hints &= ~HWC_HINT_CLEAR_FB;
+    }
 
     return true;
 }
 
-bool IntelHDMIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
+
+bool IntelHDMIDisplayDevice::needFlipOverlay(hwc_display_contents_1_t *list)
 {
-    return true;
+   bool result = false;
+   for (size_t i=0 ; list && i<(size_t)mLayerList->getLayersCount(); i++) {
+       IntelDisplayPlane *plane = mLayerList->getPlane(i);
+       if (list->hwLayers[i].compositionType == HWC_OVERLAY){
+         result = true;
+         break;
+       }
+    }
+
+   ALOGE("%s needFlipOverlay %s\n",__func__,result?"YES":"NO");
+   return result;
+
+
 }
 
 bool IntelHDMIDisplayDevice::flipFramebufferContexts(void *contexts,
@@ -272,11 +400,6 @@ bool IntelHDMIDisplayDevice::flipFramebufferContexts(void *contexts,
     }
 
     intel_overlay_mode_t mode = mDrm->getDisplayMode();
-    if (!mGraphicPlaneVisible) {
-        ALOGD("%s: Skip FRAMEBUFFER_TARGET \n", __func__);
-        return false;
-    }
-
     int output = 1;
     //get target layer handler
     intel_gralloc_buffer_handle_t *grallocHandle =
@@ -464,3 +587,73 @@ bool IntelHDMIDisplayDevice::getDisplayAttributes(uint32_t config,
 
     return true;
 }
+
+
+
+/*
+*precondition: has overlay plane and current layer is YUV
+*
+*   set compositionType of the layer to  HWC ,
+*   set overlay's position
+*   set overlay's pipe as HDMI
+*   attach the overlay plane to the layer
+*   set FLAG HWC_HINT_EXTERNAL_PREPARED to the gralloc buffer associated with the layer
+*/
+
+bool IntelHDMIDisplayDevice::overlayPrepare(int index, hwc_layer_1_t *layer, int flags)
+{
+
+    ALOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
+
+    if (!layer) {
+            ALOGE("%s: Invalid layer\n", __func__);
+            return false;
+    }
+    // allocate overlay plane
+    IntelDisplayPlane *plane = mPlaneManager->getOverlayPlane();
+    if (!plane) {
+        ALOGE("%s: failed to create overlay plane\n", __func__);
+        return false;
+    }
+
+    int dstLeft = layer->displayFrame.left;
+    int dstTop = layer->displayFrame.top;
+    int dstRight = layer->displayFrame.right;
+    int dstBottom = layer->displayFrame.bottom;
+
+    IntelOverlayPlane *overlayP =
+        reinterpret_cast<IntelOverlayPlane *>(plane);
+    if (mDrm->getDisplayMode() == OVERLAY_EXTEND) {
+        // Put overlay on top if no other layers exist
+        bool onTop = mLayerList->getLayersCount() == 1;
+        ALOGE("%s: overlayonTop? %d\n", __func__,onTop);
+        overlayP->setOverlayOnTop(onTop);
+
+
+        // Check if the video is placed to a window
+        if (isVideoPutInWindow(OUTPUT_HDMI, layer)) {
+            ALOGE("%s: overlayonTop? 1111\n", __func__);
+            overlayP->setOverlayOnTop(true);
+            //ALOGE("%s: isVideoPutInWindow true. overlayonTop true\n", __func__);
+            struct drm_psb_disp_ctrl dp_ctrl;
+            memset(&dp_ctrl, 0, sizeof(dp_ctrl));
+            dp_ctrl.cmd = DRM_PSB_DISP_PLANEB_DISABLE;
+            drmCommandWriteRead(mDrm->getDrmFd(), DRM_PSB_HDMI_FB_CMD, &dp_ctrl, sizeof(dp_ctrl));
+        }
+    }
+
+    // setup plane parameters
+    overlayP->setPosition(dstLeft, dstTop, dstRight, dstBottom);
+
+    //overlayP->setPipeByMode(mDrm->getDisplayMode());
+    overlayP->setPipe(PIPE_HDMI);
+
+    ALOGE("pierr %s attach %d to overlayPlane ",__func__,index);
+    // attach plane to hwc layer
+    mLayerList->attachPlane(index, overlayP, flags);
+
+
+    return true;
+
+}
+

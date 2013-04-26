@@ -90,6 +90,8 @@ IntelMIPIDisplayDevice::IntelMIPIDisplayDevice(IntelBufferManager *bm,
     mHasSkipLayer = false;
     memset(&mLastHandles[0], 0, sizeof(mLastHandles));
 
+    memset(&mPrevFlipHandles[0], 0, sizeof(mPrevFlipHandles));
+
     mInitialized = true;
     return;
 
@@ -294,6 +296,10 @@ bool IntelMIPIDisplayDevice::isOverlayLayer(hwc_display_contents_1_t *list,
         ALOGD_IF(ALLOW_HWC_PRINT, "isOverlayLayer: protected video/force Overlay");
         mDrm->setDisplayIed(true);
         forceOverlay = true;
+    } else if (mVideoSeekingActive) {
+        useOverlay = false;
+        forceOverlay = false;
+        goto out_check;
     }
 
     // check blending, overlay cannot support blending
@@ -474,55 +480,8 @@ out_check:
     return useRGBOverlay;
 }
 
-void IntelMIPIDisplayDevice::revisitLayerList(hwc_display_contents_1_t *list,
-                                              bool isGeometryChanged)
-{
-    if (!list)
-        return;
 
-    for (size_t i = 0; i < (size_t)mLayerList->getLayersCount(); i++) {
 
-        // also need check whether a layer can be handled in general
-        if (!isHWCLayer(&list->hwLayers[i]))
-            continue;
-
-        // make sure all protected layers were marked as overlay
-        if (mLayerList->isProtectedLayer(i))
-            list->hwLayers[i].compositionType = HWC_OVERLAY;
-
-        int flags = 0;
-        if (isPrimaryLayer(list, i, &list->hwLayers[i], flags)) {
-            bool ret = primaryPrepare(i, &list->hwLayers[i], flags);
-            if (!ret) {
-                ALOGE("%s: failed to prepare primary\n", __func__);
-                list->hwLayers[i].compositionType = HWC_FRAMEBUFFER;
-                list->hwLayers[i].hints = 0;
-            }
-        }
-    }
-
-    if (isGeometryChanged)
-        updateZorderConfig();
-}
-
-void IntelMIPIDisplayDevice::updateZorderConfig()
-{
-    int zOrderConfig = IntelDisplayPlaneManager::ZORDER_POaOc;
-
-    if (mLayerList->getYUVLayerCount()) {
-        int layersCount = mLayerList->getLayersCount();
-        // For corner case: YUV layer is on the top in the layer list
-        // and there's other rgb layers.
-        // Change the Z-order if so.
-        if (layersCount > 1 &&
-                mLayerList->getLayerType(layersCount - 1) == IntelHWComposerLayer::LAYER_TYPE_YUV)
-            zOrderConfig = IntelDisplayPlaneManager::ZORDER_OcOaP;
-        else
-            zOrderConfig = IntelDisplayPlaneManager::ZORDER_POcOa;
-    }
-
-    mPlaneManager->setZOrderConfig(zOrderConfig, 0);
-}
 
 // When the geometry changed, we need
 // 0) reclaim all allocated planes, reclaimed planes will be disabled
@@ -533,6 +492,7 @@ void IntelMIPIDisplayDevice::updateZorderConfig()
 // 2) attach planes to these layers which can be handled by HWC
 void IntelMIPIDisplayDevice::onGeometryChanged(hwc_display_contents_1_t *list)
 {
+    ALOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
     // reclaim all planes
     bool ret = mLayerList->invalidatePlanes();
     if (!ret) {
@@ -570,11 +530,11 @@ void IntelMIPIDisplayDevice::onGeometryChanged(hwc_display_contents_1_t *list)
 
         // further check whether a layer can be handle by overlay/sprite
         int flags = 0;
-        bool hasOverlay = mPlaneManager->hasFreeOverlays();
+        //bool hasOverlay = mPlaneManager->hasFreeOverlays();
         bool hasRGBOverlay = mPlaneManager->hasFreeRGBOverlays();
         bool hasSprite = mPlaneManager->hasFreeSprites();
 
-        if (hasOverlay && isOverlayLayer(list, i, &list->hwLayers[i], flags)) {
+        if (/*hasOverlay &&*/ isOverlayLayer(list, i, &list->hwLayers[i], flags)) {
             ret = overlayPrepare(i, &list->hwLayers[i], flags);
             if (!ret) {
                 ALOGE("%s: failed to prepare overlay\n", __func__);
@@ -638,10 +598,15 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
     // clear force swap buffer flag
     mForceSwapBuffer = false;
 
+    int index = checkVideoLayerHint(list, GRALLOC_HAL_HINT_TIME_SEEKING);
+    bool forceCheckingList = ((index >= 0) != mVideoSeekingActive);
+    mVideoSeekingActive = (index >= 0);
+
     // handle geometry changing. attach display planes to layers
     // which can be handled by HWC.
     // plane control information (e.g. position) will be set here
-    if (!list || (list->flags & HWC_GEOMETRY_CHANGED) || mHotplugEvent) {
+    if (!list || (list->flags & HWC_GEOMETRY_CHANGED) ||
+            mHotplugEvent || forceCheckingList) {
         onGeometryChanged(list);
         mHotplugEvent = false;
 
@@ -675,6 +640,9 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
     }
 
     handleSmartComposition(list);
+
+    if (list->flags & HWC_GEOMETRY_CHANGED)
+	    memset(&mPrevFlipHandles[0], 0, sizeof(mPrevFlipHandles));
 
     return true;
 }
@@ -823,9 +791,27 @@ bool IntelMIPIDisplayDevice::commit(hwc_display_contents_1_t *list,
             bool ret = plane->flip(context, flags);
             if (!ret)
                 ALOGW("%s: failed to flip plane %d context !\n", __func__, i);
-            else
-                bufferHandles[numBuffers++] =
-                (buffer_handle_t)plane->getDataBufferHandle();
+            else {
+                int planeType = plane->getPlaneType();
+                buffer_handle_t handle =
+                    (buffer_handle_t)plane->getDataBufferHandle();
+
+                if ((planeType == IntelDisplayPlane::DISPLAY_PLANE_PRIMARY ||
+                     planeType == IntelDisplayPlane::DISPLAY_PLANE_SPRITE) &&
+                    (i < 10 && handle == mPrevFlipHandles[i])) {
+                    // If we post two consecutive same buffers through
+                    // primary plane, don't pass buffer handle to avoid
+                    // SGX deadlock issue
+                    ALOGD("same RGB buffer handle %p", handle);
+                } else {
+                    bufferHandles[numBuffers++] =
+                        (buffer_handle_t)plane->getDataBufferHandle();
+                    if (i < 10) {
+                        mPrevFlipHandles[i] =
+			    (buffer_handle_t)plane->getDataBufferHandle();
+                    }
+                }
+            }
 
             // clear flip flags, except for DELAY_DISABLE
             mLayerList->setFlags(i, flags & IntelDisplayPlane::DELAY_DISABLE);
@@ -869,138 +855,6 @@ bool IntelMIPIDisplayDevice::commit(hwc_display_contents_1_t *list,
     return true;
 }
 
-// This function performs:
-// 1) update layer's transform to data buffer's payload buffer, so that video
-//    driver can get the latest transform info of this layer
-// 2) if rotation is needed, video driver would setup the rotated buffer, then
-//    update buffer's payload to inform HWC rotation buffer is available.
-// 3) HWC would keep using ST till all rotation buffers are ready.
-// Return: false if HWC is NOT ready to switch to overlay, otherwise true.
-bool IntelMIPIDisplayDevice::useOverlayRotation(hwc_layer_1_t *layer,
-                                         int index,
-                                         uint32_t& handle,
-                                         int& w, int& h,
-                                         int& srcX, int& srcY,
-                                         int& srcW, int& srcH,
-                                         uint32_t &transform)
-{
-    bool useOverlay = false;
-    uint32_t hwcLayerTransform;
-
-    // FIXME: workaround for rotation issue, remove it later
-    static int counter = 0;
-    uint32_t metadata_transform = 0;
-    uint32_t displayMode = 0;
-
-    if (!layer)
-        return false;
-
-    intel_gralloc_buffer_handle_t *grallocHandle =
-        (intel_gralloc_buffer_handle_t*)layer->handle;
-
-    if (!grallocHandle)
-        return false;
-
-    // detect video mode change
-    displayMode = mDrm->getDisplayMode();
-
-    if (grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
-        grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) {
-        // map payload buffer
-        IntelDisplayBuffer *buffer =
-            mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
-        if (!buffer) {
-            ALOGE("%s: failed to map payload buffer.\n", __func__);
-            return false;
-        }
-
-        intel_gralloc_payload_t *payload =
-            (intel_gralloc_payload_t*)buffer->getCpuAddr();
-
-        // unmap payload buffer
-        mGrallocBufferManager->unmap(buffer);
-        if (!payload) {
-            ALOGE("%s: invalid address\n", __func__);
-            return false;
-        }
-
-        if (payload->force_output_method == OUTPUT_FORCE_GPU) {
-            ALOGD_IF(ALLOW_HWC_PRINT,
-                    "%s: force to use surface texture.", __func__);
-            return false;
-        }
-
-        metadata_transform = payload->metadata_transform;
-
-        //For extend mode, we ignore WM rotate info
-        if (displayMode == OVERLAY_EXTEND) {
-            transform = metadata_transform;
-        }
-
-        if (!transform) {
-            ALOGD_IF(ALLOW_HWC_PRINT,
-                    "%s: use overlay to display original buffer.", __func__);
-            return true;
-        }
-
-        if (transform != uint32_t(payload->client_transform)) {
-            ALOGD_IF(ALLOW_HWC_PRINT,
-                    "%s: rotation buffer was not prepared by client! ui64Stamp = %llu\n", __func__, grallocHandle->ui64Stamp);
-            return false;
-        }
-
-        // update handle, w & h to rotation buffer
-        handle = payload->rotated_buffer_handle;
-        w = payload->rotated_width;
-        h = payload->rotated_height;
-        //wait video rotated buffer idle
-        mGrallocBufferManager->waitIdle(handle);
-        // NOTE: exchange the srcWidth & srcHeight since
-        // video driver currently doesn't call native_window_*
-        // helper functions to update info for rotation buffer.
-        if (transform == HAL_TRANSFORM_ROT_90 ||
-                transform == HAL_TRANSFORM_ROT_270) {
-            int temp = srcH;
-            srcH = srcW;
-            srcW = temp;
-            temp = srcX;
-            srcX = srcY;
-            srcY = temp;
-
-        }
-
-        // skip pading bytes in rotate buffer
-        switch(transform) {
-            case HAL_TRANSFORM_ROT_90:
-                srcX += ((srcW + 0xf) & ~0xf) - srcW;
-                break;
-            case HAL_TRANSFORM_ROT_180:
-                srcX += ((srcW + 0xf) & ~0xf) - srcW;
-                srcY += ((srcH + 0xf) & ~0xf) - srcH;
-                break;
-            case HAL_TRANSFORM_ROT_270:
-                srcY += ((srcH + 0xf) & ~0xf) - srcH;
-                break;
-            default:
-                break;
-        }
-    } else {
-        //For software codec, overlay can't handle rotate
-        //and fallback to surface texture.
-        if ((displayMode != OVERLAY_EXTEND) && transform) {
-            ALOGD_IF(ALLOW_HWC_PRINT,
-                    "%s: software codec rotation, back to ST!", __func__);
-            return false;
-        }
-        //set this flag for mapping correct buffer
-        transform = 0;
-    }
-
-    //for most of cases, we handle rotate by overlay
-    useOverlay = true;
-    return useOverlay;
-}
-
 bool IntelMIPIDisplayDevice::isForceOverlay(hwc_layer_1_t *layer)
 {
     if (!layer)
@@ -1038,282 +892,6 @@ bool IntelMIPIDisplayDevice::isForceOverlay(hwc_layer_1_t *layer)
     return false;
 }
 
-// This function performs:
-// Acquire bool BobDeinterlace from video driver
-// If ture, use bob deinterlace, otherwise, use weave deinterlace
-bool IntelMIPIDisplayDevice::isBobDeinterlace(hwc_layer_1_t *layer)
-{
-    bool bobDeinterlace = false;
-
-    if (!layer)
-        return bobDeinterlace;
-
-    intel_gralloc_buffer_handle_t *grallocHandle =
-        (intel_gralloc_buffer_handle_t*)layer->handle;
-
-    if (!grallocHandle) {
-        return bobDeinterlace;
-    }
-
-    if (grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED &&
-        grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE)
-        return bobDeinterlace;
-
-    // map payload buffer
-    IntelDisplayBuffer *buffer =
-        mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
-    if (!buffer) {
-        ALOGE("%s: failed to map payload buffer.\n", __func__);
-        return false;
-    }
-
-    intel_gralloc_payload_t *payload =
-        (intel_gralloc_payload_t*)buffer->getCpuAddr();
-    mGrallocBufferManager->unmap(buffer);
-    if (!payload) {
-        ALOGE("%s: invalid address\n", __func__);
-        return bobDeinterlace;
-    }
-
-    bobDeinterlace = (payload->bob_deinterlace == 1) ? true : false;
-    return bobDeinterlace;
-}
-
-bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
-{
-    IntelDisplayPlane *plane = 0;
-    bool ret = true;
-    bool handled = true;
-
-    mYUVOverlay = -1;
-
-    for (size_t i=0 ; i<(size_t)mLayerList->getLayersCount(); i++) {
-        hwc_layer_1_t *layer = &list->hwLayers[i];
-        // layer safety check
-        if (!isHWCLayer(layer))
-            continue;
-
-        intel_gralloc_buffer_handle_t *grallocHandle =
-            (intel_gralloc_buffer_handle_t*)layer->handle;
-        // need to wait for video buffer ready before setting data buffer
-        if (grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
-            grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) {
-            // map payload buffer
-            IntelDisplayBuffer *buffer =
-                mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
-            if (!buffer) {
-                ALOGE("%s: failed to map payload buffer.\n", __func__);
-                return false;
-            }
-
-            intel_gralloc_payload_t *payload =
-                (intel_gralloc_payload_t*)buffer->getCpuAddr();
-
-            // unmap payload buffer
-            mGrallocBufferManager->unmap(buffer);
-            if (!payload) {
-                ALOGE("%s: invalid address\n", __func__);
-                return false;
-            }
-            //wait video buffer idle
-            mGrallocBufferManager->waitIdle(payload->khandle);
-        }
-
-        // check plane
-        plane = mLayerList->getPlane(i);
-        if (!plane)
-            continue;
-
-        // get layer parameter
-        int bobDeinterlace;
-        int srcX = layer->sourceCrop.left;
-        int srcY = layer->sourceCrop.top;
-        int srcWidth = layer->sourceCrop.right - layer->sourceCrop.left;
-        int srcHeight = layer->sourceCrop.bottom - layer->sourceCrop.top;
-        int planeType = plane->getPlaneType();
-
-        if(srcHeight == 1 || srcWidth == 1) {
-            mLayerList->detachPlane(i, plane);
-            layer->compositionType = HWC_FRAMEBUFFER;
-            handled = false;
-            continue;
-        }
-        if (planeType == IntelDisplayPlane::DISPLAY_PLANE_OVERLAY) {
-            if (mDrm->isOverlayOff()) {
-                plane->disable();
-                handled = false;
-                continue;
-            }
-        }
-
-        // get & setup data buffer and buffer format
-        IntelDisplayBuffer *buffer = plane->getDataBuffer();
-        IntelDisplayDataBuffer *dataBuffer =
-            reinterpret_cast<IntelDisplayDataBuffer*>(buffer);
-        if (!dataBuffer) {
-            ALOGE("%s: invalid data buffer\n", __func__);
-            continue;
-        }
-
-        int bufferWidth = grallocHandle->width;
-        int bufferHeight = grallocHandle->height;
-        uint32_t bufferHandle = grallocHandle->fd[GRALLOC_SUB_BUFFER0];
-        int format = grallocHandle->format;
-        uint32_t transform = layer->transform;
-
-        if (planeType == IntelDisplayPlane::DISPLAY_PLANE_OVERLAY) {
-            int flags = mLayerList->getFlags(i);
-            if (flags & IntelDisplayPlane::DELAY_DISABLE) {
-                ALOGD_IF(ALLOW_HWC_PRINT,
-                       "updateLayerData: disable plane (DELAY)!");
-                flags &= ~IntelDisplayPlane::DELAY_DISABLE;
-                mLayerList->setFlags(i, flags);
-                plane->disable();
-            }
-
-            // check if can switch to overlay
-            bool useOverlay = useOverlayRotation(layer, i,
-                                                 bufferHandle,
-                                                 bufferWidth,
-                                                 bufferHeight,
-                                                 srcX,
-                                                 srcY,
-                                                 srcWidth,
-                                                 srcHeight,
-                                                 transform);
-
-            if (!useOverlay) {
-                ALOGD_IF(ALLOW_HWC_PRINT,
-                       "updateLayerData: useOverlayRotation failed!");
-                if (!mLayerList->getForceOverlay(i)) {
-                    ALOGD_IF(ALLOW_HWC_PRINT,
-                           "updateLayerData: fallback to ST to do rendering!");
-                    // fallback to ST to render this frame
-                    layer->compositionType = HWC_FRAMEBUFFER;
-                    mForceSwapBuffer = true;
-                    handled = false;
-                }
-                // disable overlay when rotated buffer is not ready
-                flags |= IntelDisplayPlane::DELAY_DISABLE;
-                mLayerList->setFlags(i, flags);
-                continue;
-            }
-
-            bobDeinterlace = isBobDeinterlace(layer);
-            if (bobDeinterlace) {
-                flags |= IntelDisplayPlane::BOB_DEINTERLACE;
-            } else {
-                flags &= ~IntelDisplayPlane::BOB_DEINTERLACE;
-            }
-            mLayerList->setFlags(i, flags);
-
-            // switch to overlay
-            layer->compositionType = HWC_OVERLAY;
-
-            // gralloc buffer is not aligned to 32 pixels
-            uint32_t grallocStride = align_to(bufferWidth, 32);
-            int format = grallocHandle->format;
-
-            dataBuffer->setFormat(format);
-            dataBuffer->setStride(grallocStride);
-            dataBuffer->setWidth(bufferWidth);
-            dataBuffer->setHeight(bufferHeight);
-            dataBuffer->setCrop(srcX, srcY, srcWidth, srcHeight);
-            dataBuffer->setDeinterlaceType(bobDeinterlace);
-            // set the data buffer back to plane
-            ret = ((IntelOverlayPlane*)plane)->setDataBuffer(bufferHandle,
-                                                             transform,
-                                                             grallocHandle);
-            if (!ret) {
-                ALOGE("%s: failed to update overlay data buffer\n", __func__);
-                mLayerList->detachPlane(i, plane);
-                layer->compositionType = HWC_FRAMEBUFFER;
-                handled = false;
-            }
-            if (layer->compositionType == HWC_OVERLAY)
-                mYUVOverlay = i;
-        } else if (planeType == IntelDisplayPlane::DISPLAY_PLANE_RGB_OVERLAY) {
-            IntelRGBOverlayPlane *rgbOverlayPlane =
-                reinterpret_cast<IntelRGBOverlayPlane*>(plane);
-            uint32_t yuvBufferHandle =
-                rgbOverlayPlane->convert((uint32_t)grallocHandle,
-                                          srcWidth, srcHeight,
-                                          srcX, srcY);
-            if (!yuvBufferHandle) {
-                LOGE("updateLayersData: failed to convert\n");
-                continue;
-            }
-
-            grallocHandle = (intel_gralloc_buffer_handle_t*)yuvBufferHandle;
-            bufferWidth = grallocHandle->width;
-            bufferHeight = grallocHandle->height;
-            bufferHandle = grallocHandle->fd[GRALLOC_SUB_BUFFER0];
-            format = grallocHandle->format;
-
-            uint32_t grallocStride = align_to(bufferWidth, 32);
-
-            dataBuffer->setFormat(format);
-            dataBuffer->setStride(grallocStride);
-            dataBuffer->setWidth(bufferWidth);
-            dataBuffer->setHeight(bufferHeight);
-            dataBuffer->setCrop(srcX, srcY, srcWidth, srcHeight);
-            dataBuffer->setDeinterlaceType(0);
-
-            // set the data buffer back to plane
-            ret = rgbOverlayPlane->setDataBuffer(bufferHandle,
-                                                 0, grallocHandle);
-            if (!ret) {
-                LOGE("%s: failed to update overlay data buffer\n", __func__);
-                mLayerList->detachPlane(i, plane);
-                layer->compositionType = HWC_FRAMEBUFFER;
-                handled = false;
-            }
-        } else if (planeType == IntelDisplayPlane::DISPLAY_PLANE_SPRITE ||
-                   planeType == IntelDisplayPlane::DISPLAY_PLANE_PRIMARY) {
-
-            // adjust the buffer format if no blending is needed
-            // some test cases would fail due to a weird format!
-            if (layer->blending == HWC_BLENDING_NONE) {
-                switch (format) {
-                case HAL_PIXEL_FORMAT_BGRA_8888:
-                    format = HAL_PIXEL_FORMAT_BGRX_8888;
-                    break;
-                case HAL_PIXEL_FORMAT_RGBA_8888:
-                    format = HAL_PIXEL_FORMAT_RGBX_8888;
-                    break;
-                }
-            }
-
-            // set data buffer format
-            dataBuffer->setFormat(format);
-            dataBuffer->setWidth(bufferWidth);
-            dataBuffer->setHeight(bufferHeight);
-            dataBuffer->setCrop(srcX, srcY, srcWidth, srcHeight);
-            // set the data buffer back to plane
-            ret = plane->setDataBuffer(bufferHandle, transform, grallocHandle);
-            if (!ret) {
-                ALOGE("%s: failed to update sprite data buffer\n", __func__);
-                mLayerList->detachPlane(i, plane);
-                layer->compositionType = HWC_FRAMEBUFFER;
-                handled = false;
-            }
-        } else {
-            ALOGW("%s: invalid plane type %d\n", __func__, planeType);
-            continue;
-        }
-
-        // clear layer's visible region if need clear up flag was set
-        // and sprite plane was used as primary plane (point to FB)
-        if (mLayerList->getNeedClearup(i) &&
-            mPlaneManager->primaryAvailable(0)) {
-            ALOGD_IF(ALLOW_HWC_PRINT,
-                  "updateLayersData: clear visible region of layer %d", i);
-            list->hwLayers[i].hints |= HWC_HINT_CLEAR_FB;
-        }
-    }
-
-    return handled;
-}
 
 bool IntelMIPIDisplayDevice::flipFramebufferContexts(void *contexts)
 {
@@ -1461,3 +1039,72 @@ bool IntelMIPIDisplayDevice::getDisplayAttributes(uint32_t config,
 
     return true;
 }
+
+
+
+bool IntelMIPIDisplayDevice::overlayPrepare(int index, hwc_layer_1_t *layer, int flags)
+{
+
+    ALOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
+
+    if (!layer) {
+        ALOGE("%s: Invalid layer\n", __func__);
+        return false;
+    }
+    if(shouldHide(layer)){
+          layer->compositionType = HWC_OVERLAY;
+          return true;
+    }
+
+    //external not prepared
+
+    bool hasOverlay = mPlaneManager->hasFreeOverlays();
+    if(!hasOverlay){
+         return false;
+    }
+
+    // has overlay and haveOverlay.
+    // allocate overlay plane
+    IntelDisplayPlane *plane = mPlaneManager->getOverlayPlane();
+    if (!plane) {
+        ALOGE("%s: failed to create overlay plane\n", __func__);
+        return false;
+    }
+
+    int dstLeft = layer->displayFrame.left;
+    int dstTop = layer->displayFrame.top;
+    int dstRight = layer->displayFrame.right;
+    int dstBottom = layer->displayFrame.bottom;
+
+    IntelOverlayPlane *overlayP =
+        reinterpret_cast<IntelOverlayPlane *>(plane);
+
+    // setup plane parameters
+    overlayP->setPosition(dstLeft, dstTop, dstRight, dstBottom);
+
+    overlayP->setPipe(PIPE_MIPI0);
+
+    // attach plane to hwc layer
+    mLayerList->attachPlane(index, overlayP, flags);
+
+    return true;
+}
+
+/**
+* should hide this layer?
+*
+*/
+
+
+bool IntelMIPIDisplayDevice::shouldHide(hwc_layer_1_t *layer){
+     //TODO: hack for extended_mode
+    bool result = false;
+    if(mDrm->getDisplayMode() == OVERLAY_EXTEND){
+        result = true;
+    }
+
+    ALOGE("should hide  %s %s\n",__func__,result?"YES":"NO");
+
+    return result;
+}
+

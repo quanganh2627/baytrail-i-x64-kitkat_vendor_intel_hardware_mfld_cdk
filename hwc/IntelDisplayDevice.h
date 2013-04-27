@@ -157,6 +157,8 @@ protected:
     bool mHasSkipLayer;
     void handleSmartComposition(hwc_display_contents_1_t *list);
 
+    buffer_handle_t mPrevFlipHandles[10];
+
 protected:
     bool isForceOverlay(hwc_layer_1_t *layer);
     bool isBobDeinterlace(hwc_layer_1_t *layer);

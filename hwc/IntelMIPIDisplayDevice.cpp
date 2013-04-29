@@ -686,7 +686,7 @@ void IntelMIPIDisplayDevice::handleSmartComposition(hwc_display_contents_1_t *li
     // Only check if there is YUV overlay, has composition on framebuffer
     // and the layer number is limited.
     if (mYUVOverlay < 0 || !mHasGlesComposition || mHasSkipLayer ||
-        list->numHwLayers > 6){
+        list->numHwLayers > 6 || list->numHwLayers < 4){
         ALOGD_IF(mSkipComposition, "Leave smart composition mode");
         mSkipComposition = false;
         return;

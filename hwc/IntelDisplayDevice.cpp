@@ -644,6 +644,7 @@ bool IntelDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
         if (planeType == IntelDisplayPlane::DISPLAY_PLANE_OVERLAY) {
             if (mDrm->isOverlayOff()) {
                 plane->disable();
+                layer->compositionType = HWC_FRAMEBUFFER;
                 handled = false;
                 continue;
             }
@@ -733,7 +734,8 @@ bool IntelDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
                 layer->compositionType = HWC_FRAMEBUFFER;
                 handled = false;
             }
-            if (layer->compositionType == HWC_OVERLAY)
+            if (layer->compositionType == HWC_OVERLAY &&
+                format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12)
                 mYUVOverlay = i;
         } else if (planeType == IntelDisplayPlane::DISPLAY_PLANE_RGB_OVERLAY) {
             IntelRGBOverlayPlane *rgbOverlayPlane =

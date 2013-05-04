@@ -407,8 +407,10 @@ bool IntelMIPIDisplayDevice::isRGBOverlayLayer(hwc_display_contents_1_t *list,
     // Don't use it when:
     // 1) HDMI is connected
     // 2) there are YUV layers
+    // 3) video starts to playing
     if ((mDrm->getDisplayMode() == OVERLAY_EXTEND) ||
         (mDrm->getDisplayMode() == OVERLAY_CLONE_MIPI0) ||
+        (mDrm->isVideoPrepared()) ||
         (mLayerList->getYUVLayerCount())) {
         useRGBOverlay = false;
         goto out_check;
@@ -602,11 +604,21 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
     bool forceCheckingList = ((index >= 0) != mVideoSeekingActive);
     mVideoSeekingActive = (index >= 0);
 
+    // check whether video player status changed and then
+    // determine whether traversing the layer list and
+    // disable or enable RGBOverlay
+    static bool isVideoPrepared = false;
+    bool isPlayerStatusChanged =
+                (isVideoPrepared != mDrm->isVideoPrepared()) ? true : false;
+
+    if (isPlayerStatusChanged)
+        isVideoPrepared = mDrm->isVideoPrepared();
+
     // handle geometry changing. attach display planes to layers
     // which can be handled by HWC.
     // plane control information (e.g. position) will be set here
     if (!list || (list->flags & HWC_GEOMETRY_CHANGED) ||
-            mHotplugEvent || forceCheckingList) {
+            mHotplugEvent || forceCheckingList || isPlayerStatusChanged) {
         onGeometryChanged(list);
         mHotplugEvent = false;
 
@@ -641,8 +653,8 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
 
     handleSmartComposition(list);
 
-    if (list->flags & HWC_GEOMETRY_CHANGED)
-	    memset(&mPrevFlipHandles[0], 0, sizeof(mPrevFlipHandles));
+    if (list && (list->flags & HWC_GEOMETRY_CHANGED))
+        memset(&mPrevFlipHandles[0], 0, sizeof(mPrevFlipHandles));
 
     return true;
 }
@@ -674,7 +686,7 @@ void IntelMIPIDisplayDevice::handleSmartComposition(hwc_display_contents_1_t *li
     // Only check if there is YUV overlay, has composition on framebuffer
     // and the layer number is limited.
     if (mYUVOverlay < 0 || !mHasGlesComposition || mHasSkipLayer ||
-        list->numHwLayers > 6){
+        list->numHwLayers > 6 || list->numHwLayers < 4){
         ALOGD_IF(mSkipComposition, "Leave smart composition mode");
         mSkipComposition = false;
         return;

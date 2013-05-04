@@ -125,6 +125,8 @@ protected:
     bool updateLayersData(hwc_display_contents_1_t *list);
     void revisitLayerList(hwc_display_contents_1_t *list,
                                               bool isGeometryChanged);
+    int adjustSpriteBufferFormat(hwc_display_contents_1_t *list,
+                                 int index, int format);
 private:
     void updateZorderConfig();
     bool isBobDeinterlace(hwc_layer_1_t *layer);

@@ -62,6 +62,7 @@ using namespace android;
 IntelExternalDisplayMonitor::IntelExternalDisplayMonitor(IntelHWComposer *hwc) :
     mMDClient(NULL),
     mActiveDisplayMode(UNKNOWN_MDS_MODE),
+    mVideoPrepareState(MDS_VIDEO_UNPREPARED),
     mWidiOn(false),
     mInitialized(false),
     mComposer(hwc),
@@ -118,6 +119,8 @@ int IntelExternalDisplayMonitor::onMdsMessage(int msg, void *data, int size)
                 timing->width, timing->height,
                 timing->refresh, timing->ratio, timing->interlace);
         return mComposer->onUEvent(mLastMsg, data, size);
+    } else if (msg == MDS_SET_VIDEO_STATUS) {
+        mVideoPrepareState = *((int *)data);
     }
 
     if (msg == MDS_MODE_CHANGE) {
@@ -145,6 +148,15 @@ bool IntelExternalDisplayMonitor::isVideoPlaying()
 {
     if (checkMode(mActiveDisplayMode, MDS_VIDEO_PLAYING))
        return true;
+    return false;
+}
+
+bool IntelExternalDisplayMonitor::isVideoPrepared()
+{
+    if (mVideoPrepareState <= MDS_VIDEO_PREPARED) {
+        return true;
+    }
+
     return false;
 }
 
@@ -296,7 +308,8 @@ status_t IntelExternalDisplayMonitor::readyToRun()
         ALOGD_IF(ALLOW_MONITOR_PRINT, "Got MultiDisplay Service\n");
         if (mMDClient != NULL)
             mMDClient->registerListener(this, const_cast<char *>("HWComposer"),
-                    MDS_MODE_CHANGE | MDS_SET_TIMING | MDS_SET_BACKGROUND_VIDEO_MODE);
+                    MDS_MODE_CHANGE | MDS_SET_TIMING |
+                    MDS_SET_BACKGROUND_VIDEO_MODE | MDS_SET_VIDEO_STATUS);
     }
 
     return NO_ERROR;

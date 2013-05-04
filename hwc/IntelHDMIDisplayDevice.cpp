@@ -378,7 +378,8 @@ bool IntelHDMIDisplayDevice::needFlipOverlay(hwc_display_contents_1_t *list)
        }
     }
 
-   ALOGE("%s needFlipOverlay %s\n",__func__,result?"YES":"NO");
+   ALOGD_IF(ALLOW_HWC_PRINT, "%s needFlipOverlay %s\n",
+            __func__,result?"YES":"NO");
    return result;
 
 
@@ -448,10 +449,13 @@ bool IntelHDMIDisplayDevice::flipFramebufferContexts(void *contexts,
     uint32_t gttOffsetInPage = buffer->getGttOffsetInPage();
     uint32_t format = grallocHandle->format;
     uint32_t spriteFormat;
+    bool ignoreAlpha = (mLayerList->getYUVLayerCount() == 0);
 
     switch (format) {
         case HAL_PIXEL_FORMAT_RGBA_8888:
             spriteFormat = INTEL_SPRITE_PIXEL_FORMAT_RGBA8888;
+            if (ignoreAlpha)
+                spriteFormat = INTEL_SPRITE_PIXEL_FORMAT_RGBX8888;
             break;
         case HAL_PIXEL_FORMAT_RGBX_8888:
             spriteFormat = INTEL_SPRITE_PIXEL_FORMAT_RGBX8888;
@@ -461,6 +465,8 @@ bool IntelHDMIDisplayDevice::flipFramebufferContexts(void *contexts,
             break;
         case HAL_PIXEL_FORMAT_BGRA_8888:
             spriteFormat = INTEL_SPRITE_PIXEL_FORMAT_BGRA8888;
+            if (ignoreAlpha)
+                spriteFormat = INTEL_SPRITE_PIXEL_FORMAT_BGRX8888;
             break;
         default:
             spriteFormat = INTEL_SPRITE_PIXEL_FORMAT_BGRX8888;

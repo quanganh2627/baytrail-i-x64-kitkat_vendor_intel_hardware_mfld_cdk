@@ -135,6 +135,21 @@ void IntelDisplayDataBuffer::setCrop(int x, int y, int w, int h)
     mSrcY = y;
     mSrcWidth = w;
     mSrcHeight = h;
+
+    if (mSrcX < 0)
+        mSrcX = 0;
+
+    if (mSrcY < 0)
+        mSrcY = 0;
+
+    if ((mSrcX + mSrcWidth) > mWidth ) {
+        mSrcX = mWidth - mSrcWidth;
+    }
+
+    if ((mSrcY + mSrcHeight) > mHeight ) {
+        mSrcY = mHeight - mSrcHeight;
+    }
+
     mUpdateFlags |= SIZE_CHANGE;
 }
 

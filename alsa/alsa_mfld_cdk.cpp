@@ -28,7 +28,7 @@
 #include <media/AudioRecord.h>
 #include <hardware_legacy/AudioSystemLegacy.h>
 #include <signal.h>
-#include <property/Property.h>
+#include <Property.h>
 #include <string>
 
 #undef DISABLE_HARWARE_RESAMPLING

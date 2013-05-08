@@ -76,24 +76,17 @@ int IntelDisplayDevice::getMetaDataTransform(hwc_layer_1_t *layer,
         return 0;
     }
 
-    IntelDisplayBuffer *buffer =
-        mGrallocBufferManager->map(grallocHandle->fd[1]);
-    if (!buffer) {
-        ALOGE("%s: failed to map payload buffer.\n", __func__);
-        return -1;
-    }
+    // get payload buffer
+    IntelPayloadBuffer buffer(mGrallocBufferManager, grallocHandle->fd[1]);
 
     intel_gralloc_payload_t *payload =
-        (intel_gralloc_payload_t*)buffer->getCpuAddr();
+            (intel_gralloc_payload_t*)buffer.getCpuAddr();
     if (!payload) {
         ALOGE("%s: invalid address\n", __func__);
         return -1;
     }
 
     transform = payload->metadata_transform;
-
-    // unmap payload buffer
-    mGrallocBufferManager->unmap(buffer);
 
     return 0;
 }

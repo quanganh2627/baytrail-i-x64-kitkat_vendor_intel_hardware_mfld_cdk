@@ -140,7 +140,6 @@ public:
     bool getDisplayConfigs(int disp, uint32_t* configs, size_t* numConfigs);
     bool getDisplayAttributes(int disp, uint32_t config,
             const uint32_t* attributes, int32_t* values);
-    bool compositionComplete(int disp);
     bool setFramecount(int cmd, int count, int x, int y);
     IntelHWComposer()
         : IntelHWCUEventObserver(), IntelHWComposerDump(),

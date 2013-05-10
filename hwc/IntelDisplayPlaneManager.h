@@ -428,6 +428,7 @@ private:
         IntelDisplayBuffer *buffer;
     } mDataBuffers[SPRITE_DATA_BUFFER_NUM_MAX];
     int mNextBuffer;
+    int mPrevHitSlot;
 protected:
     virtual bool checkPosition(int& left, int& top, int& right, int& bottom);
 public:

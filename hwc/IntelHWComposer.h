@@ -72,7 +72,7 @@ public:
         DISPLAY_NUM = 3,
     };
 private:
-    IMG_framebuffer_device_public_t *mFBDev;
+    IMG_gralloc_module_public_t* mGrallocModule;
     IntelHWComposerDrm *mDrm;
     IntelBufferManager *mBufferManager;
     IntelBufferManager *mGrallocBufferManager;
@@ -143,7 +143,7 @@ public:
     bool compositionComplete(int disp);
     bool setFramecount(int cmd, int count, int x, int y);
     IntelHWComposer()
-        : IntelHWCUEventObserver(), IntelHWComposerDump(), mFBDev(0),
+        : IntelHWCUEventObserver(), IntelHWComposerDump(),
           mDrm(0), mBufferManager(0), mGrallocBufferManager(0),
           mCursorBufferManager(0), cursorDataBuffer(0),
           mPlaneManager(0),mProcs(0), mVsync(0), mFakeVsync(0),

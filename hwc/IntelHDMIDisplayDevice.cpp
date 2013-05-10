@@ -36,11 +36,9 @@
 IntelHDMIDisplayDevice::IntelHDMIDisplayDevice(IntelBufferManager *bm,
                                     IntelBufferManager *gm,
                                     IntelDisplayPlaneManager *pm,
-                                    IMG_framebuffer_device_public_t *fbdev,
                                     IntelHWComposerDrm *drm,
                                     uint32_t index)
                                   : IntelDisplayDevice(pm, drm, bm, gm, index),
-                                    mFBDev(fbdev),
                                     mGraphicPlaneVisible(true)
 {
     ALOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
@@ -54,12 +52,6 @@ IntelHDMIDisplayDevice::IntelHDMIDisplayDevice(IntelBufferManager *bm,
     // check buffer manager for gralloc buffer
     if (!mGrallocBufferManager) {
         ALOGE("%s: Invalid Gralloc buffer manager\n", __func__);
-        goto init_err;
-    }
-
-    // check IMG frame buffer device
-    if (!mFBDev) {
-        ALOGE("%s: failed to open IMG FB device\n", __func__);
         goto init_err;
     }
 
@@ -81,9 +73,6 @@ IntelHDMIDisplayDevice::IntelHDMIDisplayDevice(IntelBufferManager *bm,
         ALOGE("%s: Failed to create layer list\n", __func__);
         goto init_err;
     }
-
-    memset(mHDMIBuffers, 0, sizeof(mHDMIBuffers));
-    mNextBuffer = 0;
 
     mInitialized = true;
     return;
@@ -204,6 +193,8 @@ bool IntelHDMIDisplayDevice::prepare(hwc_display_contents_1_t *list)
 
 bool IntelHDMIDisplayDevice::commit(hwc_display_contents_1_t *list,
                                     buffer_handle_t *bh,
+                                    int* acquireFenceFd,
+                                    int** releaseFenceFd,
                                     int &numBuffers)
 {
     ALOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
@@ -250,11 +241,18 @@ bool IntelHDMIDisplayDevice::commit(hwc_display_contents_1_t *list,
         hwc_layer_1_t *target_layer = &list->hwLayers[list->numHwLayers-1];
         buffer_handle_t *bufferHandles = bh;
 
-        bool ret = flipFramebufferContexts(context, target_layer);
-        if (!ret)
+        if (!mGraphicPlaneVisible) {
+            ALOGD("%s: Skip FRAMEBUFFER_TARGET \n", __func__);
+            return false;
+        }
+
+        if (!mGraphicPlaneVisible || !flipFramebufferContexts(context, target_layer))
             ALOGV("%s: skip to flip HDMI fb context !\n", __func__);
-        else
+        else {
+            acquireFenceFd[numBuffers] = target_layer->acquireFenceFd;
+            releaseFenceFd[numBuffers] = &target_layer->releaseFenceFd;
             bufferHandles[numBuffers++] = target_layer->handle;
+        }
     } else if (list)
         ALOGV("%s: layernum: %d, no found of framebuffer_target!\n",
                                        __func__, list->numHwLayers);
@@ -267,125 +265,6 @@ bool IntelHDMIDisplayDevice::commit(hwc_display_contents_1_t *list,
 
 bool IntelHDMIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
 {
-    return true;
-}
-
-bool IntelHDMIDisplayDevice::flipFramebufferContexts(void *contexts,
-                                        hwc_layer_1_t *target_layer)
-{
-    ALOGD_IF(ALLOW_HWC_PRINT, "flipHDMIFrameBufferContexts");
-
-    if (!contexts) {
-        ALOGW("%s: Invalid plane contexts\n", __func__);
-        return false;
-    }
-
-    if (target_layer == NULL) {
-        ALOGW("%s: Invalid HDMI target layer\n", __func__);
-        return false;
-    }
-
-    intel_overlay_mode_t mode = mDrm->getDisplayMode();
-    if (!mGraphicPlaneVisible) {
-        ALOGD("%s: Skip FRAMEBUFFER_TARGET \n", __func__);
-        return false;
-    }
-
-    int output = 1;
-    //get target layer handler
-    intel_gralloc_buffer_handle_t *grallocHandle =
-    (intel_gralloc_buffer_handle_t*)target_layer->handle;
-
-    if (!grallocHandle)
-        return false;
-
-    //map HDMI buffer handler
-    IntelDisplayBuffer *buffer = NULL;
-
-    for (int i = 0; i < HDMI_BUF_NUM; i++) {
-        if (mHDMIBuffers[i].ui64Stamp == grallocHandle->ui64Stamp) {
-            ALOGD_IF(ALLOW_HWC_PRINT,
-                     "%s: buf stamp %lld...\n", __func__,grallocHandle->ui64Stamp);
-            buffer = mHDMIBuffers[i].buffer;
-            break;
-        }
-    }
-
-    if (!buffer) {
-        // release the buffer in the next slot
-        if (mHDMIBuffers[mNextBuffer].ui64Stamp ||
-                    mHDMIBuffers[mNextBuffer].buffer) {
-            mGrallocBufferManager->unmap(mHDMIBuffers[mNextBuffer].buffer);
-            mHDMIBuffers[mNextBuffer].ui64Stamp = 0;
-            mHDMIBuffers[mNextBuffer].buffer = 0;
-        }
-
-        buffer = mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER0]);
-
-        if (!buffer) {
-            ALOGE("%s: failed to map HDMI handle !\n", __func__);
-            return false;
-        }
-
-        mHDMIBuffers[mNextBuffer].ui64Stamp = grallocHandle->ui64Stamp;
-        mHDMIBuffers[mNextBuffer].buffer = buffer;
-        // move mNextBuffer pointer
-        mNextBuffer = (mNextBuffer + 1) % HDMI_BUF_NUM;
-    }
-
-    // update layer info;
-    uint32_t fbWidth = target_layer->sourceCrop.right;
-    uint32_t fbHeight = target_layer->sourceCrop.bottom;
-    uint32_t gttOffsetInPage = buffer->getGttOffsetInPage();
-    uint32_t format = grallocHandle->format;
-    uint32_t spriteFormat;
-
-    switch (format) {
-        case HAL_PIXEL_FORMAT_RGBA_8888:
-            spriteFormat = INTEL_SPRITE_PIXEL_FORMAT_RGBA8888;
-            break;
-        case HAL_PIXEL_FORMAT_RGBX_8888:
-            spriteFormat = INTEL_SPRITE_PIXEL_FORMAT_RGBX8888;
-            break;
-        case HAL_PIXEL_FORMAT_BGRX_8888:
-            spriteFormat = INTEL_SPRITE_PIXEL_FORMAT_BGRX8888;
-            break;
-        case HAL_PIXEL_FORMAT_BGRA_8888:
-            spriteFormat = INTEL_SPRITE_PIXEL_FORMAT_BGRA8888;
-            break;
-        default:
-            spriteFormat = INTEL_SPRITE_PIXEL_FORMAT_BGRX8888;
-            ALOGE("%s: unsupported format 0x%x\n", __func__, format);
-            return false;
-    }
-
-    // update context
-    mdfld_plane_contexts_t *planeContexts;
-    intel_sprite_context_t *context;
-
-    planeContexts = (mdfld_plane_contexts_t*)contexts;
-    context = &planeContexts->sprite_contexts[output];
-
-    context->update_mask = SPRITE_UPDATE_ALL;
-    context->index = output;
-    context->pipe = output;
-    context->linoff = 0;
-    // Display requires 64 bytes align, Gralloc does 32 pixels align
-    context->stride = align_to((4 * fbWidth), 128);
-    context->pos = 0;
-    context->size = ((fbHeight - 1) & 0xfff) << 16 | ((fbWidth - 1) & 0xfff);
-    context->surf = gttOffsetInPage << 12;
-
-    context->cntr = spriteFormat;
-    context->cntr |= 0x80000000;
-
-    ALOGD_IF(ALLOW_HWC_PRINT,
-            "HDMI Contexts gttoff:0x%x;stride:%d;format:0x%x;fbH:%d;fbW:%d\n",
-             gttOffsetInPage, context->stride, spriteFormat, fbHeight, fbWidth);
-
-    // update active primary
-    planeContexts->active_sprites |= (1 << output);
-
     return true;
 }
 

@@ -120,6 +120,10 @@ opened pcm device.*/
 
 static struct widi_stream_out *active_stream_out = NULL;
 
+/*Different audio streams across player sessions are
+  possible. hence save the stream state*/
+static char* gbgm_audio = "true";
+
 static int close_device(struct widi_stream_out *stream)
 {
     int err = 0;
@@ -775,6 +779,8 @@ static int widi_dev_set_parameters(struct audio_hw_device *dev, const char *kvpa
 {
     struct audio_device *adev = (struct audio_device *)dev;
     char *key,*value;
+    struct str_parms *param;
+    int keyvalue = 0;
     char * kvp = (char*)kvpairs;
     int err = 0;
 
@@ -788,15 +794,27 @@ static int widi_dev_set_parameters(struct audio_hw_device *dev, const char *kvpa
     key = strtok(kvp,"=");
     value = strtok(NULL, "=");
     if (key != NULL) {
-        if (strcmp(key, AUDIO_PARAMETER_KEY_REMOTE_BGM_STATE) == 0) {
+       if (strcmp(key, AUDIO_PARAMETER_KEY_REMOTE_BGM_STATE) == 0) {
            adev->bgmstate = strdup("false");
            if (value != NULL) {
                if (strcmp(value, "true") == 0) {
                   adev->bgmstate = strdup("true");
                }
-            }
-        }
+           }
+       }
+
+       if (strcmp(key, AUDIO_PARAMETER_VALUE_REMOTE_BGM_AUDIO) == 0) {
+           /*by default audio stream is active*/
+           gbgm_audio = strdup("true");
+           if (value != NULL) {
+               if (strcmp(value, "0") == 0) {
+                  gbgm_audio = strdup("false");
+               }
+           }
+           ALOGV("%s : audio state in BGM = %s",__func__,gbgm_audio);
+       }
     }
+
     return 0;
 }
 
@@ -804,22 +822,44 @@ static char * widi_dev_get_parameters(const struct audio_hw_device *dev,
                                   const char *keys)
 {
     struct audio_device *adev = (struct audio_device *)dev;
-    struct str_parms *parms = str_parms_create_str(keys);
     char value[32];
-    int ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_REMOTE_BGM_STATE,
-                                     value, sizeof(value));
-    char *str;
 
-    str_parms_destroy(parms);
-    if (ret >= 0) {
-        ALOGV("%s adev->bgmstate %s", __func__,adev->bgmstate);
-        parms = str_parms_create_str(adev->bgmstate);
-        str = str_parms_to_str(parms);
-        str = strtok(str, "=");
+    if (strcmp(keys, AUDIO_PARAMETER_KEY_REMOTE_BGM_STATE) == 0) {
+        struct str_parms *parms = str_parms_create_str(keys);
+        int ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_REMOTE_BGM_STATE,
+                                     value, sizeof(value));
+        char *str;
+
         str_parms_destroy(parms);
-        ALOGV("%s entered with key %s for which value is %s", __func__,keys,str);
-        return str;
+        if (ret >= 0) {
+           ALOGV("%s adev->bgmstate %s", __func__,adev->bgmstate);
+           parms = str_parms_create_str(adev->bgmstate);
+           str = str_parms_to_str(parms);
+           str = strtok(str, "=");
+           str_parms_destroy(parms);
+           ALOGV("%s entered with key %s for which value is %s", __func__,keys,str);
+           return str;
+        }
     }
+
+    if (strcmp(keys, AUDIO_PARAMETER_VALUE_REMOTE_BGM_AUDIO) == 0) {
+       struct str_parms *parms = str_parms_create_str(keys);
+       int ret = str_parms_get_str(parms, AUDIO_PARAMETER_VALUE_REMOTE_BGM_AUDIO,
+                                     value, sizeof(value));
+       char *str;
+
+       str_parms_destroy(parms);
+       if (ret >= 0) {
+          ALOGV("%s gbgm_audio %s", __func__,gbgm_audio);
+          parms = str_parms_create_str(gbgm_audio);
+          str = str_parms_to_str(parms);
+          str = strtok(str, "=");
+          str_parms_destroy(parms);
+          ALOGV("%s entered with key %s for which value is %s", __func__,keys,str);
+          return str;
+       }
+    }
+
     return strdup("");
 }
 

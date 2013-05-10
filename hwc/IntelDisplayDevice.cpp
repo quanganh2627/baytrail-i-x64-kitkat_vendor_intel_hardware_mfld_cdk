@@ -47,6 +47,9 @@ IntelDisplayDevice::IntelDisplayDevice(IntelDisplayPlaneManager *pm,
           mIsBlank(false), mVideoSeekingActive(false)
 {
     ALOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
+
+   memset(mFBBuffers, 0, sizeof(mFBBuffers));
+   mNextBuffer = 0;
 }
 
 IntelDisplayDevice::IntelDisplayDevice::~IntelDisplayDevice()
@@ -359,6 +362,98 @@ bool IntelDisplayDevice::isPrimaryLayer(hwc_display_contents_1_t *list,
                                      int& flags)
 {
    return false;
+}
+
+bool IntelDisplayDevice::flipFramebufferContexts(void *contexts,
+                                          hwc_layer_1_t *layer)
+{
+    intel_sprite_context_t *context;
+    mdfld_plane_contexts_t *planeContexts;
+    int zOrderConfig;
+    bool forceBottom = false;
+
+    ALOGD_IF(ALLOW_HWC_PRINT, "flipFrameBufferContexts");
+
+    if (!contexts) {
+        ALOGE("%s: Invalid plane contexts\n", __func__);
+        return false;
+    }
+
+    intel_gralloc_buffer_handle_t *grallocHandle =
+                 (intel_gralloc_buffer_handle_t*)layer->handle;
+
+    if (!grallocHandle)
+        return false;
+
+    IntelDisplayBuffer *buffer = NULL;
+
+    for (int i = 0; i < NUM_FB_BUFFERS; i++) {
+        if (mFBBuffers[i].ui64Stamp == grallocHandle->ui64Stamp) {
+            ALOGD_IF(ALLOW_HWC_PRINT,
+                     "%s: buf stamp %lld...\n", __func__,grallocHandle->ui64Stamp);
+            buffer = mFBBuffers[i].buffer;
+            break;
+        }
+    }
+
+    if (!buffer) {
+        // release the buffer in the next slot
+        if (mFBBuffers[mNextBuffer].ui64Stamp ||
+                    mFBBuffers[mNextBuffer].buffer) {
+            mGrallocBufferManager->unmap(mFBBuffers[mNextBuffer].buffer);
+            mFBBuffers[mNextBuffer].ui64Stamp = 0;
+            mFBBuffers[mNextBuffer].buffer = 0;
+        }
+
+        buffer = mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER0]);
+
+        if (!buffer) {
+            ALOGE("%s: failed to map HDMI handle !\n", __func__);
+            return false;
+        }
+
+        mFBBuffers[mNextBuffer].ui64Stamp = grallocHandle->ui64Stamp;
+        mFBBuffers[mNextBuffer].buffer = buffer;
+        // move mNextBuffer pointer
+        mNextBuffer = (mNextBuffer + 1) % NUM_FB_BUFFERS;
+    }
+
+    planeContexts = (mdfld_plane_contexts_t*)contexts;
+
+    uint32_t gttOffsetInPage = buffer->getGttOffsetInPage();
+
+    // update layer info;
+    uint32_t fbWidth = layer->sourceCrop.right;
+    uint32_t fbHeight = layer->sourceCrop.bottom;
+
+    context = &planeContexts->sprite_contexts[mDisplayIndex];
+    context->update_mask = SPRITE_UPDATE_ALL;
+    context->index = mDisplayIndex;
+    context->pipe = mDisplayIndex;
+    context->linoff = 0;
+
+    context->stride = align_to((4 * fbWidth), 128);
+    context->pos = 0;
+    context->size = ((fbHeight - 1) & 0xfff) << 16 | ((fbWidth - 1) & 0xfff);
+    context->surf = gttOffsetInPage << 12;
+
+    // config z order; switch z order may cause flicker
+    zOrderConfig = mPlaneManager->getZOrderConfig(mDisplayIndex);
+    if ((zOrderConfig == IntelDisplayPlaneManager::ZORDER_OcOaP) ||
+        (zOrderConfig == IntelDisplayPlaneManager::ZORDER_OaOcP))
+        forceBottom = true;
+
+    if (forceBottom) {
+        context->cntr = INTEL_SPRITE_FORCE_BOTTOM;
+    } else {
+        context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRA8888;
+    }
+    context->cntr |= 0x80000000;
+
+    // update active sprite
+    planeContexts->active_sprites |= (1 << mDisplayIndex);
+
+    return true;
 }
 
 void IntelDisplayDevice::dumpLayerList(hwc_display_contents_1_t *list)

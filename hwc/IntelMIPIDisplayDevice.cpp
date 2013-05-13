@@ -679,7 +679,7 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
 
             if (!hasSkipLayer) {
                 mDrm->notifyWidi(mVideoSentToWidi);
-                if (mLayerList->getLayersCount() == 1 && mLayerList->getYUVLayerCount())
+                if (mLayerList->getLayersCount() == 1)
                     mDrm->notifyMipi(false);
                 else
                     mDrm->notifyMipi(true);

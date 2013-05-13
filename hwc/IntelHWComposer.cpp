@@ -719,18 +719,18 @@ err:
     return false;
 }
 
-IMG_native_handle_t *IntelHWComposer::findVideoHandle(hwc_display_contents_1_t* list)
+intel_gralloc_buffer_handle_t *IntelHWComposer::findVideoHandle(hwc_display_contents_1_t* list)
 {
-    IMG_native_handle_t *foundHandle = NULL;
+    intel_gralloc_buffer_handle_t *foundHandle = NULL;
 
     if (list) {
         for (size_t i = 0; i < list->numHwLayers-1; i++) {
             hwc_layer_1_t& layer = list->hwLayers[i];
             if (layer.compositionType != HWC_BACKGROUND && layer.handle) {
-                IMG_native_handle_t *grallocHandle = (IMG_native_handle_t*)layer.handle;
-                if (grallocHandle->iFormat == HAL_PIXEL_FORMAT_INTEL_HWC_NV12 ||
-                    grallocHandle->iFormat == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
-                    grallocHandle->iFormat == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE)
+                intel_gralloc_buffer_handle_t *grallocHandle = (intel_gralloc_buffer_handle_t*)layer.handle;
+                if (grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12 ||
+                    grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
+                    grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE)
                 {
                     foundHandle = grallocHandle;
                 }
@@ -750,8 +750,8 @@ bool IntelHWComposer::prepareDisplays(size_t numDisplays,
 
     if (numDisplays >= HWC_NUM_DISPLAY_TYPES && displays[HWC_NUM_DISPLAY_TYPES])
     {
-        IMG_native_handle_t *videoHandleMipi = findVideoHandle(displays[HWC_DISPLAY_PRIMARY]);
-        IMG_native_handle_t *videoHandleWidi = findVideoHandle(displays[HWC_NUM_DISPLAY_TYPES]);
+        intel_gralloc_buffer_handle_t *videoHandleMipi = findVideoHandle(displays[HWC_DISPLAY_PRIMARY]);
+        intel_gralloc_buffer_handle_t *videoHandleWidi = findVideoHandle(displays[HWC_NUM_DISPLAY_TYPES]);
         if (videoHandleMipi == videoHandleWidi)
             mExtendedModeInfo.widiExtHandle = videoHandleMipi;
 
@@ -972,13 +972,13 @@ int IntelHWComposer::dumpLayerLists(size_t numDisplays,
         if (displays[disp]) {
             ALOGD("%d hwc_layers in display %d", displays[disp]->numHwLayers, disp);
             for (i = 0; i < displays[disp]->numHwLayers; i++) {
-                IMG_native_handle_t* handle =
-                       (IMG_native_handle_t*)displays[disp]->hwLayers[i].handle;
+                intel_gralloc_buffer_handle_t* handle =
+                       (intel_gralloc_buffer_handle_t*)displays[disp]->hwLayers[i].handle;
 		if (handle) {
                     ALOGD("handle=%p type=%d format=%x usage=%x stamp=%d fd[0]=%d",
 			    handle,
                             displays[disp]->hwLayers[i].compositionType,
-			    handle->iFormat,
+			    handle->format,
 			    handle->usage,
 			    handle->ui64Stamp,
 			    handle->fd[0]
@@ -996,12 +996,12 @@ int IntelHWComposer::dumpPost2Buffers(int num, buffer_handle_t* buffer)
 
     ALOGD("%d buffer handle in Post2", num);
     for (i = 0; i < num; i++) {
-        IMG_native_handle_t* handle =
-                (IMG_native_handle_t*)buffer[i];
+        intel_gralloc_buffer_handle_t* handle =
+                (intel_gralloc_buffer_handle_t*)buffer[i];
         if (handle) {
             ALOGD("handle=%p format=%x usage=%x stamp=%d fd[0]=%d",
                 handle,
-                handle->iFormat,
+                handle->format,
                 handle->usage,
                 handle->ui64Stamp,
                 handle->fd[0]

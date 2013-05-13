@@ -115,7 +115,7 @@ private:
     bool vsyncControl_l(int enabled);
     void signalHpdCompletion();
     void waitForHpdCompletion();
-    static IMG_native_handle_t *findVideoHandle(hwc_display_contents_1_t* list);
+    static intel_gralloc_buffer_handle_t *findVideoHandle(hwc_display_contents_1_t* list);
 
     bool mForceDumpPostBuffer;
     int dumpPost2Buffers(int num, buffer_handle_t* buffer);

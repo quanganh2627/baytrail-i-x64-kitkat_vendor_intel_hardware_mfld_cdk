@@ -117,12 +117,12 @@ WidiDisplayDevice::~WidiDisplayDevice()
     ALOGI("%s", __func__);
 }
 
-sp<WidiDisplayDevice::CachedBuffer> WidiDisplayDevice::getDisplayBuffer(IMG_native_handle_t* handle)
+sp<WidiDisplayDevice::CachedBuffer> WidiDisplayDevice::getDisplayBuffer(intel_gralloc_buffer_handle_t* handle)
 {
     ssize_t index = mDisplayBufferCache.indexOfKey(handle);
     sp<CachedBuffer> cachedBuffer;
     if (index == NAME_NOT_FOUND) {
-        IntelDisplayBuffer* displayBuffer = mGrallocBufferManager->map(handle->fd[1]);
+        IntelDisplayBuffer* displayBuffer = mGrallocBufferManager->map(handle->fd[GRALLOC_SUB_BUFFER1]);
         if (displayBuffer != NULL) {
             cachedBuffer = new CachedBuffer(mGrallocBufferManager, displayBuffer);
             mDisplayBufferCache.add(handle, cachedBuffer);
@@ -200,16 +200,16 @@ bool WidiDisplayDevice::prepare(hwc_display_contents_1_t *list)
         mNextConfig.forceNotify = false;
     }
 
-    IMG_native_handle_t* videoFrame = NULL;
+    intel_gralloc_buffer_handle_t* videoFrame = NULL;
     hwc_layer_1_t* videoLayer = NULL;
 
     if (mCurrentConfig.extendedModeEnabled && mExtendedModeInfo->widiExtHandle) {
         for (size_t i = 0; i < list->numHwLayers-1; i++) {
             hwc_layer_1_t& layer = list->hwLayers[i];
 
-            IMG_native_handle_t *grallocHandle = NULL;
+            intel_gralloc_buffer_handle_t *grallocHandle = NULL;
             if (layer.compositionType != HWC_BACKGROUND)
-                grallocHandle = (IMG_native_handle_t*)layer.handle;
+                grallocHandle = (intel_gralloc_buffer_handle_t*)layer.handle;
 
             if (grallocHandle == mExtendedModeInfo->widiExtHandle)
             {

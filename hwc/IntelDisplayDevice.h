@@ -61,7 +61,7 @@ class IntelDisplayVsync {
 };
 
 struct WidiExtendedModeInfo {
-    IMG_native_handle_t* widiExtHandle;
+    intel_gralloc_buffer_handle_t* widiExtHandle;
     bool videoSentToWidi;
 };
 

@@ -207,6 +207,26 @@ public:
     void unmap(IntelDisplayBuffer *buffer);
 };
 
+// FIXME: the same struct as IMG_native_handle_t
+// include hal.h instead of defining it here
+enum {
+    GRALLOC_SUB_BUFFER0 = 0,
+    GRALLOC_SUB_BUFFER1,
+    GRALLOC_SUB_BUFFER2,
+    GRALLOC_SUB_BUFFER_MAX,
+};
+typedef struct {
+    native_handle_t base;
+    int fd[GRALLOC_SUB_BUFFER_MAX];
+    unsigned long long ui64Stamp;
+    int usage;
+    int width;
+    int height;
+    int format;
+    int bpp;
+    int hint;
+}__attribute__((aligned(sizeof(int)),packed)) intel_gralloc_buffer_handle_t;
+
 enum {
     OUTPUT_FORCE_NULL = 0,
     OUTPUT_FORCE_GPU,

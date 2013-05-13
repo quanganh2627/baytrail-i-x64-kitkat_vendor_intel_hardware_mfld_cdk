@@ -62,12 +62,12 @@ protected:
     android::Mutex mListenerLock;
     FrameInfo mLastFrameInfo;
 
-    android::KeyedVector<IMG_native_handle_t*, android::sp<CachedBuffer> > mDisplayBufferCache;
+    android::KeyedVector<intel_gralloc_buffer_handle_t*, android::sp<CachedBuffer> > mDisplayBufferCache;
     android::Mutex mHeldBuffersLock;
     android::KeyedVector<uint32_t, android::sp<CachedBuffer> > mHeldBuffers;
 
 private:
-    android::sp<CachedBuffer> getDisplayBuffer(IMG_native_handle_t* handle);
+    android::sp<CachedBuffer> getDisplayBuffer(intel_gralloc_buffer_handle_t* handle);
 
 public:
     WidiDisplayDevice(IntelBufferManager *bm,

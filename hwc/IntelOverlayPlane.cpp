@@ -1483,7 +1483,7 @@ void IntelOverlayPlane::setPosition(int left, int top, int right, int bottom)
 }
 
 bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
-                                      intel_gralloc_buffer_handle_t* nHandle)
+                                      IMG_native_handle_t* nHandle)
 {
     unsigned long long ui64Stamp = 0ULL;
     IntelDisplayBuffer *buffer = 0;
@@ -1559,9 +1559,9 @@ bool IntelOverlayPlane::setDataBuffer(uint32_t handle, uint32_t flags,
     // update data buffer's yuv strides and continue
     overlayDataBuffer->setStride(yStride, uvStride);
 
-    int grallocBuffFd = (nHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
-                     nHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) ?
-                     nHandle->fd[GRALLOC_SUB_BUFFER1] : 0;
+    int grallocBuffFd = (nHandle->iFormat == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
+                     nHandle->iFormat == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) ?
+                     nHandle->fd[1] : 0;
 
     if (flags)
         bufferType = IntelBufferManager::TTM_BUFFER;
@@ -1920,8 +1920,8 @@ IntelRGBOverlayPlane::PixelFormatConverter::convertBuffer(uint32_t handle,
         return 0;
     }
 
-    intel_gralloc_buffer_handle_t* rgbBufferHandle =
-        (intel_gralloc_buffer_handle_t*)handle;
+    IMG_native_handle_t* rgbBufferHandle =
+        (IMG_native_handle_t*)handle;
 
     LOGD_IF(ALLOW_OVERLAY_PRINT, "convertBuffer: handle 0x%x\n", handle);
 

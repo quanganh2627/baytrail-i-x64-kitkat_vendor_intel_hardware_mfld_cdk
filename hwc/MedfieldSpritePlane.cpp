@@ -190,7 +190,7 @@ bool MedfieldSpritePlane::setDataBuffer(IntelDisplayBuffer& buffer)
     return false;
 }
 
-bool MedfieldSpritePlane::setDataBuffer(uint32_t handle, uint32_t flags, intel_gralloc_buffer_handle_t* nHandle)
+bool MedfieldSpritePlane::setDataBuffer(uint32_t handle, uint32_t flags, IMG_native_handle_t* nHandle)
 {
     unsigned long long ui64Stamp = nHandle->ui64Stamp;
     IntelDisplayBuffer *buffer = 0;

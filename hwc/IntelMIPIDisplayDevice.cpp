@@ -121,8 +121,8 @@ bool IntelMIPIDisplayDevice::isSpriteLayer(hwc_display_contents_1_t *list,
     if (!list || !layer)
         return false;
 
-    intel_gralloc_buffer_handle_t *grallocHandle =
-        (intel_gralloc_buffer_handle_t*)layer->handle;
+    IMG_native_handle_t *grallocHandle =
+        (IMG_native_handle_t*)layer->handle;
 
     if (!grallocHandle) {
         ALOGD_IF(ALLOW_HWC_PRINT, "%s: invalid gralloc handle\n", __func__);
@@ -132,7 +132,7 @@ bool IntelMIPIDisplayDevice::isSpriteLayer(hwc_display_contents_1_t *list,
     // check whether pixel format is supported RGB formats
     if (mLayerList->getLayerType(index) != IntelHWComposerLayer::LAYER_TYPE_RGB) {
         ALOGD_IF(ALLOW_HWC_PRINT,
-                "%s: invalid format 0x%x\n", __func__, grallocHandle->format);
+                "%s: invalid format 0x%x\n", __func__, grallocHandle->iFormat);
         useSprite = false;
         goto out_check;
     }
@@ -265,8 +265,8 @@ bool IntelMIPIDisplayDevice::isOverlayLayer(hwc_display_contents_1_t *list,
     if (!list || !layer)
         return false;
 
-    intel_gralloc_buffer_handle_t *grallocHandle =
-        (intel_gralloc_buffer_handle_t*)layer->handle;
+    IMG_native_handle_t *grallocHandle =
+        (IMG_native_handle_t*)layer->handle;
 
     if (!grallocHandle)
         return false;
@@ -390,8 +390,8 @@ bool IntelMIPIDisplayDevice::isRGBOverlayLayer(hwc_display_contents_1_t *list,
     if (!list || !layer)
         return false;
 
-    intel_gralloc_buffer_handle_t *grallocHandle =
-        (intel_gralloc_buffer_handle_t*)layer->handle;
+    IMG_native_handle_t *grallocHandle =
+        (IMG_native_handle_t*)layer->handle;
 
     if (!grallocHandle)
         return false;
@@ -424,8 +424,8 @@ bool IntelMIPIDisplayDevice::isRGBOverlayLayer(hwc_display_contents_1_t *list,
     }
 
     // check scaling
-    srcWidth = grallocHandle->width;
-    srcHeight = grallocHandle->height;
+    srcWidth = grallocHandle->iWidth;
+    srcHeight = grallocHandle->iHeight;
     dstWidth = layer->displayFrame.right - layer->displayFrame.left;
     dstHeight = layer->displayFrame.bottom - layer->displayFrame.top;
 
@@ -559,7 +559,7 @@ void IntelMIPIDisplayDevice::onGeometryChanged(hwc_display_contents_1_t *list)
 
         if (list->hwLayers[i].compositionType != HWC_BACKGROUND &&
             mExtendedModeInfo->widiExtHandle != NULL &&
-            mExtendedModeInfo->widiExtHandle == (intel_gralloc_buffer_handle_t*)list->hwLayers[i].handle)
+            mExtendedModeInfo->widiExtHandle == (IMG_native_handle_t*)list->hwLayers[i].handle)
         {
             if(mVideoSeekingActive)
                 list->hwLayers[i].compositionType = HWC_FRAMEBUFFER;
@@ -926,8 +926,8 @@ bool IntelMIPIDisplayDevice::useOverlayRotation(hwc_layer_1_t *layer,
     if (!layer)
         return false;
 
-    intel_gralloc_buffer_handle_t *grallocHandle =
-        (intel_gralloc_buffer_handle_t*)layer->handle;
+    IMG_native_handle_t *grallocHandle =
+        (IMG_native_handle_t*)layer->handle;
 
     if (!grallocHandle)
         return false;
@@ -935,11 +935,11 @@ bool IntelMIPIDisplayDevice::useOverlayRotation(hwc_layer_1_t *layer,
     // detect video mode change
     displayMode = mDrm->getDisplayMode();
 
-    if (grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
-        grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) {
+    if (grallocHandle->iFormat == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
+        grallocHandle->iFormat == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) {
         // map payload buffer
         IntelDisplayBuffer *buffer =
-            mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
+            mGrallocBufferManager->map(grallocHandle->fd[1]);
         if (!buffer) {
             ALOGE("%s: failed to map payload buffer.\n", __func__);
             return false;
@@ -1037,17 +1037,17 @@ bool IntelMIPIDisplayDevice::isForceOverlay(hwc_layer_1_t *layer)
     if (!layer)
         return false;
 
-    intel_gralloc_buffer_handle_t *grallocHandle =
-        (intel_gralloc_buffer_handle_t*)layer->handle;
+    IMG_native_handle_t *grallocHandle =
+        (IMG_native_handle_t*)layer->handle;
 
     if (!grallocHandle)
         return false;
 
-    if (grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
-        grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) {
+    if (grallocHandle->iFormat == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
+        grallocHandle->iFormat == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) {
         // map payload buffer
         IntelDisplayBuffer *buffer =
-            mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
+            mGrallocBufferManager->map(grallocHandle->fd[1]);
         if (!buffer) {
             ALOGE("%s: failed to map payload buffer.\n", __func__);
             return false;
@@ -1079,20 +1079,20 @@ bool IntelMIPIDisplayDevice::isBobDeinterlace(hwc_layer_1_t *layer)
     if (!layer)
         return bobDeinterlace;
 
-    intel_gralloc_buffer_handle_t *grallocHandle =
-        (intel_gralloc_buffer_handle_t*)layer->handle;
+    IMG_native_handle_t *grallocHandle =
+        (IMG_native_handle_t*)layer->handle;
 
     if (!grallocHandle) {
         return bobDeinterlace;
     }
 
-    if (grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED &&
-        grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE)
+    if (grallocHandle->iFormat != HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED &&
+        grallocHandle->iFormat != HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE)
         return bobDeinterlace;
 
     // map payload buffer
     IntelDisplayBuffer *buffer =
-        mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
+        mGrallocBufferManager->map(grallocHandle->fd[1]);
     if (!buffer) {
         ALOGE("%s: failed to map payload buffer.\n", __func__);
         return false;
@@ -1124,14 +1124,14 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
         if (!isHWCLayer(layer))
             continue;
 
-        intel_gralloc_buffer_handle_t *grallocHandle =
-            (intel_gralloc_buffer_handle_t*)layer->handle;
+        IMG_native_handle_t *grallocHandle =
+            (IMG_native_handle_t*)layer->handle;
         // need to wait for video buffer ready before setting data buffer
-        if (grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
-            grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) {
+        if (grallocHandle->iFormat == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
+            grallocHandle->iFormat == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) {
             // map payload buffer
             IntelDisplayBuffer *buffer =
-                mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
+                mGrallocBufferManager->map(grallocHandle->fd[1]);
             if (!buffer) {
                 ALOGE("%s: failed to map payload buffer.\n", __func__);
                 return false;
@@ -1187,10 +1187,10 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
             continue;
         }
 
-        int bufferWidth = grallocHandle->width;
-        int bufferHeight = grallocHandle->height;
-        uint32_t bufferHandle = grallocHandle->fd[GRALLOC_SUB_BUFFER0];
-        int format = grallocHandle->format;
+        int bufferWidth = grallocHandle->iWidth;
+        int bufferHeight = grallocHandle->iHeight;
+        uint32_t bufferHandle = grallocHandle->fd[0];
+        int format = grallocHandle->iFormat;
         uint32_t transform = layer->transform;
 
         if (planeType == IntelDisplayPlane::DISPLAY_PLANE_OVERLAY) {
@@ -1244,7 +1244,7 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
 
             // gralloc buffer is not aligned to 32 pixels
             uint32_t grallocStride = align_to(bufferWidth, 32);
-            int format = grallocHandle->format;
+            int format = grallocHandle->iFormat;
 
             dataBuffer->setFormat(format);
             dataBuffer->setStride(grallocStride);
@@ -1277,11 +1277,11 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
                 continue;
             }
 
-            grallocHandle = (intel_gralloc_buffer_handle_t*)yuvBufferHandle;
-            bufferWidth = grallocHandle->width;
-            bufferHeight = grallocHandle->height;
-            bufferHandle = grallocHandle->fd[GRALLOC_SUB_BUFFER0];
-            format = grallocHandle->format;
+            grallocHandle = (IMG_native_handle_t*)yuvBufferHandle;
+            bufferWidth = grallocHandle->iWidth;
+            bufferHeight = grallocHandle->iHeight;
+            bufferHandle = grallocHandle->fd[0];
+            format = grallocHandle->iFormat;
 
             uint32_t grallocStride = align_to(bufferWidth, 32);
 

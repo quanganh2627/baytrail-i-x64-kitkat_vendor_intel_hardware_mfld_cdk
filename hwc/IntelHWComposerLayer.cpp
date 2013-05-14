@@ -152,32 +152,32 @@ void IntelHWComposerLayerList::updateLayerList(hwc_display_contents_1_t *layerLi
         mLayerList[i].mIsProtected = false;
 
         // update layer format
-        intel_gralloc_buffer_handle_t *grallocHandle =
-            (intel_gralloc_buffer_handle_t*)layerList->hwLayers[i].handle;
+        IMG_native_handle_t *grallocHandle =
+            (IMG_native_handle_t*)layerList->hwLayers[i].handle;
 
         if (!grallocHandle)
             continue;
 
-        mLayerList[i].mFormat = grallocHandle->format;
+        mLayerList[i].mFormat = grallocHandle->iFormat;
 
-        if (grallocHandle->format == HAL_PIXEL_FORMAT_YV12 ||
-            grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12 ||
-            grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
-            grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_YUY2 ||
-            grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_UYVY ||
-            grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_I420 ||
-            grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) {
+        if (grallocHandle->iFormat == HAL_PIXEL_FORMAT_YV12 ||
+            grallocHandle->iFormat == HAL_PIXEL_FORMAT_INTEL_HWC_NV12 ||
+            grallocHandle->iFormat == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
+            grallocHandle->iFormat == HAL_PIXEL_FORMAT_INTEL_HWC_YUY2 ||
+            grallocHandle->iFormat == HAL_PIXEL_FORMAT_INTEL_HWC_UYVY ||
+            grallocHandle->iFormat == HAL_PIXEL_FORMAT_INTEL_HWC_I420 ||
+            grallocHandle->iFormat == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) {
             mLayerList[i].mLayerType = IntelHWComposerLayer::LAYER_TYPE_YUV;
             numYUVLayers++;
-        } else if (grallocHandle->format == HAL_PIXEL_FORMAT_RGB_565 ||
-            grallocHandle->format == HAL_PIXEL_FORMAT_BGRA_8888 ||
-            grallocHandle->format == HAL_PIXEL_FORMAT_BGRX_8888 ||
-            grallocHandle->format == HAL_PIXEL_FORMAT_RGBX_8888 ||
-            grallocHandle->format == HAL_PIXEL_FORMAT_RGBA_8888) {
+        } else if (grallocHandle->iFormat == HAL_PIXEL_FORMAT_RGB_565 ||
+            grallocHandle->iFormat == HAL_PIXEL_FORMAT_BGRA_8888 ||
+            grallocHandle->iFormat == HAL_PIXEL_FORMAT_BGRX_8888 ||
+            grallocHandle->iFormat == HAL_PIXEL_FORMAT_RGBX_8888 ||
+            grallocHandle->iFormat == HAL_PIXEL_FORMAT_RGBA_8888) {
             mLayerList[i].mLayerType = IntelHWComposerLayer::LAYER_TYPE_RGB;
             numRGBLayers++;
         } else
-            ALOGW("updateLayerList: unknown format 0x%x", grallocHandle->format);
+            ALOGW("updateLayerList: unknown format 0x%x", grallocHandle->iFormat);
 
         // check if a protected layer
         if (grallocHandle->usage & GRALLOC_USAGE_PROTECTED)

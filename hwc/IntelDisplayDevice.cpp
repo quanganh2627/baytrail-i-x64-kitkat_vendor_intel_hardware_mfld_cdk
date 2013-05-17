@@ -436,8 +436,11 @@ bool IntelDisplayDevice::flipFramebufferContexts(void *contexts,
         (zOrderConfig == IntelDisplayPlaneManager::ZORDER_OaOcP))
         forceBottom = true;
 
-    if (forceBottom) {
-        context->cntr = INTEL_SPRITE_FORCE_BOTTOM;
+    // if YUV layer count is zero, force fb to be bottom and bgrx format
+    // to solve blank screen of some 3D applications with premulti alpha.
+    if (forceBottom || (mLayerList->getYUVLayerCount() == 0)) {
+        context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRX8888;
+        context->cntr |= INTEL_SPRITE_FORCE_BOTTOM;
     } else {
         context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRA8888;
     }

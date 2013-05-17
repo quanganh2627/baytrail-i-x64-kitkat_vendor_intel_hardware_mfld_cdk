@@ -63,21 +63,21 @@ int IntelDisplayDevice::getMetaDataTransform(hwc_layer_1_t *layer,
     if (!layer || !mGrallocBufferManager)
         return -1;
 
-    intel_gralloc_buffer_handle_t *grallocHandle =
-        (intel_gralloc_buffer_handle_t*)layer->handle;
+    IMG_native_handle_t *grallocHandle =
+        (IMG_native_handle_t*)layer->handle;
     if(!grallocHandle) {
         ALOGE("%s: gralloc handle invalid.\n", __func__);
         return -1;
     }
 
-    if (grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED &&
-        grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) {
+    if (grallocHandle->iFormat != HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED &&
+        grallocHandle->iFormat != HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) {
         ALOGV("%s: SW decoder, ignore this checking.", __func__);
         return 0;
     }
 
     IntelDisplayBuffer *buffer =
-        mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
+        mGrallocBufferManager->map(grallocHandle->fd[1]);
     if (!buffer) {
         ALOGE("%s: failed to map payload buffer.\n", __func__);
         return -1;
@@ -176,8 +176,8 @@ int IntelDisplayDevice::checkVideoLayerHint(
         if (!layer)
             continue;
 
-        intel_gralloc_buffer_handle_t *grallocHandle =
-            (intel_gralloc_buffer_handle_t*)layer->handle;
+        IMG_native_handle_t *grallocHandle =
+            (IMG_native_handle_t*)layer->handle;
         if (!grallocHandle)
             continue;
 
@@ -379,8 +379,8 @@ bool IntelDisplayDevice::flipFramebufferContexts(void *contexts,
         return false;
     }
 
-    intel_gralloc_buffer_handle_t *grallocHandle =
-                 (intel_gralloc_buffer_handle_t*)layer->handle;
+    IMG_native_handle_t *grallocHandle =
+                 (IMG_native_handle_t*)layer->handle;
 
     if (!grallocHandle)
         return false;
@@ -405,7 +405,7 @@ bool IntelDisplayDevice::flipFramebufferContexts(void *contexts,
             mFBBuffers[mNextBuffer].buffer = 0;
         }
 
-        buffer = mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER0]);
+        buffer = mGrallocBufferManager->map(grallocHandle->fd[0]);
 
         if (!buffer) {
             ALOGE("%s: failed to map HDMI handle !\n", __func__);
@@ -608,8 +608,8 @@ bool IntelDisplayDevice::isHWCLayer(hwc_layer_1_t *layer)
     // if (!isHWCBlending(layer->blending))
     //    return false;
 
-    intel_gralloc_buffer_handle_t *grallocHandle =
-        (intel_gralloc_buffer_handle_t*)layer->handle;
+    IMG_native_handle_t *grallocHandle =
+        (IMG_native_handle_t*)layer->handle;
 
     if (!grallocHandle)
         return false;
@@ -619,7 +619,7 @@ bool IntelDisplayDevice::isHWCLayer(hwc_layer_1_t *layer)
         return false;
 
     // check format
-    // if (!isHWCFormat(grallocHandle->format))
+    // if (!isHWCFormat(grallocHandle->iFormat))
     //    return false;
 
     return true;

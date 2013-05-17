@@ -138,7 +138,7 @@ public:
         mPosition.right = right;
         mPosition.bottom = bottom;
     }
-    virtual bool setDataBuffer(uint32_t handle, uint32_t flags, intel_gralloc_buffer_handle_t* nHandle) { return true; }
+    virtual bool setDataBuffer(uint32_t handle, uint32_t flags, IMG_native_handle_t* nHandle) { return true; }
     virtual bool setDataBuffer(IntelDisplayBuffer& buffer) {
         mDataBuffer = &buffer;
         return true;
@@ -335,7 +335,7 @@ public:
     IntelOverlayPlane(int fd, int index, IntelBufferManager *bufferManager);
     virtual ~IntelOverlayPlane();
     virtual void setPosition(int left, int top, int right, int bottom);
-    virtual bool setDataBuffer(uint32_t handle, uint32_t flags, intel_gralloc_buffer_handle_t* nHandle);
+    virtual bool setDataBuffer(uint32_t handle, uint32_t flags, IMG_native_handle_t* nHandle);
     virtual bool setDataBuffer(IntelDisplayBuffer& buffer);
 
     virtual bool invalidateDataBuffer();
@@ -436,7 +436,7 @@ public:
     ~MedfieldSpritePlane();
     virtual void setPosition(int left, int top, int right, int bottom);
     virtual bool setDataBuffer(IntelDisplayBuffer& buffer);
-    virtual bool setDataBuffer(uint32_t handle, uint32_t flags, intel_gralloc_buffer_handle_t* nHandle);
+    virtual bool setDataBuffer(uint32_t handle, uint32_t flags, IMG_native_handle_t* nHandle);
     virtual bool invalidateDataBuffer();
     virtual bool flip(void *context, uint32_t flags);
     virtual bool reset();

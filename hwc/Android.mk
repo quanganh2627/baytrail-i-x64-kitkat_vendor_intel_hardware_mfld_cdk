@@ -88,7 +88,6 @@ LOCAL_C_INCLUDES := $(addprefix $(LOCAL_PATH)/../../, $(SGX_INCLUDES)) \
             $(TARGET_OUT_HEADERS)/libwsbm/wsbm \
             $(TARGET_OUT_HEADERS)/libttm \
             $(TARGET_OUT_HEADERS)/widi \
-            $(addprefix $(LOCAL_PATH),libhwcwidi)
 
 ifeq ($(TARGET_HAS_MULTIPLE_DISPLAY),true)
     LOCAL_CFLAGS += -DTARGET_HAS_MULTIPLE_DISPLAY
@@ -108,9 +107,5 @@ ifeq ($(BOARD_OVERLAY_USE_SECONDARY_GAMMA),true)
 endif
 
 include $(BUILD_SHARED_LIBRARY)
-
-ifeq ($(INTEL_WIDI), true)
-include $(LOCAL_PATH)/libhwcwidi/Android.mk
-endif
 
 endif

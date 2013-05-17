@@ -9,9 +9,10 @@ LOCAL_C_INCLUDES += \
     $(TARGET_OUT_HEADERS)/full_rw
 
 LOCAL_SRC_FILES := \
-    proxy_main.c \
+    ad_proxy.c \
     ad_i2c.c \
-    ad_usb_tty.c
+    ad_usb_tty.c \
+    main.c
 
 LOCAL_SHARED_LIBRARIES := \
     libsysutils \

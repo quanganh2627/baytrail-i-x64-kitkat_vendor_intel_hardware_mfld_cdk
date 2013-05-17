@@ -663,12 +663,3 @@ bool IntelHDMIDisplayDevice::overlayPrepare(int index, hwc_layer_1_t *layer, int
 
 }
 
-void IntelHDMIDisplayDevice::onHotplugEvent(bool hpd)
-{
-    IntelDisplayDevice::onHotplugEvent(hpd);
-
-    if (mDrm->getDisplayMode() == OVERLAY_MIPI0) {
-        mLayerList->invalidatePlanes();
-        mLayerList->updateLayerList(NULL);
-    }
-}

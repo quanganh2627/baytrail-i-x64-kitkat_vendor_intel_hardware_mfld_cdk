@@ -171,8 +171,6 @@ protected:
     bool mHasSkipLayer;
     void handleSmartComposition(hwc_display_contents_1_t *list);
 
-    buffer_handle_t mPrevFlipHandles[10];
-
 protected:
     bool isForceOverlay(hwc_layer_1_t *layer);
     void updateZorderConfig();
@@ -260,6 +258,7 @@ public:
                         buffer_handle_t *bh, int &numBuffers);
     virtual bool dump(char *buff, int buff_len, int *cur_len);
 
+    virtual void onHotplugEvent(bool hpd);
     virtual bool getDisplayConfig(uint32_t* configs, size_t* numConfigs);
     virtual bool getDisplayAttributes(uint32_t config,
             const uint32_t* attributes, int32_t* values);

@@ -90,8 +90,6 @@ IntelMIPIDisplayDevice::IntelMIPIDisplayDevice(IntelBufferManager *bm,
     mHasSkipLayer = false;
     memset(&mLastHandles[0], 0, sizeof(mLastHandles));
 
-    memset(&mPrevFlipHandles[0], 0, sizeof(mPrevFlipHandles));
-
     mInitialized = true;
     return;
 
@@ -637,7 +635,7 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
 
             if (!hasSkipLayer) {
                 mDrm->notifyWidi(mVideoSentToWidi);
-                if (mLayerList->getLayersCount() == 1)
+                if (mLayerList->getLayersCount() == 1 && mLayerList->getYUVLayerCount())
                     mDrm->notifyMipi(false);
                 else
                     mDrm->notifyMipi(true);
@@ -652,9 +650,6 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
     }
 
     handleSmartComposition(list);
-
-    if (list && (list->flags & HWC_GEOMETRY_CHANGED))
-        memset(&mPrevFlipHandles[0], 0, sizeof(mPrevFlipHandles));
 
     return true;
 }
@@ -804,25 +799,8 @@ bool IntelMIPIDisplayDevice::commit(hwc_display_contents_1_t *list,
             if (!ret)
                 ALOGW("%s: failed to flip plane %d context !\n", __func__, i);
             else {
-                int planeType = plane->getPlaneType();
-                buffer_handle_t handle =
-                    (buffer_handle_t)plane->getDataBufferHandle();
-
-                if ((planeType == IntelDisplayPlane::DISPLAY_PLANE_PRIMARY ||
-                     planeType == IntelDisplayPlane::DISPLAY_PLANE_SPRITE) &&
-                    (i < 10 && handle == mPrevFlipHandles[i])) {
-                    // If we post two consecutive same buffers through
-                    // primary plane, don't pass buffer handle to avoid
-                    // SGX deadlock issue
-                    ALOGD("same RGB buffer handle %p", handle);
-                } else {
                     bufferHandles[numBuffers++] =
                         (buffer_handle_t)plane->getDataBufferHandle();
-                    if (i < 10) {
-                        mPrevFlipHandles[i] =
-			    (buffer_handle_t)plane->getDataBufferHandle();
-                    }
-                }
             }
 
             // clear flip flags, except for DELAY_DISABLE

@@ -18,18 +18,18 @@
  ** Zhang, Dongsheng <dongsheng.zhang@intel.com>
  **
  */
-
-#include <errno.h>
-#include <termios.h>
-
-#include "full_rw.h"
+#include "ad_i2c.h"
+#include "ad_usb_tty.h"
+#include "ad_proxy.h"
 
 #define LOG_TAG "ad_proxy"
 #include "cutils/log.h"
 
-#include "ad_i2c.h"
-#include "ad_usb_tty.h"
-#include "ad_proxy.h"
+#include <errno.h>
+#include <termios.h>
+#include <string.h>
+#include <stdlib.h>
+#include <full_rw.h>
 
 #define AD_VERSION "V1.3"
 

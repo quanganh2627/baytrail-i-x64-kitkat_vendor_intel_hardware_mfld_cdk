@@ -156,16 +156,16 @@ bool IntelHWCWrapper::post_commit(hwc_display_t dpy,
 
 bool IntelHWCWrapper::isYUVLayer(hwc_layer_1_t* hwcl)
 {
-    intel_gralloc_buffer_handle_t* grallocHandle =
-        (intel_gralloc_buffer_handle_t*)hwcl->handle;
+    IMG_native_handle_t* grallocHandle =
+        (IMG_native_handle_t*)hwcl->handle;
 
     return (grallocHandle &&
-            (grallocHandle->format == HAL_PIXEL_FORMAT_YV12 ||
-             grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
-             grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12 ||
-             grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_YUY2 ||
-             grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_UYVY ||
-             grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_I420));
+            (grallocHandle->iFormat == HAL_PIXEL_FORMAT_YV12 ||
+             grallocHandle->iFormat == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
+             grallocHandle->iFormat == HAL_PIXEL_FORMAT_INTEL_HWC_NV12 ||
+             grallocHandle->iFormat == HAL_PIXEL_FORMAT_INTEL_HWC_YUY2 ||
+             grallocHandle->iFormat == HAL_PIXEL_FORMAT_INTEL_HWC_UYVY ||
+             grallocHandle->iFormat == HAL_PIXEL_FORMAT_INTEL_HWC_I420));
 }
 
 bool IntelHWCWrapper::isIntersectRect(hwc_rect_t* r1, hwc_rect_t* r2)

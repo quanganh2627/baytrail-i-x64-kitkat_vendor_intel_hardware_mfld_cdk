@@ -82,6 +82,16 @@ WidiDisplayDevice::WidiDisplayDevice(IntelBufferManager *bm,
 
     mLayerList = NULL; // not used
 
+    mNextConfig.typeChangeListener = NULL;
+    mNextConfig.policy.scaledWidth = 0;
+    mNextConfig.policy.scaledHeight = 0;
+    mNextConfig.policy.xdpi = 96;
+    mNextConfig.policy.ydpi = 96;
+    mNextConfig.policy.refresh = 60;
+    mNextConfig.extendedModeEnabled = false;
+    mNextConfig.forceNotify = false;
+    mCurrentConfig = mNextConfig;
+
     memset(&mLastFrameInfo, 0, sizeof(mLastFrameInfo));
 
     mInitialized = true;
@@ -107,12 +117,12 @@ WidiDisplayDevice::~WidiDisplayDevice()
     ALOGI("%s", __func__);
 }
 
-sp<WidiDisplayDevice::CachedBuffer> WidiDisplayDevice::getDisplayBuffer(intel_gralloc_buffer_handle_t* handle)
+sp<WidiDisplayDevice::CachedBuffer> WidiDisplayDevice::getDisplayBuffer(IMG_native_handle_t* handle)
 {
     ssize_t index = mDisplayBufferCache.indexOfKey(handle);
     sp<CachedBuffer> cachedBuffer;
     if (index == NAME_NOT_FOUND) {
-        IntelDisplayBuffer* displayBuffer = mGrallocBufferManager->map(handle->fd[GRALLOC_SUB_BUFFER1]);
+        IntelDisplayBuffer* displayBuffer = mGrallocBufferManager->map(handle->fd[1]);
         if (displayBuffer != NULL) {
             cachedBuffer = new CachedBuffer(mGrallocBufferManager, displayBuffer);
             mDisplayBufferCache.add(handle, cachedBuffer);
@@ -124,18 +134,31 @@ sp<WidiDisplayDevice::CachedBuffer> WidiDisplayDevice::getDisplayBuffer(intel_gr
     return cachedBuffer;
 }
 
-status_t WidiDisplayDevice::start(sp<IFrameTypeChangeListener> typeChangeListener) {
+status_t WidiDisplayDevice::start(sp<IFrameTypeChangeListener> typeChangeListener, bool disableExtVideoMode) {
     ALOGD_IF(ALLOW_WIDI_PRINT, "%s", __func__);
-    Mutex::Autolock _l(mListenerLock);
-    mTypeChangeListener = typeChangeListener;
-    memset(&mLastFrameInfo, 0, sizeof(mLastFrameInfo));
+    Mutex::Autolock _l(mConfigLock);
+    mNextConfig.typeChangeListener = typeChangeListener;
+    mNextConfig.policy.scaledWidth = 0;
+    mNextConfig.policy.scaledHeight = 0;
+    mNextConfig.policy.xdpi = 96;
+    mNextConfig.policy.ydpi = 96;
+    mNextConfig.policy.refresh = 60;
+    mNextConfig.extendedModeEnabled = !disableExtVideoMode;
+    mNextConfig.forceNotify = true;
     return NO_ERROR;
 }
 
 status_t WidiDisplayDevice::stop(bool isConnected) {
     ALOGD_IF(ALLOW_WIDI_PRINT, "%s", __func__);
-    Mutex::Autolock _l(mListenerLock);
-    mTypeChangeListener = NULL;
+    Mutex::Autolock _l(mConfigLock);
+    mNextConfig.typeChangeListener = NULL;
+    mNextConfig.policy.scaledWidth = 0;
+    mNextConfig.policy.scaledHeight = 0;
+    mNextConfig.policy.xdpi = 96;
+    mNextConfig.policy.ydpi = 96;
+    mNextConfig.policy.refresh = 60;
+    mNextConfig.extendedModeEnabled = false;
+    mNextConfig.forceNotify = false;
     return NO_ERROR;
 }
 
@@ -155,6 +178,13 @@ status_t WidiDisplayDevice::notifyBufferReturned(int khandle) {
     return NO_ERROR;
 }
 
+status_t WidiDisplayDevice::setResolution(const FrameProcessingPolicy& policy, sp<IFrameListener> listener) {
+    Mutex::Autolock _l(mConfigLock);
+    mNextConfig.frameListener = listener;
+    mNextConfig.policy = policy;
+    return NO_ERROR;
+}
+
 bool WidiDisplayDevice::prepare(hwc_display_contents_1_t *list)
 {
     ALOGD_IF(ALLOW_WIDI_PRINT, "%s", __func__);
@@ -164,16 +194,22 @@ bool WidiDisplayDevice::prepare(hwc_display_contents_1_t *list)
         return false;
     }
 
-    intel_gralloc_buffer_handle_t* videoFrame = NULL;
+    {
+        Mutex::Autolock _l(mConfigLock);
+        mCurrentConfig = mNextConfig;
+        mNextConfig.forceNotify = false;
+    }
+
+    IMG_native_handle_t* videoFrame = NULL;
     hwc_layer_1_t* videoLayer = NULL;
 
-    if (mExtendedModeInfo->widiExtHandle) {
+    if (mCurrentConfig.extendedModeEnabled && mExtendedModeInfo->widiExtHandle) {
         for (size_t i = 0; i < list->numHwLayers-1; i++) {
             hwc_layer_1_t& layer = list->hwLayers[i];
 
-            intel_gralloc_buffer_handle_t *grallocHandle = NULL;
+            IMG_native_handle_t *grallocHandle = NULL;
             if (layer.compositionType != HWC_BACKGROUND)
-                grallocHandle = (intel_gralloc_buffer_handle_t*)layer.handle;
+                grallocHandle = (IMG_native_handle_t*)layer.handle;
 
             if (grallocHandle == mExtendedModeInfo->widiExtHandle)
             {
@@ -184,14 +220,8 @@ bool WidiDisplayDevice::prepare(hwc_display_contents_1_t *list)
         }
     }
 
-    sp<IFrameTypeChangeListener> typeChangeListener;
-    {
-        Mutex::Autolock _l(mListenerLock);
-        typeChangeListener = mTypeChangeListener;
-    }
-
-    if (typeChangeListener != NULL) {
-        bool extActive = false;
+    bool extActive = false;
+    if (mCurrentConfig.typeChangeListener != NULL) {
         FrameInfo frameInfo;
 
         if (videoFrame != NULL && mDrm->isVideoPlaying()) {
@@ -258,19 +288,19 @@ bool WidiDisplayDevice::prepare(hwc_display_contents_1_t *list)
         if (!extActive)
         {
             memset(&frameInfo, 0, sizeof(frameInfo));
-            frameInfo.frameType = HWC_FRAMETYPE_FRAME_BUFFER;
+            frameInfo.frameType = HWC_FRAMETYPE_NOTHING;
         }
 
-        if (memcmp(&frameInfo, &mLastFrameInfo, sizeof(frameInfo)) != 0) {
+        if (mCurrentConfig.forceNotify || memcmp(&frameInfo, &mLastFrameInfo, sizeof(frameInfo)) != 0) {
             // something changed, notify type change listener
-            mFrameListener = typeChangeListener->frameTypeChanged(frameInfo);
+            mCurrentConfig.typeChangeListener->frameTypeChanged(frameInfo);
+            mCurrentConfig.typeChangeListener->bufferInfoChanged(frameInfo);
 
             mExtLastTimestamp = 0;
             mExtLastKhandle = 0;
 
-            if (frameInfo.frameType == HWC_FRAMETYPE_FRAME_BUFFER) {
+            if (frameInfo.frameType == HWC_FRAMETYPE_NOTHING) {
                 mDisplayBufferCache.clear();
-                mFrameListener = NULL;
                 ALOGI("Clone mode");
             }
             else {
@@ -283,10 +313,7 @@ bool WidiDisplayDevice::prepare(hwc_display_contents_1_t *list)
         }
     }
 
-    if (mFrameListener == NULL) {
-        mExtendedModeInfo->widiExtHandle = NULL;
-    }
-    else {
+    if (extActive) {
         // tell surfaceflinger to not render the layers if we're
         // in extended video mode
         for (size_t i = 0; i < list->numHwLayers-1; i++) {
@@ -296,6 +323,34 @@ bool WidiDisplayDevice::prepare(hwc_display_contents_1_t *list)
                 layer.flags |= HWC_HINT_DISABLE_ANIMATION;
             }
         }
+        if (mCurrentConfig.frameListener != NULL) {
+            sp<CachedBuffer> cachedBuffer = getDisplayBuffer(videoFrame);
+            if (cachedBuffer == NULL) {
+                ALOGE("%s: Failed to map display buffer", __func__);
+                return true;
+            }
+            intel_gralloc_payload_t *p = (intel_gralloc_payload_t*)cachedBuffer->displayBuffer->getCpuAddr();
+            if (p == NULL) {
+                ALOGE("%s: Got null payload from display buffer", __func__);
+                return true;
+            }
+            int64_t timestamp = p->timestamp;
+            uint32_t khandle = (p->metadata_transform == 0) ? p->khandle : p->rotated_buffer_handle;
+            if (timestamp == mExtLastTimestamp && khandle == mExtLastKhandle)
+                return true;
+
+            mExtLastTimestamp = timestamp;
+            mExtLastKhandle = khandle;
+
+            if (mCurrentConfig.frameListener->onFrameReady(khandle, HWC_HANDLE_TYPE_KBUF, systemTime(), timestamp) == OK) {
+                p->renderStatus = 1;
+                Mutex::Autolock _l(mHeldBuffersLock);
+                mHeldBuffers.add(khandle, cachedBuffer);
+            }
+        }
+    }
+    else {
+        mExtendedModeInfo->widiExtHandle = NULL;
     }
 
     // handle hotplug event here
@@ -316,49 +371,6 @@ bool WidiDisplayDevice::commit(hwc_display_contents_1_t *list,
     if (!initCheck()) {
         ALOGE("%s: failed to initialize HWComposer", __func__);
         return false;
-    }
-
-    intel_gralloc_buffer_handle_t* videoFrame = NULL;
-
-    for (size_t i = 0; list && i < list->numHwLayers-1; i++) {
-        hwc_layer_1_t& layer = list->hwLayers[i];
-        intel_gralloc_buffer_handle_t *grallocHandle = NULL;
-        if (layer.compositionType != HWC_BACKGROUND)
-            grallocHandle = (intel_gralloc_buffer_handle_t*)layer.handle;
-
-        if (grallocHandle && (grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12 ||
-                              grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
-                              grallocHandle->format == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE))
-        {
-            videoFrame = grallocHandle;
-            break;
-        }
-    }
-
-    if (mFrameListener != NULL && videoFrame != NULL) {
-        sp<CachedBuffer> cachedBuffer = getDisplayBuffer(videoFrame);
-        if (cachedBuffer == NULL) {
-            ALOGE("%s: Failed to map display buffer", __func__);
-            return true;
-        }
-        intel_gralloc_payload_t *p = (intel_gralloc_payload_t*)cachedBuffer->displayBuffer->getCpuAddr();
-        if (p == NULL) {
-            ALOGE("%s: Got null payload from display buffer", __func__);
-            return true;
-        }
-        int64_t timestamp = p->timestamp;
-        uint32_t khandle = (p->metadata_transform == 0) ? p->khandle : p->rotated_buffer_handle;
-        if (timestamp == mExtLastTimestamp && khandle == mExtLastKhandle)
-            return true;
-
-        mExtLastTimestamp = timestamp;
-        mExtLastKhandle = khandle;
-
-        if (mFrameListener->bufferAvailable(khandle, timestamp) == OK) {
-            p->renderStatus = 1;
-            Mutex::Autolock _l(mHeldBuffersLock);
-            mHeldBuffers.add(khandle, cachedBuffer);
-        }
     }
 
     return true;

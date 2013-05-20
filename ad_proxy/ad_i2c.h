@@ -28,11 +28,12 @@
 #define AD_IOCTL_MAGIC 'u'
 #define AD_ENABLE_CLOCK   _IO(AD_IOCTL_MAGIC, 0x03)
 
-#define AD_I2C_OP_DEFAULT_DELAY  10000  //in us
-#define AD_I2C_OP_MAX_DELAY  100000  //in us
-
-
-int ad_i2c_init(int op_delay);
+/**
+ * Initialize i2c module sending SYNC command to the audience chip.
+ *
+ * @return int value of the file descriptor
+ */
+int ad_i2c_init(void);
 void ad_i2c_exit(void);
 int ad_i2c_read(unsigned char *buf, int len);
 int ad_i2c_write(unsigned char *buf, int len);

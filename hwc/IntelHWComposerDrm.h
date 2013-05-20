@@ -202,6 +202,7 @@ public:
     intel_overlay_mode_t getDisplayMode();
     intel_overlay_mode_t getOldDisplayMode();
     bool isVideoPlaying();
+    bool isVideoPrepared();
     bool isOverlayOff();
     bool isHdmiConnected();
     bool notifyMipi(bool);

@@ -119,6 +119,7 @@ protected:
     virtual bool isVideoPutInWindow(int output, hwc_layer_1_t *layer);
     virtual int  getMetaDataTransform(hwc_layer_1_t *layer,
             uint32_t &transform);
+    virtual int resetClientTransform(hwc_layer_1_t *layer);
     virtual int checkVideoLayerHint(hwc_display_contents_1_t *list,
             uint32_t hint);
     //*not virtual as not intend for override.Just for implemetation inheritence*/

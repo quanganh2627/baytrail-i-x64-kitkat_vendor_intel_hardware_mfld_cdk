@@ -95,6 +95,47 @@ int IntelDisplayDevice::getMetaDataTransform(hwc_layer_1_t *layer,
     return 0;
 }
 
+int IntelDisplayDevice::resetClientTransform(hwc_layer_1_t *layer)
+{
+    if (!layer || !mGrallocBufferManager)
+        return -1;
+
+    intel_gralloc_buffer_handle_t *grallocHandle =
+        (intel_gralloc_buffer_handle_t*)layer->handle;
+    if (!grallocHandle) {
+        ALOGE("%s: gralloc handle invalid.\n", __func__);
+        return -1;
+    }
+
+    if (grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED &&
+        grallocHandle->format != HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) {
+        ALOGV("%s: SW decoder, ignore this checking.", __func__);
+        return 0;
+    }
+
+    IntelDisplayBuffer *buffer =
+        mGrallocBufferManager->map(grallocHandle->fd[GRALLOC_SUB_BUFFER1]);
+    if (!buffer) {
+        ALOGE("%s: failed to map payload buffer.\n", __func__);
+        return -1;
+    }
+
+    intel_gralloc_payload_t *payload =
+        (intel_gralloc_payload_t*)buffer->getCpuAddr();
+    if (!payload) {
+        ALOGE("%s: invalid address\n", __func__);
+        return -1;
+    }
+
+    if (payload->rotated_buffer_handle)
+        payload->client_transform = -1;
+
+    // unmap payload buffer
+    mGrallocBufferManager->unmap(buffer);
+
+    return 0;
+}
+
 bool IntelDisplayDevice::isVideoPutInWindow(int output, hwc_layer_1_t *layer) {
     bool inWindow = false;
 
@@ -925,6 +966,10 @@ bool IntelDisplayDevice::useOverlayRotation(hwc_layer_1_t *layer,
 {
     bool useOverlay = false;
     uint32_t hwcLayerTransform;
+    int width_orig, height_orig, padding;
+    int tmp;
+    static uint32_t prev_handle;
+    static uint32_t prev_transform;
 
     // FIXME: workaround for rotation issue, remove it later
     static int counter = 0;
@@ -982,11 +1027,23 @@ bool IntelDisplayDevice::useOverlayRotation(hwc_layer_1_t *layer,
             return true;
         }
 
+        // UI refresh rate may be faster than video rate, Surfaceflinger
+        // may pass updated UI layer with previous video layer together.
+        // Try to use rotation buffer to avoid switch back and forth between
+        // GLES and overlay which may cause unwanted visual artifact.
+        if (payload->client_transform == -1 && prev_handle == handle)
+                payload->client_transform = prev_transform;
+
         if (transform != uint32_t(payload->client_transform)) {
             ALOGD_IF(ALLOW_HWC_PRINT,
                     "%s: rotation buffer was not prepared by client! ui64Stamp = %llu\n", __func__, grallocHandle->ui64Stamp);
+            prev_handle = 0;
+            prev_transform = -1;
             return false;
         }
+
+        prev_handle = handle;
+        prev_transform = payload->client_transform;
 
         // update handle, w & h to rotation buffer
         handle = payload->rotated_buffer_handle;
@@ -994,31 +1051,85 @@ bool IntelDisplayDevice::useOverlayRotation(hwc_layer_1_t *layer,
         h = payload->rotated_height;
         //wait video rotated buffer idle
         mGrallocBufferManager->waitIdle(handle);
-        // NOTE: exchange the srcWidth & srcHeight since
-        // video driver currently doesn't call native_window_*
-        // helper functions to update info for rotation buffer.
-        if (transform == HAL_TRANSFORM_ROT_90 ||
-                transform == HAL_TRANSFORM_ROT_270) {
-            int temp = srcH;
-            srcH = srcW;
-            srcW = temp;
-            temp = srcX;
-            srcX = srcY;
-            srcY = temp;
 
-        }
+#define ALIGN_MASK(x, mask) (((x) + (mask)) & ~(mask))
+#define SWAP(x, y) do { int tmp = (x); (x) = (y); (y) = tmp; } while (0)
+        // Video rotation buffer is 16-byte aligned. There are padding bytes
+        // at the begining of the rotation buffer.
+        //
+        // For the original video buffer, video decoder starts rendering from
+        // (0, 0), from left to right, top to bottom.
+        //
+        // When rendering the 180 rotation buffer, video decoder tries to
+        // rendering from(video_width, video_height),
+        // from right to left, bottom to top.
+        // If (video_width, video_height) is not 16-byte aligned, it will
+        // align them first before rendering.
+        //
+        //   o-----------------            --------------------
+        //   | *----           |          |\\\\padding \\\\\\\\|
+        //   | |crop|          |  180     |\\ -----------------|
+        //   |  ----           | ---->    |\\|                 |
+        //   |   video area    |          |\\|          *----  |
+        //   |                 |          |\\|          |    | |
+        //    -----------------           |\\|           ----  |
+        //                                 --------------------o
+        //
+        //  For 90 rotation buffer, video decoder starts rendering from
+        //  (video_height, 0), from top to bottom, right to left
+        //  so need to padding video_height if it is not 16-byte aligned
+        //                                 --------------o
+        //                                |\\|      *--  |
+        //                                |\\|      |  | |
+        //                        90      |\\|      |  | |
+        //                       ---->    |\\|       --  |
+        //                                |\\|           |
+        //                                |\\|           |
+        //                                |\\|           |
+        //                                |\\|           |
+        //                                 --------------
+        //
+        //  For 270 rotation buffer, video decoder starts rendering from
+        //  (0, video_width), from bottom to top, left to right
+        //  so need to padding video_width if it is not 16-byte aligned
+        //
+        //                                 -----------
+        //                                |\\\\\\\\\\\|
+        //                                 -----------
+        //                                |           |
+        //                                |           |
+        //                        270     |           |
+        //                       ---->    |           |
+        //                                | *--       |
+        //                                | |  |      |
+        //                                | |  |      |
+        //                                |  --       |
+        //                                o-----------
 
-        // skip pading bytes in rotate buffer
+        width_orig = payload->width_origin;
+        height_orig = payload->height_origin;
         switch(transform) {
             case HAL_TRANSFORM_ROT_90:
-                srcX += ((srcW + 0xf) & ~0xf) - srcW;
+                padding = ALIGN_MASK(height_orig, 0xf) - height_orig;
+                tmp = srcX;
+                srcX = padding + height_orig - srcH - srcY;
+                srcY = tmp;
+
+                SWAP(srcW, srcH);
                 break;
             case HAL_TRANSFORM_ROT_180:
-                srcX += ((srcW + 0xf) & ~0xf) - srcW;
-                srcY += ((srcH + 0xf) & ~0xf) - srcH;
+                padding = ALIGN_MASK(width_orig, 0xf) - width_orig;
+                srcX = padding + width_orig - srcW - srcX;
+                padding = ALIGN_MASK(height_orig, 0xf) - height_orig;
+                srcY = padding + height_orig - srcH - srcY;
                 break;
             case HAL_TRANSFORM_ROT_270:
-                srcY += ((srcH + 0xf) & ~0xf) - srcH;
+                padding = ALIGN_MASK(width_orig, 0xf) - width_orig;
+                tmp = srcX;
+                srcX = srcY;
+                srcY = padding + width_orig - srcW - tmp;
+
+                SWAP(srcW, srcH);
                 break;
             default:
                 break;

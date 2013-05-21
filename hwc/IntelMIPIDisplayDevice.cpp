@@ -808,6 +808,7 @@ bool IntelMIPIDisplayDevice::commit(hwc_display_contents_1_t *list,
 
             // remove clear fb hints
             list->hwLayers[i].hints &= ~HWC_HINT_CLEAR_FB;
+            resetClientTransform(&list->hwLayers[i]);
         }
 #if 0
         // commit plane contexts

@@ -32,7 +32,6 @@ LOCAL_SHARED_LIBRARIES += \
         libstlport \
         libc \
         libevent-listener \
-        libxmlserializer \
         libparameter \
         libproperty
 

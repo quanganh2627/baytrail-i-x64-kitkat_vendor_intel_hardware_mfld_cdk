@@ -884,12 +884,6 @@ bool IntelHWComposer::getDisplayAttributes(int disp, uint32_t config,
     return true;
 }
 
-bool IntelHWComposer::compositionComplete(int disp)
-{
-    mGrallocModule->compositionComplete(mGrallocModule);
-    return true;
-}
-
 bool IntelHWComposer::setFramecount(int cmd, int count, int x, int y)
 {
    struct drm_psb_register_rw_arg arg;

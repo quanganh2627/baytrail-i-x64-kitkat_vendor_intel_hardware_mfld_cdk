@@ -242,7 +242,7 @@ bool IntelHDMIDisplayDevice::commit(hwc_display_contents_1_t *list,
         buffer_handle_t *bufferHandles = bh;
 
         if (!mGraphicPlaneVisible) {
-            ALOGD("%s: Skip FRAMEBUFFER_TARGET \n", __func__);
+            ALOGD_IF(ALLOW_HWC_PRINT, "%s: Skip FRAMEBUFFER_TARGET \n", __func__);
             return false;
         }
 

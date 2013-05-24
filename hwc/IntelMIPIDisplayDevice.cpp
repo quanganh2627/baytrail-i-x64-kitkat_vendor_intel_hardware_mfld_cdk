@@ -465,7 +465,7 @@ bool IntelMIPIDisplayDevice::isRGBOverlayLayer(hwc_display_contents_1_t *list,
     useRGBOverlay = true;
 out_check:
     if (useRGBOverlay) {
-        LOGD("isRGBOverlayLayer: got an RGB overlay layer");
+        ALOGD_IF(ALLOW_HWC_PRINT, "isRGBOverlayLayer: got an RGB overlay layer");
         layer->compositionType = HWC_OVERLAY;
     }
 
@@ -746,9 +746,9 @@ void IntelMIPIDisplayDevice::handleSmartComposition(hwc_display_contents_1_t *li
         mSkipComposition = !mSkipComposition;
 
         if (mSkipComposition)
-            ALOGD("Enter smart composition mode");
+            ALOGD_IF(ALLOW_HWC_PRINT, "Enter smart composition mode");
         else
-            ALOGD("Leave smart composition mode");
+            ALOGD_IF(ALLOW_HWC_PRINT, "Leave smart composition mode");
 
         // Update compositeType
         for (i = 0; i < list->numHwLayers - 1; i++) {
@@ -860,7 +860,7 @@ bool IntelMIPIDisplayDevice::commit(hwc_display_contents_1_t *list,
                     // If we post two consecutive same buffers through
                     // primary plane, don't pass buffer handle to avoid
                     // SGX deadlock issue
-                    ALOGD("same RGB buffer handle %p", handle);
+                    ALOGD_IF(ALLOW_HWC_PRINT, "same RGB buffer handle %p", handle);
                 } else {
                 acquireFenceFd[numBuffers] = list->hwLayers[i].acquireFenceFd;
                 releaseFenceFd[numBuffers] = &list->hwLayers[i].releaseFenceFd;

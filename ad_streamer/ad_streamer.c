@@ -17,6 +17,7 @@
  **
  */
 
+#include <full_rw.h>
 #include <stdio.h>
 #include <string.h>
 #include <fcntl.h>
@@ -125,8 +126,8 @@ static const char* chipVersion2String[] = {
 
 static chip_version_t chip_version = AUDIENCE_UNKNOWN;
 
-static int fd = -1;
-static FILE *outfile = NULL;
+static int audience_fd = -1;
+static int outfile_fd = -1;
 static volatile int stop_requested = false;
 static unsigned int written_bytes = 0;
 static unsigned int read_bytes = 0;
@@ -163,7 +164,7 @@ int setup_ad_chip()
     } else {
 
         /* Send the identification command */
-        rc = write(fd, chipIdCmd, sizeof(chipIdCmd));
+        rc = full_write(audience_fd, chipIdCmd, sizeof(chipIdCmd));
         if (rc < 0) {
 
             printf("Audience command failed (Chip Identification): %s\n",
@@ -173,7 +174,7 @@ int setup_ad_chip()
         /* Wait for command execution */
         usleep(AD_CMD_DELAY_US);
         /* Read back the response */
-        rc = read(fd, chipIdCmdResponse, sizeof(chipIdCmdResponse));
+        rc = full_read(audience_fd, chipIdCmdResponse, sizeof(chipIdCmdResponse));
         if (rc < 0) {
 
             printf("Audience command response read failed (Chip ID): %s\n",
@@ -242,7 +243,7 @@ void *run_capture(void *ptr)
     }
     while (!stop_requested) {
 
-        read(fd, data[index++], ES3X5_BUFFER_SIZE);
+        full_read(audience_fd, data[index++], ES3X5_BUFFER_SIZE);
         cap_idx++;
 
         if (UINT_MAX - read_bytes >= ES3X5_BUFFER_SIZE) {
@@ -285,7 +286,7 @@ void *run_writefile(void *ptr)
             return NULL;
         }
 
-        fwrite(data[index++], sizeof(unsigned char), ES3X5_BUFFER_SIZE, outfile);
+        full_write(outfile_fd, data[index++], ES3X5_BUFFER_SIZE);
         wrt_idx--;
 
         if (UINT_MAX - written_bytes >= ES3X5_BUFFER_SIZE) {
@@ -303,13 +304,15 @@ void *run_writefile(void *ptr)
 void cleanup()
 {
     release_wake_lock(lockid);
-    if (fd > 0) {
+    if (audience_fd >= 0) {
 
-        close(fd);
+        close(audience_fd);
+        audience_fd = -1;
     }
-    if (outfile != NULL) {
+    if (outfile_fd >= 0) {
 
-        fclose(outfile);
+        close(outfile_fd);
+        outfile_fd = -1;
     }
 }
 
@@ -478,9 +481,9 @@ int main(int argc, char **argv)
     }
 
     /* Initialize */
-    fd = open(ES3X5_DEVICE_PATH, O_RDWR | O_NONBLOCK, 0);
+    audience_fd = open(ES3X5_DEVICE_PATH, O_RDWR, 0);
 
-    if (fd < 0) {
+    if (audience_fd < 0) {
 
         printf("Cannot open %s\n", ES3X5_DEVICE_PATH);
         return -1;
@@ -494,8 +497,8 @@ int main(int argc, char **argv)
         return rc;
     };
 
-    outfile = fopen(fname, "w+b");
-    if (!outfile) {
+    outfile_fd = open(fname, O_CREAT | O_WRONLY);
+    if (outfile_fd < 0) {
 
         printf("Cannot open output file %s\n", fname);
         cleanup();
@@ -512,7 +515,7 @@ int main(int argc, char **argv)
          */
         setChannelCmd[ES3X5_CHANNEL_SELECT_FIELD] = channels[0] | channels[1];
 
-        rc = write(fd, setChannelCmd, sizeof(setChannelCmd));
+        rc = full_write(audience_fd, setChannelCmd, sizeof(setChannelCmd));
         if (rc < 0) {
 
             printf("audience set channel command failed: %d\n", rc);
@@ -529,7 +532,7 @@ int main(int argc, char **argv)
         for (channel = 0; channel < captureChannelsNumber; channel++) {
 
             setChannelCmd[ES3X5_CHANNEL_SELECT_FIELD] = channels[channel];
-            rc = write(fd, setChannelCmd, sizeof(setChannelCmd));
+            rc = full_write(audience_fd, setChannelCmd, sizeof(setChannelCmd));
             if (rc < 0) {
 
                 printf("audience set channel command failed: %d\n", rc);
@@ -583,7 +586,7 @@ int main(int argc, char **argv)
     acquire_wake_lock(PARTIAL_WAKE_LOCK, lockid);
 
     /* Start Streaming */
-    rc = write(fd, startStreamCmd, sizeof(startStreamCmd));
+    rc = full_write(audience_fd, startStreamCmd, sizeof(startStreamCmd));
     if (rc < 0) {
 
         printf("audience start stream command failed: %d\n", rc);
@@ -592,7 +595,7 @@ int main(int argc, char **argv)
     }
 
     /* Read back the cmd ack */
-    read(fd, buf, READ_ACK_BUF_SIZE);
+    full_read(audience_fd, buf, READ_ACK_BUF_SIZE);
 
     /* Let thread start recording */
     sem_post(&sem_start);
@@ -605,7 +608,7 @@ int main(int argc, char **argv)
     }
 
     /* Stop Streaming */
-    rc = write(fd, stopStreamCmd, sizeof(stopStreamCmd));
+    rc = full_write(audience_fd, stopStreamCmd, sizeof(stopStreamCmd));
     if (rc < 0) {
 
         printf("audience stop stream command failed: %d\n", rc);

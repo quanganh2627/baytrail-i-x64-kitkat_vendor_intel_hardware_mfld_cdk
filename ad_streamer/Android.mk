@@ -5,7 +5,9 @@ ifeq ($(BOARD_HAVE_AUDIENCE),true)
 
 include $(CLEAR_VARS)
 
-LOCAL_SRC_FILES := ad_streamer.c
+LOCAL_SRC_FILES := \
+    ad_streamer.c \
+    ad_streamer_cmd.c
 
 LOCAL_C_INCLUDES := \
     $(KERNEL_HEADERS) \

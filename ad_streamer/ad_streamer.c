@@ -143,6 +143,9 @@ static unsigned int channels[MAX_CAPTURE_CHANNEL] = {0, 0};
 static sem_t sem_read;
 static sem_t sem_start;
 
+static pthread_t pt_capture;
+static pthread_t pt_fwrite;
+
 static char lockid[32];
 
 static volatile long int cap_idx = 0;
@@ -299,6 +302,99 @@ void *run_writefile(void *ptr)
         index &= ES3X5_BUFFER_COUNT - 1;
     }
     return NULL;
+}
+
+int start_streaming(void) {
+
+    int rc;
+    struct sched_param param;
+    pthread_attr_t thread_attr;
+
+    stop_requested = false;
+    written_bytes = 0;
+    read_bytes = 0;
+
+    // Initialze semaphore and threads
+    if (sem_init(&sem_read, 0, 0) != 0) {
+
+        printf("%s - Initialzing sem_read semaphore failed\n", __FUNCTION__);
+        return -1;
+    }
+    if (sem_init(&sem_start, 0, 0) != 0) {
+
+        printf("%s - Initialzing sem_start semaphore failed\n", __FUNCTION__);
+        return -1;
+    }
+    if (pthread_attr_init(&thread_attr) != 0) {
+
+        printf("%s - Initialzing thread attr failed\n", __FUNCTION__);
+        return -1;
+    }
+    if (pthread_attr_setschedpolicy(&thread_attr, SCHED_RR) != 0) {
+
+        printf("%s - Initialzing thread policy failed\n", __FUNCTION__);
+        return -1;
+    }
+    param.sched_priority = sched_get_priority_max(SCHED_RR);
+    if (pthread_attr_setschedparam (&thread_attr, &param) != 0) {
+
+        printf("%s - Initialzing thread priority failed\n", __FUNCTION__);
+        return -1;
+    }
+    if (pthread_create(&pt_capture, &thread_attr, run_capture, NULL) != 0) {
+
+        printf("%s - Creating read thread failed\n", __FUNCTION__);
+        return -1;
+    }
+    if (pthread_create(&pt_fwrite, NULL, run_writefile, NULL) != 0) {
+
+        printf("%s - Creating write thread failed\n", __FUNCTION__);
+        return -1;
+    }
+    acquire_wake_lock(PARTIAL_WAKE_LOCK, lockid);
+
+    // Start Streaming
+    rc = full_write(audience_fd, startStreamCmd, sizeof(startStreamCmd));
+    if (rc < 0) {
+
+        printf("%s - Audience start stream command failed: %s (%d)\n",
+              __FUNCTION__,
+              strerror(errno),
+              rc);
+        release_wake_lock(lockid);
+        return rc;
+    }
+
+    // Let thread start recording
+    sem_post(&sem_start);
+
+    return 0;
+}
+
+int stop_streaming(void) {
+
+    int rc;
+
+    // Stop Streaming
+    rc = full_write(audience_fd, stopStreamCmd, sizeof(stopStreamCmd));
+    if (rc < 0) {
+
+        printf("audience stop stream command failed: %d\n", rc);
+        return rc;
+    }
+
+    // Because there is no way to know whether audience I2C buffer is empty, sleep is required.
+    usleep(THREAD_EXIT_WAIT_IN_US);
+    stop_requested = true;
+
+    printf("Stopping capture.\n");
+    pthread_join(pt_capture, NULL);
+    printf("Capture stopped.\n");
+    pthread_join(pt_fwrite, NULL);
+
+    printf("Total of %d bytes read\n", written_bytes);
+
+    return 0;
 }
 
 void cleanup()
@@ -466,14 +562,6 @@ int main(int argc, char **argv)
 {
     int rc;
 
-    unsigned char buf[READ_ACK_BUF_SIZE];
-
-    struct sched_param param;
-    pthread_attr_t thread_attr;
-
-    pthread_t pt_capture;
-    pthread_t pt_fwrite;
-
     /* Parse cmd line parameters */
     if (parse_cmd_line(argc, argv) == -1) {
 
@@ -542,63 +630,14 @@ int main(int argc, char **argv)
         }
     }
 
-    /* Initialze semaphore and threads */
-    if (sem_init(&sem_read, 0, 0) != 0) {
-
-        printf("Initialzing semaphore failed\n");
-        cleanup();
-        return -1;
-    }
-    if (sem_init(&sem_start, 0, 0) != 0) {
-
-        printf("Initialzing semaphore failed\n");
-        cleanup();
-        return -1;
-    }
-    if (pthread_attr_init(&thread_attr) != 0) {
-
-        cleanup();
-        return -1;
-    }
-    if (pthread_attr_setschedpolicy(&thread_attr, SCHED_RR) != 0) {
-
-        cleanup();
-        return -1;
-    }
-    param.sched_priority = sched_get_priority_max(SCHED_RR);
-    if (pthread_attr_setschedparam (&thread_attr, &param) != 0) {
-
-        cleanup();
-        return -1;
-    }
-    if (pthread_create(&pt_capture, &thread_attr, run_capture, NULL) != 0) {
-
-        printf("Initialzing read thread failed\n");
-        cleanup();
-        return -1;
-    }
-    if (pthread_create(&pt_fwrite, NULL, run_writefile, NULL) != 0) {
-
-        printf("Initialzing write thread failed\n");
-        cleanup();
-        return -1;
-    }
-    acquire_wake_lock(PARTIAL_WAKE_LOCK, lockid);
-
-    /* Start Streaming */
-    rc = full_write(audience_fd, startStreamCmd, sizeof(startStreamCmd));
+    /* Let start recording */
+    rc = start_streaming();
     if (rc < 0) {
 
-        printf("audience start stream command failed: %d\n", rc);
+        printf("Start streaming has failed.\n");
         cleanup();
         return rc;
     }
-
-    /* Read back the cmd ack */
-    full_read(audience_fd, buf, READ_ACK_BUF_SIZE);
-
-    /* Let thread start recording */
-    sem_post(&sem_start);
 
     printf("\nAudio streaming started, capturing for %d seconds\n", duration_in_sec);
     while (duration_in_sec > 0 && stop_requested != true) {
@@ -608,24 +647,13 @@ int main(int argc, char **argv)
     }
 
     /* Stop Streaming */
-    rc = full_write(audience_fd, stopStreamCmd, sizeof(stopStreamCmd));
+    rc = stop_streaming();
     if (rc < 0) {
 
         printf("audience stop stream command failed: %d\n", rc);
         cleanup();
         return rc;
     }
-
-    /* Because there is no way to know whether audience I2C buffer is empty, sleep is required. */
-    usleep(THREAD_EXIT_WAIT_IN_US);
-    stop_requested = true;
-
-    printf("Stopping capture.\n");
-    pthread_join(pt_capture, NULL);
-    printf("Capture stopped.\n");
-    pthread_join(pt_fwrite, NULL);
-
-    printf("Total of %d bytes read\n", written_bytes);
 
     cleanup();
     return 0;

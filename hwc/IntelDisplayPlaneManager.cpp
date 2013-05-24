@@ -565,6 +565,7 @@ void IntelDisplayPlaneManager::disableReclaimedPlanes(int type)
 
             if (mRGBOverlayPlanes[i]) {
                 mRGBOverlayPlanes[i]->disable();
+                mRGBOverlayPlanes[i]->waitForFlipCompletion();
                 mRGBOverlayPlanes[i]->invalidateDataBuffer();
             }
         }

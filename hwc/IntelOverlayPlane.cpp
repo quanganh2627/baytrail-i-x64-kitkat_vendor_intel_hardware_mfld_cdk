@@ -1847,13 +1847,6 @@ bool IntelRGBOverlayPlane::invalidateDataBuffer()
 	return ret;
 }
 
-// override waitForFlipCompletion
-// don't need it since RGB overlay don't have backbuffer sync issue
-void IntelRGBOverlayPlane::waitForFlipCompletion()
-{
-	return;
-}
-
 uint32_t IntelRGBOverlayPlane::convert(uint32_t handle,
                                            int w, int h,
                                            int x, int y)

@@ -355,7 +355,6 @@ public:
 	virtual uint32_t convert(uint32_t handle, int w, int h, int x, int y);
 	virtual bool invalidateDataBuffer();
 	virtual uint32_t onDrmModeChange();
-	virtual void waitForFlipCompletion();
 public:
 	IntelRGBOverlayPlane(int fd, int index,
                             IntelBufferManager *bufferManager);

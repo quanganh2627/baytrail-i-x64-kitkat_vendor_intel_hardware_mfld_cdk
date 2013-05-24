@@ -18,29 +18,18 @@
  ** Zhang, Dongsheng <dongsheng.zhang@intel.com>
  **
  */
-
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <string.h>
-#include <time.h>
-#include <fcntl.h>
-#include <dirent.h>
-#include <termios.h>
-#include <pthread.h>
-
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/poll.h>
-#include <sys/ioctl.h>
-#include "full_rw.h"
+#include "ad_i2c.h"
+#include "ad_usb_tty.h"
+#include "ad_proxy.h"
 
 #define LOG_TAG "ad_proxy"
 #include "cutils/log.h"
 
-#include "ad_i2c.h"
-#include "ad_usb_tty.h"
+#include <errno.h>
+#include <termios.h>
+#include <string.h>
+#include <stdlib.h>
+#include <full_rw.h>
 
 #define AD_VERSION "V1.3"
 
@@ -233,7 +222,7 @@ static void ad_proxy_worker(int usb_tty_fd)
     }
 }
 
-int main(int argc, char *argv[])
+int start_proxy(void)
 {
     int ret = 0;
     int usb_tty_fd = -1;

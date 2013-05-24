@@ -19,6 +19,10 @@ LOCAL_SHARED_LIBRARIES := $(common_shared_libraries)
 
 LOCAL_MODULE_PATH := $(TARGET_OUT_OPTIONAL_EXECUTABLES)
 
+LOCAL_ERROR_FLAGS += \
+    -Wall \
+    -Werror
+
 LOCAL_MODULE := ad_streamer
 LOCAL_MODULE_TAGS := debug
 

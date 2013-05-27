@@ -19,6 +19,9 @@
 
 #include "ad_streamer.h"
 
+#define LOG_TAG "LIBAD-STREAMER"
+#include "cutils/log.h"
+
 #include <full_rw.h>
 #include <stdio.h>
 #include <string.h>
@@ -73,7 +76,7 @@ ad_streamer_handler *alloc_streaming_handler(int audience_fd, int output_fd)
     /* Check arguments */
     if (audience_fd < 0 || output_fd < 0) {
 
-        printf("%s - Invalid arguments", __FUNCTION__);
+        ALOGE("Invalid file descriptors [%d, %d]", audience_fd, output_fd);
         return NULL;
     }
     handler = malloc(sizeof(ad_streamer_handler));
@@ -112,7 +115,7 @@ void *run_capture(void *arg)
 
     if (sem_timedwait(&handler->sem_start, &ts)) {
 
-        printf("Error: read start timed out.\n");
+        ALOGE("Error: read start timed out.");
         handler->stop_requested = true;
         return NULL;
     }
@@ -126,7 +129,7 @@ void *run_capture(void *arg)
             handler->read_bytes += ES3X5_BUFFER_SIZE;
         } else {
 
-            printf("read bytes are overflowed.\n");
+            ALOGW("read bytes are overflowed.");
         }
 
         index++;
@@ -136,7 +139,7 @@ void *run_capture(void *arg)
 
         if (buffer_level > ES3X5_BUFFER_COUNT) {
 
-            printf("Warning: buffer overflow (%d/%d)\n", buffer_level, ES3X5_BUFFER_COUNT);
+            ALOGW("Capture: buffer overflow (%d/%d)", buffer_level, ES3X5_BUFFER_COUNT);
         }
         sem_post(&handler->sem_read);
     }
@@ -163,7 +166,7 @@ void *run_writefile(void *arg)
 
             if (handler->read_bytes > handler->written_bytes) {
 
-                printf("Error:timed out.\n");
+                ALOGE("Write: timed out.");
                 handler->stop_requested = true;
             }
             return NULL;
@@ -177,7 +180,7 @@ void *run_writefile(void *arg)
             handler->written_bytes += ES3X5_BUFFER_SIZE;
         } else {
 
-            printf("written bytes are overflowed\n");
+            ALOGW("written bytes are overflowed");
         }
 
         index++;
@@ -214,52 +217,52 @@ int start_streaming(ad_streamer_handler *handler) {
     // Check argument
     if (handler == NULL) {
 
-        printf("%s - Null pointer as handler.", __FUNCTION__);
+        ALOGE("Null pointer as handler.");
         return -1;
     }
 
     // Check handler
     if (isHandlerValidForStart(handler) != 0) {
 
-        printf("%s - Invalid streaming handler", __FUNCTION__);
+        ALOGE("Invalid streaming handler");
         return -1;
     }
 
     // Initialze semaphore and threads
     if (sem_init(&handler->sem_read, 0, 0) != 0) {
 
-        printf("%s - Initialzing sem_read semaphore failed\n", __FUNCTION__);
+        ALOGE("Initialzing sem_read semaphore failed");
         return -1;
     }
     if (sem_init(&handler->sem_start, 0, 0) != 0) {
 
-        printf("%s - Initialzing sem_start semaphore failed\n", __FUNCTION__);
+        ALOGE("Initialzing sem_start semaphore failed");
         return -1;
     }
     if (pthread_attr_init(&thread_attr) != 0) {
 
-        printf("%s - Initialzing thread attr failed\n", __FUNCTION__);
+        ALOGE("Initialzing thread attr failed");
         return -1;
     }
     if (pthread_attr_setschedpolicy(&thread_attr, SCHED_RR) != 0) {
 
-        printf("%s - Initialzing thread policy failed\n", __FUNCTION__);
+        ALOGE("Initialzing thread policy failed");
         return -1;
     }
     param.sched_priority = sched_get_priority_max(SCHED_RR);
     if (pthread_attr_setschedparam (&thread_attr, &param) != 0) {
 
-        printf("%s - Initialzing thread priority failed\n", __FUNCTION__);
+        ALOGE("Initialzing thread priority failed");
         return -1;
     }
     if (pthread_create(&handler->pt_capture, &thread_attr, run_capture, handler) != 0) {
 
-        printf("%s - Creating read thread failed\n", __FUNCTION__);
+        ALOGE("Creating read thread failed");
         return -1;
     }
     if (pthread_create(&handler->pt_write, NULL, run_writefile, handler) != 0) {
 
-        printf("%s - Creating write thread failed\n", __FUNCTION__);
+        ALOGE("Creating write thread failed");
         return -1;
     }
     acquire_wake_lock(PARTIAL_WAKE_LOCK, ad_streamer_id);
@@ -268,8 +271,7 @@ int start_streaming(ad_streamer_handler *handler) {
     rc = full_write(handler->audience_fd, startStreamCmd, sizeof(startStreamCmd));
     if (rc < 0) {
 
-        printf("%s - Audience start stream command failed: %s (%d)\n",
-              __FUNCTION__,
+        ALOGE("Audience start stream command failed: %s (%d)",
               strerror(errno),
               rc);
         release_wake_lock(ad_streamer_id);
@@ -290,7 +292,7 @@ int stop_streaming(ad_streamer_handler *handler) {
     // Check argument
     if (handler == NULL) {
 
-        printf("%s - Null pointer as handler.", __FUNCTION__);
+        ALOGE("Null pointer as handler.");
         return -1;
     }
     // Check handler
@@ -298,7 +300,7 @@ int stop_streaming(ad_streamer_handler *handler) {
             handler->outfile_fd < 0 ||
             handler->is_catpure_started != true) {
 
-        printf("%s - Invalid streaming handler", __FUNCTION__);
+        ALOGE("Invalid streaming handler");
         return -1;
     }
 
@@ -308,7 +310,7 @@ int stop_streaming(ad_streamer_handler *handler) {
     rc = full_write(handler->audience_fd, stopStreamCmd, sizeof(stopStreamCmd));
     if (rc < 0) {
 
-        printf("audience stop stream command failed: %d\n", rc);
+        ALOGE("audience stop stream command failed: %d", rc);
         return -1;
     }
 
@@ -316,12 +318,12 @@ int stop_streaming(ad_streamer_handler *handler) {
     usleep(THREAD_EXIT_WAIT_IN_US);
     handler->stop_requested = true;
 
-    printf("Stopping capture.\n");
+    ALOGD("Stopping capture.");
     pthread_join(handler->pt_capture, NULL);
-    printf("Capture stopped.\n");
+    ALOGD("Capture stopped.");
     pthread_join(handler->pt_write, NULL);
 
-    printf("Total of %d bytes read\n", handler->written_bytes);
+    ALOGV("Total of %d bytes read", handler->written_bytes);
 
     clear_streaming_handler(handler);
 

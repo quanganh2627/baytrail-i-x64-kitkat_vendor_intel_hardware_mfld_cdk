@@ -23,7 +23,7 @@ LOCAL_SHARED_LIBRARIES :=  \
 
 LOCAL_STATIC_LIBRARIES := \
     libfull_rw \
-    libad-streamer
+    libad_streamer
 
 LOCAL_MODULE_PATH := $(TARGET_OUT_OPTIONAL_EXECUTABLES)
 

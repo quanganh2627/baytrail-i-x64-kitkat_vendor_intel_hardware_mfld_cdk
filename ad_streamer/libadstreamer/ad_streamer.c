@@ -23,7 +23,12 @@
 #include "cutils/log.h"
 
 #include <full_rw.h>
-#include "hardware_legacy/power.h"
+#include <hardware_legacy/power.h>
+
+#include <stdlib.h>
+#include <limits.h>
+#include <errno.h>
+#include <string.h>
 
 #define false   0
 #define true    1

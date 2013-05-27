@@ -20,6 +20,10 @@
 #include <semaphore.h>
 
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /** Total byte of buffer size would be ES3X5_BUFFER_SIZE * ES3X5_BUFFER_COUNT
  * Audience send 328 bytes for each frame. 164 bytes are half of the frame size.
  * It also need to be less than 256 bytes as the limitation of I2C driver.
@@ -108,3 +112,7 @@ int start_streaming(ad_streamer_handler *handler);
  * @return -1 in case of error, 0 otherwise
  */
 int stop_streaming(ad_streamer_handler *handler);
+
+#ifdef __cplusplus
+}
+#endif

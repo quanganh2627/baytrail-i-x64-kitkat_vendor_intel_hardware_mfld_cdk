@@ -19,7 +19,6 @@ LOCAL_C_INCLUDES += \
     external/stlport/stlport/ \
     bionic/libstdc++ \
     bionic/ \
-    external/alsa-lib/include \
     $(TARGET_OUT_HEADERS)/event-listener \
     $(TARGET_OUT_HEADERS)/property \
     hardware/libhardware_legacy
@@ -29,7 +28,6 @@ LOCAL_SRC_FILES += \
     Vibrator.cpp
 
 LOCAL_SHARED_LIBRARIES += \
-        libasound \
         libutils \
         libstlport \
         libc \

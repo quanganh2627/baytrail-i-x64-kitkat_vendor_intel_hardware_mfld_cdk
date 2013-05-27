@@ -19,14 +19,8 @@
 
 #include <full_rw.h>
 #include <stdio.h>
-#include <string.h>
 #include <fcntl.h>
 #include <stdlib.h>
-#include <time.h>
-#include <pthread.h>
-#include <sys/select.h>
-#include <sys/ioctl.h>
-#include <semaphore.h>
 #include <ctype.h>
 
 

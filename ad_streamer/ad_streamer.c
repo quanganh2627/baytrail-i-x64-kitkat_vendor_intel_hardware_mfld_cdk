@@ -23,15 +23,6 @@
 #include "cutils/log.h"
 
 #include <full_rw.h>
-#include <stdio.h>
-#include <string.h>
-#include <fcntl.h>
-#include <stdlib.h>
-#include <time.h>
-#include <sys/select.h>
-#include <sys/ioctl.h>
-#include <ctype.h>
-
 #include "hardware_legacy/power.h"
 
 #define false   0

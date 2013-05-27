@@ -46,7 +46,8 @@ include $(BUILD_EXECUTABLE)
 # Compile macro
 define make_ad_proxy_test_lib
 $( \
-    $(eval LOCAL_SRC_FILES += $(ad_proxy_src_files)) \
+    $(eval LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)) \
+    $(eval LOCAL_SRC_FILES := $(ad_proxy_src_files)) \
     $(eval LOCAL_MODULE_TAGS := optional) \
     $(eval LOCAL_C_INCLUDES := $(ad_proxy_includes_dir)) \
 )

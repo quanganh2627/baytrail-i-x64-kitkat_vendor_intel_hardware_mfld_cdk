@@ -41,7 +41,8 @@ include $(BUILD_STATIC_LIBRARY)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := \
-    ad_streamer_cmd.c
+    ad_streamer_cmd.c \
+    ad_streamer_cmd_main.c
 
 LOCAL_C_INCLUDES := \
     $(KERNEL_HEADERS) \

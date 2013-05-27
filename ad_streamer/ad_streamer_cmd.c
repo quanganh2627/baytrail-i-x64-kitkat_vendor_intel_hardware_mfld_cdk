@@ -333,7 +333,7 @@ int parse_cmd_line(int argc, char** argv) {
     return 0;
 }
 
-int main(int argc, char **argv) {
+int ad_streamer_cmd(int argc, char **argv) {
 
     int rc;
 

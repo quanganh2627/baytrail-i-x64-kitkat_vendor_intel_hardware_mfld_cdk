@@ -234,22 +234,23 @@ int start_proxy(void)
     if (usb_tty_fd < 0) {
 
         ALOGE("%s open %s failed (%s)\n",  __func__, ACM_TTY, strerror(errno));
+        return -1;
+    }
+
+    // open the audience device node.
+    if (ad_i2c_init() < 0) {
+
+        ALOGE("%s open %s failed (%s)\n", __func__, AD_DEV_NODE, strerror(errno));
         ret = -1;
     } else {
 
-        // open the audience device node.
-        if (ad_i2c_init() < 0) {
-
-            ALOGE("%s open %s failed (%s)\n", __func__, AD_DEV_NODE, strerror(errno));
-            ret = -1;
-        } else {
-
-            // Infinite Work
-            ad_proxy_worker(usb_tty_fd);
-            // Only reached on error
-            ALOGE("Exit");
-        }
+        // Infinite Work
+        ad_proxy_worker(usb_tty_fd);
+        // Only reached on error
+        ALOGE("Exit");
     }
+
+    // close the acm tty
     close(usb_tty_fd);
 
     return ret;

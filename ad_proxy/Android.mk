@@ -71,7 +71,7 @@ include $(BUILD_HOST_STATIC_LIBRARY)
 endif
 
 # Build for target test with gcov
-ifeq ($(audiocomms_test_gcov),true)
+ifeq ($(audiocomms_test_gcov_target),true)
 
 include $(CLEAR_VARS)
 $(call make_ad_proxy_test_lib)

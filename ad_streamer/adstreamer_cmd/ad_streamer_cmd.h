@@ -16,6 +16,10 @@
  */
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * Start the Audience Streamer with arguments from command line. The streamer will run the streaming
  * operation from the Audience chip as per commend line arguments.
@@ -26,3 +30,7 @@
  * @return -1 in case the streamer stops on error, 0 otherwise.
  */
 int ad_streamer_cmd(int argc, char **argv);
+
+#ifdef __cplusplus
+}
+#endif

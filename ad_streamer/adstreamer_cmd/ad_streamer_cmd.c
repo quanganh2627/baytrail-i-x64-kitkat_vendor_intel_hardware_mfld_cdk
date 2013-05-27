@@ -22,6 +22,9 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <errno.h>
+#include <string.h>
+#include <unistd.h>
 
 
 #define ES305_CH_PRI_MIC         0x1

@@ -95,7 +95,8 @@ static char fname[MAX_FILE_PATH_SIZE] = DEFAULT_OUTPUT_FILE;
 static unsigned int captureChannelsNumber = 0;
 /* Channel IDs of the channels to be captured */
 static unsigned int channels[MAX_CAPTURE_CHANNEL] = {0, 0};
-
+/* Streaming handler */
+static ad_streamer_handler *handler = NULL;
 
 
 
@@ -112,6 +113,8 @@ void cleanup(void) {
         close(outfile_fd);
         outfile_fd = -1;
     }
+
+    free_streaming_handler(handler);
 }
 
 int check_numeric(const char *number) {
@@ -150,7 +153,7 @@ int select_audience_chip_id(void) {
 
             printf("Audience command failed (Chip Identification): %s\n",
                    strerror(errno));
-            return rc;
+            return -1;
         }
         /* Wait for command execution */
         usleep(AD_CMD_DELAY_US);
@@ -160,7 +163,7 @@ int select_audience_chip_id(void) {
 
             printf("Audience command response read failed (Chip ID): %s\n",
                    strerror(errno));
-            return rc;
+            return -1;
         }
         if (chipIdCmdResponse[0] == chipIdCmd[0] && chipIdCmdResponse[1] == chipIdCmd[1]) {
 
@@ -360,7 +363,7 @@ int main(int argc, char **argv) {
     if (rc < 0) {
 
         cleanup();
-        return rc;
+        return -1;
     };
 
     outfile_fd = open(fname, O_CREAT | O_WRONLY);
@@ -386,7 +389,7 @@ int main(int argc, char **argv) {
 
             printf("audience set channel command failed: %d\n", rc);
             cleanup();
-            return rc;
+            return -1;
         }
     } else if (chip_version == AUDIENCE_ES325) {
 
@@ -403,30 +406,31 @@ int main(int argc, char **argv) {
 
                 printf("audience set channel command failed: %d\n", rc);
                 cleanup();
-                return rc;
+                return -1;
             }
         }
     }
 
     /* Let start recording */
-    rc = start_streaming(audience_fd, outfile_fd);
+    handler = alloc_streaming_handler(audience_fd, outfile_fd);
+    rc = start_streaming(handler);
     if (rc < 0) {
 
         printf("Start streaming has failed.\n");
         cleanup();
-        return rc;
+        return -1;
     }
 
     printf("\nAudio streaming started, capturing for %d seconds\n", duration_in_sec);
     sleep(duration_in_sec);
 
     /* Stop Streaming */
-    rc = stop_streaming();
+    rc = stop_streaming(handler);
     if (rc < 0) {
 
         printf("audience stop stream command failed: %d\n", rc);
         cleanup();
-        return rc;
+        return -1;
     }
 
     cleanup();

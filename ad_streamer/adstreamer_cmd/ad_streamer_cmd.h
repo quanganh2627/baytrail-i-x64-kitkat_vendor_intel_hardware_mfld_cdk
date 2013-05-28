@@ -20,16 +20,65 @@
 extern "C" {
 #endif
 
+/** Maximum number of channel to capture */
+#define MAX_CAPTURE_CHANNEL 2
+
+/** Maximum file path/name length in char, including terminal '0' */
+#define MAX_FILE_PATH_SIZE 80
+
 /**
- * Start the Audience Streamer with arguments from command line. The streamer will run the streaming
- * operation from the Audience chip as per commend line arguments.
+ * Type to describe Audience chip version.
+ */
+typedef enum {
+    AUDIENCE_ES305, /**< Audience chip in use is a es305. */
+    AUDIENCE_ES325, /**< Audience chip in use is a es325. */
+    /* Must be the last element: */
+    AUDIENCE_UNKNOWN /**< Audience chip in use is unknown. */
+} ad_chip_version_t;
+
+/**
+ * Type containing the command description.
+ */
+typedef struct {
+
+    ad_chip_version_t ad_chip_version; /**< Audience chip version on which the streaming will
+                                        *   occur. */
+    unsigned int captureChannelsNumber; /**< Number of channel to be captured */
+    unsigned int capture_channels[MAX_CAPTURE_CHANNEL]; /**< Channel IDs of the channel(s)
+                                                         *   to be captured. */
+    unsigned int duration_in_sec; /**< Duration of the capture in seconds. */
+    char fname[MAX_FILE_PATH_SIZE]; /**< Capture output file name. */
+
+
+} ad_streamer_cmd_t;
+
+
+/**
+ * Fill a streaming command as per command line instructions. If the command line instructions are
+ * incorrect, the function prints the command help and usage on stdout then returns -1.
+ * Optional command line arguments will be set to default if not specified in command line.
+ * Moreover, if the Audience chip version is not selected in the command line, an auto-detection
+ * will occur to select the correct chip version.
  *
- * @param[in] argc Number of arguments
- * @param[in] argv Array of string arguments
+ * @param[in] argc command line argument number.
+ * @param[in] argv command line arguments.
+ * @param[out] streaming_cmd streaming command to be filled.
+ *
+ * @return -1 in case of error, 0 otherwise.
+ */
+int streamer_cmd_from_command_line(int argc,
+                                   char *argv[],
+                                   ad_streamer_cmd_t *streaming_cmd);
+
+/**
+ * Process the Audience Streamer command. If the chip version is not specified in the
+ * command description, the function updates it according to the chip detected.
+ *
+ * @param[in] streaming_cmd streaming command to be executed.
  *
  * @return -1 in case the streamer stops on error, 0 otherwise.
  */
-int ad_streamer_cmd(int argc, char **argv);
+int process_ad_streamer_cmd(const ad_streamer_cmd_t *streaming_cmd);
 
 #ifdef __cplusplus
 }

@@ -19,5 +19,11 @@
 
 int main(int argc, char *argv[]) {
 
-    return ad_streamer_cmd(argc, argv);
+    ad_streamer_cmd_t cmd;
+
+    if (streamer_cmd_from_command_line(argc, argv, &cmd) == 0) {
+
+        return process_ad_streamer_cmd(&cmd);
+    }
+    return -1;
 }

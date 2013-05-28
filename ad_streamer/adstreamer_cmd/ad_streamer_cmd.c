@@ -16,6 +16,7 @@
  **
  */
 #include "ad_streamer.h"
+#include "ad_streamer_cmd.h"
 
 #include <full_rw.h>
 #include <stdio.h>
@@ -64,16 +65,6 @@
 #define AD_CHIP_ID_ES305     0x1008
 #define AD_CHIP_ID_ES325     0x1101
 
-/* Maximum number of channel to capture */
-#define MAX_CAPTURE_CHANNEL 2
-/* Maximum file path/name length in char, including terminal '0' */
-#define MAX_FILE_PATH_SIZE 80
-
-typedef enum {
-    AUDIENCE_ES305,
-    AUDIENCE_ES325,
-    AUDIENCE_UNKNOWN
-} chip_version_t;
 
 static const char* chipVersion2String[] = {
     "es305",
@@ -81,132 +72,112 @@ static const char* chipVersion2String[] = {
     "Unknown"
 };
 
-static unsigned char setChannelCmd[AD_CMD_SIZE] = { 0x80, 0x28, 0x00, 0x03 };
-static unsigned char chipIdCmd[AD_CMD_SIZE] = { 0x80, 0x0E, 0x00, 0x00 };
-static chip_version_t chip_version = AUDIENCE_UNKNOWN;
-static int audience_fd = -1;
-static int outfile_fd = -1;
-static int duration_in_sec = DEFAULT_CAPTURE_DURATION_IN_SEC;
-static char fname[MAX_FILE_PATH_SIZE] = DEFAULT_OUTPUT_FILE;
-/* Number of channel to be captured */
-static unsigned int captureChannelsNumber = 0;
-/* Channel IDs of the channels to be captured */
-static unsigned int channels[MAX_CAPTURE_CHANNEL] = {0, 0};
-/* Streaming handler */
-static ad_streamer_handler *handler = NULL;
+static const unsigned char setChannelCmdes305[AD_CMD_SIZE] = { 0x80, 0x28, 0x00, 0x03 };
+static const unsigned char setChannelCmdes325[AD_CMD_SIZE] = { 0x80, 0x28, 0x80, 0x03 };
+static const unsigned char chipIdCmd[AD_CMD_SIZE] = { 0x80, 0x0E, 0x00, 0x00 };
 
-
-
-void cleanup(void) {
+static void cleanup(int audience_fd, int outfile_fd, ad_streamer_handler *handler)
+{
 
     if (audience_fd >= 0) {
 
         close(audience_fd);
-        audience_fd = -1;
     }
 
     if (outfile_fd >= 0) {
 
         close(outfile_fd);
-        outfile_fd = -1;
     }
 
     free_streaming_handler(handler);
 }
 
-int check_numeric(const char *number) {
+static int update_audience_chip_version(ad_streamer_cmd_t *streaming_cmd)
+{
 
-    int index = 0;
-
-    while (number[index] != '\0') {
-
-        if (!isdigit(number[index++])) {
-
-            return -1;
-        }
-    }
-    return 0;
-}
-
-
-int select_audience_chip_id(void) {
-
-    int status = 0;
+    int status = -1;
     int rc;
     unsigned int chipId = 0;
     unsigned char chipIdCmdResponse[AD_CMD_SIZE];
+    int audience_fd = -1;
 
-    /* Is chip forced at command line ? */
-    if (chip_version != AUDIENCE_UNKNOWN) {
+    if (streaming_cmd == NULL) {
 
-        /* chip selection has been forced as cmd line argument: keep it. */
-        printf("Deprecated: Audience chip forced to '%s'.\n",
-               chipVersion2String[chip_version]);
-    } else {
+        return -1;
+    }
 
-        /* Send the identification command */
-        rc = full_write(audience_fd, chipIdCmd, sizeof(chipIdCmd));
-        if (rc < 0) {
+    audience_fd = open(ES3X5_DEVICE_PATH, O_RDWR);
 
-            printf("Audience command failed (Chip Identification): %s\n",
-                   strerror(errno));
-            return -1;
-        }
-        /* Wait for command execution */
-        usleep(AD_CMD_DELAY_US);
-        /* Read back the response */
-        rc = full_read(audience_fd, chipIdCmdResponse, sizeof(chipIdCmdResponse));
-        if (rc < 0) {
+    if (audience_fd < 0) {
 
-            printf("Audience command response read failed (Chip ID): %s\n",
-                   strerror(errno));
-            return -1;
-        }
-        if (chipIdCmdResponse[0] == chipIdCmd[0] && chipIdCmdResponse[1] == chipIdCmd[1]) {
+        printf("Cannot open %s: %s (%d)\n",
+               ES3X5_DEVICE_PATH,
+               strerror(errno),
+               errno);
+        return -1;
+    }
 
-            /* Retrieve the chip ID from the response: */
-            chipId = chipIdCmdResponse[2] << 8 | chipIdCmdResponse[3];
+    /* Send the identification command */
+    rc = full_write(audience_fd, chipIdCmd, sizeof(chipIdCmd));
+    if (rc < 0) {
 
-            /* Check the chip ID */
-            if (chipId == AD_CHIP_ID_ES325) {
+        printf("Audience command failed (Chip Identification): %s\n",
+               strerror(errno));
+        goto close_fd;
+    }
+    /* Wait for command execution */
+    usleep(AD_CMD_DELAY_US);
+    /* Read back the response */
+    rc = full_read(audience_fd, chipIdCmdResponse, sizeof(chipIdCmdResponse));
+    if (rc < 0) {
 
-                chip_version = AUDIENCE_ES325;
-            } else if (chipId == AD_CHIP_ID_ES305) {
+        printf("Audience command response read failed (Chip ID): %s\n",
+               strerror(errno));
+        goto close_fd;
+    }
+    if (chipIdCmdResponse[0] == chipIdCmd[0] && chipIdCmdResponse[1] == chipIdCmd[1]) {
 
-                chip_version = AUDIENCE_ES305;
-            } else {
+        /* Retrieve the chip ID from the response: */
+        chipId = chipIdCmdResponse[2] << 8 | chipIdCmdResponse[3];
 
-                /* Unknown ID means unsupported chip */
-                printf("Unsupported Audience chip ID: 0x%04x\n", chipId);
-                chip_version = AUDIENCE_UNKNOWN;
-                status = -1;
-            }
+        /* Check the chip ID */
+        if (chipId == AD_CHIP_ID_ES325) {
+
+            streaming_cmd->ad_chip_version = AUDIENCE_ES325;
+        } else if (chipId == AD_CHIP_ID_ES305) {
+
+            streaming_cmd->ad_chip_version = AUDIENCE_ES305;
         } else {
 
-            printf("Audience chip ID command failed. Chip returned 0x%02x%02x%02x%02x\n",
-                   chipIdCmdResponse[0],
-                    chipIdCmdResponse[1],
-                    chipIdCmdResponse[2],
-                    chipIdCmdResponse[3]);
-            /* Unable to detect the chip */
-            chip_version = AUDIENCE_UNKNOWN;
-            status = -1;
+            /* Unknown ID means unsupported chip */
+            printf("Unsupported Audience chip ID: 0x%04x\n", chipId);
+            streaming_cmd->ad_chip_version = AUDIENCE_UNKNOWN;
+            goto close_fd;
         }
+    } else {
+
+        printf("Audience chip ID command failed. Chip returned 0x%02x%02x%02x%02x\n",
+               chipIdCmdResponse[0],
+                chipIdCmdResponse[1],
+                chipIdCmdResponse[2],
+                chipIdCmdResponse[3]);
+        /* Unable to detect the chip */
+        streaming_cmd->ad_chip_version = AUDIENCE_UNKNOWN;
+        goto close_fd;
     }
 
-    printf("Audience chip selected: '%s'.\n", chipVersion2String[chip_version]);
 
-    /* es325 specific setup */
-    if (chip_version == AUDIENCE_ES325) {
+    printf("Audience chip selected: '%s'.\n", chipVersion2String[streaming_cmd->ad_chip_version]);
+    status = 0;
 
-        // According eS325 specifications, bit #15 of setChannel command must be set to 1 */
-        setChannelCmd[2] = 0x80;
-    }
-
+close_fd:
+    close (audience_fd);
+done:
     return status;
 }
 
-void display_cmd_help(void) {
+static void display_cmd_help(void)
+{
 
     printf("Format: [-t seconds] [-f /path/filename] [-c chip] channelId [channelId]\n");
     printf("\nArguments Details\n");
@@ -248,40 +219,93 @@ void display_cmd_help(void) {
     printf("\tAudio out 3   = %d\n", ES325_CH_AUDIO_OUTPUT_3);
     printf("\tAudio out 4   = %d\n", ES325_CH_AUDIO_OUTPUT_4);
     printf("\nExample\n");
-    printf("\tad_streamer -t 10 -f /sdcard/aud_stream.bin 1 2\n\n\tCapture Primary Mic and"
+    printf("\tad_streamer -t 10 -f /sdcard/aud_stream.bin 1 2\n\n\tCapture Primary Mic and "
            "Secondary Mic for 10 seconds to /sdcard/aud_stream.bin\n");
     printf("\nNotes\n");
-    printf("\t* Dual channels capture requires the I2C bus to be overclocked to have enough"
+    printf("\t* Dual channels capture requires the I2C bus to be overclocked to have enough "
            "bandwidth (refer to ad_streamer user guide).\n");
-    printf("\t* This tool shall be used only while in call (CSV or VOIP) (refer to ad_streamer"
+    printf("\t* This tool shall be used only while in call (CSV or VOIP) (refer to ad_streamer "
            "user guide).\n");
 }
 
-int parse_cmd_line(int argc, char** argv) {
+/** Initialize a streaming cmd structure with default values */
+static void init_streaming_cmd(ad_streamer_cmd_t *streaming_cmd)
+{
+    unsigned int channel;
 
+    if (streaming_cmd == NULL) {
+
+        return;
+    }
+
+    streaming_cmd->ad_chip_version = AUDIENCE_UNKNOWN;
+    streaming_cmd->captureChannelsNumber = 0;
+
+    for (channel = 0; channel < MAX_CAPTURE_CHANNEL; channel++) {
+
+        streaming_cmd->capture_channels[channel] = 0;
+    }
+
+    streaming_cmd->duration_in_sec = DEFAULT_CAPTURE_DURATION_IN_SEC;
+
+    strlcpy(streaming_cmd->fname, DEFAULT_OUTPUT_FILE, MAX_FILE_PATH_SIZE);
+}
+
+/** Check if the streaming cmd is valid or not. */
+static int is_valid_streaming_cmd(const ad_streamer_cmd_t *streaming_cmd)
+{
+    if (streaming_cmd == NULL) {
+
+        return -1;
+    }
+
+    if (streaming_cmd->ad_chip_version >= AUDIENCE_UNKNOWN ||
+            streaming_cmd->captureChannelsNumber == 0 ||
+            streaming_cmd->captureChannelsNumber > MAX_CAPTURE_CHANNEL ||
+            streaming_cmd->duration_in_sec == 0) {
+
+        return -1;
+    }
+    return 0;
+}
+
+int streamer_cmd_from_command_line(int argc,
+                                   char *argv[],
+                                   ad_streamer_cmd_t *streaming_cmd)
+{
     char* cvalue = NULL;
+    char* string;
     int index;
     int c;
 
+    /* Reset getopt() API */
     opterr = 0;
+    optind = 0;
+
+    if (streaming_cmd == NULL || argv == NULL) {
+
+        return -1;
+    }
+
+    init_streaming_cmd(streaming_cmd);
 
     /* Parse optional parameters */
-    while ((c = getopt (argc, argv, "t:f:c:")) != -1) {
+    while ((c = getopt(argc, argv, "t:f:c:")) != -1) {
 
         switch (c)
         {
             case 'f':
                 cvalue = optarg;
-                strlcpy(fname, cvalue, MAX_FILE_PATH_SIZE);
+                strlcpy(streaming_cmd->fname, cvalue, MAX_FILE_PATH_SIZE);
                 break;
             case 'c':
                 cvalue = optarg;
                 if (strcmp(cvalue, "es305") == 0) {
 
-                    chip_version = AUDIENCE_ES305;
+                    streaming_cmd->ad_chip_version = AUDIENCE_ES305;
                 } else if (strcmp(cvalue, "es325") == 0) {
 
-                    chip_version = AUDIENCE_ES325;
+                    streaming_cmd->ad_chip_version = AUDIENCE_ES325;
                 } else {
                     display_cmd_help();
                     printf("\n*Please use valid chip value\n");
@@ -290,13 +314,13 @@ int parse_cmd_line(int argc, char** argv) {
                 break;
             case 't':
                 // Cap the duration_in_sec to capture samples (in seconds)
-                if (check_numeric(optarg)) {
+                streaming_cmd->duration_in_sec = strtoul(optarg, &string, 10);
+                if (*string != '\0') {
 
                     display_cmd_help();
                     printf("\n*Please use valid numeric value for seconds\n");
                     return -1;
                 }
-                duration_in_sec = atoi(optarg);
                 break;
             default:
                 display_cmd_help();
@@ -305,20 +329,22 @@ int parse_cmd_line(int argc, char** argv) {
     }
 
     /* Non-optional arguments: channel ID to be captured */
-    captureChannelsNumber = 0;
     for (index = optind; index < argc; index++) {
 
-        if (check_numeric(argv[index])) {
-
-            printf("\nERROR: please use valid numeric value for channel flag\n");
-            display_cmd_help();
-            return -1;
-        }
         // Set streaming channel flag
-        if (captureChannelsNumber < MAX_CAPTURE_CHANNEL) {
+        if (streaming_cmd->captureChannelsNumber < MAX_CAPTURE_CHANNEL) {
 
-            channels[captureChannelsNumber] = atoi(argv[index]);
-            captureChannelsNumber++;
+            streaming_cmd->capture_channels[streaming_cmd->captureChannelsNumber] =
+                    strtoul(argv[index], &string, 10);
+
+            if (*string != '\0') {
+
+                printf("\nERROR: please use valid numeric value for channel flag\n");
+                display_cmd_help();
+                return -1;
+            }
+
+            streaming_cmd->captureChannelsNumber++;
         } else {
 
             printf("ERROR: Too many arguments\n");
@@ -327,21 +353,40 @@ int parse_cmd_line(int argc, char** argv) {
         }
     }
     /* Check that at least one channel has to be recorded */
-    if (captureChannelsNumber == 0) {
+    if (streaming_cmd->captureChannelsNumber == 0) {
 
         printf("ERROR: Missing channel ID\n");
         display_cmd_help();
         return -1;
     }
+
+    /* If no chip selected from command line, update it with chip detected */
+    if (streaming_cmd->ad_chip_version >= AUDIENCE_UNKNOWN) {
+
+        /* Get the Audience FW version */
+        if (update_audience_chip_version(streaming_cmd) < 0) {
+
+            return -1;
+        }
+    } else {
+
+        printf("Deprecated: Audience chip forced to '%s'.\n",
+               chipVersion2String[streaming_cmd->ad_chip_version]);
+    }
+
     return 0;
 }
 
-int ad_streamer_cmd(int argc, char **argv) {
+int process_ad_streamer_cmd(const ad_streamer_cmd_t *streaming_cmd)
+{
 
     int rc;
+    int audience_fd = -1;
+    int outfile_fd = -1;
+    ad_streamer_handler *handler = NULL;
+    static unsigned char setChannelCmd[AD_CMD_SIZE];
 
-    /* Parse cmd line parameters */
-    if (parse_cmd_line(argc, argv) == -1) {
+    if (streaming_cmd == NULL) {
 
         return -1;
     }
@@ -351,85 +396,99 @@ int ad_streamer_cmd(int argc, char **argv) {
 
     if (audience_fd < 0) {
 
-        printf("Cannot open %s\n", ES3X5_DEVICE_PATH);
+        printf("Cannot open %s: %s (%d)\n",
+               ES3X5_DEVICE_PATH,
+               strerror(errno),
+               errno);
         return -1;
     }
 
-    /* Get the Audience FW version */
-    rc = select_audience_chip_id();
-    if (rc < 0) {
+    if (is_valid_streaming_cmd(streaming_cmd) == -1) {
 
-        cleanup();
+        cleanup(audience_fd, outfile_fd, handler);
         return -1;
-    };
+    }
 
-    outfile_fd = open(fname, O_CREAT | O_WRONLY);
+    outfile_fd = open(streaming_cmd->fname, O_CREAT | O_WRONLY);
     if (outfile_fd < 0) {
 
-        printf("Cannot open output file %s: %s\n", fname, strerror(errno));
-        cleanup();
+        printf("Cannot open output file %s: %s\n", streaming_cmd->fname, strerror(errno));
+        cleanup(audience_fd, outfile_fd, handler);
         return -1;
     }
-    printf("Outputing raw streaming data to %s\n", fname);
+    printf("Outputing raw streaming data to %s\n", streaming_cmd->fname);
 
     /* Set streaming channels */
-    if (chip_version == AUDIENCE_ES305) {
+    if (streaming_cmd->ad_chip_version == AUDIENCE_ES305) {
 
+        memcpy(setChannelCmd, setChannelCmdes305, sizeof(setChannelCmd));
         /* es305: A single command with a bit field of channels to be recorder
          * In case of single channel capture, channels[1] is equal to zero.
          * Maximum number of channels: MAX_CAPTURE_CHANNEL
          */
-        setChannelCmd[ES3X5_CHANNEL_SELECT_FIELD] = channels[0] | channels[1];
+        setChannelCmd[ES3X5_CHANNEL_SELECT_FIELD] =
+                streaming_cmd->capture_channels[0] | streaming_cmd->capture_channels[1];
 
         rc = full_write(audience_fd, setChannelCmd, sizeof(setChannelCmd));
         if (rc < 0) {
 
             printf("audience set channel command failed: %d\n", rc);
-            cleanup();
+
+            cleanup(audience_fd, outfile_fd, handler);
             return -1;
         }
-    } else if (chip_version == AUDIENCE_ES325) {
+    } else if (streaming_cmd->ad_chip_version == AUDIENCE_ES325) {
 
+        memcpy(setChannelCmd, setChannelCmdes325, sizeof(setChannelCmd));
         /* es325: As much command(s) as channel(s) to be recorded
          * Maximum number of channels: MAX_CAPTURE_CHANNEL
          */
         unsigned int channel;
 
-        for (channel = 0; channel < captureChannelsNumber; channel++) {
+        for (channel = 0; channel < streaming_cmd->captureChannelsNumber; channel++) {
 
-            setChannelCmd[ES3X5_CHANNEL_SELECT_FIELD] = channels[channel];
+            setChannelCmd[ES3X5_CHANNEL_SELECT_FIELD] = streaming_cmd->capture_channels[channel];
             rc = full_write(audience_fd, setChannelCmd, sizeof(setChannelCmd));
             if (rc < 0) {
 
                 printf("audience set channel command failed: %d\n", rc);
-                cleanup();
+
+                cleanup(audience_fd, outfile_fd, handler);
                 return -1;
             }
         }
     }
+    handler = alloc_streaming_handler(audience_fd, outfile_fd);
+    if (handler == NULL) {
+
+        printf("Allocate streaming handler has failed.\n");
+        cleanup(audience_fd, outfile_fd, handler);
+        return -1;
+    }
 
     /* Let start recording */
-    handler = alloc_streaming_handler(audience_fd, outfile_fd);
     rc = start_streaming(handler);
     if (rc < 0) {
 
         printf("Start streaming has failed.\n");
-        cleanup();
+
+        cleanup(audience_fd, outfile_fd, handler);
         return -1;
     }
 
-    printf("\nAudio streaming started, capturing for %d seconds\n", duration_in_sec);
-    sleep(duration_in_sec);
+    printf("\nAudio streaming started, capturing for %d seconds\n", streaming_cmd->duration_in_sec);
+    sleep(streaming_cmd->duration_in_sec);
 
     /* Stop Streaming */
     rc = stop_streaming(handler);
     if (rc < 0) {
 
         printf("audience stop stream command failed: %d\n", rc);
-        cleanup();
+
+        cleanup(audience_fd, outfile_fd, handler);
         return -1;
     }
 
-    cleanup();
+    cleanup(audience_fd, outfile_fd, handler);
     return 0;
 }

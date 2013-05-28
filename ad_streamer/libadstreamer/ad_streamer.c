@@ -204,8 +204,9 @@ static int isHandlerValidForStart(ad_streamer_handler *handler)
     }
 }
 
-int start_streaming(ad_streamer_handler *handler) {
 
+int start_streaming(ad_streamer_handler *handler)
+{
     int rc;
     struct sched_param param;
     pthread_attr_t thread_attr;
@@ -281,7 +282,8 @@ int start_streaming(ad_streamer_handler *handler) {
     return 0;
 }
 
-int stop_streaming(ad_streamer_handler *handler) {
+int stop_streaming(ad_streamer_handler *handler)
+{
 
     int rc;
 

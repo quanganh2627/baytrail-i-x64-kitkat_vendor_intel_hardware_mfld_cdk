@@ -377,14 +377,69 @@ int streamer_cmd_from_command_line(int argc,
     return 0;
 }
 
+static int setup_streaming(const ad_streamer_cmd_t *streaming_cmd, int audience_fd)
+
+{
+    int rc;
+    unsigned char setChannelCmd[AD_CMD_SIZE];
+
+    if (streaming_cmd == NULL || audience_fd < 0) {
+
+        return -1;
+    }
+
+    /* Set streaming channels */
+    switch(streaming_cmd->ad_chip_version) {
+
+        case AUDIENCE_ES305:
+            memcpy(setChannelCmd, setChannelCmdes305, sizeof(setChannelCmd));
+            /* es305: A single command with a bit field of channels to be recorder
+             * In case of single channel capture, channels[1] is equal to zero.
+             * Maximum number of channels: MAX_CAPTURE_CHANNEL
+             */
+            setChannelCmd[ES3X5_CHANNEL_SELECT_FIELD] =
+                    streaming_cmd->capture_channels[0] | streaming_cmd->capture_channels[1];
+
+            rc = full_write(audience_fd, setChannelCmd, sizeof(setChannelCmd));
+            if (rc < 0) {
+
+                printf("audience set channel command failed: %d\n", rc);
+                return -1;
+            }
+            break;
+
+        case AUDIENCE_ES325:
+            memcpy(setChannelCmd, setChannelCmdes325, sizeof(setChannelCmd));
+            /* es325: As much command(s) as channel(s) to be recorded
+             * Maximum number of channels: MAX_CAPTURE_CHANNEL
+             */
+            unsigned int channel;
+
+            for (channel = 0; channel < streaming_cmd->captureChannelsNumber; channel++) {
+
+                setChannelCmd[ES3X5_CHANNEL_SELECT_FIELD] = streaming_cmd->capture_channels[channel];
+                rc = full_write(audience_fd, setChannelCmd, sizeof(setChannelCmd));
+                if (rc < 0) {
+
+                    printf("audience set channel command failed: %d\n", rc);
+                    return -1;
+                }
+            }
+            break;
+
+        default:
+            return -1;
+    }
+
+    return 0;
+}
+
 int process_ad_streamer_cmd(const ad_streamer_cmd_t *streaming_cmd)
 {
-
     int rc;
     int audience_fd = -1;
     int outfile_fd = -1;
     ad_streamer_handler *handler = NULL;
-    static unsigned char setChannelCmd[AD_CMD_SIZE];
 
     if (streaming_cmd == NULL) {
 
@@ -396,10 +451,7 @@ int process_ad_streamer_cmd(const ad_streamer_cmd_t *streaming_cmd)
 
     if (audience_fd < 0) {
 
-        printf("Cannot open %s: %s (%d)\n",
-               ES3X5_DEVICE_PATH,
-               strerror(errno),
-               errno);
+        printf("Cannot open %s: %s (%d)\n", ES3X5_DEVICE_PATH, strerror(errno), errno);
         return -1;
     }
 
@@ -418,45 +470,11 @@ int process_ad_streamer_cmd(const ad_streamer_cmd_t *streaming_cmd)
     }
     printf("Outputing raw streaming data to %s\n", streaming_cmd->fname);
 
-    /* Set streaming channels */
-    if (streaming_cmd->ad_chip_version == AUDIENCE_ES305) {
+    rc = setup_streaming(streaming_cmd, audience_fd);
+    if (rc < 0) {
 
-        memcpy(setChannelCmd, setChannelCmdes305, sizeof(setChannelCmd));
-        /* es305: A single command with a bit field of channels to be recorder
-         * In case of single channel capture, channels[1] is equal to zero.
-         * Maximum number of channels: MAX_CAPTURE_CHANNEL
-         */
-        setChannelCmd[ES3X5_CHANNEL_SELECT_FIELD] =
-                streaming_cmd->capture_channels[0] | streaming_cmd->capture_channels[1];
-
-        rc = full_write(audience_fd, setChannelCmd, sizeof(setChannelCmd));
-        if (rc < 0) {
-
-            printf("audience set channel command failed: %d\n", rc);
-
-            cleanup(audience_fd, outfile_fd, handler);
-            return -1;
-        }
-    } else if (streaming_cmd->ad_chip_version == AUDIENCE_ES325) {
-
-        memcpy(setChannelCmd, setChannelCmdes325, sizeof(setChannelCmd));
-        /* es325: As much command(s) as channel(s) to be recorded
-         * Maximum number of channels: MAX_CAPTURE_CHANNEL
-         */
-        unsigned int channel;
-
-        for (channel = 0; channel < streaming_cmd->captureChannelsNumber; channel++) {
-
-            setChannelCmd[ES3X5_CHANNEL_SELECT_FIELD] = streaming_cmd->capture_channels[channel];
-            rc = full_write(audience_fd, setChannelCmd, sizeof(setChannelCmd));
-            if (rc < 0) {
-
-                printf("audience set channel command failed: %d\n", rc);
-
-                cleanup(audience_fd, outfile_fd, handler);
-                return -1;
-            }
-        }
+        cleanup(audience_fd, outfile_fd, handler);
+        return -1;
     }
     handler = alloc_streaming_handler(audience_fd, outfile_fd);
     if (handler == NULL) {

@@ -1,20 +1,24 @@
 LOCAL_PATH:= $(call my-dir)
 
+include $(CLEAR_VARS)
+
 # Do not compile the Audience proxy if the board does not include Audience
 ifeq ($(BOARD_HAVE_AUDIENCE),true)
 
-common_c_includes := \
-	$(KERNEL_HEADERS) \
+LOCAL_C_INCLUDES += \
+    $(TARGET_OUT_HEADERS)/full_rw
 
-common_shared_libraries := \
-	libsysutils \
-	libcutils
+LOCAL_SRC_FILES := \
+    proxy_main.c \
+    ad_i2c.c \
+    ad_usb_tty.c
 
-include $(CLEAR_VARS)
+LOCAL_SHARED_LIBRARIES := \
+    libsysutils \
+    libcutils
 
-LOCAL_SRC_FILES := proxy_main.c ad_i2c.c ad_protocol.c ad_usb_tty.c
-
-LOCAL_SHARED_LIBRARIES := $(common_shared_libraries)
+LOCAL_STATIC_LIBRARIES := \
+    libfull_rw
 
 LOCAL_MODULE_PATH := $(TARGET_OUT_OPTIONAL_EXECUTABLES)
 

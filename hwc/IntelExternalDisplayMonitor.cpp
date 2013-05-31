@@ -269,7 +269,7 @@ status_t IntelExternalDisplayMonitor::readyToRun()
             } else {
                 ALOGD_IF(ALLOW_MONITOR_PRINT, "Create a MultiDisplay client at HWC");
                 bool bWait = true;
-                mActiveDisplayMode = mMDClient->getMode(bWait);
+                mActiveDisplayMode = mMDClient->getDisplayMode(bWait);
                 mLastMsg = checkMode(mActiveDisplayMode, MDS_HDMI_CONNECTED) ?
                     MSG_TYPE_MDS_HOTPLUG_IN : MSG_TYPE_MDS_HOTPLUG_OUT;
                 int mode = getDisplayMode();

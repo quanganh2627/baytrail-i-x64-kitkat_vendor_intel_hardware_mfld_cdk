@@ -76,24 +76,17 @@ int IntelDisplayDevice::getMetaDataTransform(hwc_layer_1_t *layer,
         return 0;
     }
 
-    IntelDisplayBuffer *buffer =
-        mGrallocBufferManager->map(grallocHandle->fd[1]);
-    if (!buffer) {
-        ALOGE("%s: failed to map payload buffer.\n", __func__);
-        return -1;
-    }
+    // get payload buffer
+    IntelPayloadBuffer buffer(mGrallocBufferManager, grallocHandle->fd[1]);
 
     intel_gralloc_payload_t *payload =
-        (intel_gralloc_payload_t*)buffer->getCpuAddr();
+            (intel_gralloc_payload_t*)buffer.getCpuAddr();
     if (!payload) {
         ALOGE("%s: invalid address\n", __func__);
         return -1;
     }
 
     transform = payload->metadata_transform;
-
-    // unmap payload buffer
-    mGrallocBufferManager->unmap(buffer);
 
     return 0;
 }
@@ -443,8 +436,11 @@ bool IntelDisplayDevice::flipFramebufferContexts(void *contexts,
         (zOrderConfig == IntelDisplayPlaneManager::ZORDER_OaOcP))
         forceBottom = true;
 
-    if (forceBottom) {
-        context->cntr = INTEL_SPRITE_FORCE_BOTTOM;
+    // if YUV layer count is zero, force fb to be bottom and bgrx format
+    // to solve blank screen of some 3D applications with premulti alpha.
+    if (forceBottom || (mLayerList->getYUVLayerCount() == 0)) {
+        context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRX8888;
+        context->cntr |= INTEL_SPRITE_FORCE_BOTTOM;
     } else {
         context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRA8888;
     }

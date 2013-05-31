@@ -204,7 +204,6 @@ static int isHandlerValidForStart(ad_streamer_handler *handler)
     }
 }
 
-
 int start_streaming(ad_streamer_handler *handler)
 {
     int rc;
@@ -234,33 +233,33 @@ int start_streaming(ad_streamer_handler *handler)
     if (sem_init(&handler->sem_start, 0, 0) != 0) {
 
         ALOGE("Initialzing sem_start semaphore failed");
-        return -1;
+        goto destroy_sem_read;
     }
     if (pthread_attr_init(&thread_attr) != 0) {
 
         ALOGE("Initialzing thread attr failed");
-        return -1;
+        goto destroy_sem_start;
     }
     if (pthread_attr_setschedpolicy(&thread_attr, SCHED_RR) != 0) {
 
         ALOGE("Initialzing thread policy failed");
-        return -1;
+        goto destroy_attr;
     }
     param.sched_priority = sched_get_priority_max(SCHED_RR);
     if (pthread_attr_setschedparam (&thread_attr, &param) != 0) {
 
         ALOGE("Initialzing thread priority failed");
-        return -1;
+        goto destroy_attr;
     }
     if (pthread_create(&handler->pt_capture, &thread_attr, run_capture, handler) != 0) {
 
         ALOGE("Creating read thread failed");
-        return -1;
+        goto destroy_attr;
     }
     if (pthread_create(&handler->pt_write, NULL, run_writefile, handler) != 0) {
 
         ALOGE("Creating write thread failed");
-        return -1;
+        goto join_capture;
     }
     acquire_wake_lock(PARTIAL_WAKE_LOCK, ad_streamer_id);
 
@@ -271,15 +270,34 @@ int start_streaming(ad_streamer_handler *handler)
         ALOGE("Audience start stream command failed: %s (%d)",
               strerror(errno),
               rc);
+
         release_wake_lock(ad_streamer_id);
-        return -1;
+        goto join_write;
     }
 
     // Let thread start recording
     sem_post(&handler->sem_start);
     handler->is_catpure_started = true;
 
+    pthread_attr_destroy(&thread_attr);
     return 0;
+
+join_write:
+    pthread_join(handler->pt_write, NULL);
+
+join_capture:
+    pthread_join(handler->pt_capture, NULL);
+
+destroy_attr:
+    pthread_attr_destroy(&thread_attr);
+
+destroy_sem_start:
+    sem_destroy(&handler->sem_start);
+
+destroy_sem_read:
+    sem_destroy(&handler->sem_read);
+
+    return -1;
 }
 
 int stop_streaming(ad_streamer_handler *handler)
@@ -320,6 +338,9 @@ int stop_streaming(ad_streamer_handler *handler)
     pthread_join(handler->pt_capture, NULL);
     ALOGD("Capture stopped.");
     pthread_join(handler->pt_write, NULL);
+
+    sem_destroy(&handler->sem_read);
+    sem_destroy(&handler->sem_start);
 
     ALOGV("Total of %d bytes read", handler->written_bytes);
 

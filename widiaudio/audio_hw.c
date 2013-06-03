@@ -34,14 +34,10 @@
 #include <alsa/asoundlib.h>
 
 #ifndef DEFAULT_SAMPLING_RATE
-  #define DEFAULT_SAMPLING_RATE    44100
+  #define DEFAULT_SAMPLING_RATE    48000
 #endif
 
-#if(DEFAULT_SAMPLING_RATE == 48000)
-  #define DEFAULT_PERIOD_TIME      24000 //in us
-#else
-  #define DEFAULT_PERIOD_TIME      23220 //in us
-#endif
+#define DEFAULT_PERIOD_TIME        23220 //in us
 
 #define DEFAULT_PERIOD_SIZE        1024
 #define DEFAULT_PERIOD_COUNT       4
@@ -51,6 +47,9 @@
 #define MAX_AGAIN_RETRY            2
 #define WAIT_TIME_MS               20
 #define WAIT_BEFORE_RETRY          10000 //10ms
+
+/*this is used to avoid starvation*/
+#define LATENCY_TO_BUFFER_SIZE_RATIO 2
 
 /* Configuration for a stream */
 struct pcm_config {
@@ -423,6 +422,11 @@ static size_t out_get_buffer_size(const struct audio_stream *stream)
     buf_size = out->pcm_config.period_size *
                out->pcm_config.period_count *
                audio_stream_frame_size((struct audio_stream *)stream);
+
+    /*latency of audio flinger is based on this
+      buffer size. modifying the buffer size to avoid
+      starvation*/
+    buf_size/=LATENCY_TO_BUFFER_SIZE_RATIO;
 
     ALOGV("%s : %d, period_size : %d, frame_size : %d",
         __func__,

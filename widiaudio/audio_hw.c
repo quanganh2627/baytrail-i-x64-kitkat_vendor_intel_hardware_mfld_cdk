@@ -157,6 +157,11 @@ static int set_hardware_params(struct widi_stream_out *out)
         ALOGE("%s: Failed to allocate ALSA hardware parameters!", __func__);
         return -ENODEV;
     }
+    if (!hardware_params) {
+        ALOGE("Failed to allocate memory for ALSA hardware parameters!");
+        return -ENOMEM;
+    }
+
 
     err = snd_pcm_hw_params_any(out->handle, hardware_params);
     if (err < 0) {
@@ -255,6 +260,10 @@ static int set_software_params(struct widi_stream_out *out)
     if (snd_pcm_sw_params_malloc(&software_params) < 0) {
         ALOGE("Failed to allocate ALSA software parameters!");
         return -ENODEV;
+    }
+    if (!software_params) {
+        ALOGE("Failed to allocate memory for ALSA software parameters!");
+        return -ENOMEM;
     }
 
     // Get the current software parameters
@@ -826,37 +835,47 @@ static char * widi_dev_get_parameters(const struct audio_hw_device *dev,
 
     if (strcmp(keys, AUDIO_PARAMETER_KEY_REMOTE_BGM_STATE) == 0) {
         struct str_parms *parms = str_parms_create_str(keys);
-        int ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_REMOTE_BGM_STATE,
-                                     value, sizeof(value));
+        int ret;
         char *str;
+        if (parms) {
+            ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_REMOTE_BGM_STATE,
+                                     value, sizeof(value));
 
-        str_parms_destroy(parms);
+            str_parms_destroy(parms);
+        }
         if (ret >= 0) {
            ALOGV("%s adev->bgmstate %s", __func__,adev->bgmstate);
            parms = str_parms_create_str(adev->bgmstate);
-           str = str_parms_to_str(parms);
-           str = strtok(str, "=");
-           str_parms_destroy(parms);
-           ALOGV("%s entered with key %s for which value is %s", __func__,keys,str);
-           return str;
+           if (parms) {
+               str = str_parms_to_str(parms);
+               str = strtok(str, "=");
+               str_parms_destroy(parms);
+               ALOGV("%s entered with key %s for which value is %s", __func__,keys,str);
+               return str;
+          }
         }
     }
 
     if (strcmp(keys, AUDIO_PARAMETER_VALUE_REMOTE_BGM_AUDIO) == 0) {
        struct str_parms *parms = str_parms_create_str(keys);
-       int ret = str_parms_get_str(parms, AUDIO_PARAMETER_VALUE_REMOTE_BGM_AUDIO,
-                                     value, sizeof(value));
+       int ret;
        char *str;
+       if (parms) {
+           ret = str_parms_get_str(parms, AUDIO_PARAMETER_VALUE_REMOTE_BGM_AUDIO,
+                                     value, sizeof(value));
 
-       str_parms_destroy(parms);
+           str_parms_destroy(parms);
+       }
        if (ret >= 0) {
           ALOGV("%s gbgm_audio %s", __func__,gbgm_audio);
           parms = str_parms_create_str(gbgm_audio);
-          str = str_parms_to_str(parms);
-          str = strtok(str, "=");
-          str_parms_destroy(parms);
-          ALOGV("%s entered with key %s for which value is %s", __func__,keys,str);
-          return str;
+          if (parms) {
+              str = str_parms_to_str(parms);
+              str = strtok(str, "=");
+              str_parms_destroy(parms);
+              ALOGV("%s entered with key %s for which value is %s", __func__,keys,str);
+              return str;
+         }
        }
     }
 

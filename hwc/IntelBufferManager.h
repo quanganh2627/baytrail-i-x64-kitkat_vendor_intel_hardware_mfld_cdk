@@ -259,6 +259,8 @@ typedef struct {
     uint32_t rotate_chroma_u_stride;
     uint32_t rotate_chroma_v_stride;
     void *native_window;
+    int width_origin;
+    int height_origin;
 } intel_gralloc_payload_t;
 
 class IntelPVRBufferManager : public IntelBufferManager {

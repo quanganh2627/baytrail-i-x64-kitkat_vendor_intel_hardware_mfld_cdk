@@ -262,13 +262,16 @@ static int set_software_params(struct hdmi_stream_out *out)
         return -ENODEV;
     }
 
+    if (!software_params) {
+        ALOGE("Failed to allocate memory for ALSA software parameters!");
+        return -ENOMEM;
+    }
+
     // Get the current software parameters
-    if (software_params) {
-       err = snd_pcm_sw_params_current(out->handle, software_params);
-       if (err < 0) {
-           ALOGE("Unable to get software parameters: %s", snd_strerror(err));
-           goto error_exit;
-       }
+    err = snd_pcm_sw_params_current(out->handle, software_params);
+    if (err < 0) {
+       ALOGE("Unable to get software parameters: %s", snd_strerror(err));
+       goto error_exit;
     }
 
     // Configure ALSA to start the transfer when the buffer is almost full.

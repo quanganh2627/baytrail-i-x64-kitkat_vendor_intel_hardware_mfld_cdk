@@ -65,7 +65,7 @@ bool Drm::detect()
 
     // try to get drm resources
     drmModeResPtr resources = drmModeGetResources(mDrmFd);
-    if (!resources) {
+    if (!resources || !resources->connectors) {
         log.e("detect(): fail to get drm resources. %s\n", strerror(errno));
         return false;
     }

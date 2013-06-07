@@ -32,11 +32,8 @@ LOCAL_SHARED_LIBRARIES += \
         libstlport \
         libc \
         libevent-listener \
-        libxmlserializer \
         libparameter \
         libproperty
-
-TARGET_ERROR_FLAGS += -Wno-non-virtual-dtor
 
 LOCAL_MODULE:= vibrator.$(TARGET_DEVICE)
 LOCAL_MODULE_TAGS:= optional

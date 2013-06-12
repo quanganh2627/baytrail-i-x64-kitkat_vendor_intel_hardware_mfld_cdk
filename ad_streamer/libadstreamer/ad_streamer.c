@@ -98,6 +98,7 @@ void free_streaming_handler(ad_streamer_handler *handler)
 void *run_capture(void *arg)
 {
     int index = 0;
+    int byte_read;
     struct timespec ts;
     int buffer_level;
     ad_streamer_handler *handler = arg;
@@ -117,7 +118,13 @@ void *run_capture(void *arg)
     }
     while (!handler->stop_requested) {
 
-        full_read(handler->audience_fd, handler->data[index], ES3X5_BUFFER_SIZE);
+        byte_read = full_read(handler->audience_fd, handler->data[index], ES3X5_BUFFER_SIZE);
+        if (byte_read != ES3X5_BUFFER_SIZE) {
+
+            ALOGE("Error: read has failed.");
+            handler->stop_requested = true;
+            return NULL;
+        }
         handler->cap_idx++;
 
         if (UINT_MAX - handler->read_bytes >= ES3X5_BUFFER_SIZE) {
@@ -146,6 +153,7 @@ void *run_capture(void *arg)
 void *run_writefile(void *arg)
 {
     int index = 0;
+    int byte_writen;
     struct timespec ts;
     ad_streamer_handler *handler = arg;
 
@@ -168,7 +176,13 @@ void *run_writefile(void *arg)
             return NULL;
         }
 
-        full_write(handler->outfile_fd, handler->data[index], ES3X5_BUFFER_SIZE);
+        byte_writen = full_write(handler->outfile_fd, handler->data[index], ES3X5_BUFFER_SIZE);
+        if (byte_writen != ES3X5_BUFFER_SIZE) {
+
+            ALOGE("Error: write has failed.");
+            handler->stop_requested = true;
+            return NULL;
+        }
         handler->wrt_idx--;
 
         if (UINT_MAX - handler->written_bytes >= ES3X5_BUFFER_SIZE) {

@@ -22,7 +22,7 @@
  */
 
 #define LOG_TAG "tiny_hdmi_audio_hw"
-#define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 
 #include <errno.h>
 #include <pthread.h>
@@ -346,6 +346,12 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
 
     pthread_mutex_lock(&adev->lock);
 
+    if (parms == NULL) {
+        ALOGE("couldn't extract string params from key value pairs");
+        pthread_mutex_unlock(&adev->lock);
+        return 0;
+    }
+
     ret = str_parms_get_str(parms, "card", value, sizeof(value));
     if (ret >= 0)
         adev->card = atoi(value);
@@ -441,35 +447,42 @@ static char * out_get_parameters(const struct audio_stream *stream, const char *
     struct stream_out *out = (struct stream_out *)stream;
     struct audio_device *adev = out->dev;
     struct str_parms *params_in = str_parms_create_str(keys);
-    char *str;
-    char value[256];
+    char *str = NULL;
+    char value[256] = {0};
     int ret;
 
     struct str_parms *params_out = str_parms_create();
 
     ALOGV("%s Entered %s", __func__,keys);
 
-    ret = str_parms_get_str(params_in, AUDIO_PARAMETER_STREAM_SUP_CHANNELS, value, sizeof(value));
-    if (ret >= 0) {
-	/*read the channel support from sink*/
-	out_read_edid(out);
+    if (params_in) {
+        ret = str_parms_get_str(params_in, AUDIO_PARAMETER_STREAM_SUP_CHANNELS, value, sizeof(value));
+        if (ret >= 0) {
+            /*read the channel support from sink*/
+            out_read_edid(out);
 
-	if(adev->sink_sup_channels == AUDIO_CHANNEL_OUT_5POINT1){
-            strcat(value,"AUDIO_CHANNEL_OUT_5POINT1");
-	}
-	else{
-           strcat(value,"AUDIO_CHANNEL_OUT_STEREO");
-	}
+            if (adev->sink_sup_channels == AUDIO_CHANNEL_OUT_5POINT1){
+                strcat(value,"AUDIO_CHANNEL_OUT_5POINT1");
+            }
+            else {
+              strcat(value,"AUDIO_CHANNEL_OUT_STEREO");
+            }
+        }
+    }
+    if (params_out) {
+        str_parms_add_str(params_out, AUDIO_PARAMETER_STREAM_SUP_CHANNELS, value);
+        str = str_parms_to_str(params_out);
     } else {
         str = strdup(keys);
     }
 
-    str_parms_add_str(params_out, AUDIO_PARAMETER_STREAM_SUP_CHANNELS, value);
-    str = strdup(str_parms_to_str(params_out));
-
     ALOGV("%s AUDIO_PARAMETER_STREAM_SUP_CHANNELS %s", __func__,str);
-    str_parms_destroy(params_in);
-    str_parms_destroy(params_out);
+    if (params_in) {
+        str_parms_destroy(params_in);
+    }
+    if (params_out) {
+        str_parms_destroy(params_out);
+    }
 
     return str;
 }
@@ -490,7 +503,7 @@ static int out_set_volume(struct audio_stream_out *stream, float left,
 static ssize_t out_write(struct audio_stream_out *stream, const void* buffer,
                          size_t bytes)
 {
-    int ret;
+    int ret = 0;
     struct stream_out *out = (struct stream_out *)stream;
     int32_t* dstbuff = NULL;
     int outbytes = 0;

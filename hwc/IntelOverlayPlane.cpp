@@ -313,7 +313,7 @@ bool IntelOverlayContext::flush(uint32_t flags)
     memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
     arg.overlay_write_mask = OV_REGRWBITS_OVADD;
     arg.overlay_read_mask = 0;
-    arg.overlay.b_wms = 0;
+    arg.overlay.b_wms = 1;
     arg.overlay.b_wait_vblank = (flags & IntelDisplayPlane::WAIT_VBLANK) ? 1 : 0;
     arg.overlay.OVADD = (mContext->gtt_offset_in_page << 12);
     // pipe select
@@ -1845,13 +1845,6 @@ bool IntelRGBOverlayPlane::invalidateDataBuffer()
 	if (ret)
 		mPixelFormatConverter->reset();
 	return ret;
-}
-
-// override waitForFlipCompletion
-// don't need it since RGB overlay don't have backbuffer sync issue
-void IntelRGBOverlayPlane::waitForFlipCompletion()
-{
-	return;
 }
 
 uint32_t IntelRGBOverlayPlane::convert(uint32_t handle,

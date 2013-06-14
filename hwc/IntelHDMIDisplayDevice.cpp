@@ -357,3 +357,13 @@ bool IntelHDMIDisplayDevice::getDisplayAttributes(uint32_t config,
 
     return true;
 }
+
+void IntelHDMIDisplayDevice::onHotplugEvent(bool hpd)
+{
+    IntelDisplayDevice::onHotplugEvent(hpd);
+
+    if (mDrm->getDisplayMode() == OVERLAY_MIPI0) {
+        mLayerList->invalidatePlanes();
+        mLayerList->updateLayerList(NULL);
+    }
+}

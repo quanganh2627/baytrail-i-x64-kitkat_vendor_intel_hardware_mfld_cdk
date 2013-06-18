@@ -791,12 +791,12 @@ bool IntelDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
             }
 
             grallocHandle = (intel_gralloc_buffer_handle_t*)yuvBufferHandle;
-            bufferWidth = grallocHandle->width;
             bufferHeight = grallocHandle->height;
             bufferHandle = grallocHandle->fd[GRALLOC_SUB_BUFFER0];
             format = grallocHandle->format;
 
-            uint32_t grallocStride = align_to(bufferWidth, 32);
+            //Calcuate stride according with width
+            uint32_t grallocStride = bufferWidth = (bufferWidth <= 512 ? 512 : align_to(bufferWidth, 32));
 
             dataBuffer->setFormat(format);
             dataBuffer->setStride(grallocStride);

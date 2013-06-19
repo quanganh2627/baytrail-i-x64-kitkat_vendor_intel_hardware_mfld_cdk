@@ -3,7 +3,7 @@
 LOCAL_PATH := $(call my-dir)
 
 # Build only when BOARD_USE_VIBRATOR_ALSA is set
-ifeq ($(BOARD_USE_VIBRATOR_ALSA), true)
+ifeq ($(BOARD_USES_ALSA_AUDIO), true)
 
 include $(CLEAR_VARS)
 

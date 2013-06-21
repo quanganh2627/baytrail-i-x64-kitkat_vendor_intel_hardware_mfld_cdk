@@ -690,22 +690,6 @@ bool IntelDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
 
         IMG_native_handle_t *grallocHandle =
             (IMG_native_handle_t*)layer->handle;
-        // need to wait for video buffer ready before setting data buffer
-        if (grallocHandle->iFormat == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
-            grallocHandle->iFormat == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE) {
-
-            // get payload buffer
-            IntelPayloadBuffer buffer(mGrallocBufferManager, grallocHandle->fd[1]);
-
-            intel_gralloc_payload_t *payload =
-                    (intel_gralloc_payload_t*)buffer.getCpuAddr();
-            if (!payload) {
-                ALOGE("%s: invalid address\n", __func__);
-                return false;
-            }
-            //wait video buffer idle
-            mGrallocBufferManager->waitIdle(payload->khandle);
-        }
 
         // check plane
         plane = mLayerList->getPlane(i);
@@ -1033,8 +1017,6 @@ bool IntelDisplayDevice::useOverlayRotation(hwc_layer_1_t *layer,
         handle = payload->rotated_buffer_handle;
         w = payload->rotated_width;
         h = payload->rotated_height;
-        //wait video rotated buffer idle
-        mGrallocBufferManager->waitIdle(handle);
         // NOTE: exchange the srcWidth & srcHeight since
         // video driver currently doesn't call native_window_*
         // helper functions to update info for rotation buffer.

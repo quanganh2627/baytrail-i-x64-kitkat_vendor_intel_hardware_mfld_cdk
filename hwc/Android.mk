@@ -36,7 +36,8 @@ LOCAL_COPY_HEADERS := \
     IntelOverlayPlane.h \
     IntelOverlayUtil.h \
     IntelWsbm.h \
-    IntelWsbmWrapper.h
+    IntelWsbmWrapper.h \
+    IntelUtility.h
 ifeq ($(TARGET_HAS_MULTIPLE_DISPLAY),true)
 LOCAL_COPY_HEADERS += IntelExternalDisplayMonitor.h
 endif
@@ -65,7 +66,9 @@ LOCAL_SRC_FILES := IntelHWComposerModule.cpp \
                    IntelWsbmWrapper.c \
                    IntelHWCUEventObserver.cpp \
                    IntelVsyncEventHandler.cpp \
-                   IntelFakeVsyncEvent.cpp
+                   IntelFakeVsyncEvent.cpp \
+                   IntelUtility.cpp
+
 LOCAL_MODULE_TAGS := eng
 LOCAL_MODULE := hwcomposer.$(TARGET_DEVICE)
 LOCAL_CFLAGS:= -DLOG_TAG=\"hwcomposer\" -DLINUX

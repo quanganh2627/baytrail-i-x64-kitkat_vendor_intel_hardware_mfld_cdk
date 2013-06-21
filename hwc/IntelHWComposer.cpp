@@ -49,6 +49,7 @@
 #include <IntelHWComposer.h>
 #include <IntelOverlayUtil.h>
 #include <IntelHWComposerCfg.h>
+#include <IntelUtility.h>
 
 #ifdef INTEL_WIDI
 #include <WidiDisplayDevice.h>
@@ -748,6 +749,11 @@ bool IntelHWComposer::prepareDisplays(size_t numDisplays,
 
     mExtendedModeInfo.widiExtHandle = NULL;
 
+#ifdef HWC_DEBUG_DUMP_LAYERS
+    IntelUtility u(numDisplays, displays);
+    u.dumpLayers(NULL);
+#endif
+
     if (numDisplays >= HWC_NUM_DISPLAY_TYPES && displays[HWC_NUM_DISPLAY_TYPES])
     {
         IMG_native_handle_t *videoHandleMipi = findVideoHandle(displays[HWC_DISPLAY_PRIMARY]);
@@ -969,7 +975,7 @@ int IntelHWComposer::dumpLayerLists(size_t numDisplays,
                 IMG_native_handle_t* handle =
                        (IMG_native_handle_t*)displays[disp]->hwLayers[i].handle;
 		if (handle) {
-                    ALOGD("handle=%p type=%d format=%x usage=%x stamp=%d fd[0]=%d",
+                    ALOGD("handle=%p type=%d format=%x usage=%x stamp=%llu fd[0]=%d",
 			    handle,
                             displays[disp]->hwLayers[i].compositionType,
 			    handle->iFormat,

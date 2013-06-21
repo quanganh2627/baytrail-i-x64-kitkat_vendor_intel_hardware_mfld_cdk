@@ -839,7 +839,7 @@ static char * widi_dev_get_parameters(const struct audio_hw_device *dev,
 
     if (strcmp(keys, AUDIO_PARAMETER_KEY_REMOTE_BGM_STATE) == 0) {
         struct str_parms *parms = str_parms_create_str(keys);
-        int ret;
+        int ret =-1;
         char *str;
         if (parms) {
             ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_REMOTE_BGM_STATE,
@@ -862,7 +862,7 @@ static char * widi_dev_get_parameters(const struct audio_hw_device *dev,
 
     if (strcmp(keys, AUDIO_PARAMETER_VALUE_REMOTE_BGM_AUDIO) == 0) {
        struct str_parms *parms = str_parms_create_str(keys);
-       int ret;
+       int ret = -1;
        char *str;
        if (parms) {
            ret = str_parms_get_str(parms, AUDIO_PARAMETER_VALUE_REMOTE_BGM_AUDIO,

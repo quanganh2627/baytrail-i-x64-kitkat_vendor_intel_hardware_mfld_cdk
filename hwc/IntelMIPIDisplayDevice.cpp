@@ -396,6 +396,10 @@ bool IntelMIPIDisplayDevice::isRGBOverlayLayer(hwc_display_contents_1_t *list,
     if (!grallocHandle)
         return false;
 
+    // If there is only one layer, we can always display it by h/w
+    if (list->numHwLayers < 3)
+        return false;
+
     // Don't use it when:
     // 1) HDMI is connected
     // 2) there are YUV layers
@@ -508,16 +512,16 @@ void IntelMIPIDisplayDevice::updateZorderConfig()
 {
     int zOrderConfig = IntelDisplayPlaneManager::ZORDER_POaOc;
 
-    if (mLayerList->getYUVLayerCount()) {
-        int layersCount = mLayerList->getLayersCount();
-        // For corner case: YUV layer is on the top in the layer list
-        // and there's other rgb layers.
-        // Change the Z-order if so.
-        if (layersCount > 1 &&
-                mLayerList->getLayerType(layersCount - 1) == IntelHWComposerLayer::LAYER_TYPE_YUV)
-            zOrderConfig = IntelDisplayPlaneManager::ZORDER_OcOaP;
-        else
+    if (mLayerList->getAttachedOverlayCount()) {
+        IntelDisplayPlane* plane = mLayerList->getPlane(0);
+        // If there is a blending to overlay, the overlay should be
+        // the first layer always; other wise, we should put overlay
+        // on top.
+        if (plane && plane->getPlaneType() ==
+                IntelDisplayPlane::DISPLAY_PLANE_OVERLAY)
             zOrderConfig = IntelDisplayPlaneManager::ZORDER_POcOa;
+        else
+            zOrderConfig = IntelDisplayPlaneManager::ZORDER_OcOaP;
     }
 
     mPlaneManager->setZOrderConfig(zOrderConfig, 0);
@@ -690,6 +694,8 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
     // handle buffer changing. setup data buffer.
     if (list && !updateLayersData(list)) {
         ALOGD_IF(ALLOW_HWC_PRINT, "prepare: revisiting layer list\n");
+        // TODO: We shouldn't change any layer to HWC_OVERLAY in the following
+        // revisit because there is no chance to update the layer's data.
         revisitLayerList(list, false);
     }
 
@@ -1256,7 +1262,7 @@ bool IntelMIPIDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
             bufferHandle = grallocHandle->fd[0];
             format = grallocHandle->iFormat;
 
-            uint32_t grallocStride = align_to(bufferWidth, 32);
+            uint32_t grallocStride = grallocHandle->iStride;
 
             dataBuffer->setFormat(format);
             dataBuffer->setStride(grallocStride);

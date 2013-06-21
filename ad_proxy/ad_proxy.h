@@ -17,6 +17,10 @@
  */
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * Start the Audience Proxy. The proxy state machine works forever in an inifinite loop
  * to execute commands from AuViD. On error, the proxy stops itself and the function returns a
@@ -25,3 +29,7 @@
  * @return -1 which means the proxy stops on error
  */
 int start_proxy(void);
+
+#ifdef __cplusplus
+}
+#endif

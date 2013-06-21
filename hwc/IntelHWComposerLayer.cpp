@@ -218,11 +218,14 @@ void IntelHWComposerLayerList::attachPlane(int index,
     }
 
     if (initCheck()) {
+        int type = plane->getPlaneType();
+
         mLayerList[index].mPlane = plane;
         mLayerList[index].mFlags = flags;
-        if (plane->getPlaneType() == IntelDisplayPlane::DISPLAY_PLANE_SPRITE)
+        if (type == IntelDisplayPlane::DISPLAY_PLANE_SPRITE)
             mAttachedSpritePlanes++;
-        else if (plane->getPlaneType() == IntelDisplayPlane::DISPLAY_PLANE_OVERLAY)
+        else if (type == IntelDisplayPlane::DISPLAY_PLANE_OVERLAY ||
+                 type == IntelDisplayPlane::DISPLAY_PLANE_RGB_OVERLAY)
             mAttachedOverlayPlanes++;
         mNumAttachedPlanes++;
     }
@@ -236,12 +239,15 @@ void IntelHWComposerLayerList::detachPlane(int index, IntelDisplayPlane *plane)
     }
 
     if (initCheck()) {
+        int type = plane->getPlaneType();
+
         mPlaneManager->reclaimPlane(plane);
         mLayerList[index].mPlane = 0;
         mLayerList[index].mFlags = 0;
-        if (plane->getPlaneType() == IntelDisplayPlane::DISPLAY_PLANE_SPRITE)
+        if (type == IntelDisplayPlane::DISPLAY_PLANE_SPRITE)
             mAttachedSpritePlanes--;
-        else if (plane->getPlaneType() == IntelDisplayPlane::DISPLAY_PLANE_OVERLAY)
+        else if (type == IntelDisplayPlane::DISPLAY_PLANE_OVERLAY ||
+                 type == IntelDisplayPlane::DISPLAY_PLANE_RGB_OVERLAY)
             mAttachedOverlayPlanes--;
         mNumAttachedPlanes--;
     }

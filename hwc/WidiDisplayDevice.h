@@ -30,6 +30,7 @@
 #define __WIDI_DISPLAY_DEVICE_H__
 
 #include <utils/KeyedVector.h>
+#include <utils/List.h>
 #include <utils/Mutex.h>
 #include <utils/RefBase.h>
 
@@ -44,6 +45,17 @@ protected:
         IntelBufferManager* grallocBufferManager;
         IntelDisplayBuffer* displayBuffer;
     };
+    struct HeldCscBuffer : public android::RefBase {
+        HeldCscBuffer(const android::sp<WidiDisplayDevice>& wdd, const sp<GraphicBuffer>& gb);
+        virtual ~HeldCscBuffer();
+        android::sp<WidiDisplayDevice> wdd;
+        android::sp<GraphicBuffer> buffer;
+    };
+    struct HeldDecoderBuffer : public android::RefBase {
+        HeldDecoderBuffer(const android::sp<CachedBuffer>& cachedBuffer);
+        virtual ~HeldDecoderBuffer();
+        android::sp<CachedBuffer> cachedBuffer;
+    };
     struct Configuration {
         android::sp<IFrameTypeChangeListener> typeChangeListener;
         android::sp<IFrameListener> frameListener;
@@ -54,20 +66,33 @@ protected:
     android::Mutex mConfigLock;
     Configuration mCurrentConfig;
     Configuration mNextConfig;
+    size_t mLayerToSend;
 
     WidiExtendedModeInfo *mExtendedModeInfo;
     uint32_t mExtLastKhandle;
     int64_t mExtLastTimestamp;
 
-    android::Mutex mListenerLock;
-    FrameInfo mLastFrameInfo;
+    int64_t mRenderTimestamp;
 
-    android::KeyedVector<IMG_native_handle_t*, android::sp<CachedBuffer> > mDisplayBufferCache;
+    // colorspace conversion
+    android::Mutex mCscLock;
+    IMG_gralloc_module_public_t* mGrallocModule;
+    alloc_device_t* mGrallocDevice;
+    android::List< android::sp<GraphicBuffer> > mAvailableCscBuffers;
+    int mCscBuffersToCreate;
+    uint32_t mCscWidth;
+    uint32_t mCscHeight;
+
+    FrameInfo mLastInputFrameInfo;
+    FrameInfo mLastOutputFrameInfo;
+
+    android::KeyedVector<uint32_t, android::sp<CachedBuffer> > mMappedBufferCache;
     android::Mutex mHeldBuffersLock;
-    android::KeyedVector<uint32_t, android::sp<CachedBuffer> > mHeldBuffers;
+    android::KeyedVector<uint32_t, android::sp<android::RefBase> > mHeldBuffers;
 
 private:
-    android::sp<CachedBuffer> getDisplayBuffer(IMG_native_handle_t* handle);
+    android::sp<CachedBuffer> getMappedBuffer(uint32_t handle);
+    void sendToWidi(const hwc_layer_1_t& layer);
 
 public:
     WidiDisplayDevice(IntelBufferManager *bm,

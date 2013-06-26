@@ -440,7 +440,6 @@ IntelHWComposerDrm::getConnector(int disp)
         ALOGE("%s: invalid drm FD\n", __func__);
         return NULL;
     }
-    ALOGD("Entering %s, %d", __func__, disp);
     uint32_t req_connector_type = 0;
     uint32_t req_connector_type_id = 1;
 
@@ -487,7 +486,6 @@ IntelHWComposerDrm::getConnector(int disp)
     if (connector == NULL)
         ALOGW("%s: fail to get required connector\n", __func__);
 
-    ALOGD("Leaving %s, %d", __func__, disp);
     return connector;
 }
 

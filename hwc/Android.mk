@@ -81,7 +81,7 @@ endif
 LOCAL_C_INCLUDES := $(addprefix $(LOCAL_PATH)/../../, $(SGX_INCLUDES)) \
             frameworks/native/include/media/openmax \
             hardware/libhardware_legacy/include/hardware_legacy \
-            $(KERNEL_SRC_DIR)/drivers/staging/intel_media/common \
+            $(TOP)/linux/modules/intel_media/common \
             $(TARGET_OUT_HEADERS)/pvr/hal \
             $(TARGET_OUT_HEADERS)/pvr/pvr2d \
             $(TARGET_OUT_HEADERS)/pvr/include4 \

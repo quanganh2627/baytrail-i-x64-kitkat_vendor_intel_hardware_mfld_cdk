@@ -772,7 +772,7 @@ bool IntelMIPIDisplayDevice::commit(hwc_display_contents_1_t *list,
 
 #else
 
-    for (size_t i = 0 ; i < list->numHwLayers - 1 ; i++) {
+    for (size_t i = 0 ; list && (i < list->numHwLayers - 1) ; i++) {
         needSwapBuffer = needSwapBuffer || 
             (list->hwLayers[i].compositionType == HWC_FRAMEBUFFER);
     }

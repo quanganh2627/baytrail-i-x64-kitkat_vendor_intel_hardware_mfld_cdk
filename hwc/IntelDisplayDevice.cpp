@@ -754,9 +754,9 @@ bool IntelDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
 
             // switch to overlay
             layer->compositionType = HWC_OVERLAY;
+            //Calcuate stride according with width
+            uint32_t grallocStride = bufferWidth = (bufferWidth <= 512 ? 512 : align_to(bufferWidth, 64));
 
-            // gralloc buffer is not aligned to 32 pixels
-            uint32_t grallocStride = align_to(bufferWidth, 32);
             int format = grallocHandle->format;
 
             dataBuffer->setFormat(format);
@@ -792,11 +792,12 @@ bool IntelDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
 
             grallocHandle = (intel_gralloc_buffer_handle_t*)yuvBufferHandle;
             bufferHeight = grallocHandle->height;
+            bufferWidth  = grallocHandle->width;
             bufferHandle = grallocHandle->fd[GRALLOC_SUB_BUFFER0];
             format = grallocHandle->format;
 
             //Calcuate stride according with width
-            uint32_t grallocStride = bufferWidth = (bufferWidth <= 512 ? 512 : align_to(bufferWidth, 32));
+            uint32_t grallocStride = bufferWidth = (bufferWidth <= 512 ? 512 : align_to(bufferWidth, 64));
 
             dataBuffer->setFormat(format);
             dataBuffer->setStride(grallocStride);

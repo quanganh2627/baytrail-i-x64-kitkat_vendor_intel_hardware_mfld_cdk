@@ -147,6 +147,10 @@ void IntelUtility::dumpLayers(char* path)
             hwc_layer_1_t* l = &(layer[i]);
             IMG_native_handle_t* grallocHandle = (IMG_native_handle_t*)l->handle;
 
+            if(grallocHandle == NULL) {
+                continue;
+            }
+
             // lock buffer
             mGrallocModule->lock((gralloc_module_t*)mGrallocModule, l->handle, GRALLOC_USAGE_SW_READ_OFTEN, 0, 0, 1, 1, (void**)&vaddr);
             if (err != 0) {

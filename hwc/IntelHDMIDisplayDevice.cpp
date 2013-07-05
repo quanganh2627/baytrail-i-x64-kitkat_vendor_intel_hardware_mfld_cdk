@@ -322,10 +322,8 @@ bool IntelHDMIDisplayDevice::flipOverlayerPlane(void *context,hwc_display_conten
                                     int** releaseFenceFd)
 {
 
-    ALOGE("%s: enter", __func__);
 
     buffer_handle_t *bufferHandles = bh;
-    ALOGE("%s layer count %d ",__func__,mLayerList->getLayersCount());
 
     for (size_t i=0 ; list && i<(size_t)mLayerList->getLayersCount(); i++) {
        IntelDisplayPlane *plane = mLayerList->getPlane(i);
@@ -339,7 +337,6 @@ bool IntelHDMIDisplayDevice::flipOverlayerPlane(void *context,hwc_display_conten
        //TODO:revisit
        //if (list->hwLayers[i].flags & HWC_SKIP_LAYER)
        //    continue;
-       ALOGD("%s type %d\n",__func__,list->hwLayers[i].compositionType);
        if (list->hwLayers[i].compositionType != HWC_OVERLAY)
            continue;
 
@@ -519,15 +516,12 @@ bool IntelHDMIDisplayDevice::overlayPrepare(int index, hwc_layer_1_t *layer, int
     if (mDrm->getDisplayMode() == OVERLAY_EXTEND) {
         // Put overlay on top if no other layers exist
         bool onTop = mLayerList->getLayersCount() == 1;
-        ALOGE("%s: overlayonTop? %d\n", __func__,onTop);
         overlayP->setOverlayOnTop(onTop);
 
 
         // Check if the video is placed to a window
         if (isVideoPutInWindow(OUTPUT_HDMI, layer)) {
-            ALOGE("%s: overlayonTop? 1111\n", __func__);
             overlayP->setOverlayOnTop(true);
-            //ALOGE("%s: isVideoPutInWindow true. overlayonTop true\n", __func__);
             struct drm_psb_disp_ctrl dp_ctrl;
             memset(&dp_ctrl, 0, sizeof(dp_ctrl));
             dp_ctrl.cmd = DRM_PSB_DISP_PLANEB_DISABLE;
@@ -541,7 +535,6 @@ bool IntelHDMIDisplayDevice::overlayPrepare(int index, hwc_layer_1_t *layer, int
     //overlayP->setPipeByMode(mDrm->getDisplayMode());
     overlayP->setPipe(PIPE_HDMI);
 
-    ALOGE("pierr %s attach %d to overlayPlane ",__func__,index);
     // attach plane to hwc layer
     mLayerList->attachPlane(index, overlayP, flags);
 

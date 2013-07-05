@@ -19,8 +19,6 @@ LOCAL_C_INCLUDES += \
     external/stlport/stlport/ \
     bionic/libstdc++ \
     bionic/ \
-    $(TARGET_OUT_HEADERS)/event-listener \
-    $(TARGET_OUT_HEADERS)/property \
     hardware/libhardware_legacy
 
 LOCAL_SRC_FILES += \

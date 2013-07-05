@@ -49,6 +49,34 @@ WidiDisplayDevice::CachedBuffer::~CachedBuffer()
     grallocBufferManager->unmap(displayBuffer);
 }
 
+WidiDisplayDevice::HeldCscBuffer::HeldCscBuffer(const sp<WidiDisplayDevice>& wdd, const sp<GraphicBuffer>& gb)
+    : wdd(wdd),
+      buffer(gb)
+{
+}
+
+WidiDisplayDevice::HeldCscBuffer::~HeldCscBuffer()
+{
+    Mutex::Autolock _l(wdd->mCscLock);
+    if (buffer->getWidth() == wdd->mCscWidth && buffer->getHeight() == wdd->mCscHeight)
+        wdd->mAvailableCscBuffers.push_back(buffer);
+    else
+        wdd->mCscBuffersToCreate++;
+}
+
+WidiDisplayDevice::HeldDecoderBuffer::HeldDecoderBuffer(const android::sp<CachedBuffer>& cachedBuffer)
+    : cachedBuffer(cachedBuffer)
+{
+    intel_gralloc_payload_t *p = (intel_gralloc_payload_t*)cachedBuffer->displayBuffer->getCpuAddr();
+    p->renderStatus = 1;
+}
+
+WidiDisplayDevice::HeldDecoderBuffer::~HeldDecoderBuffer()
+{
+    intel_gralloc_payload_t *p = (intel_gralloc_payload_t*)cachedBuffer->displayBuffer->getCpuAddr();
+    p->renderStatus = 0;
+}
+
 WidiDisplayDevice::WidiDisplayDevice(IntelBufferManager *bm,
                                      IntelBufferManager *gm,
                                      IntelDisplayPlaneManager *pm,
@@ -91,8 +119,27 @@ WidiDisplayDevice::WidiDisplayDevice(IntelBufferManager *bm,
     mNextConfig.extendedModeEnabled = false;
     mNextConfig.forceNotify = false;
     mCurrentConfig = mNextConfig;
+    mLayerToSend = 0;
 
-    memset(&mLastFrameInfo, 0, sizeof(mLastFrameInfo));
+    mCscBuffersToCreate = 4;
+    mCscWidth = 0;
+    mCscHeight = 0;
+
+    memset(&mLastInputFrameInfo, 0, sizeof(mLastInputFrameInfo));
+    memset(&mLastOutputFrameInfo, 0, sizeof(mLastOutputFrameInfo));
+
+    // init class private members
+    hw_module_t const* module;
+
+    if (hw_get_module(GRALLOC_HARDWARE_MODULE_ID, &module) == 0) {
+        mGrallocModule = (IMG_gralloc_module_public_t*)module;
+        gralloc_open(module, &mGrallocDevice);
+    }
+
+    if (!mGrallocModule || !mGrallocDevice) {
+        LOGE("Init failure");
+        return;
+    }
 
     mInitialized = true;
 
@@ -117,19 +164,19 @@ WidiDisplayDevice::~WidiDisplayDevice()
     ALOGI("%s", __func__);
 }
 
-sp<WidiDisplayDevice::CachedBuffer> WidiDisplayDevice::getDisplayBuffer(IMG_native_handle_t* handle)
+sp<WidiDisplayDevice::CachedBuffer> WidiDisplayDevice::getMappedBuffer(uint32_t handle)
 {
-    ssize_t index = mDisplayBufferCache.indexOfKey(handle);
+    ssize_t index = mMappedBufferCache.indexOfKey(handle);
     sp<CachedBuffer> cachedBuffer;
     if (index == NAME_NOT_FOUND) {
-        IntelDisplayBuffer* displayBuffer = mGrallocBufferManager->map(handle->fd[1]);
+        IntelDisplayBuffer* displayBuffer = mGrallocBufferManager->map(handle);
         if (displayBuffer != NULL) {
             cachedBuffer = new CachedBuffer(mGrallocBufferManager, displayBuffer);
-            mDisplayBufferCache.add(handle, cachedBuffer);
+            mMappedBufferCache.add(handle, cachedBuffer);
         }
     }
     else {
-        cachedBuffer = mDisplayBufferCache[index];
+        cachedBuffer = mMappedBufferCache[index];
     }
     return cachedBuffer;
 }
@@ -170,9 +217,6 @@ status_t WidiDisplayDevice::notifyBufferReturned(int khandle) {
         LOGE("Couldn't find returned khandle %x", khandle);
     }
     else {
-        sp<CachedBuffer> cachedBuffer = mHeldBuffers.valueAt(index);
-        intel_gralloc_payload_t* p = (intel_gralloc_payload_t*)cachedBuffer->displayBuffer->getCpuAddr();
-        p->renderStatus = 0;
         mHeldBuffers.removeItemsAt(index, 1);
     }
     return NO_ERROR;
@@ -194,104 +238,55 @@ bool WidiDisplayDevice::prepare(hwc_display_contents_1_t *list)
         return false;
     }
 
+    mRenderTimestamp = systemTime();
+
     {
         Mutex::Autolock _l(mConfigLock);
         mCurrentConfig = mNextConfig;
         mNextConfig.forceNotify = false;
     }
 
-    IMG_native_handle_t* videoFrame = NULL;
-    hwc_layer_1_t* videoLayer = NULL;
+    if (mCurrentConfig.typeChangeListener == NULL)
+        return false;
 
-    if (mCurrentConfig.extendedModeEnabled && mExtendedModeInfo->widiExtHandle) {
+    // by default send the FRAMEBUFFER_TARGET layer (composited image)
+    mLayerToSend = list->numHwLayers-1;
+
+    if (mExtendedModeInfo->widiExtHandle != NULL &&
+        (!mCurrentConfig.extendedModeEnabled || !mDrm->isVideoPlaying()))
+    {
+        mExtendedModeInfo->widiExtHandle = NULL;
+    }
+
+    // if we have an extended mode handle, find out which layer it is
+    // and send that to widi instead of the framebuffer
+    if (mExtendedModeInfo->widiExtHandle) {
         for (size_t i = 0; i < list->numHwLayers-1; i++) {
             hwc_layer_1_t& layer = list->hwLayers[i];
-
-            IMG_native_handle_t *grallocHandle = NULL;
-            if (layer.compositionType != HWC_BACKGROUND)
-                grallocHandle = (IMG_native_handle_t*)layer.handle;
-
+            IMG_native_handle_t *grallocHandle =
+                (IMG_native_handle_t*)layer.handle;
             if (grallocHandle == mExtendedModeInfo->widiExtHandle)
             {
-                videoFrame = grallocHandle;
-                videoLayer = &layer;
+                mLayerToSend = i;
                 break;
             }
         }
     }
+    else if ((list->numHwLayers-1) == 1) {
+        hwc_layer_1_t& layer = list->hwLayers[0];
+        if (layer.transform == 0 && layer.blending == HWC_BLENDING_NONE) {
+            mLayerToSend = 0;
+        }
+    }
+    hwc_layer_1_t& streamingLayer = list->hwLayers[mLayerToSend];
 
-    bool extActive = false;
-    if (mCurrentConfig.typeChangeListener != NULL) {
+    // if we're streaming the target framebuffer, just notify widi stack and return
+    if (streamingLayer.compositionType == HWC_FRAMEBUFFER_TARGET) {
         FrameInfo frameInfo;
-
-        if (videoFrame != NULL && mDrm->isVideoPlaying()) {
-            sp<CachedBuffer> cachedBuffer;
-            intel_gralloc_payload_t *p;
-            if ((cachedBuffer = getDisplayBuffer(videoFrame)) == NULL) {
-                ALOGE("%s: Failed to map display buffer", __func__);
-            }
-            else if ((p = (intel_gralloc_payload_t*)cachedBuffer->displayBuffer->getCpuAddr()) == NULL) {
-                ALOGE("%s: Got null payload from display buffer", __func__);
-            }
-            else {
-                // default fps to 0. widi stack will decide what correct fps should be
-                int displayW = 0, displayH = 0, fps = 0, isInterlace = 0;
-                mDrm->getVideoInfo(&displayW, &displayH, &fps, &isInterlace);
-                if (fps < 0)
-                    fps = 0;
-
-                hwc_layer_1_t& layer = *videoLayer;
-                memset(&frameInfo, 0, sizeof(frameInfo));
-                frameInfo.frameType = HWC_FRAMETYPE_VIDEO;
-                frameInfo.bufferFormat = p->format;
-
-                if ((p->metadata_transform & HAL_TRANSFORM_ROT_90) == 0) {
-                    frameInfo.contentWidth = layer.sourceCrop.right - layer.sourceCrop.left;
-                    frameInfo.contentHeight = layer.sourceCrop.bottom - layer.sourceCrop.top;
-                }
-                else {
-                    frameInfo.contentWidth = layer.sourceCrop.bottom - layer.sourceCrop.top;
-                    frameInfo.contentHeight = layer.sourceCrop.right - layer.sourceCrop.left;
-                }
-                if (p->metadata_transform == 0) {
-                    frameInfo.bufferWidth = p->width;
-                    frameInfo.bufferHeight = p->height;
-                    frameInfo.lumaUStride = p->luma_stride;
-                    frameInfo.chromaUStride = p->chroma_u_stride;
-                    frameInfo.chromaVStride = p->chroma_v_stride;
-                }
-                else {
-                    frameInfo.bufferWidth = p->rotated_width;
-                    frameInfo.bufferHeight = p->rotated_height;
-                    frameInfo.lumaUStride = p->rotate_luma_stride;
-                    frameInfo.chromaUStride = p->rotate_chroma_u_stride;
-                    frameInfo.chromaVStride = p->rotate_chroma_v_stride;
-                }
-                frameInfo.contentFrameRateN = fps;
-                frameInfo.contentFrameRateD = 1;
-
-                if (frameInfo.bufferFormat != 0 &&
-                    frameInfo.bufferWidth >= frameInfo.contentWidth &&
-                    frameInfo.bufferHeight >= frameInfo.contentHeight &&
-                    frameInfo.contentWidth > 0 && frameInfo.contentHeight > 0 &&
-                    frameInfo.lumaUStride > 0 &&
-                    frameInfo.chromaUStride > 0 && frameInfo.chromaVStride > 0)
-                {
-                    extActive = true;
-                }
-                else {
-                    LOGI("Payload cleared or inconsistent info, aborting extended mode");
-                }
-            }
-        }
-
-        if (!extActive)
+        memset(&frameInfo, 0, sizeof(frameInfo));
+        frameInfo.frameType = HWC_FRAMETYPE_NOTHING;
+        if (mCurrentConfig.forceNotify || memcmp(&frameInfo, &mLastInputFrameInfo, sizeof(frameInfo)) != 0)
         {
-            memset(&frameInfo, 0, sizeof(frameInfo));
-            frameInfo.frameType = HWC_FRAMETYPE_NOTHING;
-        }
-
-        if (mCurrentConfig.forceNotify || memcmp(&frameInfo, &mLastFrameInfo, sizeof(frameInfo)) != 0) {
             // something changed, notify type change listener
             mCurrentConfig.typeChangeListener->frameTypeChanged(frameInfo);
             mCurrentConfig.typeChangeListener->bufferInfoChanged(frameInfo);
@@ -299,65 +294,21 @@ bool WidiDisplayDevice::prepare(hwc_display_contents_1_t *list)
             mExtLastTimestamp = 0;
             mExtLastKhandle = 0;
 
-            if (frameInfo.frameType == HWC_FRAMETYPE_NOTHING) {
-                mDisplayBufferCache.clear();
-                ALOGI("Clone mode");
-            }
-            else {
-                ALOGI("Extended mode: %dx%d in %dx%d @ %d fps",
-                      frameInfo.contentWidth, frameInfo.contentHeight,
-                      frameInfo.bufferWidth, frameInfo.bufferHeight,
-                      frameInfo.contentFrameRateN);
-            }
-            mLastFrameInfo = frameInfo;
+            mMappedBufferCache.clear();
+            mLastInputFrameInfo = frameInfo;
+            mLastOutputFrameInfo = frameInfo;
         }
+        return true;
     }
 
-    if (extActive) {
-        // tell surfaceflinger to not render the layers if we're
-        // in extended video mode
-        for (size_t i = 0; i < list->numHwLayers-1; i++) {
-            hwc_layer_1_t& layer = list->hwLayers[i];
-            if (layer.compositionType != HWC_BACKGROUND) {
-                layer.compositionType = HWC_OVERLAY;
-                layer.flags |= HWC_HINT_DISABLE_ANIMATION;
-            }
-        }
-        if (mCurrentConfig.frameListener != NULL) {
-            sp<CachedBuffer> cachedBuffer = getDisplayBuffer(videoFrame);
-            if (cachedBuffer == NULL) {
-                ALOGE("%s: Failed to map display buffer", __func__);
-                return true;
-            }
-            intel_gralloc_payload_t *p = (intel_gralloc_payload_t*)cachedBuffer->displayBuffer->getCpuAddr();
-            if (p == NULL) {
-                ALOGE("%s: Got null payload from display buffer", __func__);
-                return true;
-            }
-            int64_t timestamp = p->timestamp;
-            uint32_t khandle = (p->metadata_transform == 0) ? p->khandle : p->rotated_buffer_handle;
-            if (timestamp == mExtLastTimestamp && khandle == mExtLastKhandle)
-                return true;
-
-            mExtLastTimestamp = timestamp;
-            mExtLastKhandle = khandle;
-
-            if (mCurrentConfig.frameListener->onFrameReady(khandle, HWC_HANDLE_TYPE_KBUF, systemTime(), timestamp) == OK) {
-                p->renderStatus = 1;
-                Mutex::Autolock _l(mHeldBuffersLock);
-                mHeldBuffers.add(khandle, cachedBuffer);
-            }
-        }
-    }
-    else {
-        mExtendedModeInfo->widiExtHandle = NULL;
+    // if we're streaming one layer (extended mode or background mode), no need to composite
+    for (size_t i = 0; i < list->numHwLayers-1; i++) {
+        hwc_layer_1_t& layer = list->hwLayers[i];
+        layer.compositionType = HWC_OVERLAY;
+        layer.flags |= HWC_HINT_DISABLE_ANIMATION;
     }
 
-    // handle hotplug event here
-    if (mHotplugEvent) {
-        ALOGI("%s: reset hotplug event flag", __func__);
-        mHotplugEvent = false;
-    }
+    sendToWidi(streamingLayer);
 
     return true;
 }
@@ -374,6 +325,192 @@ bool WidiDisplayDevice::commit(hwc_display_contents_1_t *list,
     }
 
     return true;
+}
+
+void WidiDisplayDevice::sendToWidi(const hwc_layer_1_t& layer)
+{
+    IMG_native_handle_t* grallocHandle =
+        (IMG_native_handle_t*)layer.handle;
+
+    if (grallocHandle == NULL) {
+        ALOGE("%s: layer has no handle set", __func__);
+        return;
+    }
+
+    uint32_t handle = (uint32_t)grallocHandle;
+    HWCBufferHandleType handleType = HWC_HANDLE_TYPE_GRALLOC;
+    int64_t mediaTimestamp = -1;
+
+    sp<RefBase> heldBuffer;
+
+    FrameInfo inputFrameInfo;
+    memset(&inputFrameInfo, 0, sizeof(inputFrameInfo));
+    inputFrameInfo.frameType = HWC_FRAMETYPE_FRAME_BUFFER;
+    inputFrameInfo.contentWidth = layer.sourceCrop.right - layer.sourceCrop.left;
+    inputFrameInfo.contentHeight = layer.sourceCrop.bottom - layer.sourceCrop.top;
+    inputFrameInfo.contentFrameRateN = 60;
+    inputFrameInfo.contentFrameRateD = 1;
+
+    FrameInfo outputFrameInfo;
+    outputFrameInfo = inputFrameInfo;
+
+    if (grallocHandle->iFormat == HAL_PIXEL_FORMAT_INTEL_HWC_NV12 ||
+        grallocHandle->iFormat == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_VED ||
+        grallocHandle->iFormat == HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE)
+    {
+        sp<CachedBuffer> payloadBuffer;
+        intel_gralloc_payload_t *p;
+        if ((payloadBuffer = getMappedBuffer(grallocHandle->fd[1])) == NULL) {
+            ALOGE("%s: Failed to map display buffer", __func__);
+            return;
+        }
+        if ((p = (intel_gralloc_payload_t*)payloadBuffer->displayBuffer->getCpuAddr()) == NULL) {
+            ALOGE("%s: Got null payload from display buffer", __func__);
+            return;
+        }
+        heldBuffer = new HeldDecoderBuffer(payloadBuffer);
+
+        mediaTimestamp = p->timestamp;
+
+        // default fps to 0. widi stack will decide what correct fps should be
+        int displayW = 0, displayH = 0, fps = 0, isInterlace = 0;
+        mDrm->getVideoInfo(&displayW, &displayH, &fps, &isInterlace);
+        if (fps > 0) {
+            inputFrameInfo.contentFrameRateN = fps;
+            inputFrameInfo.contentFrameRateD = 1;
+        }
+
+        if (p->metadata_transform & HAL_TRANSFORM_ROT_90) {
+            inputFrameInfo.contentWidth = layer.sourceCrop.bottom - layer.sourceCrop.top;
+            inputFrameInfo.contentHeight = layer.sourceCrop.right - layer.sourceCrop.left;
+        }
+        outputFrameInfo = inputFrameInfo;
+        outputFrameInfo.bufferFormat = p->format;
+
+        handleType = HWC_HANDLE_TYPE_KBUF;
+        if (p->rotated_buffer_handle != 0 && p->metadata_transform != 0)
+        {
+            handle = p->rotated_buffer_handle;
+            outputFrameInfo.bufferWidth = p->rotated_width;
+            outputFrameInfo.bufferHeight = p->rotated_height;
+            outputFrameInfo.lumaUStride = p->rotate_luma_stride;
+            outputFrameInfo.chromaUStride = p->rotate_chroma_u_stride;
+            outputFrameInfo.chromaVStride = p->rotate_chroma_v_stride;
+        }
+        else if (p->khandle != 0)
+        {
+            handle = p->khandle;
+            outputFrameInfo.bufferWidth = p->width;
+            outputFrameInfo.bufferHeight = p->height;
+            outputFrameInfo.lumaUStride = p->luma_stride;
+            outputFrameInfo.chromaUStride = p->chroma_u_stride;
+            outputFrameInfo.chromaVStride = p->chroma_v_stride;
+        }
+        else {
+            ALOGE("Couldn't get any khandle");
+            return;
+        }
+
+        if (outputFrameInfo.bufferFormat == 0 ||
+            outputFrameInfo.bufferWidth < outputFrameInfo.contentWidth ||
+            outputFrameInfo.bufferHeight < outputFrameInfo.contentHeight ||
+            outputFrameInfo.contentWidth <= 0 || outputFrameInfo.contentHeight <= 0 ||
+            outputFrameInfo.lumaUStride <= 0 ||
+            outputFrameInfo.chromaUStride <= 0 || outputFrameInfo.chromaVStride <= 0)
+        {
+            ALOGI("Payload cleared or inconsistent info, not sending frame");
+            return;
+        }
+    }
+    else {
+        sp<GraphicBuffer> destBuffer;
+        {
+            Mutex::Autolock _l(mCscLock);
+            if (mCscWidth != mCurrentConfig.policy.scaledWidth || mCscHeight != mCurrentConfig.policy.scaledHeight) {
+                ALOGI("CSC buffers changing from %dx%d to %dx%d",
+                      mCscWidth, mCscHeight, mCurrentConfig.policy.scaledWidth, mCurrentConfig.policy.scaledHeight);
+                mAvailableCscBuffers.clear();
+                mCscWidth = mCurrentConfig.policy.scaledWidth;
+                mCscHeight = mCurrentConfig.policy.scaledHeight;
+                mCscBuffersToCreate = 4;
+            }
+
+            if (mAvailableCscBuffers.empty()) {
+                if (mCscBuffersToCreate <= 0) {
+                    ALOGW("%s: Out of CSC buffers, dropping frame", __func__);
+                    return;
+                }
+                mCscBuffersToCreate--;
+                sp<GraphicBuffer> graphicBuffer =
+                    new GraphicBuffer(mCurrentConfig.policy.scaledWidth, mCurrentConfig.policy.scaledHeight,
+                                      OMX_INTEL_COLOR_FormatYUV420PackedSemiPlanar,
+                                      GRALLOC_USAGE_HW_VIDEO_ENCODER | GRALLOC_USAGE_HW_RENDER);
+                mAvailableCscBuffers.push_back(graphicBuffer);
+
+            }
+            destBuffer = *mAvailableCscBuffers.begin();
+            mAvailableCscBuffers.erase(mAvailableCscBuffers.begin());
+        }
+        heldBuffer = new HeldCscBuffer(this, destBuffer);
+        if (mGrallocModule->Blit2(mGrallocModule,
+                (buffer_handle_t)handle, destBuffer->handle,
+                mCurrentConfig.policy.scaledWidth, mCurrentConfig.policy.scaledHeight, 0, 0))
+        {
+            ALOGE("%s: Blit2 failed", __func__);
+            return;
+        }
+        grallocHandle = (IMG_native_handle_t*)destBuffer->handle;
+        handle = (uint32_t)grallocHandle;
+
+        outputFrameInfo.contentWidth = mCurrentConfig.policy.scaledWidth;
+        outputFrameInfo.contentHeight = mCurrentConfig.policy.scaledHeight;
+        outputFrameInfo.bufferWidth = grallocHandle->iWidth;
+        outputFrameInfo.bufferHeight = grallocHandle->iHeight;
+        outputFrameInfo.lumaUStride = grallocHandle->iWidth;
+        outputFrameInfo.chromaUStride = grallocHandle->iWidth;
+        outputFrameInfo.chromaVStride = grallocHandle->iWidth;
+    }
+
+    if (mCurrentConfig.forceNotify ||
+        memcmp(&inputFrameInfo, &mLastInputFrameInfo, sizeof(inputFrameInfo)) != 0)
+    {
+        // something changed, notify type change listener
+        mCurrentConfig.typeChangeListener->frameTypeChanged(inputFrameInfo);
+        mLastInputFrameInfo = inputFrameInfo;
+    }
+
+    if (mCurrentConfig.policy.scaledWidth == 0 || mCurrentConfig.policy.scaledHeight == 0)
+        return;
+
+    if (mCurrentConfig.forceNotify ||
+        memcmp(&outputFrameInfo, &mLastOutputFrameInfo, sizeof(outputFrameInfo)) != 0)
+    {
+        mCurrentConfig.typeChangeListener->bufferInfoChanged(outputFrameInfo);
+        mLastOutputFrameInfo = outputFrameInfo;
+
+        if (handleType == HWC_HANDLE_TYPE_GRALLOC)
+            mMappedBufferCache.clear();
+    }
+
+    if (handleType == HWC_HANDLE_TYPE_KBUF &&
+        handle == mExtLastKhandle && mediaTimestamp == mExtLastTimestamp)
+    {
+        return;
+    }
+
+    {
+        Mutex::Autolock _l(mHeldBuffersLock);
+        mHeldBuffers.add(handle, heldBuffer);
+    }
+    status_t result = mCurrentConfig.frameListener->onFrameReady((int32_t)handle, handleType, mRenderTimestamp, mediaTimestamp);
+    if (result != OK) {
+        Mutex::Autolock _l(mHeldBuffersLock);
+        mHeldBuffers.removeItem(handle);
+    }
+    if (handleType == HWC_HANDLE_TYPE_KBUF) {
+        mExtLastKhandle = handle;
+        mExtLastTimestamp = mediaTimestamp;
+    }
 }
 
 bool WidiDisplayDevice::dump(char *buff,
@@ -394,52 +531,18 @@ void WidiDisplayDevice::onHotplugEvent(bool hpd)
     // overriding superclass and doing nothing
 }
 
+// SurfaceFlinger does not call this on virtual displays
 bool WidiDisplayDevice::getDisplayConfig(uint32_t* configs,
                                         size_t* numConfigs)
 {
-    if (!numConfigs || !numConfigs[0])
-        return false;
-
-    *numConfigs = 1;
-    configs[0] = 0;
-
-    return true;
-
+    ALOGE("%s not expected to be called", __func__);
+    return false;
 }
 
+// SurfaceFlinger does not call this on virtual displays
 bool WidiDisplayDevice::getDisplayAttributes(uint32_t config,
             const uint32_t* attributes, int32_t* values)
 {
-    ALOGD_IF(ALLOW_WIDI_PRINT, "%s", __func__);
-    if (config != 0)
-        return false;
-
-    if (!attributes || !values)
-        return false;
-
-    while (*attributes != HWC_DISPLAY_NO_ATTRIBUTE) {
-        switch (*attributes) {
-        case HWC_DISPLAY_VSYNC_PERIOD:
-            *values = 1e9 / 60;
-            break;
-        case HWC_DISPLAY_WIDTH:
-            *values = 1280;
-            break;
-        case HWC_DISPLAY_HEIGHT:
-            *values = 720;
-            break;
-        case HWC_DISPLAY_DPI_X:
-            *values = 0;
-            break;
-        case HWC_DISPLAY_DPI_Y:
-            *values = 0;
-            break;
-        default:
-            break;
-        }
-        attributes ++;
-        values ++;
-    }
-
-    return true;
+    ALOGE("%s not expected to be called", __func__);
+    return false;
 }

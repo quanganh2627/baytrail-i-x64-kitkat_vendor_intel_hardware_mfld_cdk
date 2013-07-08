@@ -37,6 +37,8 @@
 #include "IntelDisplayDevice.h"
 #include "IFrameServer.h"
 
+using namespace android;
+
 class WidiDisplayDevice : public IntelDisplayDevice, public BnFrameServer {
 protected:
     struct CachedBuffer : public android::RefBase {

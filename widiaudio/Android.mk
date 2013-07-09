@@ -24,7 +24,7 @@ LOCAL_CFLAGS := -D_POSIX_C_SOURCE=200809
 LOCAL_SRC_FILES := \
         audio_hw.c
 LOCAL_C_INCLUDES += \
-        external/alsa-lib/include
+        $(call include-path-for, alsa-lib)
 
 LOCAL_STATIC_LIBRARIES := libmedia_helper
 LOCAL_SHARED_LIBRARIES := liblog libcutils libasound

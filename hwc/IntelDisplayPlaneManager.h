@@ -103,6 +103,7 @@ public:
             DELAY_DISABLE    = 0x00000040UL,
             WMS_NEEDED       = 0x00000080UL,
             FLASH_GAMMA      = 0x00000100UL,
+            HDMI_HP          = 0x00000200UL,
         };
 protected:
     int mDrmFd;
@@ -288,7 +289,7 @@ public:
     // interfaces for both data & control devices
     bool flush(uint32_t flags);
     bool enable();
-    bool disable();
+    bool disable(uint32_t flags);
     bool reset();
     void setPipe(intel_display_pipe_t pipe);
     void setPipeByMode(intel_overlay_mode_t displayMode);
@@ -354,7 +355,6 @@ class IntelRGBOverlayPlane : public IntelOverlayPlane {
 public:
 	virtual uint32_t convert(uint32_t handle, int w, int h, int x, int y);
 	virtual bool invalidateDataBuffer();
-	virtual uint32_t onDrmModeChange();
 public:
 	IntelRGBOverlayPlane(int fd, int index,
                             IntelBufferManager *bufferManager);

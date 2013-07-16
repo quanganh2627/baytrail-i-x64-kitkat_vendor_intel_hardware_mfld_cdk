@@ -90,7 +90,6 @@ public:
     bool isHdmiConnected();
     bool notifyWidi(bool);
     bool notifyMipi(bool);
-    bool isMdsSurface(int *nativeWindow);
     bool getVideoInfo(int *displayW, int *displayH, int *fps, int *isinterlace);
 private:
     //DeathReipient interface

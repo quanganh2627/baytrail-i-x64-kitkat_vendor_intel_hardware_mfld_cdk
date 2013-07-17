@@ -932,7 +932,7 @@ void IntelDisplayDevice::revisitLayerList(hwc_display_contents_1_t *list,
 
 void IntelDisplayDevice::updateZorderConfig()
 {
-    int zOrderConfig = IntelDisplayPlaneManager::ZORDER_POaOc;
+    int zOrderConfig = IntelDisplayPlaneManager::ZORDER_OaOcP;
 
     if (mLayerList->getYUVLayerCount()) {
         int layersCount = mLayerList->getLayersCount();

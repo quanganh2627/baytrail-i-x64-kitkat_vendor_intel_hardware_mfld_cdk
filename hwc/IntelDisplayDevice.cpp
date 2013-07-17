@@ -395,7 +395,10 @@ bool IntelDisplayDevice::flipFramebufferContexts(void *contexts,
     if (forceBottom) {
         context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRX8888;
         context->cntr |= INTEL_SPRITE_FORCE_BOTTOM;
-    } else {
+    } else if (mLayerList->getAttachedPlanesCount() == 0) {
+        context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRX8888;
+    }
+    else {
         context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRA8888;
     }
     context->cntr |= 0x80000000;

@@ -151,8 +151,8 @@ bool IntelDisplayDevice::isVideoPutInWindow(int output, hwc_layer_1_t *layer) {
     return inWindow;
 }
 
-int IntelDisplayDevice::checkVideoLayerHint(
-        hwc_display_contents_1_t *list, uint32_t hint, bool widiVideoActive) {
+int IntelDisplayDevice::checkTrickMode(
+        hwc_display_contents_1_t *list, bool widiVideoActive) {
     int index = -1;
 
     if (!list || list->numHwLayers == 0) {
@@ -175,7 +175,7 @@ int IntelDisplayDevice::checkVideoLayerHint(
             continue;
 
         if (!(grallocHandle->usage & GRALLOC_USAGE_PROTECTED) &&
-             (grallocHandle->hint & hint)) {
+             (layer->flags & HWC_TRICK_MODE)) {
             ALOGV("Find the hint in layer:%d", i);
             index = i;
             break;

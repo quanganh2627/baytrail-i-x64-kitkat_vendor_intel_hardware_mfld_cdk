@@ -597,7 +597,7 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
     // clear force swap buffer flag
     mForceSwapBuffer = false;
 
-    int index = checkVideoLayerHint(list, GRALLOC_HAL_HINT_TIME_SEEKING, mVideoSentToWidi);
+    int index = checkTrickMode(list, mVideoSentToWidi);
     bool forceCheckingList = ((index >= 0) != mVideoSeekingActive);
     mVideoSeekingActive = (index >= 0);
 

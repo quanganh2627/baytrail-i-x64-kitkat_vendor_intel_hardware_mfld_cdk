@@ -26,6 +26,7 @@ LOCAL_SRC_FILES := \
 LOCAL_C_INCLUDES += \
         external/alsa-lib/include
 
+LOCAL_STATIC_LIBRARIES := libmedia_helper
 LOCAL_SHARED_LIBRARIES := liblog libcutils libasound
 
 LOCAL_MODULE := audio.widi.$(TARGET_DEVICE)

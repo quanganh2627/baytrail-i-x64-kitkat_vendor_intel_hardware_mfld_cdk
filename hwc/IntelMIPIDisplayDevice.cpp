@@ -989,7 +989,7 @@ bool IntelMIPIDisplayDevice::getDisplayAttributes(uint32_t config,
         case HWC_DISPLAY_DPI_Y:
             property_get("panel.physicalHeightmm", val, "82");
             *values = (atoi(val) == 0) ? 144000.0f :
-                (mode->hdisplay * 25000.4f / atoi(val));
+                (mode->vdisplay * 25000.4f / atoi(val));
             break;
         default:
             break;

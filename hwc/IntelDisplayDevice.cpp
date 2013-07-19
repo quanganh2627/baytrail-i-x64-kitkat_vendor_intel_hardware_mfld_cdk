@@ -783,8 +783,8 @@ bool IntelDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
             // switch to overlay
             layer->compositionType = HWC_OVERLAY;
 
-            // gralloc buffer is not aligned to 32 pixels
-            uint32_t grallocStride = align_to(bufferWidth, 32);
+            // transformed buffer not from gralloc, can't use it's stride directly
+            uint32_t grallocStride = !transform ? grallocHandle->iStride : align_to(bufferWidth, 32);
             int format = grallocHandle->iFormat;
 
             dataBuffer->setFormat(format);

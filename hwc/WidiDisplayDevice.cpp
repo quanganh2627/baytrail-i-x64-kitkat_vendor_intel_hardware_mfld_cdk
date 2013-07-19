@@ -384,6 +384,32 @@ void WidiDisplayDevice::sendToWidi(const hwc_layer_1_t& layer)
             inputFrameInfo.contentWidth = layer.sourceCrop.bottom - layer.sourceCrop.top;
             inputFrameInfo.contentHeight = layer.sourceCrop.right - layer.sourceCrop.left;
         }
+        inputFrameInfo.cropLeft = 0;
+        inputFrameInfo.cropTop = 0;
+        // skip pading bytes in rotate buffer
+        switch(p->metadata_transform) {
+            case HAL_TRANSFORM_ROT_90: {
+                int contentWidth = inputFrameInfo.contentWidth;
+                inputFrameInfo.contentWidth = (contentWidth + 0xf) & ~0xf;
+                inputFrameInfo.cropLeft = inputFrameInfo.contentWidth - contentWidth;
+            } break;
+            case HAL_TRANSFORM_ROT_180: {
+                int contentWidth = inputFrameInfo.contentWidth;
+                int contentHeight = inputFrameInfo.contentHeight;
+                inputFrameInfo.contentWidth = (contentWidth + 0xf) & ~0xf;
+                inputFrameInfo.contentHeight = (contentHeight + 0xf) & ~0xf;
+                inputFrameInfo.cropLeft = inputFrameInfo.contentWidth - contentWidth;
+                inputFrameInfo.cropTop = inputFrameInfo.contentHeight - contentHeight;
+            } break;
+            case HAL_TRANSFORM_ROT_270: {
+                int contentHeight = inputFrameInfo.contentHeight;
+                inputFrameInfo.contentHeight = (contentHeight + 0xf) & ~0xf;
+                inputFrameInfo.cropTop = inputFrameInfo.contentHeight - contentHeight;
+            } break;
+            default:
+                break;
+        }
+
         outputFrameInfo = inputFrameInfo;
         outputFrameInfo.bufferFormat = p->format;
 

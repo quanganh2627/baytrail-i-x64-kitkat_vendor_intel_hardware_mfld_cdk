@@ -89,6 +89,8 @@ struct audio_device {
 
     pthread_mutex_t lock;
     char *bgmstate;
+    //bgm player session
+    char* bgmsession;
 };
 
 struct widi_stream_out {
@@ -794,6 +796,7 @@ static int widi_dev_set_parameters(struct audio_hw_device *dev, const char *kvpa
     char *key,*value;
     struct str_parms *param;
     int keyvalue = 0;
+    int session = 0;
     char * kvp = (char*)kvpairs;
     int err = 0;
 
@@ -826,7 +829,16 @@ static int widi_dev_set_parameters(struct audio_hw_device *dev, const char *kvpa
            }
            ALOGV("%s : audio state in BGM = %s",__func__,gbgm_audio);
        }
+
+       if (strcmp(key, AUDIO_PARAMETER_VALUE_REMOTE_BGM_SESSION_ID) == 0) {
+           if (value != NULL) {
+               adev->bgmsession = strdup(value);
+           }
+       }
     }
+
+    ALOGV("%s exit bgmstate = %s, bgmaudio = %s bgmplayersession = %d",
+                __func__,adev->bgmstate,gbgm_audio,atoi(adev->bgmsession));
 
     return 0;
 }
@@ -883,6 +895,36 @@ static char * widi_dev_get_parameters(const struct audio_hw_device *dev,
        }
     }
 
+    if (strcmp(keys, AUDIO_PARAMETER_VALUE_REMOTE_BGM_SESSION_ID) == 0) {
+       struct str_parms *parms = str_parms_create_str(keys);
+        if(!parms) {
+           ALOGE("%s failed for bgm_session",__func__);
+           goto error_exit;
+        }
+       int ret = str_parms_get_str(parms, AUDIO_PARAMETER_VALUE_REMOTE_BGM_SESSION_ID,
+                                     value, sizeof(value));
+       char *str;
+
+       str_parms_destroy(parms);
+       if (ret >= 0) {
+          ALOGV("%s adev->bgmsession %s", __func__,adev->bgmsession);
+          parms = str_parms_create_str(adev->bgmsession);
+          if(!parms) {
+             ALOGE("%s failed for bgm_session",__func__);
+             goto error_exit;
+          }
+          str = str_parms_to_str(parms);
+          str = strtok(str, "=");
+          str_parms_destroy(parms);
+          ALOGV("%s entered with key %s for which value is %s", __func__,keys,str);
+          return str;
+       }
+    }
+
+    ALOGV("%s exit bgmstate = %s, bgmaudio = %s bgmplayersession = %d",
+                __func__,adev->bgmstate,gbgm_audio,atoi(adev->bgmsession));
+
+error_exit:
     return strdup("");
 }
 
@@ -979,6 +1021,7 @@ static int widi_dev_open(const hw_module_t* module, const char* name,
     if (!widi_dev)
         return -ENOMEM;
     widi_dev->bgmstate = "false";
+    widi_dev->bgmsession = "0";
 
     widi_dev->hw_device.common.tag            = HARDWARE_DEVICE_TAG;
     widi_dev->hw_device.common.version        = AUDIO_DEVICE_API_VERSION_2_0;

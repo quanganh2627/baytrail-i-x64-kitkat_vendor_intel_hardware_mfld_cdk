@@ -37,7 +37,8 @@ LOCAL_COPY_HEADERS := \
     IntelOverlayUtil.h \
     IntelWsbm.h \
     IntelWsbmWrapper.h \
-    IntelUtility.h
+    IntelUtility.h \
+    RotationBufferProvider.h
 ifeq ($(TARGET_HAS_MULTIPLE_DISPLAY),true)
 LOCAL_COPY_HEADERS += IntelExternalDisplayMonitor.h
 endif
@@ -48,7 +49,7 @@ LOCAL_PRELINK_MODULE := false
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
 LOCAL_SHARED_LIBRARIES := liblog libEGL libcutils libdrm libpvr2d \
                           libwsbm libsrv_um libui libutils libbinder\
-                          libhardware
+                          libhardware libva libva-tpi libva-android
 LOCAL_SRC_FILES := IntelHWComposerModule.cpp \
                    IntelHWComposer.cpp \
                    IntelDisplayDevice.cpp \
@@ -67,8 +68,8 @@ LOCAL_SRC_FILES := IntelHWComposerModule.cpp \
                    IntelHWCUEventObserver.cpp \
                    IntelVsyncEventHandler.cpp \
                    IntelFakeVsyncEvent.cpp \
-                   IntelUtility.cpp
-
+                   IntelUtility.cpp \
+                   RotationBufferProvider.cpp
 LOCAL_MODULE_TAGS := eng
 LOCAL_MODULE := hwcomposer.$(TARGET_DEVICE)
 LOCAL_CFLAGS:= -DLOG_TAG=\"hwcomposer\" -DLINUX
@@ -92,7 +93,8 @@ LOCAL_C_INCLUDES := $(addprefix $(LOCAL_PATH)/../../, $(SGX_INCLUDES)) \
             $(TARGET_OUT_HEADERS)/libwsbm/wsbm \
             $(TARGET_OUT_HEADERS)/libttm \
             $(TARGET_OUT_HEADERS)/widi \
-
+            $(TARGET_OUT_HEADERS)/libva \
+            $(TARGET_OUT_HEADERS)/libwsbm
 ifeq ($(TARGET_HAS_MULTIPLE_DISPLAY),true)
     LOCAL_CFLAGS += -DTARGET_HAS_MULTIPLE_DISPLAY
     LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/display

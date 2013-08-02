@@ -313,7 +313,7 @@ bool IntelOverlayContext::flush(uint32_t flags)
     memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
     arg.overlay_write_mask = OV_REGRWBITS_OVADD;
     arg.overlay_read_mask = 0;
-    arg.overlay.b_wms = 1;
+    arg.overlay.b_wms = (flags & IntelDisplayPlane::HDMI_HP) ? 0 : 1;
     arg.overlay.b_wait_vblank = (flags & IntelDisplayPlane::WAIT_VBLANK) ? 1 : 0;
     arg.overlay.OVADD = (mContext->gtt_offset_in_page << 12);
     // pipe select
@@ -914,7 +914,7 @@ bool IntelOverlayContext::setDataBuffer(IntelDisplayDataBuffer& buffer)
     }
 
     if (IntelHWComposerDrm::getInstance().isOverlayOff())
-        disable();
+        disable(0);
     else
         mOverlayBackBuffer->OCMD |= OVERLAY_ENABLE;
 
@@ -1115,7 +1115,7 @@ bool IntelOverlayContext::enable()
     return true;
 }
 
-bool IntelOverlayContext::disable()
+bool IntelOverlayContext::disable(uint32_t flags)
 {
     if (!mContext)
         return false;
@@ -1126,12 +1126,12 @@ bool IntelOverlayContext::disable()
         unlock();
         return true;
     }
-
     ALOGD("%s: disable overlay...\n", __func__);
     mOverlayBackBuffer->OCMD &= ~OVERLAY_ENABLE;
     //bool ret = flush((IntelDisplayPlane::FLASH_NEEDED |
     //                 IntelDisplayPlane::WAIT_VBLANK));
-    bool ret = flush((IntelDisplayPlane::FLASH_NEEDED));
+    bool ret = flush((IntelDisplayPlane::FLASH_NEEDED |
+			flags));
     if (ret == false) {
         ALOGE("%s: failed to disable overlay\n", __func__);
         unlock();
@@ -1305,7 +1305,7 @@ intel_overlay_mode_t IntelOverlayContext::onDrmModeChange()
 
     /*disable overlay*/
     setPipeByMode(oldDisplayMode);
-    disable();
+    disable(IntelDisplayPlane::HDMI_HP);
     /* Wait for flip in order to make sure the
      * previous operation on overaly HW is done*/
     waitForFlip();
@@ -1755,7 +1755,7 @@ bool IntelOverlayPlane::disable()
     if (initCheck()) {
         IntelOverlayContext *overlayContext =
             reinterpret_cast<IntelOverlayContext*>(mContext);
-        ret = overlayContext->disable();
+        ret = overlayContext->disable(0);
         if (ret == false)
             LOGE("%s: failed to disable overlay\n", __func__);
     }
@@ -1828,13 +1828,6 @@ IntelRGBOverlayPlane::IntelRGBOverlayPlane(int fd, int index,
 IntelRGBOverlayPlane::~IntelRGBOverlayPlane()
 {
 
-}
-
-// override onDrmModeChange
-uint32_t IntelRGBOverlayPlane::onDrmModeChange()
-{
-    // need to nothing
-	return 0;
 }
 
 // override invalidateDataBuffer

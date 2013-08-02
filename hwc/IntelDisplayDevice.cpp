@@ -151,8 +151,8 @@ bool IntelDisplayDevice::isVideoPutInWindow(int output, hwc_layer_1_t *layer) {
     return inWindow;
 }
 
-int IntelDisplayDevice::checkVideoLayerHint(
-        hwc_display_contents_1_t *list, uint32_t hint, bool widiVideoActive) {
+int IntelDisplayDevice::checkTrickMode(
+        hwc_display_contents_1_t *list, bool widiVideoActive) {
     int index = -1;
 
     if (!list || list->numHwLayers == 0) {
@@ -175,7 +175,7 @@ int IntelDisplayDevice::checkVideoLayerHint(
             continue;
 
         if (!(grallocHandle->usage & GRALLOC_USAGE_PROTECTED) &&
-             (grallocHandle->hint & hint)) {
+             (layer->flags & HWC_TRICK_MODE)) {
             ALOGV("Find the hint in layer:%d", i);
             index = i;
             break;
@@ -395,7 +395,10 @@ bool IntelDisplayDevice::flipFramebufferContexts(void *contexts,
     if (forceBottom) {
         context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRX8888;
         context->cntr |= INTEL_SPRITE_FORCE_BOTTOM;
-    } else {
+    } else if (mLayerList->getAttachedPlanesCount() == 0) {
+        context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRX8888;
+    }
+    else {
         context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRA8888;
     }
     context->cntr |= 0x80000000;
@@ -1008,6 +1011,10 @@ bool IntelDisplayDevice::useOverlayRotation(hwc_layer_1_t *layer,
         }
 
         if (transform != uint32_t(payload->client_transform)) {
+            if (payload->surface_protected) {
+                payload->hwc_timestamp = systemTime();
+                payload->layer_transform = transform;
+            }
             ALOGD_IF(ALLOW_HWC_PRINT,
                     "%s: rotation buffer was not prepared by client! ui64Stamp = %llu\n", __func__, grallocHandle->ui64Stamp);
             return false;

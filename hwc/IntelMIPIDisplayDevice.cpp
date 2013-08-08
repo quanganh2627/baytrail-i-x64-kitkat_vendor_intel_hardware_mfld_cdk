@@ -928,7 +928,7 @@ bool IntelMIPIDisplayDevice::flipFramebufferContexts(void *contexts)
 
     // config z order; switch z order may cause flicker
     if (forceBottom) {
-        context->cntr = INTEL_SPRITE_FORCE_BOTTOM;
+        context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRX8888 | INTEL_SPRITE_FORCE_BOTTOM;
     } else {
         context->cntr = INTEL_SPRITE_PIXEL_FORMAT_BGRA8888;
     }

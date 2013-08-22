@@ -86,7 +86,9 @@ WidiDisplayDevice::WidiDisplayDevice(IntelBufferManager *bm,
                                    : IntelDisplayDevice(pm, drm, bm, gm, index),
                                      mExtendedModeInfo(extinfo),
                                      mExtLastKhandle(0),
-                                     mExtLastTimestamp(0)
+                                     mExtLastTimestamp(0),
+                                     mGrallocModule(0),
+                                     mGrallocDevice(0)
 {
     ALOGD_IF(ALLOW_WIDI_PRINT, "%s", __func__);
 

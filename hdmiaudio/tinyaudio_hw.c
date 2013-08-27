@@ -57,8 +57,6 @@ assumes we can suport multiple streams
 at the same time. This makes sure only one stream
 is active at a time.*/
 struct pcm * activePcm = NULL;
-/*TODO - move active channel inside activepcm*/
-static int activeChannel;
 
 struct pcm_config pcm_config_default = {
     .channels = 2,
@@ -239,7 +237,6 @@ static int start_output_stream(struct stream_out *out)
     }
 
     activePcm = out->pcm;
-    activeChannel = out->pcm_config.channels;
 
     ALOGV("Initialized PCM device for channels %d handle = %d",out->pcm_config.channels, (int)activePcm);
     ALOGV("%s exit",__func__);
@@ -529,7 +526,7 @@ static ssize_t out_write(struct audio_stream_out *stream, const void* buffer,
         out->standby = false;
     }
 
-    if((!out->pcm) || (activeChannel != out->pcm_config.channels)){
+    if(!out->pcm){
        ALOGD("%s: null handle to write - device already closed",__func__);
        goto err;
     }

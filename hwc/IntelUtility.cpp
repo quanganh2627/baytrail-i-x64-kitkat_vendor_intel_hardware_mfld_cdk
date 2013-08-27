@@ -51,8 +51,11 @@
 #include <IntelBufferManager.h>
 #include <pvrversion.h>
 #include <cutils/properties.h>
+#include <PixelFormat.h>
 
 #include <IntelUtility.h>
+
+using namespace::android;
 
 IntelUtility::IntelUtility() : mGrallocModule(0), mLayerLists(0), mIndex(0)
 {

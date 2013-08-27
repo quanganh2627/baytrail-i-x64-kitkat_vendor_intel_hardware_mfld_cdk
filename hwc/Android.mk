@@ -80,6 +80,7 @@ endif
 
 LOCAL_C_INCLUDES := $(addprefix $(LOCAL_PATH)/../../, $(SGX_INCLUDES)) \
             frameworks/native/include/media/openmax \
+            frameworks/native/include/ui \
             hardware/libhardware_legacy/include/hardware_legacy \
             $(TOP)/linux/modules/intel_media/common \
             $(TARGET_OUT_HEADERS)/pvr/hal \

@@ -189,7 +189,7 @@ out_check:
 
     // check if frame buffer clear is needed
     if (useSprite) {
-        ALOGD("isSpriteLayer: got a sprite layer");
+        ALOGD_IF(ALLOW_HWC_PRINT, "isSpriteLayer: got a sprite layer");
         if (needClearFb) {
             ALOGD_IF(ALLOW_HWC_PRINT, "isSpriteLayer: clear fb");
             //layer->hints |= HWC_HINT_CLEAR_FB;
@@ -349,7 +349,7 @@ bool IntelMIPIDisplayDevice::isOverlayLayer(hwc_display_contents_1_t *list,
 out_check:
     if (forceOverlay) {
         // clear HWC_SKIP_LAYER flag so that force to use overlay
-        ALOGD("isOverlayLayer: force to use overlay");
+        ALOGD_IF(ALLOW_HWC_PRINT, "isOverlayLayer: force to use overlay");
         layer->flags &= ~HWC_SKIP_LAYER;
         mLayerList->setForceOverlay(index, true);
         layer->compositionType = HWC_OVERLAY;
@@ -362,7 +362,7 @@ out_check:
 
     // check if frame buffer clear is needed
     if (useOverlay) {
-        ALOGD("isOverlayLayer: got an overlay layer");
+        ALOGD_IF(ALLOW_HWC_PRINT, "isOverlayLayer: got an overlay layer");
         layer->compositionType = HWC_OVERLAY;
         if (needClearFb)
             ALOGD_IF(ALLOW_HWC_PRINT, "isOverlayLayer: clear fb");
@@ -1013,15 +1013,15 @@ bool IntelMIPIDisplayDevice::overlayPrepare(int index, hwc_layer_1_t *layer, int
         return false;
     }
     if(shouldHide(layer)){
-          layer->compositionType = HWC_OVERLAY;
-          return true;
+        layer->compositionType = HWC_OVERLAY;
+        return true;
     }
 
     //external not prepared
 
     bool hasOverlay = mPlaneManager->hasFreeOverlays();
     if(!hasOverlay){
-         return false;
+        return false;
     }
 
     // has overlay and haveOverlay.
@@ -1055,17 +1055,13 @@ bool IntelMIPIDisplayDevice::overlayPrepare(int index, hwc_layer_1_t *layer, int
 * should hide this layer?
 *
 */
-
-
 bool IntelMIPIDisplayDevice::shouldHide(hwc_layer_1_t *layer){
      //TODO: hack for extended_mode
     bool result = false;
     if(mDrm->getDisplayMode() == OVERLAY_EXTEND){
         result = true;
     }
-
-    ALOGE("should hide  %s %s\n",__func__,result?"YES":"NO");
-
+    ALOGD_IF((ALLOW_HWC_PRINT) && result, "Hide this layer");
     return result;
 }
 

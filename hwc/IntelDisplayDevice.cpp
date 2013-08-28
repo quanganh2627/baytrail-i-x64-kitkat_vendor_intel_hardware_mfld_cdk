@@ -746,6 +746,14 @@ bool IntelDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
                 mLayerList->setFlags(i, flags);
                 plane->disable();
             }
+            if (list && (list->flags & HWC_ROTATION_IN_PROGRESS) &&
+                    (mDrm->getDisplayMode() == OVERLAY_EXTEND)) {
+                ALOGI_IF(ALLOW_HWC_PRINT, "Bypass overlay layer if device is rotated");
+                mLayerList->detachPlane(i, plane);
+                layer->compositionType = HWC_OVERLAY;
+                handled = false;
+                continue;
+            }
 
             // check if can switch to overlay
             bool useOverlay = useOverlayRotation(layer, i,

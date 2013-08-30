@@ -30,7 +30,7 @@ LOCAL_SRC_FILES := \
         tinyaudio_hw.c
 
 LOCAL_C_INCLUDES += \
-	external/tinyalsa/include
+	$(call include-path-for, tinyalsa)
 
 LOCAL_SHARED_LIBRARIES := liblog libcutils libtinyalsa
 
@@ -40,7 +40,7 @@ LOCAL_SRC_FILES := \
         audio_hw.c
 
 LOCAL_C_INCLUDES += \
-        external/alsa-lib/include
+        $(call include-path-for, alsa-lib)
 
 LOCAL_SHARED_LIBRARIES := liblog libcutils libasound
 

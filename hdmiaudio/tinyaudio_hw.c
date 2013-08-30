@@ -60,6 +60,21 @@ struct pcm * activePcm = NULL;
 /*TODO - move active channel inside activepcm*/
 static int activeChannel;
 
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+
+#define STRING_TO_ENUM(string) { #string, string }
+
+struct channel_list {
+    const char *name;
+    uint32_t value;
+};
+
+const struct channel_list channel_list_table[] = {
+    STRING_TO_ENUM(AUDIO_CHANNEL_OUT_STEREO),
+    STRING_TO_ENUM(AUDIO_CHANNEL_OUT_5POINT1),
+    STRING_TO_ENUM(AUDIO_CHANNEL_OUT_7POINT1),
+};
+
 struct pcm_config pcm_config_default = {
     .channels = 2,
     .rate = 44100,
@@ -68,6 +83,7 @@ struct pcm_config pcm_config_default = {
     .format = PCM_FORMAT_S24_LE,
 };
 
+#define CHANNEL_MASK_MAX 3
 struct audio_device {
     struct audio_hw_device hw_device;
 
@@ -76,6 +92,7 @@ struct audio_device {
     int device;
     bool standby;
     int sink_sup_channels;
+    audio_channel_mask_t sup_channel_masks[CHANNEL_MASK_MAX];
 };
 
 struct stream_out {
@@ -219,7 +236,7 @@ static int start_output_stream(struct stream_out *out)
     out->pcm_config.silence_threshold = 0;
 
     if(activePcm){
-      ALOGV("Closing already open tiny alsa stream %d",(int)out->pcm);
+      ALOGV("Closing already open tiny alsa stream running state %d",(int)(activePcm));
       pcm_close(activePcm);
       activePcm = NULL;
     }
@@ -422,14 +439,11 @@ static int parse_channel_map()
 
     mixer_close(mixer);
 
-  if(chcount > 2)
-    return AUDIO_CHANNEL_OUT_5POINT1;
-  else
-    return AUDIO_CHANNEL_OUT_STEREO;
+    return chcount;
 
 chmap_error:
     mixer_close(mixer);
-    return AUDIO_CHANNEL_OUT_STEREO;
+    return 2;//stereo by default
 
 }
 
@@ -440,6 +454,17 @@ static int out_read_edid(const struct stream_out *stream)
 
     /**read the channel max param from the sink*/
     adev->sink_sup_channels = parse_channel_map();
+
+    if(adev->sink_sup_channels == 8) {
+      adev->sup_channel_masks[0] = AUDIO_CHANNEL_OUT_5POINT1;
+      adev->sup_channel_masks[1] = AUDIO_CHANNEL_OUT_7POINT1;
+    }
+    else if((adev->sink_sup_channels == 6) || (adev->sink_sup_channels > 2)) {
+      adev->sup_channel_masks[0] = AUDIO_CHANNEL_OUT_5POINT1;
+    }
+    else {
+      adev->sup_channel_masks[0] = AUDIO_CHANNEL_OUT_STEREO;
+    }
 
     ALOGV("%s sink supports 0x%x max channels", __func__,adev->sink_sup_channels);
     return 0;
@@ -453,6 +478,8 @@ static char * out_get_parameters(const struct audio_stream *stream, const char *
     char *str = NULL;
     char value[256] = {0};
     int ret;
+    size_t i, j;
+    bool append = false;
 
     struct str_parms *params_out = str_parms_create();
 
@@ -464,11 +491,18 @@ static char * out_get_parameters(const struct audio_stream *stream, const char *
             /*read the channel support from sink*/
             out_read_edid(out);
 
-            if (adev->sink_sup_channels == AUDIO_CHANNEL_OUT_5POINT1){
-                strcat(value,"AUDIO_CHANNEL_OUT_5POINT1");
-            }
-            else {
-              strcat(value,"AUDIO_CHANNEL_OUT_STEREO");
+            value[0] = '\0';
+            for (i = 0; i < CHANNEL_MASK_MAX; i++) {
+               for (j = 0; j < ARRAY_SIZE(channel_list_table); j++) {
+                   if (channel_list_table[j].value == adev->sup_channel_masks[i]) {
+                      if (append) {
+                          strcat(value, "|");
+                      }
+                      strcat(value, channel_list_table[j].name);
+                      append = true;
+                      break;
+                   }
+               }
             }
         }
     }
@@ -511,12 +545,12 @@ static ssize_t out_write(struct audio_stream_out *stream, const void* buffer,
     int32_t* dstbuff = NULL;
     int outbytes = 0;
 
-    ALOGV("%s enter for bytes = %d",__func__,bytes);
+    ALOGV("%s enter for bytes = %d channels = %d",__func__,bytes, out->pcm_config.channels);
 
     pthread_mutex_lock(&out->dev->lock);
     pthread_mutex_lock(&out->lock);
 
-    if(activePcm == NULL){
+    if(activePcm == NULL) {
        ALOGV("%s: previous stream closed- open again",__func__);
        out->standby = true;
     }
@@ -620,6 +654,7 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
 
     out->dev = adev;
     out->channel_mask = AUDIO_CHANNEL_OUT_STEREO;
+    adev->sup_channel_masks[0] = AUDIO_CHANNEL_OUT_STEREO;
 
     if (flags & AUDIO_OUTPUT_FLAG_DIRECT) {
         ALOGV("%s: HDMI Multichannel",__func__);
@@ -628,7 +663,6 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
         if (config->channel_mask == 0){
             /*read the channel support from sink*/
             out_read_edid(out);
-            config->channel_mask = adev->sink_sup_channels;
             if(config->channel_mask == 0)
                config->channel_mask = AUDIO_CHANNEL_OUT_5POINT1;
         }

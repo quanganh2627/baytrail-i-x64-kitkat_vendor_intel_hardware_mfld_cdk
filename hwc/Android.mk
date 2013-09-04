@@ -97,7 +97,6 @@ LOCAL_C_INCLUDES := $(addprefix $(LOCAL_PATH)/../../, $(SGX_INCLUDES)) \
             $(TARGET_OUT_HEADERS)/libwsbm
 ifeq ($(TARGET_HAS_MULTIPLE_DISPLAY),true)
     LOCAL_CFLAGS += -DTARGET_HAS_MULTIPLE_DISPLAY
-    LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/display
     LOCAL_SHARED_LIBRARIES += libmultidisplay
     LOCAL_SRC_FILES += IntelExternalDisplayMonitor.cpp
 endif

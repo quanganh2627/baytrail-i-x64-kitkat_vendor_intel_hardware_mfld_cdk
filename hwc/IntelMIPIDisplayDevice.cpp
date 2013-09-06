@@ -785,6 +785,10 @@ bool IntelMIPIDisplayDevice::commit(hwc_display_contents_1_t *list,
 
     {
         buffer_handle_t *bufferHandles = bh;
+
+        if (!list)
+            return false;
+
         // setup primary plane contexts if swap buffers is needed
         hwc_layer_1_t* fb_layer = &list->hwLayers[list->numHwLayers-1];
         if ((needSwapBuffer || mSkipComposition) &&

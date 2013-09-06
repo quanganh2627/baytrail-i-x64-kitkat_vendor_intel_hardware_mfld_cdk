@@ -380,7 +380,6 @@ bool IntelMIPIDisplayDevice::isRGBOverlayLayer(hwc_display_contents_1_t *list,
                                                hwc_layer_1_t *layer,
                                                int& flags)
 {
-    return false;
     bool useRGBOverlay = false;
     int srcWidth;
     int srcHeight;

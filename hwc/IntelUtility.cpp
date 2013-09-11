@@ -88,7 +88,7 @@ void IntelUtility::setLayerList(struct hwc_display_contents_1** list)
 bool IntelUtility::needDump()
 {
     int dump = 0;
-    char val[32];
+    char val[PROPERTY_VALUE_MAX];
 
     if(property_get("debug.hwc.dumplayers", val, NULL) > 0) {
         dump = atoi(val);

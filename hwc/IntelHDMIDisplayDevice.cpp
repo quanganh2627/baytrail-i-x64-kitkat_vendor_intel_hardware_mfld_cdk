@@ -154,7 +154,7 @@ bool IntelHDMIDisplayDevice::determineGraphicVisibilityInExtendMode(hwc_display_
    // 1) the video is placed to a window
    // 2) only video layer exists.(Exclude FramebufferTarget)
    bool isVideoInWin = isVideoPutInWindow(OUTPUT_HDMI, &(list->hwLayers[index]));
-   if (isVideoInWin || list->numHwLayers == 2||
+   if (isVideoInWin || list->numHwLayers == 2 ||
        list->flags & HWC_ROTATION_IN_PROGRESS) {
        ALOGD_IF(ALLOW_HWC_PRINT,
                "%s: In window mode:%d layer num:%d",
@@ -162,23 +162,20 @@ bool IntelHDMIDisplayDevice::determineGraphicVisibilityInExtendMode(hwc_display_
        // Disable graphic plane
        result = false;
    }
-
    return result;
-
-
 }
 
 void IntelHDMIDisplayDevice::enableHDMIGraphicPlane(bool enable)
 {
+    ALOGD_IF(ALLOW_HWC_PRINT, "Enable GFX Plane, %d", enable);
     //set the flag
     mGraphicPlaneVisible = enable;
     //do the job
-    int cmd = enable?DRM_PSB_DISP_PLANEB_ENABLE:DRM_PSB_DISP_PLANEB_DISABLE;
+    int cmd = enable ? DRM_PSB_DISP_PLANEB_ENABLE : DRM_PSB_DISP_PLANEB_DISABLE;
     struct drm_psb_disp_ctrl dp_ctrl;
     memset(&dp_ctrl, 0, sizeof(dp_ctrl));
     dp_ctrl.cmd = cmd;
     drmCommandWriteRead(mDrm->getDrmFd(), DRM_PSB_HDMI_FB_CMD, &dp_ctrl, sizeof(dp_ctrl));
-
 }
 
 
@@ -239,7 +236,7 @@ bool IntelHDMIDisplayDevice::commit(hwc_display_contents_1_t *list,
     }
 
     if (mIsBlank) {
-        ALOGW("%s: HWC is blank, bypass", __func__);
+        //ALOGW("%s: HWC is blank, bypass", __func__);
         return false;
     }
 
@@ -330,9 +327,9 @@ bool IntelHDMIDisplayDevice::flipOverlayerPlane(void *context,hwc_display_conten
        int flags = mLayerList->getFlags(i);
 
        if (!plane){
-        //debug - we at lease should have one overlayPlane attached
-        ALOGE("%s %d has no plane",__func__,i);
-           continue;
+            //debug - we at lease should have one overlayPlane attached
+            ALOGD_IF(ALLOW_HWC_PRINT, "layer[%d] no attacehed plane", i);
+            continue;
        }
        //TODO:revisit
        //if (list->hwLayers[i].flags & HWC_SKIP_LAYER)
@@ -351,7 +348,6 @@ bool IntelHDMIDisplayDevice::flipOverlayerPlane(void *context,hwc_display_conten
            releaseFenceFd[numBuffers] = &list->hwLayers[i].releaseFenceFd;
            bufferHandles[numBuffers++] =
            (buffer_handle_t)plane->getDataBufferHandle();
-
        }
        // clear flip flags, except for DELAY_DISABLE
        mLayerList->setFlags(i, flags & IntelDisplayPlane::DELAY_DISABLE);
@@ -373,8 +369,7 @@ bool IntelHDMIDisplayDevice::needFlipOverlay(hwc_display_contents_1_t *list)
          result = true;
          break;
        }
-    }
-
+   }
    return result;
 }
 

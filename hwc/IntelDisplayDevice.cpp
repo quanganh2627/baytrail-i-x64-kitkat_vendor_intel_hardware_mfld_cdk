@@ -685,10 +685,13 @@ bool IntelDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
 
     mYUVOverlay = -1;
 
+    if (!list)
+	return false;
+
     for (size_t i=0 ; i<(size_t)mLayerList->getLayersCount(); i++) {
         hwc_layer_1_t *layer = &list->hwLayers[i];
         // layer safety check
-        if (!isHWCLayer(layer))
+        if (!isHWCLayer(layer) || !layer)
             continue;
 
         IMG_native_handle_t *grallocHandle =
@@ -745,6 +748,14 @@ bool IntelDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
                 flags &= ~IntelDisplayPlane::DELAY_DISABLE;
                 mLayerList->setFlags(i, flags);
                 plane->disable();
+            }
+            if (list && (list->flags & HWC_ROTATION_IN_PROGRESS) &&
+                    (mDrm->getDisplayMode() == OVERLAY_EXTEND)) {
+                ALOGI_IF(ALLOW_HWC_PRINT, "Bypass overlay layer if device is rotated");
+                mLayerList->detachPlane(i, plane);
+                layer->compositionType = HWC_OVERLAY;
+                handled = false;
+                continue;
             }
 
             // check if can switch to overlay

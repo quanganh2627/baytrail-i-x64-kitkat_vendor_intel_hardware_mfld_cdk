@@ -573,8 +573,12 @@ static ssize_t out_write(struct audio_stream_out *stream, const void* buffer,
        /*16 bit data will be converted to 24 bit over 32 bit data type
        hence the multiplier 2*/
        dstbuff = (int32_t*)malloc(bytes* 2);
-       if (!dstbuff)
+       if (!dstbuff) {
+           pthread_mutex_unlock(&out->lock);
+           pthread_mutex_unlock(&out->dev->lock);
+           ALOGE("%s : memory allocation failed",__func__);
            return -ENOMEM;
+       }
 
        memset(dstbuff,0,bytes * 2);
 
@@ -591,13 +595,6 @@ static ssize_t out_write(struct audio_stream_out *stream, const void* buffer,
 
     free(dstbuff);
 
-    pthread_mutex_unlock(&out->lock);
-    pthread_mutex_unlock(&out->dev->lock);
-
-    ALOGV("%s exit",__func__);
-
-    return bytes;
-
 err:
     pthread_mutex_unlock(&out->lock);
     pthread_mutex_unlock(&out->dev->lock);
@@ -610,6 +607,7 @@ err:
     usleep(duration_ms * 1000);
    }
 
+    ALOGV("%s exit",__func__);
     return bytes;
 }
 

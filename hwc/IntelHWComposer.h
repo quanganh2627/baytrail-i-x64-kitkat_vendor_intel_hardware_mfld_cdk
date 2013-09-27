@@ -120,6 +120,7 @@ private:
     bool mForceDumpPostBuffer;
     int dumpPost2Buffers(int num, buffer_handle_t* buffer);
     int dumpLayerLists(size_t numDisplays, hwc_display_contents_1_t** displays);
+    bool checkPresentationMode(hwc_display_contents_1_t*, hwc_display_contents_1_t*);
 public:
     bool onUEvent(int msgType, void* msg, int msgLen);
     void vsync(int64_t timestamp, int pipe);

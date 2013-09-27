@@ -121,6 +121,8 @@ private:
     drmModeConnectorPtr mHdmiConnector;
     intel_drm_output_state_t mDrmOutputsState;
     static IntelHWComposerDrm *mInstance;
+    bool mIsPresentation;
+    bool mOnlyHdmiHasVideo;
 #ifdef TARGET_HAS_MULTIPLE_DISPLAY
     android::sp<IntelExternalDisplayMonitor> mMonitor;
 #endif
@@ -212,6 +214,10 @@ public:
     bool isDrmModeFlagsMatched(drmModeModeInfoPtr mode, intel_display_mode_t* displayMode);
     void deleteDrmFb(int disp);
     bool setDisplayIed(bool on);
+    void setPresentationMode(bool isPresentationMode);
+    bool isPresentationMode();
+    void setOnlyHdmiHasVideo(bool only);
+    bool onlyHdmiHasVideo();
 };
 
 #endif /*__INTEL_HWCOMPOSER_DRM_H__*/

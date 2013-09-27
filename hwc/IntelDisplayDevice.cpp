@@ -749,9 +749,15 @@ bool IntelDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
                 mLayerList->setFlags(i, flags);
                 plane->disable();
             }
+            //FIXME: is a workaround
+            // Bypass overlay layer, if
+            // device is rotated
+            // and not presentation mode
+            // and video is not only attached to HDMI
             if (list && (list->flags & HWC_ROTATION_IN_PROGRESS) &&
-                    (mDrm->getDisplayMode() == OVERLAY_EXTEND)) {
-                ALOGI_IF(ALLOW_HWC_PRINT, "Bypass overlay layer if device is rotated");
+                    (mDrm->getDisplayMode() == OVERLAY_EXTEND &&
+                     !mDrm->isPresentationMode() && !mDrm->onlyHdmiHasVideo())) {
+                ALOGI_IF(ALLOW_HWC_PRINT, "Bypass overlay layer");
                 mLayerList->detachPlane(i, plane);
                 layer->compositionType = HWC_OVERLAY;
                 handled = false;

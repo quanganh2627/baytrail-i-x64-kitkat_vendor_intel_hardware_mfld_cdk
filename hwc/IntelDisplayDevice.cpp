@@ -685,10 +685,13 @@ bool IntelDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
 
     mYUVOverlay = -1;
 
+    if (!list)
+	return false;
+
     for (size_t i=0 ; i<(size_t)mLayerList->getLayersCount(); i++) {
         hwc_layer_1_t *layer = &list->hwLayers[i];
         // layer safety check
-        if (!isHWCLayer(layer))
+        if (!isHWCLayer(layer) || !layer)
             continue;
 
         IMG_native_handle_t *grallocHandle =

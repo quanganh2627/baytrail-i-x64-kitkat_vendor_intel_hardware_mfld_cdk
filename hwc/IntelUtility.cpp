@@ -188,8 +188,8 @@ void IntelUtility::dumpLayers(char* path)
                     generateBitmap(stride, height, format, vaddr, fileName);
                 }
             }
-            else if (PVRVERSION_MAJ == 1 && PVRVERSION_MIN == 10) {
-            // DDK 1.10
+            else if (PVRVERSION_MAJ == 1 && PVRVERSION_MIN >= 10) {
+            // DDK after 1.9
                 generateBitmap(stride, height, format, vaddr, fileName);
             }
             // unlock buffer

@@ -742,6 +742,29 @@ IMG_native_handle_t *IntelHWComposer::findVideoHandle(hwc_display_contents_1_t* 
     return foundHandle;
 }
 
+bool IntelHWComposer::checkPresentationMode(hwc_display_contents_1_t* primary_list,
+                                                hwc_display_contents_1_t* secondary_list)
+{
+    bool isPresentation = false;
+    if (primary_list != NULL && secondary_list != NULL) {
+        if (primary_list->numHwLayers != secondary_list->numHwLayers) {
+            isPresentation = true;
+        } else {
+            for (size_t i = 0; i < primary_list->numHwLayers-1; i++) {
+                hwc_layer_1_t& primary_layer = primary_list->hwLayers[i];
+                hwc_layer_1_t& secondary_layer = secondary_list->hwLayers[i];
+                if (primary_layer.handle != secondary_layer.handle) {
+                    isPresentation = true;
+                    break;
+                }
+            }
+        }
+    }
+    if (mDrm)
+        mDrm->setPresentationMode(isPresentation);
+    return isPresentation;
+}
+
 bool IntelHWComposer::prepareDisplays(size_t numDisplays,
                                       hwc_display_contents_1_t** displays)
 {
@@ -753,7 +776,17 @@ bool IntelHWComposer::prepareDisplays(size_t numDisplays,
     IntelUtility u(numDisplays, displays);
     u.dumpLayers(NULL);
 #endif
-
+    // Presentation mode checking for HDMI
+    if (displays[HWC_DISPLAY_EXTERNAL]) {
+        checkPresentationMode(displays[HWC_DISPLAY_PRIMARY], displays[HWC_DISPLAY_EXTERNAL]);
+        bool onlyHdmiHasVideo = false;
+        // HDMI has video layer but primary device hasn't
+        IMG_native_handle_t *videoHandleMipi = findVideoHandle(displays[HWC_DISPLAY_PRIMARY]);
+        IMG_native_handle_t *videoHandleHdmi = findVideoHandle(displays[HWC_DISPLAY_EXTERNAL]);
+        if (videoHandleMipi == NULL && videoHandleHdmi != NULL)
+            onlyHdmiHasVideo = true;
+        mDrm->setOnlyHdmiHasVideo(onlyHdmiHasVideo);
+    }
     if (numDisplays >= HWC_NUM_DISPLAY_TYPES && displays[HWC_NUM_DISPLAY_TYPES])
     {
         IMG_native_handle_t *videoHandleMipi = findVideoHandle(displays[HWC_DISPLAY_PRIMARY]);

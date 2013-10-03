@@ -311,6 +311,8 @@ bool IntelHWComposerDrm::initialize(IntelHWComposer *hwc)
 
     // set old display mode the same detect mode
     mDrmOutputsState.old_display_mode =  mDrmOutputsState.display_mode;
+    mIsPresentation = false;
+    mOnlyHdmiHasVideo = false;
     return true;
 }
 bool IntelHWComposerDrm::detectDrmModeInfo()
@@ -1015,4 +1017,23 @@ bool IntelHWComposerDrm::setDisplayIed(bool on)
     ret = drmCommandNone(mDrmFd, DRM_PSB_HDCP_DISPLAY_IED_ON);
 
     return (ret == 0) ? true : false;
+}
+
+void IntelHWComposerDrm::setPresentationMode(bool isPresentationMode) {
+    mIsPresentation = isPresentationMode;
+}
+
+bool IntelHWComposerDrm::isPresentationMode() {
+    ALOGD_IF(ALLOW_MONITOR_PRINT, "%s presentation mode", (mIsPresentation ? "Is" : "Isn't"));
+    return mIsPresentation;
+}
+
+void IntelHWComposerDrm::setOnlyHdmiHasVideo(bool only) {
+    mOnlyHdmiHasVideo = only;
+}
+
+bool IntelHWComposerDrm::onlyHdmiHasVideo() {
+    if (mOnlyHdmiHasVideo)
+        ALOGD_IF(ALLOW_MONITOR_PRINT, "Only HDMI has video layer");
+    return mOnlyHdmiHasVideo;
 }

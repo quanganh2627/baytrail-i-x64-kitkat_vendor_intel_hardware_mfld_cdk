@@ -214,11 +214,15 @@ bool IntelHDMIDisplayDevice::prepare(hwc_display_contents_1_t *list)
         mHotplugEvent = false;
     }
 
-   // handle buffer changing. setup data buffer.
-   if (list && !updateLayersData(list)) {
-       ALOGD_IF(ALLOW_HWC_PRINT, "prepare: revisiting layer list\n");
-       revisitLayerList(list, false);
-   }
+    // handle buffer changing. setup data buffer.
+    if (list && !updateLayersData(list)) {
+        ALOGD_IF(ALLOW_HWC_PRINT, "prepare: revisiting layer list\n");
+        revisitLayerList(list, false);
+    }
+    if (mForceSwapBuffer && !mGraphicPlaneVisible) {
+        ALOGD_IF(ALLOW_HWC_PRINT, "Ebable HDMI gfx plane due to forcing swap buffer");
+        enableHDMIGraphicPlane(true);
+    }
     return true;
 }
 

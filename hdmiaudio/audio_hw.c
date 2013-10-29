@@ -722,7 +722,7 @@ static ssize_t out_write(struct audio_stream_out *stream, const void* buffer,
         ret = start_output_stream(out);
         if (ret != 0) {
             ALOGE("%s: stream start failed", __func__);
-            goto err_write;
+            goto err;
         }
         ALOGV("%s: standby is set to false", __func__);
         out->standby = false;
@@ -732,9 +732,7 @@ static ssize_t out_write(struct audio_stream_out *stream, const void* buffer,
 // return silence. Audio policy must be changed to stop the
 // already running stream
     if (out->handle == NULL) {
-        pthread_mutex_unlock(&out->lock);
-        pthread_mutex_unlock(&out->dev->lock);
-        goto silence_write;
+        goto err;
     }
 
     ALOGV("write data : channels : %d", out->channel_mask);
@@ -753,7 +751,7 @@ static ssize_t out_write(struct audio_stream_out *stream, const void* buffer,
             if (it > MAX_AGAIN_RETRY){
                 ALOGE("write err: EAGAIN breaking...");
                 ret = -EAGAIN;  //What happens to the other condition?
-                goto err_write;
+                goto err;
             }
             snd_pcm_wait(out->handle, WAIT_TIME_MS);
         }
@@ -762,13 +760,13 @@ static ssize_t out_write(struct audio_stream_out *stream, const void* buffer,
             ret = open_device(out);
             if(ret != 0) {
                ALOGE("Open device error %d", (int)ret);
-               goto err_write;
+               goto err;
             }
         }
         else if (frames == -ENODEV) {
             ALOGE("write err: %s, bailing out", snd_strerror(frames));
             ret = -ENODEV;
-            goto err_write;
+            goto err;
         }
         else if (frames < 0) {
             ALOGE("write err: %s", snd_strerror(frames));
@@ -782,7 +780,7 @@ static ssize_t out_write(struct audio_stream_out *stream, const void* buffer,
             }
             if(ret != 0) {
                 ALOGE("pcm write recover error: %s", snd_strerror(frames));
-                goto err_write;
+                goto err;
             }
         }
 
@@ -803,21 +801,17 @@ static ssize_t out_write(struct audio_stream_out *stream, const void* buffer,
         frames,
         sent_bytes);
 
-err_write:
+err:
     pthread_mutex_unlock(&out->lock);
     pthread_mutex_unlock(&out->dev->lock);
-
+    if(ret !=0){
+        uint64_t duration_ms = ((ip_bytes * 1000)/
+                               (audio_stream_frame_size(&stream->common)) /
+                               (out_get_sample_rate(&stream->common)));
+        ALOGV("%s : silence written", __func__);
+        usleep(duration_ms * 1000);
+    }
     return ret == 0 ? (ssize_t) sent_bytes : ret;
-
-silence_write:
-   if(ret !=0){
-    uint64_t duration_ms = ((ip_bytes * 1000)/
-                            (audio_stream_frame_size(&stream->common)) /
-                            (out_get_sample_rate(&stream->common)));
-    ALOGV("%s : silence written", __func__);
-    usleep(duration_ms * 1000);
-   }
-    return ip_bytes;
 }
 
 static int out_get_render_position(const struct audio_stream_out *stream,

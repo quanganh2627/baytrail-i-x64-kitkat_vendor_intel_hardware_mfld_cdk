@@ -777,7 +777,7 @@ bool IntelHWComposer::prepareDisplays(size_t numDisplays,
     u.dumpLayers(NULL);
 #endif
     // Presentation mode checking for HDMI
-    if (displays[HWC_DISPLAY_EXTERNAL]) {
+    if (numDisplays > HWC_DISPLAY_EXTERNAL && displays[HWC_DISPLAY_EXTERNAL]) {
         checkPresentationMode(displays[HWC_DISPLAY_PRIMARY], displays[HWC_DISPLAY_EXTERNAL]);
         bool onlyHdmiHasVideo = false;
         // HDMI has video layer but primary device hasn't

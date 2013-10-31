@@ -136,7 +136,7 @@ bool IntelDisplayDevice::isVideoPutInWindow(int output, hwc_layer_1_t *layer) {
      * 3) For device(e.g. tablet, hdtv), fbW > fbH:
      check if it is back to portait mode.
      */
-    if (dstWidth < fbW && dstHeight < fbH) {
+    if (dstWidth < fbW - 1 && dstHeight < fbH - 1) {
         inWindow = true;
     } else if (fbW < fbH) {
         if ((dstWidth > dstHeight && srcWidth >= srcHeight) ||

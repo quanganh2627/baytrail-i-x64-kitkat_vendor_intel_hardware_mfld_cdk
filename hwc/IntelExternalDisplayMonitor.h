@@ -51,11 +51,12 @@
 #include "display/IMultiDisplayComposer.h"
 #include "display/MultiDisplayClient.h"
 #include "display/MultiDisplayType.h"
+#include "display/MultiDisplayService.h"
 
 class IntelHWComposer;
 
 class IntelExternalDisplayMonitor :
-    public android::BnExtendDisplayListener,
+    public BnExtendDisplayListener,
     public android::IBinder::DeathRecipient,
     protected android::Thread
 {
@@ -64,11 +65,9 @@ public:
         MSG_TYPE_MDS_UNDEFINED = -1,
         MSG_TYPE_UEVENT = 0,
         MSG_TYPE_MDS,
-        MSG_TYPE_MDS_ORIENTATION_CHANGE,
         MSG_TYPE_MDS_HOTPLUG_IN,
         MSG_TYPE_MDS_HOTPLUG_OUT,
         MSG_TYPE_MDS_TIMING_DYNAMIC_SETTING,
-        MSG_TYPE_MDS_SET_BACKGROUND_VIDEO_MODE,
     };
 
     enum {

@@ -34,7 +34,7 @@
 #include <IntelBufferManager.h>
 #include <IntelHWComposerLayer.h>
 #include <IntelHWComposerDump.h>
-
+#include "RotationBufferProvider.h"
 
 class IntelDisplayConfig {
 private:
@@ -67,6 +67,8 @@ struct WidiExtendedModeInfo {
 };
 
 class IntelDisplayDevice : public IntelHWComposerDump {
+private:
+    IntelWsbm *mWsbm;
 protected:
     //IntelDisplayConfig mConfig;
     IntelDisplayPlaneManager *mPlaneManager;
@@ -74,6 +76,7 @@ protected:
     IntelBufferManager *mBufferManager;
     IntelBufferManager *mGrallocBufferManager;
     IntelHWComposerLayerList *mLayerList;
+    RotationBufferProvider *mRotationBufProvider;
     uint32_t mDisplayIndex;
     bool mForceSwapBuffer;
     bool mHotplugEvent;
@@ -137,6 +140,8 @@ protected:
     void revisitLayerList(hwc_display_contents_1_t *list,
                                               bool isGeometryChanged);
 private:
+    bool initializeRotationBufProvider();
+    void destroyRotationBufProvider();
     void updateZorderConfig();
     bool isBobDeinterlace(hwc_layer_1_t *layer);
     bool useOverlayRotation(hwc_layer_1_t *layer, int index, uint32_t& handle,

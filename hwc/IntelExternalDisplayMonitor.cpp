@@ -249,10 +249,9 @@ status_t IntelExternalDisplayMonitor::readyToRun()
     // get multi-display manager service, retry 10 seconds
     int retry = 10;
     do {
-        const String16 name("MultiDisplay");
-        sp<IBinder> service;
+        sp<IBinder> service = NULL;
         sp<IServiceManager> serviceManager = defaultServiceManager();
-        service = serviceManager->getService(name);
+        service = serviceManager->getService(String16(INTEL_MDS_SERVICE_NAME));
         if (service != 0) {
             mMDClient = new MultiDisplayClient();
             if (mMDClient == NULL) {
@@ -275,11 +274,11 @@ status_t IntelExternalDisplayMonitor::readyToRun()
             service->linkToDeath(this);
             break;
         }
-        ALOGW("Failed to get MDS service.try again...\n");
+        ALOGW("Failed to get %s service.try again...\n", INTEL_MDS_SERVICE_NAME);
     } while(--retry);
 
     if (!retry && mMDClient == NULL) {
-        ALOGW("Failed to get mds service, fall back uevent\n");
+        ALOGW("Failed to get service %s, fall back uevent\n", INTEL_MDS_SERVICE_NAME);
         struct sockaddr_nl addr;
         int sz = 64*1024;
 
@@ -306,8 +305,7 @@ status_t IntelExternalDisplayMonitor::readyToRun()
         ALOGD_IF(ALLOW_MONITOR_PRINT, "Got MultiDisplay Service\n");
         if (mMDClient != NULL)
             mMDClient->registerListener(this, const_cast<char *>("HWComposer"),
-                    MDS_MODE_CHANGE | MDS_SET_TIMING |
-                    MDS_SET_BACKGROUND_VIDEO_MODE | MDS_SET_VIDEO_STATUS);
+                    MDS_MODE_CHANGE | MDS_SET_TIMING | MDS_SET_VIDEO_STATUS);
     }
 
     return NO_ERROR;

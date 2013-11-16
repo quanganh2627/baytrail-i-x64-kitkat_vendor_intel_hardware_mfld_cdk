@@ -183,6 +183,7 @@ public:
     virtual IntelDisplayBuffer* curAlloc(int w, int h) {return 0;}
     virtual void curFree(IntelDisplayBuffer *buffer) {}
     bool initCheck() const { return mInitialized; }
+    int getDrmFd() const { return mDrmFd; }
     IntelBufferManager(int fd)
         : mDrmFd(fd), mInitialized(false) {
     }

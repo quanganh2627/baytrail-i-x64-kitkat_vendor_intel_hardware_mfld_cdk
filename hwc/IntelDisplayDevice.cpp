@@ -38,16 +38,17 @@ IntelDisplayDevice::IntelDisplayDevice(IntelDisplayPlaneManager *pm,
                                 IntelBufferManager *bm,
                                 IntelBufferManager *gm,
                                 uint32_t index)
-       :  IntelHWComposerDump(),
+       :  IntelHWComposerDump(), mWsbm(NULL),
           mPlaneManager(pm), mDrm(drm), mBufferManager(bm),
           mGrallocBufferManager(gm), mLayerList(0),
+          mRotationBufProvider(NULL),
           mDisplayIndex(index), mForceSwapBuffer(false),
           mHotplugEvent(false), mIsConnected(false),
           mInitialized(false), mIsScreenshotActive(false),
           mIsBlank(false), mVideoSeekingActive(false)
 {
-    ALOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
-
+   ALOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
+   initializeRotationBufProvider();
    memset(mFBBuffers, 0, sizeof(mFBBuffers));
    mNextBuffer = 0;
 }
@@ -55,6 +56,7 @@ IntelDisplayDevice::IntelDisplayDevice(IntelDisplayPlaneManager *pm,
 IntelDisplayDevice::IntelDisplayDevice::~IntelDisplayDevice()
 {
     ALOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
+    destroyRotationBufProvider();
 }
 
 
@@ -941,6 +943,61 @@ void IntelDisplayDevice::revisitLayerList(hwc_display_contents_1_t *list,
         updateZorderConfig();
 }
 
+bool IntelDisplayDevice::initializeRotationBufProvider()
+{
+    bool ret = false;
+    if (!mBufferManager) {
+        return false;
+    }
+
+    int DrmFd = mBufferManager->getDrmFd();
+    if (DrmFd <= 0) {
+        ALOGE("invalid drm FD");
+        return false;
+    }
+
+    mWsbm = new IntelWsbm(DrmFd);
+    if (!mWsbm) {
+        ALOGE("failed to create wsbm object");
+        return false;
+    }
+
+    ret = mWsbm->initialize();
+    if (ret == false) {
+        ALOGE("failed to initialize wsbm");
+        delete mWsbm;
+        mWsbm = NULL;
+        return false;
+    }
+
+    mRotationBufProvider = new RotationBufferProvider(mWsbm);
+    if (mRotationBufProvider == NULL) {
+        ALOGE("failed to new RotationBufferProvider");
+        return false;
+    }
+
+    if (!mRotationBufProvider->initialize()) {
+        ALOGE("failed to initialize RotationBufferProvider");
+        return false;
+    }
+
+    return true;
+}
+
+void IntelDisplayDevice::destroyRotationBufProvider()
+{
+    if (mRotationBufProvider) {
+        mRotationBufProvider->deinitialize();
+        delete mRotationBufProvider;
+        mRotationBufProvider = NULL;
+    }
+
+    if (mWsbm) {
+        delete mWsbm;
+        mWsbm = NULL;
+    }
+}
+
 void IntelDisplayDevice::updateZorderConfig()
 {
     int zOrderConfig = IntelDisplayPlaneManager::ZORDER_POaOc;
@@ -1033,8 +1090,22 @@ bool IntelDisplayDevice::useOverlayRotation(hwc_layer_1_t *layer,
                 payload->layer_transform = transform;
             }
             ALOGD_IF(ALLOW_HWC_PRINT,
-                    "%s: rotation buffer was not prepared by client! ui64Stamp = %llu\n", __func__, grallocHandle->ui64Stamp);
-            return false;
+                    "%s: rotation buffer was not prepared by client! ui64Stamp = %llu", __func__, grallocHandle->ui64Stamp);
+
+            if ( payload->force_output_method == OUTPUT_FORCE_OVERLAY ||
+                payload->surface_protected) {
+                bool ret = false;
+                if (!mRotationBufProvider) {
+                    ALOGE("failed to initialize RotationBufProvider");
+                    return false;
+                }
+                ret = mRotationBufProvider->setupRotationBuffer(payload, transform);
+                if (ret == false) {
+                    ALOGE("failed to provider the rotation buffer");
+                    return false;
+                }
+            } else
+                return false;
         }
 
         // update handle, w & h to rotation buffer

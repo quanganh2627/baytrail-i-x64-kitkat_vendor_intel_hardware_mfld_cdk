@@ -54,7 +54,7 @@
 #include <sys/mman.h>
 
 #ifdef TARGET_HAS_MULTIPLE_DISPLAY
-#include "MultiDisplayType.h"
+#include "display/MultiDisplayType.h"
 #endif
 
 IntelHWComposerDrm *IntelHWComposerDrm::mInstance(0);

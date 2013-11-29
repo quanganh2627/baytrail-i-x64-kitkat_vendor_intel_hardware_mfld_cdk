@@ -80,10 +80,10 @@ LOCAL_SRC_FILES += IntelHWCWrapper.cpp
 endif
 
 LOCAL_C_INCLUDES := $(addprefix $(LOCAL_PATH)/../../, $(SGX_INCLUDES)) \
-            frameworks/native/include/media/openmax \
-            frameworks/native/include/ui \
-            hardware/libhardware_legacy/include/hardware_legacy \
-            $(TOP)/linux/modules/intel_media/common \
+            $(call include-path-for, frameworks-native)/media/openmax \
+            $(call include-path-for, frameworks-native)/ui \
+            $(call include-path-for, libhardware_legacy)/hardware_legacy \
+            $(TARGET_BOARD_KERNEL_HEADERS) \
             $(TARGET_OUT_HEADERS)/pvr/hal \
             $(TARGET_OUT_HEADERS)/pvr/pvr2d \
             $(TARGET_OUT_HEADERS)/pvr/include4 \

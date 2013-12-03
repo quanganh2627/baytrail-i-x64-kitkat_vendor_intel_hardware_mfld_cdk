@@ -656,7 +656,7 @@ bool IntelHWComposer::initialize()
                                        mPlaneManager, mDrm, i);
 #endif
 #ifdef INTEL_WIDI
-         else if (i == HWC_NUM_DISPLAY_TYPES)
+         else if (i == HWC_DISPLAY_VIRTUAL)
              mDisplayDevice[i] =
                  new WidiDisplayDevice(mBufferManager, mGrallocBufferManager,
                                        mPlaneManager, mDrm, &mExtendedModeInfo, i);
@@ -787,15 +787,15 @@ bool IntelHWComposer::prepareDisplays(size_t numDisplays,
             onlyHdmiHasVideo = true;
         mDrm->setOnlyHdmiHasVideo(onlyHdmiHasVideo);
     }
-    if (numDisplays >= HWC_NUM_DISPLAY_TYPES && displays[HWC_NUM_DISPLAY_TYPES])
+    if (numDisplays >= HWC_DISPLAY_VIRTUAL && displays[HWC_DISPLAY_VIRTUAL])
     {
         IMG_native_handle_t *videoHandleMipi = findVideoHandle(displays[HWC_DISPLAY_PRIMARY]);
-        IMG_native_handle_t *videoHandleWidi = findVideoHandle(displays[HWC_NUM_DISPLAY_TYPES]);
+        IMG_native_handle_t *videoHandleWidi = findVideoHandle(displays[HWC_DISPLAY_VIRTUAL]);
         if (videoHandleMipi == videoHandleWidi)
             mExtendedModeInfo.widiExtHandle = videoHandleMipi;
 
         // call prepare for widi out of order since it may cancel extended mode
-        mDisplayDevice[HWC_NUM_DISPLAY_TYPES]->prepare(displays[HWC_NUM_DISPLAY_TYPES]);
+        mDisplayDevice[HWC_DISPLAY_VIRTUAL]->prepare(displays[HWC_DISPLAY_VIRTUAL]);
     }
 
     for (size_t disp = 0; disp < numDisplays; disp++) {
@@ -803,7 +803,7 @@ bool IntelHWComposer::prepareDisplays(size_t numDisplays,
             break;
 
         hwc_display_contents_1_t *list = displays[disp];
-        if (list && mDisplayDevice[disp] && disp != HWC_NUM_DISPLAY_TYPES)
+        if (list && mDisplayDevice[disp] && disp != HWC_DISPLAY_VIRTUAL)
             mDisplayDevice[disp]->prepare(list);
 
         if (disp == HWC_DISPLAY_EXTERNAL && !list)

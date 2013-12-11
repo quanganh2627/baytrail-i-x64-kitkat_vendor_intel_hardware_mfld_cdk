@@ -1685,7 +1685,8 @@ bool IntelOverlayPlane::flip(void *contexts, uint32_t flags)
     if (initCheck()) {
         IntelOverlayContextMfld *overlayContext =
             reinterpret_cast<IntelOverlayContextMfld*>(mContext);
-        if (flags & IntelDisplayPlane::DELAY_DISABLE) {
+        if ((flags & IntelDisplayPlane::DELAY_DISABLE) ||
+            (IntelHWComposerDrm::getInstance().isOverlayOff())) {
             // return false as overlay context flip is bypassed
             ret = false;
         } else {

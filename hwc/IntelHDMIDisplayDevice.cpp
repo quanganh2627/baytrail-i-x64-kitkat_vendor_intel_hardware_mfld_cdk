@@ -347,6 +347,10 @@ bool IntelHDMIDisplayDevice::flipOverlayerPlane(void *context,hwc_display_conten
        bool ret = plane->flip(context, flags);
        if (!ret) {
            ALOGW("%s: failed to flip plane %d context !\n", __func__, i);
+       } else if (plane->getDataBufferHandle() == 0) {
+           // check if plane data buffer is NULL, which may
+           // happen when updateLayerData failed.
+           ALOGW("layer [%d]: plane handle is NULL!", i);
        } else {
            acquireFenceFd[numBuffers] = list->hwLayers[i].acquireFenceFd;
            releaseFenceFd[numBuffers] = &list->hwLayers[i].releaseFenceFd;

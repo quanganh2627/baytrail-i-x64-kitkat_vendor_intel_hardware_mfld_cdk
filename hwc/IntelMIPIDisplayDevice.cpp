@@ -833,13 +833,9 @@ bool IntelMIPIDisplayDevice::commit(hwc_display_contents_1_t *list,
                     // primary plane, don't pass buffer handle to avoid
                     // SGX deadlock issue
                     ALOGD_IF(ALLOW_HWC_PRINT, "same RGB buffer handle %p", handle);
-                } else if (plane->getDataBufferHandle() == 0) {
-                    // check if plane data buffer is NULL, which may
-                    // happen when updateLayerData failed.
-                    ALOGW("layer [%d]: plane handle is NULL!", i);
                 } else {
-                    acquireFenceFd[numBuffers] = list->hwLayers[i].acquireFenceFd;
-                    releaseFenceFd[numBuffers] = &list->hwLayers[i].releaseFenceFd;
+                acquireFenceFd[numBuffers] = list->hwLayers[i].acquireFenceFd;
+                releaseFenceFd[numBuffers] = &list->hwLayers[i].releaseFenceFd;
                     bufferHandles[numBuffers++] =
                         (buffer_handle_t)plane->getDataBufferHandle();
                     if (i < 10) {

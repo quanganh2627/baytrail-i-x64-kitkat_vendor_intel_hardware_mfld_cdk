@@ -110,8 +110,8 @@ bool IntelDisplayDevice::isVideoPutInWindow(int output, hwc_layer_1_t *layer) {
     int fbW = fbInfo->width;
     int fbH = fbInfo->height;
 
-    int srcWidth = layer->sourceCrop.right - layer->sourceCrop.left;
-    int srcHeight = layer->sourceCrop.bottom - layer->sourceCrop.top;
+    int srcWidth = (int)(layer->sourceCropf.right - layer->sourceCropf.left);
+    int srcHeight = (int)(layer->sourceCropf.bottom - layer->sourceCropf.top);
     uint32_t metadata_transform = 0;
     if (getMetaDataTransform(layer, metadata_transform) == -1) {
         ALOGE("Get meta data transform failed!");
@@ -337,8 +337,8 @@ bool IntelDisplayDevice::flipFramebufferContexts(void *contexts,
     uint32_t gttOffsetInPage = buffer->getGttOffsetInPage();
 
     // update layer info;
-    uint32_t fbWidth = layer->sourceCrop.right;
-    uint32_t fbHeight = layer->sourceCrop.bottom;
+    uint32_t fbWidth = (uint32_t)(layer->sourceCropf.right);
+    uint32_t fbHeight = (uint32_t)(layer->sourceCropf.bottom);
 
     context = &planeContexts->sprite_contexts[mDisplayIndex];
     context->update_mask = SPRITE_UPDATE_ALL;
@@ -385,10 +385,10 @@ void IntelDisplayDevice::dumpLayerList(hwc_display_contents_1_t *list)
     ALOGD("DUMP LAYER LIST START");
     ALOGD("num of layers: %d", list->numHwLayers);
     for (size_t i = 0; i < list->numHwLayers; i++) {
-        int srcLeft = list->hwLayers[i].sourceCrop.left;
-        int srcTop = list->hwLayers[i].sourceCrop.top;
-        int srcRight = list->hwLayers[i].sourceCrop.right;
-        int srcBottom = list->hwLayers[i].sourceCrop.bottom;
+        int srcLeft = (int)(list->hwLayers[i].sourceCropf.left);
+        int srcTop = (int)(list->hwLayers[i].sourceCropf.top);
+        int srcRight = (int)(list->hwLayers[i].sourceCropf.right);
+        int srcBottom = (int)(list->hwLayers[i].sourceCropf.bottom);
 
         int dstLeft = list->hwLayers[i].displayFrame.left;
         int dstTop = list->hwLayers[i].displayFrame.top;
@@ -671,10 +671,10 @@ bool IntelDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
 
         // get layer parameter
         int bobDeinterlace;
-        int srcX = layer->sourceCrop.left;
-        int srcY = layer->sourceCrop.top;
-        int srcWidth = layer->sourceCrop.right - layer->sourceCrop.left;
-        int srcHeight = layer->sourceCrop.bottom - layer->sourceCrop.top;
+        int srcX = (int)(layer->sourceCropf.left);
+        int srcY = (int)(layer->sourceCropf.top);
+        int srcWidth = (int)(layer->sourceCropf.right - layer->sourceCropf.left);
+        int srcHeight = (int)(layer->sourceCropf.bottom - layer->sourceCropf.top);
         int planeType = plane->getPlaneType();
 
         if(srcHeight == 1 || srcWidth == 1) {

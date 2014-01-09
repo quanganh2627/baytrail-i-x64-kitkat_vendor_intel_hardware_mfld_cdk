@@ -270,8 +270,8 @@ bool IntelHWCWrapper::checkSysLayer(sys_layer_t* sl,
     int width, height, stride;
     int i;
 
-    width = hwcl->sourceCrop.right - hwcl->sourceCrop.left;
-    height = hwcl->sourceCrop.bottom - hwcl->sourceCrop.top;
+    width = (int)(hwcl->sourceCropf.right - hwcl->sourceCropf.left);
+    height = (int)(hwcl->sourceCropf.bottom - hwcl->sourceCropf.top);
 
     // SourceCrop must the same size as displayFrame
     if (width != hwcl->displayFrame.right - hwcl->displayFrame.left ||
@@ -324,8 +324,8 @@ bool IntelHWCWrapper::updateSysLayer(sys_layer_t* sl,
                 hwcl->handle,
                 sl->yuv[sl->yuv_index],
                 sl->width, sl->height,
-                hwcl->sourceCrop.left,
-                hwcl->sourceCrop.top))
+                (int)(hwcl->sourceCropf.left),
+                (int)(hwcl->sourceCropf.top)))
         {
             AALOGE("updateSysLayer:Failed to blit to YUV buffer");
             sl->rgb = 0;

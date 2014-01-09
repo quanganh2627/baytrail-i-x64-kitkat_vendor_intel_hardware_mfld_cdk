@@ -163,8 +163,8 @@ bool IntelMIPIDisplayDevice::isSpriteLayer(hwc_display_contents_1_t *list,
     }
 
      // check scaling
-    srcWidth = layer->sourceCrop.right - layer->sourceCrop.left;
-    srcHeight = layer->sourceCrop.bottom - layer->sourceCrop.top;
+    srcWidth = (int)(layer->sourceCropf.right - layer->sourceCropf.left);
+    srcHeight = (int)(layer->sourceCropf.bottom - layer->sourceCropf.top);
     dstWidth = layer->displayFrame.right - layer->displayFrame.left;
     dstHeight = layer->displayFrame.bottom - layer->displayFrame.top;
 

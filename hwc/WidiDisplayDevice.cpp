@@ -347,8 +347,8 @@ void WidiDisplayDevice::sendToWidi(const hwc_layer_1_t& layer)
     FrameInfo inputFrameInfo;
     memset(&inputFrameInfo, 0, sizeof(inputFrameInfo));
     inputFrameInfo.frameType = HWC_FRAMETYPE_FRAME_BUFFER;
-    inputFrameInfo.contentWidth = layer.sourceCrop.right - layer.sourceCrop.left;
-    inputFrameInfo.contentHeight = layer.sourceCrop.bottom - layer.sourceCrop.top;
+    inputFrameInfo.contentWidth = (uint32_t)(layer.sourceCropf.right - layer.sourceCropf.left);
+    inputFrameInfo.contentHeight = (uint32_t)(layer.sourceCropf.bottom - layer.sourceCropf.top);
     inputFrameInfo.contentFrameRateN = 60;
     inputFrameInfo.contentFrameRateD = 1;
 
@@ -382,8 +382,8 @@ void WidiDisplayDevice::sendToWidi(const hwc_layer_1_t& layer)
         }
 
         if (p->metadata_transform & HAL_TRANSFORM_ROT_90) {
-            inputFrameInfo.contentWidth = layer.sourceCrop.bottom - layer.sourceCrop.top;
-            inputFrameInfo.contentHeight = layer.sourceCrop.right - layer.sourceCrop.left;
+            inputFrameInfo.contentWidth = (uint32_t)(layer.sourceCropf.bottom - layer.sourceCropf.top);
+            inputFrameInfo.contentHeight = (uint32_t)(layer.sourceCropf.right - layer.sourceCropf.left);
         }
         inputFrameInfo.cropLeft = 0;
         inputFrameInfo.cropTop = 0;

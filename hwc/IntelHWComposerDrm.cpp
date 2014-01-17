@@ -739,9 +739,9 @@ bool IntelHWComposerDrm::isDrmModeFlagsMatched(drmModeModeInfoPtr mode, intel_di
     uint32_t flags = 0;
     if (displayMode->interlace)
         flags |= DRM_MODE_FLAG_INTERLACE;
-    if (displayMode->ratio == 2)
+    if (displayMode->ratio == 1)
         flags |= DRM_MODE_FLAG_PAR16_9;
-    else if (displayMode->ratio == 1)
+    else if (displayMode->ratio == 2)
         flags |= DRM_MODE_FLAG_PAR4_3;
 
     LOGD("%s: 0x%x, 0x%x", __func__, flags, mode->flags);

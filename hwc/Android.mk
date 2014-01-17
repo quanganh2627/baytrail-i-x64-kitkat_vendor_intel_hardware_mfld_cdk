@@ -71,7 +71,7 @@ LOCAL_SRC_FILES := IntelHWComposerModule.cpp \
                    IntelUtility.cpp \
                    RotationBufferProvider.cpp
 LOCAL_MODULE_TAGS := eng
-LOCAL_MODULE := hwcomposer.$(TARGET_DEVICE)
+LOCAL_MODULE := hwcomposer.x86
 LOCAL_CFLAGS:= -DLOG_TAG=\"hwcomposer\" -DLINUX
 
 ifeq ($(TARGET_SUPPORT_HWC_SYS_LAYER), true)

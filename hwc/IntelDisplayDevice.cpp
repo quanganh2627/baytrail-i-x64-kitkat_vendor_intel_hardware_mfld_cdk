@@ -572,7 +572,7 @@ bool IntelDisplayDevice::areLayersIntersecting(hwc_layer_1_t *top,
 
 bool IntelDisplayDevice::release()
 {
-    ALOGD("release");
+    ALOGD("display device release");
 
     if (!initCheck() || !mLayerList)
         return false;

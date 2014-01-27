@@ -446,7 +446,7 @@ disable_vsyncs:
 
 bool IntelHWComposer::release()
 {
-    ALOGD("release");
+    ALOGD("hwcomposer release");
 
     if (!initCheck())
         return false;
@@ -882,15 +882,13 @@ bool IntelHWComposer::commitDisplays(size_t numDisplays,
 
 bool IntelHWComposer::blankDisplay(int disp, int blank)
 {
-    bool ret=true;
-
     if ((disp<DISPLAY_NUM) && mDisplayDevice[disp]) {
         mDisplayDevice[disp]->blank(blank);
         if (blank == 1)
             mDisplayDevice[disp]->release();
     }
 
-    return ret;
+    return true;
 }
 
 bool IntelHWComposer::getDisplayConfigs(int disp, uint32_t* configs, 

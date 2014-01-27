@@ -332,6 +332,14 @@ bool IntelOverlayContext::flush(uint32_t flags)
         arg.overlay.OGAMC5 = OVERLAY_INIT_GAMMA5;
     }
 
+    if (flags & IntelDisplayPlane::UPDATE_CONTROL) {
+	arg.overlay_write_mask |= OV_REGRWBITS_UPDATE_CONTROL;
+	if (mOverlayBackBuffer->OCMD & OVERLAY_ENABLE)
+		arg.overlay.overlay_disabled = false;
+	else
+		arg.overlay.overlay_disabled = true;
+    }
+
     int ret = drmCommandWriteRead(mDrmFd,
                                   DRM_PSB_REGISTER_RW,
                                   &arg, sizeof(arg));
@@ -1098,20 +1106,29 @@ void IntelOverlayContext::setPosition(int x, int y, int w, int h)
 
 bool IntelOverlayContext::enable()
 {
+    if (mDrmFd <= 0)
+	return false;
+
     if (!mContext)
         return false;
 
-    lock();
+    struct drm_psb_register_rw_arg arg;
 
-    mOverlayBackBuffer->OCMD |= OVERLAY_ENABLE;
-    bool ret = flush(IntelDisplayPlane::FLASH_NEEDED | IntelDisplayPlane::WAIT_VBLANK);
-    if (ret == false) {
-        ALOGE("%s: failed to enable overlay\n", __func__);
-        unlock();
-        return false;
+    memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
+    arg.overlay_write_mask = OV_REGRWBITS_UPDATE_CONTROL;
+    arg.overlay.overlay_disabled = 0;
+
+    int ret = drmCommandWriteRead(mDrmFd,
+				  DRM_PSB_REGISTER_RW,
+				  &arg, sizeof(arg));
+    if (ret) {
+	ALOGW("%s: overlay update failed with error code %d\n",
+	      __func__, ret);
+	return false;
     }
 
-    unlock();
+    ALOGV("%s: done\n", __func__);
+
     return true;
 }
 
@@ -1130,8 +1147,8 @@ bool IntelOverlayContext::disable(uint32_t flags)
     mOverlayBackBuffer->OCMD &= ~OVERLAY_ENABLE;
     //bool ret = flush((IntelDisplayPlane::FLASH_NEEDED |
     //                 IntelDisplayPlane::WAIT_VBLANK));
-    bool ret = flush((IntelDisplayPlane::FLASH_NEEDED |
-			flags));
+    bool ret = flush(IntelDisplayPlane::FLASH_NEEDED |
+			flags | IntelDisplayPlane::UPDATE_CONTROL);
     if (ret == false) {
         ALOGE("%s: failed to disable overlay\n", __func__);
         unlock();
@@ -1664,6 +1681,7 @@ bool IntelOverlayPlane::invalidateDataBuffer()
     // unmap all BCD buffers from all devices
     if (!initCheck())
         return false;
+    ALOGD_IF(ALLOW_OVERLAY_PRINT, "invalidate overlay data buffer");
     for (int i = 0; i < OVERLAY_DATA_BUFFER_NUM_MAX; i++) {
         if (mDataBuffers[i].bufferType == IntelBufferManager::TTM_BUFFER)
             mBufferManager->unwrap(mDataBuffers[i].buffer);
@@ -1699,6 +1717,7 @@ bool IntelOverlayPlane::flip(void *contexts, uint32_t flags)
                 return false;
             }
 
+	    overlayContext->enable();
             planeContexts->overlay_contexts[mIndex].ovadd = 0x0;
             planeContexts->overlay_contexts[mIndex].ovadd =
                 (overlayContext->getGttOffsetInPage() << 12);

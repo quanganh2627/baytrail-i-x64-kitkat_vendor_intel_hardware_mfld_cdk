@@ -119,60 +119,7 @@
 
 
 /* Overlay contorl registers*/
-typedef struct pvr_overlay_control_block_t {
-    uint32_t OBUF_0Y;
-    uint32_t OBUF_1Y;
-    uint32_t OBUF_0U;
-    uint32_t OBUF_0V;
-    uint32_t OBUF_1U;
-    uint32_t OBUF_1V;
-    uint32_t OSTRIDE;
-    uint32_t YRGB_VPH;
-    uint32_t UV_VPH;
-    uint32_t HORZ_PH;
-    uint32_t INIT_PHS;
-    uint32_t DWINPOS;
-    uint32_t DWINSZ;
-    uint32_t SWIDTH;
-    uint32_t SWIDTHSW;
-    uint32_t SHEIGHT;
-    uint32_t YRGBSCALE;
-    uint32_t UVSCALE;
-    uint32_t OCLRC0;
-    uint32_t OCLRC1;
-    uint32_t DCLRKV;
-    uint32_t DCLRKM;
-    uint32_t SCHRKVH;
-    uint32_t SCHRKVL;
-    uint32_t SCHRKEN;
-    uint32_t OCONFIG;
-    uint32_t OCMD;
-    uint32_t RESERVED1;
-    uint32_t OSTART_0Y;
-    uint32_t OSTART_1Y;
-    uint32_t OSTART_0U;
-    uint32_t OSTART_0V;
-    uint32_t OSTART_1U;
-    uint32_t OSTART_1V;
-    uint32_t OTILEOFF_0Y;
-    uint32_t OTILEOFF_1Y;
-    uint32_t OTILEOFF_0U;
-    uint32_t OTILEOFF_0V;
-    uint32_t OTILEOFF_1U;
-    uint32_t OTILEOFF_1V;
-    uint32_t FASTHSCALE;
-    uint32_t UVSCALEV;
-
-    uint32_t RESERVEDC[(0x200 - 0xA8) / 4];
-    uint16_t Y_VCOEFS[N_VERT_Y_TAPS * N_PHASES];
-    uint16_t RESERVEDD[0x100 / 2 - N_VERT_Y_TAPS * N_PHASES];
-    uint16_t Y_HCOEFS[N_HORIZ_Y_TAPS * N_PHASES];
-    uint16_t RESERVEDE[0x200 / 2 - N_HORIZ_Y_TAPS * N_PHASES];
-    uint16_t UV_VCOEFS[N_VERT_UV_TAPS * N_PHASES];
-    uint16_t RESERVEDF[0x100 / 2 - N_VERT_UV_TAPS * N_PHASES];
-    uint16_t UV_HCOEFS[N_HORIZ_UV_TAPS * N_PHASES];
-    uint16_t RESERVEDG[0x100 / 2 - N_HORIZ_UV_TAPS * N_PHASES];
-} intel_overlay_back_buffer_t;
+typedef struct overlay_ctrl_blk intel_overlay_back_buffer_t;
 
 typedef struct {
     uint8_t sign;

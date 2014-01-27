@@ -295,6 +295,27 @@ intel_overlay_orientation_t IntelOverlayContext::getOrientation()
     return orientation;
 }
 
+bool IntelOverlayContext::updateBackBuffer2Kernel(int index)
+{
+    struct drm_psb_register_rw_arg arg;
+
+    memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
+    arg.overlay_write_mask = OVSTATUS_REGRBIT_OVR_UPDT;
+    arg.overlay.backbuf_index = index;
+    arg.overlay.backbuf_addr = (unsigned long)mOverlayBackBuffer;
+
+    int ret = drmCommandWriteRead(mDrmFd, DRM_PSB_REGISTER_RW,
+                                 &arg, sizeof(arg));
+    if (ret) {
+        ALOGW("%s: overlay backbuf update failed %d\n", __func__, ret);
+        return false;
+    }
+
+    ALOGD_IF(ALLOW_OVERLAY_PRINT, "%s: done\n", __func__);
+    return true;
+}
+
+
 bool IntelOverlayContext::flush(uint32_t flags)
 {
     if (!flags || mDrmFd <= 0)
@@ -330,14 +351,6 @@ bool IntelOverlayContext::flush(uint32_t flags)
         arg.overlay.OGAMC3 = OVERLAY_INIT_GAMMA3;
         arg.overlay.OGAMC4 = OVERLAY_INIT_GAMMA4;
         arg.overlay.OGAMC5 = OVERLAY_INIT_GAMMA5;
-    }
-
-    if (flags & IntelDisplayPlane::UPDATE_CONTROL) {
-	arg.overlay_write_mask |= OV_REGRWBITS_UPDATE_CONTROL;
-	if (mOverlayBackBuffer->OCMD & OVERLAY_ENABLE)
-		arg.overlay.overlay_disabled = false;
-	else
-		arg.overlay.overlay_disabled = true;
     }
 
     int ret = drmCommandWriteRead(mDrmFd,
@@ -1106,29 +1119,20 @@ void IntelOverlayContext::setPosition(int x, int y, int w, int h)
 
 bool IntelOverlayContext::enable()
 {
-    if (mDrmFd <= 0)
-	return false;
-
     if (!mContext)
         return false;
 
-    struct drm_psb_register_rw_arg arg;
+    lock();
 
-    memset(&arg, 0, sizeof(struct drm_psb_register_rw_arg));
-    arg.overlay_write_mask = OV_REGRWBITS_UPDATE_CONTROL;
-    arg.overlay.overlay_disabled = 0;
-
-    int ret = drmCommandWriteRead(mDrmFd,
-				  DRM_PSB_REGISTER_RW,
-				  &arg, sizeof(arg));
-    if (ret) {
-	ALOGW("%s: overlay update failed with error code %d\n",
-	      __func__, ret);
+    mOverlayBackBuffer->OCMD |= OVERLAY_ENABLE;
+    bool ret = flush(IntelDisplayPlane::FLASH_NEEDED | IntelDisplayPlane::WAIT_VBLANK);
+    if (ret == false) {
+	ALOGE("%s: failed to enable overlay\n", __func__);
+	unlock();
 	return false;
     }
 
-    ALOGV("%s: done\n", __func__);
-
+    unlock();
     return true;
 }
 
@@ -1138,6 +1142,7 @@ bool IntelOverlayContext::disable(uint32_t flags)
         return false;
 
     lock();
+    memset(&mOverlaySurface, 0, sizeof(mOverlaySurface));
 
     if (!(mOverlayBackBuffer->OCMD & OVERLAY_ENABLE)) {
         unlock();
@@ -1145,10 +1150,14 @@ bool IntelOverlayContext::disable(uint32_t flags)
     }
     ALOGD("%s: disable overlay...\n", __func__);
     mOverlayBackBuffer->OCMD &= ~OVERLAY_ENABLE;
+
+    // hardcode to update overlay A back buffer content
+    updateBackBuffer2Kernel(0);
+
     //bool ret = flush((IntelDisplayPlane::FLASH_NEEDED |
     //                 IntelDisplayPlane::WAIT_VBLANK));
     bool ret = flush(IntelDisplayPlane::FLASH_NEEDED |
-			flags | IntelDisplayPlane::UPDATE_CONTROL);
+			flags);
     if (ret == false) {
         ALOGE("%s: failed to disable overlay\n", __func__);
         unlock();
@@ -1717,7 +1726,11 @@ bool IntelOverlayPlane::flip(void *contexts, uint32_t flags)
                 return false;
             }
 
-	    overlayContext->enable();
+            if (overlayContext->sameFlipSurface()) {
+                ALOGD_IF(ALLOW_OVERLAY_PRINT, "same flip surface, skip it");
+                return true;
+            }
+
             planeContexts->overlay_contexts[mIndex].ovadd = 0x0;
             planeContexts->overlay_contexts[mIndex].ovadd =
                 (overlayContext->getGttOffsetInPage() << 12);
@@ -1725,6 +1738,7 @@ bool IntelOverlayPlane::flip(void *contexts, uint32_t flags)
             planeContexts->overlay_contexts[mIndex].pipe =
                 overlayContext->getPipe();
             planeContexts->active_overlays |= (1 << mIndex);
+	    overlayContext->updateBackBuffer2Kernel(mIndex);
 
             if (flags & IntelDisplayPlane::UPDATE_COEF)
                 planeContexts->overlay_contexts[mIndex].ovadd |= 0x1;
@@ -1825,6 +1839,31 @@ bool IntelOverlayPlane::setOverlayOnTop(bool isOnTop)
         reinterpret_cast<IntelOverlayContext*>(mContext);
     return (uint32_t)overlayContext->setOverlayOnTop(isOnTop);
 }
+
+bool IntelOverlayContext::sameFlipSurface()
+{
+    bool ret;
+
+    if (mOverlaySurface.OSTART_0Y == mOverlayBackBuffer->OSTART_0Y &&
+        mOverlaySurface.OSTART_1Y == mOverlayBackBuffer->OSTART_1Y &&
+        mOverlaySurface.OSTART_0U == mOverlayBackBuffer->OSTART_0U &&
+        mOverlaySurface.OSTART_0V == mOverlayBackBuffer->OSTART_0V &&
+        mOverlaySurface.OSTART_1U == mOverlayBackBuffer->OSTART_1U &&
+        mOverlaySurface.OSTART_1V == mOverlayBackBuffer->OSTART_1V)
+        ret = true;
+    else
+        ret = false;
+
+    mOverlaySurface.OSTART_0Y = mOverlayBackBuffer->OSTART_0Y;
+    mOverlaySurface.OSTART_1Y = mOverlayBackBuffer->OSTART_1Y;
+    mOverlaySurface.OSTART_0U = mOverlayBackBuffer->OSTART_0U;
+    mOverlaySurface.OSTART_0V = mOverlayBackBuffer->OSTART_0V;
+    mOverlaySurface.OSTART_1U = mOverlayBackBuffer->OSTART_1U;
+    mOverlaySurface.OSTART_1V = mOverlayBackBuffer->OSTART_1V;
+
+    return ret;
+}
+
 
 //-----------------------------------------------------------------------------
 IntelRGBOverlayPlane::IntelRGBOverlayPlane(int fd, int index,

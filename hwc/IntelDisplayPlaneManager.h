@@ -223,6 +223,14 @@ protected:
     int mHandle;
     intel_overlay_context_t *mContext;
     intel_overlay_back_buffer_t *mOverlayBackBuffer;
+    struct {
+         uint32_t OSTART_0Y;
+         uint32_t OSTART_1Y;
+         uint32_t OSTART_0U;
+         uint32_t OSTART_0V;
+         uint32_t OSTART_1U;
+         uint32_t OSTART_1V;
+    } mOverlaySurface;
     IntelDisplayBuffer *mBackBuffer;
     int mSize;
     int mDrmFd;
@@ -278,6 +286,7 @@ public:
 
     intel_overlay_orientation_t getOrientation();
     intel_overlay_back_buffer_t* getBackBuffer() { return mOverlayBackBuffer; }
+    bool updateBackBuffer2Kernel(int index);
 
     // interfaces for data device
     bool setDataBuffer(IntelDisplayDataBuffer& dataBuffer);
@@ -302,6 +311,7 @@ public:
 
     // Set overlay on top if no rgb layers in the list
     bool setOverlayOnTop(bool isOnTop);
+    bool sameFlipSurface();
 };
 
 class IntelOverlayContextMfld : public IntelOverlayContext

@@ -17,6 +17,13 @@
 #define LOG_TAG "usb_dock_audio_hw"
 //#define LOG_NDEBUG 0
 
+//#define VERY_VERBOSE_LOGGING
+#ifdef VERY_VERBOSE_LOGGING
+#define ALOGVV ALOGV
+#else
+#define ALOGVV(a...) do { } while(0)
+#endif
+
 #include <errno.h>
 #include <pthread.h>
 #include <stdint.h>
@@ -45,6 +52,14 @@ struct pcm_config pcm_config_default = {
     .format = PCM_FORMAT_S16_LE,
 };
 
+struct pcm_config pcm_config_HD_default = {
+    .channels = 2,
+    .rate = 192000,
+    .period_size = 8192,
+    .period_count = 4,
+    .format = PCM_FORMAT_S24_LE,
+};
+
 struct audio_device {
     struct audio_hw_device hw_device;
 
@@ -52,6 +67,9 @@ struct audio_device {
     int card;
     int device;
     bool standby;
+    struct pcm * active_pcm;
+    struct pcm_params *pcm_parms;
+    bool hdaudio_active;
 };
 
 struct stream_out {
@@ -70,6 +88,8 @@ struct stream_out {
     uint32_t   buffer_size;
     uint32_t   channels;
     uint32_t   latency;
+
+    audio_output_flags_t flags;
 
     struct audio_device *dev;
 };
@@ -92,7 +112,7 @@ static char* get_card_name_from_substr(const char*name)
         ALOGE("Cannot open /proc/asound/cards file to get sound card info");
     } else {
         while((fgets(alsacard, sizeof(alsacard), fp) != NULL)) {
-              ALOGV("alsacard %s", alsacard);
+              ALOGVV("alsacard %s", alsacard);
               if (strstr(alsacard, "USB-Audio")) {
                   found = 1;
                   break;
@@ -103,17 +123,20 @@ static char* get_card_name_from_substr(const char*name)
          }
          fclose(fp);
     }
-    ALOGD("Found USB card %s",alsacard);
+    if(found) {
+      ALOGD("Found USB card %s",alsacard);
 
-    substr = strtok(alsacard,"[");
-    substr = strtok(NULL,"]");
-    ALOGV("filter 1 substr %s",substr);
-    // remove spaces if any in the stripped name
-    substr = strtok(substr," ");
-    ALOGV("usb string substr %s",substr);
+      substr = strtok(alsacard,"[") ? strtok(NULL,"]") : NULL;
+      ALOGVV("filter 1 substr %s",substr);
+      if(!substr) return NULL;
 
-    if(found)
+      // remove spaces if any in the stripped name
+      substr = strtok(substr," ");
+      if(!substr) return NULL;
+      ALOGV("usb string substr %s",substr);
+
       return substr;
+    }
     else
       return NULL;
 }
@@ -158,21 +181,114 @@ static int get_card_number_by_name(const char* name)
  */
 
 /* Helper functions */
-
 /* must be called with hw device and output stream mutexes locked */
+
+static int format_to_bits(enum pcm_format pcmformat)
+{
+  switch (pcmformat) {
+    case PCM_FORMAT_S32_LE:
+         return 32;
+    case PCM_FORMAT_S24_LE:
+         return 24;
+    case PCM_FORMAT_S16_LE:
+    default:
+         return 16;
+  };
+}
+
+static int bits_to_format(int bits_per_sample)
+{
+  switch (bits_per_sample) {
+    case 32:
+         return PCM_FORMAT_S32_LE;
+    case 24:
+         return PCM_FORMAT_S24_LE;
+    case 16:
+    default:
+         return PCM_FORMAT_S16_LE;
+  };
+}
+
+
+audio_format_t tiny_to_framework_format(enum pcm_format format)
+{
+    audio_format_t fwFormat;
+
+    switch(format) {
+    case PCM_FORMAT_S24_LE:
+// [Fix me]the decoder gives 32 bit samples at present
+//    case PCM_FORMAT_S32_LE:
+        fwFormat = AUDIO_FORMAT_PCM_8_24_BIT;
+        break;
+    case PCM_FORMAT_S16_LE:
+    default:
+        fwFormat = AUDIO_FORMAT_PCM_16_BIT;
+        break;
+    }
+    return fwFormat;
+}
+
+static int validate_hardware_params(struct stream_out *out)
+{
+    struct audio_device *adev = out->dev;
+    struct pcm_params *params;
+    unsigned int min;
+    unsigned int max;
+
+    params = pcm_params_get(adev->card, adev->device, PCM_OUT);
+    if (params == NULL) {
+        ALOGW("Device does not exist.\n");
+        return -1;
+    }
+
+    //always open the device with max capabilities if
+    // input params are not supported
+
+    min = pcm_params_get_min(params, PCM_PARAM_RATE);
+    max = pcm_params_get_max(params, PCM_PARAM_RATE);
+    ALOGI("hw supported Rate:\tmin=%uHz\tmax=%uHz\n", min, max);
+    if((out->pcm_config.rate < min) || (out->pcm_config.rate > max)) {
+       out->pcm_config.rate = max;
+    }
+
+    min = pcm_params_get_min(params, PCM_PARAM_CHANNELS);
+    max = pcm_params_get_max(params, PCM_PARAM_CHANNELS);
+    ALOGI("hw supported Channels:\tmin=%u\t\tmax=%u\n", min, max);
+    if((out->pcm_config.channels < min) || (out->pcm_config.channels > max)) {
+       out->pcm_config.channels = max;
+    }
+
+    min = pcm_params_get_min(params, PCM_PARAM_SAMPLE_BITS);
+    max = pcm_params_get_max(params, PCM_PARAM_SAMPLE_BITS);
+    ALOGI("hw supported Sample bits:\tmin=%u\t\tmax=%u\n", min, max);
+
+    unsigned int bits_per_sample = format_to_bits(out->pcm_config.format);
+
+    if((bits_per_sample < min) || (bits_per_sample > max)) {
+       bits_per_sample = max;
+    }
+
+    out->pcm_config.format = bits_to_format(bits_per_sample);
+
+   ALOGV("%s enter supported params %d,%d,%d,%d,%d",__func__,
+          out->pcm_config.channels,
+          out->pcm_config.rate,
+          out->pcm_config.period_size,
+          out->pcm_config.period_count,
+          out->pcm_config.format);
+
+    pcm_params_free(params);
+
+    return 0;
+
+}
+
 static int start_output_stream(struct stream_out *out)
 {
     struct audio_device *adev = out->dev;
-    int i;
+    int ret = 0;
 
-    ALOGV("%s enter card %d device %d",__func__, adev->card, adev->device);
-    if ((adev->card < 0) || (adev->device < 0)){
-         adev->card = DEFAULT_CARD;
-         adev->device = DEFAULT_DEVICE;
-         ALOGV("%s: set card %d & device %d", __func__,adev->card,adev->device);
-    }
-
-   ALOGV("%s enter %d,%d,%d,%d,%d",__func__,
+    ALOGV("%s enter input params %d,%d,%d,%d,%d",__func__,
           out->pcm_config.channels,
           out->pcm_config.rate,
           out->pcm_config.period_size,
@@ -183,20 +299,57 @@ static int start_output_stream(struct stream_out *out)
     out->pcm_config.stop_threshold = 0;
     out->pcm_config.silence_threshold = 0;
 
+    // close the active device and make HD device active
+    if(out->flags & AUDIO_OUTPUT_FLAG_DIRECT) {
+        ALOGV("direct flag active stream");
+        if(adev->active_pcm) {
+          ALOGVV("Current active stream is closed to open HD interface %d",(int)adev->active_pcm);
+          pcm_close(adev->active_pcm);
+        }
+        adev->hdaudio_active = true;
+        adev->active_pcm = NULL;
+    }
+
+    // if HD device is active, use the same for subsequent streams
+    if((adev->active_pcm) && (adev->hdaudio_active)) {
+       out->pcm = adev->active_pcm;
+       ALOGV("USB PCM interface already opened - use same params to render till its closed");
+       goto skip_open;
+    }
+
     /*TODO - this needs to be updated once the device connect intent sends
       card, device id*/
     adev->card = get_card_number_by_name("USB Audio");
+    adev->device = DEFAULT_DEVICE;
     ALOGD("%s: USB card number = %d, device = %d",__func__,adev->card,adev->device);
+
+    /* query & validate sink supported params and input params*/
+    ret = validate_hardware_params(out);
+    if(ret != 0) {
+        ALOGE("Unsupport input stream parameters");
+        adev->active_pcm = NULL;
+        adev->hdaudio_active = false;
+        out->pcm = NULL;
+        return -ENOSYS;
+    }
 
     out->pcm = pcm_open(adev->card, adev->device, PCM_OUT, &out->pcm_config);
 
     if (out->pcm && !pcm_is_ready(out->pcm)) {
         ALOGE("pcm_open() failed: %s", pcm_get_error(out->pcm));
         pcm_close(out->pcm);
+        adev->active_pcm = NULL;
+        adev->hdaudio_active = false;
+        out->pcm = NULL;
         return -ENOMEM;
     }
 
-    ALOGV("Initialized PCM device for channels %d",out->pcm_config.channels);
+    //update the newly opened pcm to be active
+    adev->active_pcm = out->pcm;
+
+skip_open:
+    ALOGV("Initialized PCM device for channels %d sample rate %d activepcm = %d",
+               out->pcm_config.channels,out->pcm_config.rate,(int)adev->active_pcm);
     ALOGV("%s exit",__func__);
     return 0;
 }
@@ -233,12 +386,16 @@ static size_t out_get_buffer_size(const struct audio_stream *stream)
 
 static uint32_t out_get_channels(const struct audio_stream *stream)
 {
-    return AUDIO_CHANNEL_OUT_STEREO;
+    struct stream_out *out = (struct stream_out *)stream;
+    ALOGV("%s channel mask : %x",__func__,out->channel_mask);
+    return out->channel_mask;
 }
 
 static audio_format_t out_get_format(const struct audio_stream *stream)
 {
-    return AUDIO_FORMAT_PCM_16_BIT;
+    struct stream_out *out = (struct stream_out *)stream;
+    ALOGV("%s format : %x",__func__,out->pcm_config.format);
+    return tiny_to_framework_format(out->pcm_config.format);
 }
 
 static int out_set_format(struct audio_stream *stream, audio_format_t format)
@@ -246,19 +403,41 @@ static int out_set_format(struct audio_stream *stream, audio_format_t format)
     return 0;
 }
 
+static int close_device(struct audio_stream *stream)
+{
+    struct stream_out *out = (struct stream_out *)stream;
+    struct audio_device *adev = out ? out->dev : NULL;
+
+    if(adev == NULL) return -ENOSYS;
+
+    // close the device
+    // 1. if HD stream close is invoked
+    // 2. if no HD stream is active.
+    if((adev->active_pcm) && (adev->hdaudio_active) && (out->flags & AUDIO_OUTPUT_FLAG_DIRECT)) {
+        ALOGV("%s HD PCM device closed",__func__);
+        pcm_close(adev->active_pcm);
+        adev->active_pcm = NULL;
+        adev->hdaudio_active = false;
+    } else if((out->pcm) && (!adev->hdaudio_active)) {
+        ALOGV("%s Default PCM device closed",__func__);
+        pcm_close(out->pcm);
+    }
+
+    return 0;
+}
+
 static int out_standby(struct audio_stream *stream)
 {
     struct stream_out *out = (struct stream_out *)stream;
 
-    ALOGV("%s enter standby = %d",__func__,out->standby);
+    ALOGV("%s enter standby = %d rate = %d",__func__,out->standby,out->pcm_config.rate);
     pthread_mutex_lock(&out->dev->lock);
     pthread_mutex_lock(&out->lock);
 
-    if (!out->standby) {
-        pcm_close(out->pcm);
-        out->pcm = NULL;
+    if(!out->standby) {
+        close_device(stream);
         out->standby = true;
-        ALOGV("%s PCM device closed",__func__);
+        out->pcm = NULL;
     }
 
     pthread_mutex_unlock(&out->lock);
@@ -331,13 +510,24 @@ static ssize_t out_write(struct audio_stream_out *stream, const void* buffer,
 {
     int ret = 0;
     struct stream_out *out = (struct stream_out *)stream;
+    struct audio_device *adev = out ? out->dev : NULL;
+
+    if(adev == NULL) return -ENOSYS;
 
     ALOGV("%s enter",__func__);
 
     pthread_mutex_lock(&out->dev->lock);
     pthread_mutex_lock(&out->lock);
 
-    if (out->standby) {
+    // there is a possibility that the HD interface is open
+    // and normal pcm stream is still active. Feed the new
+    // interface to normal pcm stream
+    if(adev->active_pcm) {
+      if(adev->active_pcm != out->pcm)
+         out->pcm = adev->active_pcm;
+    }
+
+    if ((out->standby) || (!adev->active_pcm)) {
         ret = start_output_stream(out);
         if (ret != 0) {
             goto err;
@@ -349,9 +539,10 @@ static ssize_t out_write(struct audio_stream_out *stream, const void* buffer,
        ALOGD("%s: null handle to write - device already closed",__func__);
        goto err;
     }
+
     ret = pcm_write(out->pcm, (void *)buffer, bytes);
 
-    ALOGV("%s: pcm_write returned = %d",__func__,ret);
+    ALOGVV("%s: pcm_write returned = %d rate = %d",__func__,ret,out->pcm_config.rate);
 
 err:
     pthread_mutex_unlock(&out->lock);
@@ -408,18 +599,35 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
         return -ENOMEM;
 
     out->channel_mask = AUDIO_CHANNEL_OUT_STEREO;
-    if (config->sample_rate == 0)
-        config->sample_rate = pcm_config_default.rate;
-    if (config->channel_mask == 0)
-        config->channel_mask = AUDIO_CHANNEL_OUT_STEREO;
+
+    if (flags & AUDIO_OUTPUT_FLAG_DIRECT) {
+        ALOGV("%s: USB Audio (device mode) HD",__func__);
+        if (config->format == 0)
+            config->format = pcm_config_HD_default.format;
+        if (config->channel_mask == 0)
+            config->channel_mask = AUDIO_CHANNEL_OUT_STEREO;
+        if (config->sample_rate == 0)
+            config->sample_rate = pcm_config_HD_default.rate;
+        out->pcm_config.period_size        = pcm_config_HD_default.period_size;
+        out->flags |= flags;
+    } else {
+        ALOGV("%s: USB Audio (device mode) Stereo",__func__);
+        if (config->format == 0)
+            config->format = pcm_config_default.format;
+        if (config->channel_mask == 0)
+            config->channel_mask = AUDIO_CHANNEL_OUT_STEREO;
+        if (config->sample_rate == 0)
+            config->sample_rate = pcm_config_default.rate;
+
+        out->pcm_config.period_size        = pcm_config_default.period_size;
+    }
 
     out->channel_mask                      = config->channel_mask;
 
     out->pcm_config.channels               = popcount(config->channel_mask);
     out->pcm_config.rate                   = config->sample_rate;
-    out->pcm_config.period_size            = pcm_config_default.period_size;
+    out->pcm_config.format                 = config->format;
     out->pcm_config.period_count           = pcm_config_default.period_count;
-    out->pcm_config.format                 = pcm_config_default.format;
 
     out->stream.common.get_sample_rate     = out_get_sample_rate;
     out->stream.common.set_sample_rate     = out_set_sample_rate;
@@ -445,28 +653,18 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
     config->sample_rate                    = out_get_sample_rate(&out->stream.common);
 
     out->standby = true;
-
     adev->card = -1;
     adev->device = -1;
 
     *stream_out = &out->stream;
     ALOGV("%s exit",__func__);
     return 0;
-
-err_open:
-    ALOGE("%s exit with error",__func__);
-    pthread_mutex_unlock(&out->lock);
-    pthread_mutex_unlock(&out->dev->lock);
-    free(out);
-    *stream_out = NULL;
-    return ret;
 }
 
 static void adev_close_output_stream(struct audio_hw_device *dev,
                                      struct audio_stream_out *stream)
 {
     struct stream_out *out = (struct stream_out *)stream;
-
     ALOGV("%s enter",__func__);
     out_standby(&stream->common);
     free(stream);
@@ -542,7 +740,6 @@ static int adev_dump(const audio_hw_device_t *device, int fd)
 static int adev_close(hw_device_t *device)
 {
     struct audio_device *adev = (struct audio_device *)device;
-
     free(device);
     return 0;
 }
@@ -581,6 +778,11 @@ static int adev_open(const hw_module_t* module, const char* name,
     adev->hw_device.open_input_stream = adev_open_input_stream;
     adev->hw_device.close_input_stream = adev_close_input_stream;
     adev->hw_device.dump = adev_dump;
+
+
+    adev->active_pcm =  NULL;
+    adev->pcm_parms = NULL;
+    adev->hdaudio_active =  false;
 
     *device = &adev->hw_device.common;
 

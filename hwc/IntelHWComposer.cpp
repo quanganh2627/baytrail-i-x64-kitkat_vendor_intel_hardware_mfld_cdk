@@ -451,6 +451,7 @@ bool IntelHWComposer::release()
     if (!initCheck())
         return false;
 
+    android::Mutex::Autolock _l(mLock);
     // disable all devices
     for (size_t i=0 ; i<DISPLAY_NUM ; i++) {
         if (mDisplayDevice[i])
@@ -884,6 +885,7 @@ bool IntelHWComposer::blankDisplay(int disp, int blank)
 {
     if ((disp<DISPLAY_NUM) && mDisplayDevice[disp]) {
         mDisplayDevice[disp]->blank(blank);
+        android::Mutex::Autolock _l(mLock);
         if (blank == 1)
             mDisplayDevice[disp]->release();
     }

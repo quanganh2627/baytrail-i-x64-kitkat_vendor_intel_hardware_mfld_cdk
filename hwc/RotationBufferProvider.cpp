@@ -143,7 +143,7 @@ bool RotationBufferProvider::createVaSurface(intel_gralloc_payload_t *payload, i
     VASurfaceAttributeTPI attribTpi;
     VASurfaceAttributeTPI *vaSurfaceAttrib = &attribTpi;
     int stride;
-    unsigned int buffers;
+    unsigned long buffers;
     VASurfaceID *surface;
     int width = 0, height = 0, bufferHeight = 0;
 

@@ -96,9 +96,9 @@ IntelHDMIDisplayDevice::~IntelHDMIDisplayDevice()
 // 2) attach planes to these layers which can be handled by HWC
 void IntelHDMIDisplayDevice::onGeometryChanged(hwc_display_contents_1_t *list)
 {
-
      ALOGD_IF(ALLOW_HWC_PRINT, "%s\n", __func__);
 
+    bool isoverlay;
     // reclaim all planes
     bool ret = mLayerList->invalidatePlanes();
     if (!ret) {
@@ -127,8 +127,21 @@ void IntelHDMIDisplayDevice::onGeometryChanged(hwc_display_contents_1_t *list)
             }
             if (mLayerList->getLayerType(i) ==
                     IntelHWComposerLayer::LAYER_TYPE_YUV) {
-                list->hwLayers[i].compositionType = HWC_OVERLAY;
-                list->hwLayers[i].hints = 0;
+                isoverlay = true ;
+		//In CTP when the overlay is in the middle, it maybe set to GLES, But need to check the layers' intersecting
+                if ( i > 0 && i < (mLayerList->getLayersCount()-1) ) {
+                        for (int index = i - 1; index >= 0; index--)
+                             if (areLayersIntersecting(&(list->hwLayers[i]), &(list->hwLayers[index])) ) {
+                                   isoverlay = false;
+                             }
+                }
+
+                if( isoverlay ){
+                        list->hwLayers[i].compositionType = HWC_OVERLAY ;
+                        list->hwLayers[i].hints = 0 ;
+                }else{
+                        continue ;
+                }
 
                 // If the seeking is active, ignore the following logic
                 if (mVideoSeekingActive)
@@ -517,7 +530,7 @@ bool IntelHDMIDisplayDevice::overlayPrepare(int index, hwc_layer_1_t *layer, int
         reinterpret_cast<IntelOverlayPlane *>(plane);
     if (mDrm->getDisplayMode() == OVERLAY_EXTEND) {
         // Put overlay on top if no other layers exist
-        bool onTop = mLayerList->getLayersCount() == 1;
+        bool onTop = mLayerList->getLayersCount() == index + 1;
         overlayP->setOverlayOnTop(onTop);
 
 

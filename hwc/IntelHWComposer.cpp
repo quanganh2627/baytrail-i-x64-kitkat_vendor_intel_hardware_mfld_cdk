@@ -869,6 +869,12 @@ bool IntelHWComposer::commitDisplays(size_t numDisplays,
             for (i = 0; i < list->numHwLayers; i++) {
                 if (list->hwLayers[i].acquireFenceFd >= 0)
                     close(list->hwLayers[i].acquireFenceFd);
+                    list->hwLayers[i].acquireFenceFd = -1;
+            }
+
+            if (list->outbufAcquireFenceFd != -1) {
+                close(list->outbufAcquireFenceFd);
+                list->outbufAcquireFenceFd = -1;
             }
         }
     }

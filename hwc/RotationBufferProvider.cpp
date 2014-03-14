@@ -198,6 +198,9 @@ bool RotationBufferProvider::createVaSurface(intel_gralloc_payload_t *payload, i
     } else {
         vaSurfaceAttrib->buffers[0] = payload->khandle;
         surface = &mSourceSurface;
+        /* set src surface width/height to video crop size */
+        width = payload->crop_width;
+        height = payload->crop_height;
     }
 
     vaStatus = vaCreateSurfacesWithAttribute(mVaDpy,

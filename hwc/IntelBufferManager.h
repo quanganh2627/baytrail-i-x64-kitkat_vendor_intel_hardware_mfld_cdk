@@ -245,6 +245,16 @@ typedef struct {
     uint32_t layer_transform;
 
     void *native_window;
+    unsigned int scaling_khandle;
+    unsigned int width_s;
+    unsigned int height_s;
+
+    unsigned int scaling_luma_stride;
+    unsigned int scaling_chroma_u_stride;
+    unsigned int scaling_chroma_v_stride;
+
+    uint32_t crop_width;
+    uint32_t crop_height;
 } intel_gralloc_payload_t;
 
 class IntelPVRBufferManager : public IntelBufferManager {

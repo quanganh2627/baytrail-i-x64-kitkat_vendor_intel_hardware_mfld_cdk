@@ -91,6 +91,9 @@ protected:
     enum {
         NUM_FB_BUFFERS = 3,
     };
+    enum {
+        LAYER_SAME_RGB_BUFFER_SKIP_RELEASEFENCEFD = -2,
+    };
     struct fb_buffer{
         unsigned long long ui64Stamp;
         IntelDisplayBuffer *buffer;

@@ -829,8 +829,8 @@ bool IntelHWComposer::commitDisplays(size_t numDisplays,
     size_t disp;
     buffer_handle_t bufferHandles[INTEL_DISPLAY_PLANE_NUM];
     int acquireFenceFd[INTEL_DISPLAY_PLANE_NUM];
-    int* releaseFenceFd[INTEL_DISPLAY_PLANE_NUM];
-    int i, numBuffers = 0;
+    int* releaseFenceFd[INTEL_DISPLAY_PLANE_NUM]={0};
+    int i,j, numBuffers = 0;
     bool ret = true;
  
     for (disp = 0; disp < numDisplays && disp < DISPLAY_NUM; disp++) {
@@ -867,6 +867,19 @@ bool IntelHWComposer::commitDisplays(size_t numDisplays,
         hwc_display_contents_1_t *list = displays[disp];
         if (list) {
             for (i = 0; i < list->numHwLayers; i++) {
+                if (list->hwLayers[i].releaseFenceFd ==
+                    LAYER_SAME_RGB_BUFFER_SKIP_RELEASEFENCEFD){
+                    for(j = 0; j < INTEL_DISPLAY_PLANE_NUM; j++){
+                        if(!releaseFenceFd[j])
+                            continue;
+
+                        if(*releaseFenceFd[j] >= 0){
+                            //every layer relase fence fd dup from a same fd
+                            list->hwLayers[i].releaseFenceFd = dup(*releaseFenceFd[j]);
+                            break;
+                        }
+                    }
+                }
                 if (list->hwLayers[i].acquireFenceFd >= 0)
                     close(list->hwLayers[i].acquireFenceFd);
                     list->hwLayers[i].acquireFenceFd = -1;

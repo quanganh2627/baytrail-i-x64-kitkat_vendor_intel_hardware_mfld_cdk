@@ -827,6 +827,7 @@ bool IntelMIPIDisplayDevice::commit(hwc_display_contents_1_t *list,
                     // If we post two consecutive same buffers through
                     // primary plane, don't pass buffer handle to avoid
                     // SGX deadlock issue
+                    list->hwLayers[i].releaseFenceFd = LAYER_SAME_RGB_BUFFER_SKIP_RELEASEFENCEFD;
                     ALOGD_IF(ALLOW_HWC_PRINT, "same RGB buffer handle %p", handle);
                 } else if (plane->getDataBufferHandle() == 0) {
                     // check if plane data buffer is NULL, which may

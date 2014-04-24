@@ -71,6 +71,9 @@ public:
     enum {
         DISPLAY_NUM = 3,
     };
+ enum {
+        LAYER_SAME_RGB_BUFFER_SKIP_RELEASEFENCEFD = -2,
+    };
 private:
     IMG_gralloc_module_public_t* mGrallocModule;
     IntelHWComposerDrm *mDrm;

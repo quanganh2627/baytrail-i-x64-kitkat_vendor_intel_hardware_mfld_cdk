@@ -50,6 +50,7 @@
 #include <system/graphics.h>
 #include <IntelWsbm.h>
 #include <OMX_IVCommon.h>
+#include <OMX_IntelColorFormatExt.h>
 #include <hal_public.h>
 #include <pvr2d.h>
 #include <pthread.h>

@@ -81,6 +81,7 @@ endif
 
 LOCAL_C_INCLUDES := $(addprefix $(LOCAL_PATH)/../../, $(SGX_INCLUDES)) \
             $(call include-path-for, frameworks-native)/media/openmax \
+            $(TARGET_OUT_HEADERS)/khronos/openmax \
             $(call include-path-for, frameworks-native)/ui \
             $(call include-path-for, libhardware_legacy)/hardware_legacy \
             $(TARGET_BOARD_KERNEL_HEADERS) \

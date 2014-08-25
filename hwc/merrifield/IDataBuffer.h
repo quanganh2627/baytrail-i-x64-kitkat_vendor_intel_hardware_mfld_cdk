@@ -31,6 +31,7 @@
 #include <hal_public.h>
 //FIXME: remove dependency to OMX
 #include <OMX_IVCommon.h>
+#include <OMX_IntelColorFormatExt.h>
 
 namespace android {
 namespace intel {

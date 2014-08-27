@@ -1085,10 +1085,9 @@ bool IntelDisplayDevice::useOverlayRotation(hwc_layer_1_t *layer,
         }
 
         if (transform != uint32_t(payload->client_transform)) {
-            if (payload->surface_protected) {
-                payload->hwc_timestamp = systemTime();
-                payload->layer_transform = transform;
-            }
+            payload->hwc_timestamp = systemTime();
+            payload->layer_transform = transform;
+
             ALOGD_IF(ALLOW_HWC_PRINT,
                     "%s: rotation buffer was not prepared by client! ui64Stamp = %llu", __func__, grallocHandle->ui64Stamp);
 

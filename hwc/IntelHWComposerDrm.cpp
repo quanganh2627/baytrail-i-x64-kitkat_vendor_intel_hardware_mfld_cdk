@@ -272,7 +272,7 @@ bool IntelHWComposerDrm::detectMDSModeChange()
     } else
 #endif
     {
-        setDisplayMode(OVERLAY_MIPI0);
+        setDisplayMode(OVERLAY_CLONE_MIPI0);
     }
 
     return true;

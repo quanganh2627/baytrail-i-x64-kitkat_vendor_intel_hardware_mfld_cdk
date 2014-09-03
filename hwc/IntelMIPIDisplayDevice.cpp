@@ -355,9 +355,6 @@ out_check:
         layer->compositionType = HWC_OVERLAY;
         useOverlay = true;
         needClearFb = true;
-#ifdef INTEL_EXT_SF_ANIMATION_HINT
-        layer->hints |= HWC_HINT_DISABLE_ANIMATION;
-#endif
     }
 
     // check if frame buffer clear is needed
@@ -522,7 +519,6 @@ void IntelMIPIDisplayDevice::onGeometryChanged(hwc_display_contents_1_t *list)
             else
                 list->hwLayers[i].compositionType = HWC_OVERLAY;
 
-            list->hwLayers[i].hints |= HWC_HINT_DISABLE_ANIMATION;
             mVideoSentToWidi = true;
             continue;
         }
@@ -597,7 +593,7 @@ bool IntelMIPIDisplayDevice::prepare(hwc_display_contents_1_t *list)
     // clear force swap buffer flag
     mForceSwapBuffer = false;
 
-    int index = checkTrickMode(list, mVideoSentToWidi);
+    int index = -1;
     bool forceCheckingList = ((index >= 0) != mVideoSeekingActive);
     mVideoSeekingActive = (index >= 0);
 

@@ -153,41 +153,6 @@ bool IntelDisplayDevice::isVideoPutInWindow(int output, hwc_layer_1_t *layer) {
     return inWindow;
 }
 
-int IntelDisplayDevice::checkTrickMode(
-        hwc_display_contents_1_t *list, bool widiVideoActive) {
-    int index = -1;
-
-    if (!list || list->numHwLayers == 0) {
-        return -1;
-    }
-
-    // TODO:Replace the check with number of active devices
-    // Add check for widi.
-    if (mDrm && mDrm->getDisplayMode() != OVERLAY_EXTEND && !widiVideoActive) {
-        return -1;
-    }
-    for (size_t i = 0; i < (size_t)list->numHwLayers - 1; i++) {
-        hwc_layer_1_t *layer = &list->hwLayers[i];
-        if (!layer)
-            continue;
-
-        IMG_native_handle_t *grallocHandle =
-            (IMG_native_handle_t*)layer->handle;
-        if (!grallocHandle)
-            continue;
-
-        if (!(grallocHandle->usage & GRALLOC_USAGE_PROTECTED) &&
-             (layer->flags & HWC_TRICK_MODE)) {
-            ALOGV("Find the hint in layer:%d", i);
-            index = i;
-            break;
-        }
-    }
-
-    return index;
-}
-
-
 bool IntelDisplayDevice::rgbOverlayPrepare(int index,
                                             hwc_layer_1_t *layer, int flags)
 {
@@ -756,8 +721,7 @@ bool IntelDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
             // device is rotated
             // and not presentation mode
             // and video is not only attached to HDMI
-            if (list && (list->flags & HWC_ROTATION_IN_PROGRESS) &&
-                    (mDrm->getDisplayMode() == OVERLAY_EXTEND &&
+            if (list && (mDrm->getDisplayMode() == OVERLAY_EXTEND &&
                      !mDrm->isPresentationMode() && !mDrm->onlyHdmiHasVideo())) {
                 ALOGI_IF(ALLOW_HWC_PRINT, "Bypass overlay layer");
                 mLayerList->detachPlane(i, plane);

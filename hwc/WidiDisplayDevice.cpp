@@ -307,7 +307,6 @@ bool WidiDisplayDevice::prepare(hwc_display_contents_1_t *list)
     for (size_t i = 0; i < list->numHwLayers-1; i++) {
         hwc_layer_1_t& layer = list->hwLayers[i];
         layer.compositionType = HWC_OVERLAY;
-        layer.flags |= HWC_HINT_DISABLE_ANIMATION;
     }
 
     sendToWidi(streamingLayer);

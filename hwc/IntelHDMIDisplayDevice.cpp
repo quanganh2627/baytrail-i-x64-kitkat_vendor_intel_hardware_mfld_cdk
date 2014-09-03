@@ -154,8 +154,7 @@ bool IntelHDMIDisplayDevice::determineGraphicVisibilityInExtendMode(hwc_display_
    // 1) the video is placed to a window
    // 2) only video layer exists.(Exclude FramebufferTarget)
    bool isVideoInWin = isVideoPutInWindow(OUTPUT_HDMI, &(list->hwLayers[index]));
-   if (isVideoInWin || list->numHwLayers == 2 ||
-       list->flags & HWC_ROTATION_IN_PROGRESS) {
+   if (isVideoInWin || list->numHwLayers == 2) {
        ALOGD_IF(ALLOW_HWC_PRINT,
                "%s: In window mode:%d layer num:%d",
                __func__, isVideoInWin, list->numHwLayers);
@@ -193,7 +192,7 @@ bool IntelHDMIDisplayDevice::prepare(hwc_display_contents_1_t *list)
         return false;
     }
 
-    int index = checkTrickMode(list, false);
+    int index = -1;
     bool findHint = (index >= 0);
     bool forceCheckingList = (findHint != mVideoSeekingActive);
     mVideoSeekingActive = findHint;

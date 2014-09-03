@@ -133,8 +133,6 @@ protected:
     virtual bool isVideoPutInWindow(int output, hwc_layer_1_t *layer);
     virtual int  getMetaDataTransform(hwc_layer_1_t *layer,
             uint32_t &transform);
-    virtual int checkTrickMode(hwc_display_contents_1_t *list,
-            bool widiVideoActive);
     //*not virtual as not intend for override.Just for implemetation inheritence*/
     bool updateLayersData(hwc_display_contents_1_t *list);
     void revisitLayerList(hwc_display_contents_1_t *list,

@@ -56,7 +56,7 @@
 class IntelHWComposer;
 
 class IntelExternalDisplayMonitor :
-    public BnExtendDisplayListener,
+    public android::intel::BnExtendDisplayListener,
     public android::IBinder::DeathRecipient,
     protected android::Thread
 {
@@ -104,7 +104,7 @@ private:
         return false;
     }
 private:
-    MultiDisplayClient* mMDClient;
+    android::intel::MultiDisplayClient* mMDClient;
     android::Mutex mLock;
     android::Condition mModeChanged;
     int mActiveDisplayMode;

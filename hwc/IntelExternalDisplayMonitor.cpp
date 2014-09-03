@@ -253,7 +253,7 @@ status_t IntelExternalDisplayMonitor::readyToRun()
         sp<IServiceManager> serviceManager = defaultServiceManager();
         service = serviceManager->getService(String16(INTEL_MDS_SERVICE_NAME));
         if (service != 0) {
-            mMDClient = new MultiDisplayClient();
+            mMDClient = new intel::MultiDisplayClient();
             if (mMDClient == NULL) {
                 ALOGE("Fail to create a multidisplay client");
             } else {

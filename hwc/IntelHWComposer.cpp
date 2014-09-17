@@ -650,12 +650,12 @@ bool IntelHWComposer::initialize()
              mDisplayDevice[i] =
                  new IntelMIPIDisplayDevice(mBufferManager, mGrallocBufferManager,
                                        mPlaneManager, mDrm, &mExtendedModeInfo, i);
-//#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
          else if (i == HWC_DISPLAY_EXTERNAL)
              mDisplayDevice[i] =
                  new IntelHDMIDisplayDevice(mBufferManager, mGrallocBufferManager,
                                        mPlaneManager, mDrm, i);
-//#endif
+#endif
 #ifdef INTEL_WIDI
          else if (i == HWC_DISPLAY_VIRTUAL)
              mDisplayDevice[i] =
@@ -684,7 +684,7 @@ bool IntelHWComposer::initialize()
     if (atoi(value))
         mForceDumpPostBuffer = true;
 
-    startObserver();
+    // startObserver();
     mInitialized = true;
 
     ALOGD_IF(ALLOW_HWC_PRINT, "%s: successfully\n", __func__);

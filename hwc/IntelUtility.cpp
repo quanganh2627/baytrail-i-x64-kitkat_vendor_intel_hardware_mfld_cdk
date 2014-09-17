@@ -66,7 +66,7 @@ IntelUtility::IntelUtility(int num, struct hwc_display_contents_1** list)
 {
     hw_module_t const* module;
     if (hw_get_module(GRALLOC_HARDWARE_MODULE_ID, &module) != 0) {
-        LOGD("IntelUtility hw_get_module failed.");
+        ALOGD("IntelUtility hw_get_module failed.");
         return;
     }
     mGrallocModule = (gralloc_module_t*)module;
@@ -94,7 +94,7 @@ bool IntelUtility::needDump()
         dump = atoi(val);
     }
 
-//    LOGD("IntelUtility::needDump %d, val = %s", dump, val);
+//    ALOGD("IntelUtility::needDump %d, val = %s", dump, val);
     return dump ? true : false;
 }
 
@@ -124,21 +124,21 @@ void IntelUtility::dumpLayers(char* path)
     if(access(path, F_OK) == -1) {
     // File not exist;
         if(mkdir(path, 0777) == -1) {
-            LOGD("IntelUtility::dumpLayers failed to create dir: %s. Please mkdir manually.", path);
+            ALOGD("IntelUtility::dumpLayers failed to create dir: %s. Please mkdir manually.", path);
             return;
         }
     }
 
     if(access(path, W_OK|X_OK) == -1) {
-        LOGD("IntelUtility::dumpLayers failed to Write/Execute dir: %s", path);
+        ALOGD("IntelUtility::dumpLayers failed to Write/Execute dir: %s", path);
         return;
     }
 
     struct timeval t;
     gettimeofday(&t, NULL);
-//    LOGD("IntelUtility::dumpLayers mNumDisplay = %d", mNumDisplay);
+//    ALOGD("IntelUtility::dumpLayers mNumDisplay = %d", mNumDisplay);
     for (j = 0; j < mNumDisplay; j++) {
-//        LOGD("IntelUtility::dumpLayers mLayerLists[%d] = %p", j, mLayerLists[j]);
+//        ALOGD("IntelUtility::dumpLayers mLayerLists[%d] = %p", j, mLayerLists[j]);
         if (!mLayerLists[j]) {
             continue;
         }
@@ -157,7 +157,7 @@ void IntelUtility::dumpLayers(char* path)
             // lock buffer
             mGrallocModule->lock((gralloc_module_t*)mGrallocModule, l->handle, GRALLOC_USAGE_SW_READ_OFTEN, 0, 0, 1, 1, (void**)&vaddr);
             if (err != 0) {
-                LOGD("IntelUtility::dumpLayers: gralloc_module_lock failed. (errno = %d)", err);
+                ALOGD("IntelUtility::dumpLayers: gralloc_module_lock failed. (errno = %d)", err);
                 return;
             }
             // save to bmp
@@ -220,7 +220,7 @@ int IntelUtility::generateBitmap(int width, int height, int format, char const *
         format != PIXEL_FORMAT_RGBX_8888 &&
         format != PIXEL_FORMAT_RGB_888 &&
         format != PIXEL_FORMAT_BGRA_8888 ) {
-        LOGD("Layer::generateBitmap() not support format.");
+        ALOGD("Layer::generateBitmap() not support format.");
         return 0;
     }
 
@@ -255,7 +255,7 @@ int IntelUtility::generateBitmap(int width, int height, int format, char const *
 
     fd = open(bitmapName, O_WRONLY|O_CREAT|O_TRUNC, 0755);
     if(fd < 0) {
-        LOGD("ERROR: generateBitmap: failed to open %s (%d)", bitmapName, errno);
+        ALOGD("ERROR: generateBitmap: failed to open %s (%d)", bitmapName, errno);
         return -errno;
     }
 

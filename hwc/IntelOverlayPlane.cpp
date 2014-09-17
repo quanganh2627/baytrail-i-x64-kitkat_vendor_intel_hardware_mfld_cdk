@@ -442,7 +442,7 @@ bool IntelOverlayContext::bufferOffsetSetup(IntelDisplayDataBuffer &buf)
     uint32_t srcX= buf.getSrcX();
     uint32_t srcY= buf.getSrcY();
 
-    LOGV("%s: yStride is %d and uvStride is %d\n", __func__, yStride, uvStride);
+    ALOGV("%s: yStride is %d and uvStride is %d\n", __func__, yStride, uvStride);
     // clear original format setting
     mOverlayBackBuffer->OCMD &= ~(0xf << 10);
     mOverlayBackBuffer->OCMD &= ~OVERLAY_MEMORY_LAYOUT_TILED;
@@ -491,7 +491,7 @@ bool IntelOverlayContext::bufferOffsetSetup(IntelDisplayDataBuffer &buf)
         break;
     case HAL_PIXEL_FORMAT_INTEL_HWC_NV12_TILE:    /*NV12_TILE*/
         /* Tiling memory is supported for NV12 only */
-        LOGD_IF(ALLOW_OVERLAY_PRINT,
+        ALOGD_IF(ALLOW_OVERLAY_PRINT,
                 "%s: setting up tiling buffer offset...\n", __func__);
         mOverlayBackBuffer->OBUF_0Y = 0;
         mOverlayBackBuffer->OBUF_0U = yStride * align_to(h, 32);
@@ -1791,7 +1791,7 @@ bool IntelOverlayPlane::disable()
             reinterpret_cast<IntelOverlayContext*>(mContext);
         ret = overlayContext->disable(0);
         if (ret == false)
-            LOGE("%s: failed to disable overlay\n", __func__);
+            ALOGE("%s: failed to disable overlay\n", __func__);
     }
 
     return ret;
@@ -1877,7 +1877,7 @@ IntelRGBOverlayPlane::IntelRGBOverlayPlane(int fd, int index,
     PixelFormatConverter *converter = new PixelFormatConverter();
     bool ret = converter->initialize();
     if (ret == false) {
-        LOGW("IntelOverlayPlane: failed to initialize converter\n");
+        ALOGW("IntelOverlayPlane: failed to initialize converter\n");
         mInitialized = false;
     }
 
@@ -1926,7 +1926,7 @@ bool IntelRGBOverlayPlane::PixelFormatConverter::initialize()
     hw_module_t const* module;
     err = hw_get_module(GRALLOC_HARDWARE_MODULE_ID, &module);
     if (err) {
-        LOGE("PixelFormatConverter: failed to load gralloc\n");
+        ALOGE("PixelFormatConverter: failed to load gralloc\n");
         return false;
     }
 
@@ -1938,7 +1938,7 @@ bool IntelRGBOverlayPlane::PixelFormatConverter::initialize()
                                                  GRALLOC_HARDWARE_GPU0,
                                                  (hw_device_t **)&allocDev);
     if (err) {
-        LOGE("PixelFormatConverter: failed to open alloc device\n");
+        ALOGE("PixelFormatConverter: failed to open alloc device\n");
         return false;
     }
 
@@ -1946,7 +1946,7 @@ bool IntelRGBOverlayPlane::PixelFormatConverter::initialize()
     mGrallocModule = imgGrallocModule;
     mAllocDev = allocDev;
 
-    LOGI("PixelFormatConverter: initialized\n");
+    ALOGI("PixelFormatConverter: initialized\n");
 
     return true;
 }
@@ -1961,20 +1961,20 @@ IntelRGBOverlayPlane::PixelFormatConverter::convertBuffer(uint32_t handle,
     buffer_handle_t yuvBufferHandle = 0;
 
     if (!handle || !w || !h) {
-        LOGE("convertBuffer: invalid buffer handle\n");
+        ALOGE("convertBuffer: invalid buffer handle\n");
         return 0;
     }
 
     IMG_native_handle_t* rgbBufferHandle =
         (IMG_native_handle_t*)handle;
 
-    LOGD_IF(ALLOW_OVERLAY_PRINT, "convertBuffer: handle 0x%x\n", handle);
+    ALOGD_IF(ALLOW_OVERLAY_PRINT, "convertBuffer: handle 0x%x\n", handle);
 
     // check if we've allocated a buffer for this handle
     ssize_t index = mBufferMapping.indexOfKey(rgbBufferHandle->ui64Stamp);
     if (index >= 0) {
         yuvBufferHandle = (buffer_handle_t)mBufferMapping.valueAt(index);
-        LOGD_IF(ALLOW_OVERLAY_PRINT,
+        ALOGD_IF(ALLOW_OVERLAY_PRINT,
                 "convertBuffer: found handle 0x%x at %ld value %p",
                 handle, index, yuvBufferHandle);
         goto blit_out;
@@ -1989,7 +1989,7 @@ IntelRGBOverlayPlane::PixelFormatConverter::convertBuffer(uint32_t handle,
                            &yuvBufferHandle,
                            &yStride);
     if (err) {
-        LOGE("convertBuffer: failed to allocate YUV buffer\n");
+        ALOGE("convertBuffer: failed to allocate YUV buffer\n");
         return 0;
     }
 
@@ -2005,7 +2005,7 @@ blit_out:
                                     (buffer_handle_t)yuvBufferHandle,
                                     w, h, x, y);
         if (err) {
-            LOGE("convertBuffer: failed to kick off converting");
+            ALOGE("convertBuffer: failed to kick off converting");
             goto err_out;
         }
 
@@ -2021,7 +2021,7 @@ err_out:
 
 void IntelRGBOverlayPlane::PixelFormatConverter::reset()
 {
-    LOGD_IF(ALLOW_OVERLAY_PRINT,"PixelFormatConverter: reset");
+    ALOGD_IF(ALLOW_OVERLAY_PRINT,"PixelFormatConverter: reset");
 
     // free allocated buffer
     for (uint32_t i = 0; i < mBufferMapping.size(); i++) {

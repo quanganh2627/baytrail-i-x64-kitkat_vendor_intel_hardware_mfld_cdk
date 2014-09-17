@@ -127,7 +127,7 @@ bool IntelDisplayDevice::isVideoPutInWindow(int output, hwc_layer_1_t *layer) {
     int dstWidth = layer->displayFrame.right - layer->displayFrame.left;
     int dstHeight = layer->displayFrame.bottom - layer->displayFrame.top;
 
-    LOGD_IF(ALLOW_HWC_PRINT,
+    ALOGD_IF(ALLOW_HWC_PRINT,
             "output:%d fbW:%d fbH:%d dst_w:%d dst_h:%d src_w:%d src_h:%d",
             output, fbW, fbH, dstWidth, dstHeight, srcWidth, srcHeight);
     /*
@@ -157,14 +157,14 @@ bool IntelDisplayDevice::rgbOverlayPrepare(int index,
                                             hwc_layer_1_t *layer, int flags)
 {
     if (!layer) {
-        LOGE("%s: Invalid layer\n", __func__);
+        ALOGE("%s: Invalid layer\n", __func__);
         return false;
     }
 
     // allocate overlay plane
     IntelDisplayPlane *plane = mPlaneManager->getRGBOverlayPlane();
     if (!plane) {
-        LOGE("%s: failed to create RGB overlay plane\n", __func__);
+        ALOGE("%s: failed to create RGB overlay plane\n", __func__);
         return false;
     }
 
@@ -801,7 +801,7 @@ bool IntelDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
                                           srcWidth, srcHeight,
                                           srcX, srcY);
             if (!yuvBufferHandle) {
-                LOGE("updateLayersData: failed to convert\n");
+                ALOGE("updateLayersData: failed to convert\n");
                 continue;
             }
 
@@ -824,7 +824,7 @@ bool IntelDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
             ret = rgbOverlayPlane->setDataBuffer(bufferHandle,
                                                  0, grallocHandle);
             if (!ret) {
-                LOGE("%s: failed to update overlay data buffer\n", __func__);
+                ALOGE("%s: failed to update overlay data buffer\n", __func__);
                 mLayerList->detachPlane(i, plane);
                 layer->compositionType = HWC_FRAMEBUFFER;
                 handled = false;

@@ -497,7 +497,7 @@ IntelHWComposerDrm::getHdmiConnector() {
     if (mHdmiConnector == NULL)
         mHdmiConnector = getConnector(OUTPUT_HDMI);
     if (mHdmiConnector == NULL || mHdmiConnector->modes == NULL) {
-        LOGE("%s: Failed to get HDMI connector", __func__);
+        ALOGE("%s: Failed to get HDMI connector", __func__);
         return NULL;
     }
     return mHdmiConnector;
@@ -591,7 +591,7 @@ uint32_t IntelHWComposerDrm::getCrtcId(int disp)
         for (i = 0; i < resources->count_crtcs; i++) {
             crtc = drmModeGetCrtc(mDrmFd, resources->crtcs[i]);
             if (!crtc) {
-                LOGE("%s: Failed to get crtc %d, error is %s",
+                ALOGE("%s: Failed to get crtc %d, error is %s",
                         __func__, resources->crtcs[i], strerror(errno));
                 continue;
             }
@@ -658,7 +658,7 @@ IntelHWComposerDrm::selectDisplayDrmMode(int disp, intel_display_mode_t *display
     //freeConnector(connector);
 
     mode = getOutputMode(OUTPUT_HDMI);
-    LOGD("%s: mode is %dx%d@%dHz, 0x%x\n", __func__,
+    ALOGD("%s: mode is %dx%d@%dHz, 0x%x\n", __func__,
              mode->hdisplay, mode->vdisplay, mode->vrefresh, mode->flags);
 
     return mode;
@@ -710,7 +710,7 @@ IntelHWComposerDrm::getSelectMode(intel_display_mode_t *displayMode,
         else
             index = max;
     }
-    LOGD("Get the timing, %d, %d, %d", preferred, max, index);
+    ALOGD("Get the timing, %d, %d, %d", preferred, max, index);
     return &connector->modes[index];
 }
 
@@ -744,7 +744,7 @@ bool IntelHWComposerDrm::isDrmModeFlagsMatched(drmModeModeInfoPtr mode, intel_di
     else if (displayMode->ratio == 1)
         flags |= DRM_MODE_FLAG_PAR4_3;
 
-    LOGD("%s: 0x%x, 0x%x", __func__, flags, mode->flags);
+    ALOGD("%s: 0x%x, 0x%x", __func__, flags, mode->flags);
     if (flags == 0)
         return true;
 
@@ -777,14 +777,14 @@ bool IntelHWComposerDrm::setupDrmFb(int disp,
     int ret = drmModeAddFB(mDrmFd, width, height, 24, 32,
                   stride, (uint32_t)(fb_handler), &fb_id);
     if (ret) {
-        LOGE("%s: Failed to add fb !", __func__);
+        ALOGE("%s: Failed to add fb !", __func__);
         return false;
     }
 
     // add to local output structure
     drmModeFBPtr fbInfo = drmModeGetFB(mDrmFd, fb_id);
     if (!fbInfo) {
-        LOGE("%s: Failed to get fbInfo! ", __func__);
+        ALOGE("%s: Failed to get fbInfo! ", __func__);
         return false;
     }
     setOutputFBInfo(disp, fbInfo);

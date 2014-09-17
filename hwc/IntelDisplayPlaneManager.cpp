@@ -140,7 +140,7 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
         mRGBOverlayPlanes = (IntelDisplayPlane**)calloc(mOverlayPlaneCount,
                                                     sizeof(IntelDisplayPlane*));
         if (!mRGBOverlayPlanes) {
-            LOGE("%s: failed to allocate RGB overlay plane pool\n", __func__);
+            ALOGE("%s: failed to allocate RGB overlay plane pool\n", __func__);
             goto overlay_alloc_err;
         }
 
@@ -148,7 +148,7 @@ IntelDisplayPlaneManager::IntelDisplayPlaneManager(int fd,
             mRGBOverlayPlanes[i] =
                 new IntelRGBOverlayPlane(mDrmFd, i, mGrallocBufferManager);
             if (!mRGBOverlayPlanes[i]) {
-                LOGE("%s: failed to allocate RGB overlay plane %d\n",
+                ALOGE("%s: failed to allocate RGB overlay plane %d\n",
                      __func__, i);
                 goto rgb_alloc_err;
             }
@@ -419,7 +419,7 @@ IntelDisplayPlane* IntelDisplayPlaneManager::getOverlayPlane()
 IntelDisplayPlane* IntelDisplayPlaneManager::getRGBOverlayPlane()
 {
     if (!initCheck()) {
-        LOGE("%s: plane manager was not initialized\n", __func__);
+        ALOGE("%s: plane manager was not initialized\n", __func__);
         return 0;
     }
 
@@ -433,7 +433,7 @@ IntelDisplayPlane* IntelDisplayPlaneManager::getRGBOverlayPlane()
     }
 
     if (freePlaneIndex < 0) {
-       LOGE("%s: failed to get a RGB overlay plane\n", __func__);
+       ALOGE("%s: failed to get a RGB overlay plane\n", __func__);
        return 0;
     }
 

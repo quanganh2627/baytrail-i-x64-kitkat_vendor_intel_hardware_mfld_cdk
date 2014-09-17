@@ -539,7 +539,7 @@ void IntelMIPIDisplayDevice::onGeometryChanged(hwc_display_contents_1_t *list)
                    isRGBOverlayLayer(list, i, &list->hwLayers[i], flags)) {
             ret = rgbOverlayPrepare(i, &list->hwLayers[i], flags);
             if (!ret) {
-                LOGE("%s: failed to prepare RGB overlay\n", __func__);
+                ALOGE("%s: failed to prepare RGB overlay\n", __func__);
                 list->hwLayers[i].compositionType = HWC_FRAMEBUFFER;
                 list->hwLayers[i].hints = 0;
             }

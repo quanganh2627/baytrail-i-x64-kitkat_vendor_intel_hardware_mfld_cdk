@@ -646,7 +646,7 @@ void IntelPVRBufferManager::fill4Block(uint8_t* buf, uint8_t a, uint8_t b, uint8
     int x, y;
     uint8_t delta = w/10;
     uint8_t pixelSize = 4;
-    LOGI("%s: %d", __func__, offset);
+    ALOGI("%s: %d", __func__, offset);
     for (x = 0; x < w; x++) {
        for (y = 0; y < h; y++)
          fillPixelColor(buf + offset, x, y, stride, pixelSize, 0);
@@ -694,7 +694,7 @@ bool IntelPVRBufferManager::updateCursorReg(int count, IntelDisplayBuffer *curso
                                  DRM_PSB_REGISTER_RW,
                                  &arg, sizeof(arg));
    if (ret) {
-          LOGW("%s: open cursor failed with error code %d\n",
+          ALOGW("%s: open cursor failed with error code %d\n",
           __func__, ret);
           return false;
    }
@@ -718,7 +718,7 @@ IntelDisplayBuffer* IntelPVRBufferManager::curAlloc(int w, int h)
                                          uFlags,
                                &(pvr2dMemInfo));
     if (err != PVR2D_OK) {
-       LOGE("%s: failed to map handle %p\n", __func__, mPVR2DHandle);
+       ALOGE("%s: failed to map handle %p\n", __func__, mPVR2DHandle);
     }
     void *virtAddr = pvr2dMemInfo->pBase;
     uint32_t size = pvr2dMemInfo->ui32MemSize;
@@ -1457,7 +1457,7 @@ IntelPayloadBuffer::IntelPayloadBuffer(IntelBufferManager* bufferManager, int bu
 
     mBuffer = mBufferManager->map(bufferFd);
     if (!mBuffer) {
-        LOGE("%s: failed to map payload buffer.\n", __func__);
+        ALOGE("%s: failed to map payload buffer.\n", __func__);
         return;
     }
     mPayload = mBuffer->getCpuAddr();

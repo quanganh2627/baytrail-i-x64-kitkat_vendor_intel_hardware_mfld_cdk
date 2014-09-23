@@ -716,6 +716,7 @@ bool IntelDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
                 mLayerList->setFlags(i, flags);
                 plane->disable();
             }
+#if 0
             //FIXME: is a workaround
             // Bypass overlay layer, if
             // device is rotated
@@ -729,7 +730,7 @@ bool IntelDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
                 handled = false;
                 continue;
             }
-
+#endif
             // check if can switch to overlay
             bool useOverlay = useOverlayRotation(layer, i,
                                                  bufferHandle,

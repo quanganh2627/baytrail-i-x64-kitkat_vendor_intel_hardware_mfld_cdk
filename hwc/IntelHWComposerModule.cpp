@@ -366,7 +366,7 @@ static int hwc_device_open(const struct hw_module_t* module, const char* name,
         hwc->hwc_composer_device_1_t::getDisplayAttributes = hwc_getDisplayAttributes;
 
         // Frame update debug interaction with SurfaceFlinger.
-        hwc->hwc_composer_device_1_t::reserved_proc[1] = (void*)hwc_setFramecount;
+        hwc->hwc_composer_device_1_t::reserved_proc[0] = (void*)hwc_setFramecount;
         *device = &hwc->hwc_composer_device_1_t::common;
         status = 0;
     }

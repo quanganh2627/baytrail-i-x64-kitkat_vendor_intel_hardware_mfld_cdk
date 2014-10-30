@@ -796,7 +796,9 @@ bool IntelHWComposer::prepareDisplays(size_t numDisplays,
             mExtendedModeInfo.widiExtHandle = videoHandleMipi;
 
         // call prepare for widi out of order since it may cancel extended mode
-        mDisplayDevice[HWC_DISPLAY_VIRTUAL]->prepare(displays[HWC_DISPLAY_VIRTUAL]);
+        if (mDisplayDevice[HWC_DISPLAY_VIRTUAL]) {
+            mDisplayDevice[HWC_DISPLAY_VIRTUAL]->prepare(displays[HWC_DISPLAY_VIRTUAL]);
+        }
     }
 
     for (size_t disp = 0; disp < numDisplays; disp++) {

@@ -653,14 +653,13 @@ bool IntelDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
     mYUVOverlay = -1;
 
     if (!list)
-	return false;
+	    return false;
 
     for (size_t i=0 ; i<(size_t)mLayerList->getLayersCount(); i++) {
         hwc_layer_1_t *layer = &list->hwLayers[i];
         // layer safety check
         if (!isHWCLayer(layer) || !layer)
             continue;
-
         IMG_native_handle_t *grallocHandle =
             (IMG_native_handle_t*)layer->handle;
 
@@ -688,6 +687,12 @@ bool IntelDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
                 plane->disable();
                 handled = false;
                 layer->compositionType = HWC_FRAMEBUFFER;
+                continue;
+            }
+            if (layer->flags & HWC_SKIP_LAYER) {
+                ALOGD_IF(ALLOW_HWC_PRINT, "Don't use skipped YUV layer");
+                layer->flags &= ~HWC_SKIP_LAYER;
+                layer->compositionType = HWC_OVERLAY;
                 continue;
             }
         }

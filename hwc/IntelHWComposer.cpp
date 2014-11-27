@@ -867,30 +867,47 @@ bool IntelHWComposer::commitDisplays(size_t numDisplays,
 
     for (disp = 0; disp < numDisplays && disp < DISPLAY_NUM; disp++) {
         hwc_display_contents_1_t *list = displays[disp];
-        if (list) {
-            for (i = 0; i < list->numHwLayers; i++) {
-                if (list->hwLayers[i].releaseFenceFd ==
-                    LAYER_SAME_RGB_BUFFER_SKIP_RELEASEFENCEFD){
-                    for(j = 0; j < INTEL_DISPLAY_PLANE_NUM; j++){
-                        if(!releaseFenceFd[j])
-                            continue;
 
-                        if(*releaseFenceFd[j] >= 0){
-                            //every layer relase fence fd dup from a same fd
-                            list->hwLayers[i].releaseFenceFd = dup(*releaseFenceFd[j]);
-                            break;
-                        }
-                    }
-                }
-                if (list->hwLayers[i].acquireFenceFd >= 0)
+        if(list) {
+            for (i = 0; i < list->numHwLayers; i++) {
+                if (list->hwLayers[i].acquireFenceFd >= 0) {
                     close(list->hwLayers[i].acquireFenceFd);
                     list->hwLayers[i].acquireFenceFd = -1;
+                }
             }
 
             if (list->outbufAcquireFenceFd != -1) {
                 close(list->outbufAcquireFenceFd);
                 list->outbufAcquireFenceFd = -1;
             }
+        }
+    }
+
+    //TODO: utilize acquireFenceFd & releaseFenceFd & retireFenceFd framework in virtual display
+    for (disp = 0; disp < numDisplays && disp < HWC_DISPLAY_VIRTUAL; disp++) {
+        hwc_display_contents_1_t *list = displays[disp];
+        if (list) {
+            int releaseFenceFdForDup = -1;
+
+            for(j = 0; j < INTEL_DISPLAY_PLANE_NUM; j++){
+                if(!releaseFenceFd[j])
+                    continue;
+
+                if(*releaseFenceFd[j] >= 0) {
+                    releaseFenceFdForDup = *releaseFenceFd[j];
+                    break;
+                }
+            }
+
+            for (i = 0; i < list->numHwLayers; i++) {
+                if (list->hwLayers[i].releaseFenceFd ==
+                    LAYER_SAME_RGB_BUFFER_SKIP_RELEASEFENCEFD){
+                    //every layer release fence fd dup from a same fd
+                    list->hwLayers[i].releaseFenceFd = (releaseFenceFdForDup >= 0) ? dup(releaseFenceFdForDup) : -1;
+                }
+            }
+
+            list->retireFenceFd = (releaseFenceFdForDup >= 0) ? dup(releaseFenceFdForDup) : -1;
         }
     }
 

@@ -36,6 +36,10 @@
 #include <WidiDisplayDevice.h>
 #include <IntelHWComposerCfg.h>
 
+#ifndef LOGE
+ #define LOGE ALOGE
+#endif
+
 using namespace android;
 
 WidiDisplayDevice::CachedBuffer::CachedBuffer(IntelBufferManager *gbm, IntelDisplayBuffer* buffer)
@@ -453,6 +457,15 @@ void WidiDisplayDevice::sendToWidi(const hwc_layer_1_t& layer)
         sp<GraphicBuffer> destBuffer;
         {
             Mutex::Autolock _l(mCscLock);
+            // Blit only support 1:1 so until we get upscale/downsacle ,source & destination will be of same size.
+            if ((layer.compositionType == HWC_FRAMEBUFFER_TARGET) &&
+                (mCurrentConfig.policy.scaledWidth != inputFrameInfo.contentWidth) ||
+                (mCurrentConfig.policy.scaledHeight != inputFrameInfo.contentHeight)) {
+                  return;
+                //mCurrentConfig.policy.scaledWidth = inputFrameInfo.contentWidth;
+                //mCurrentConfig.policy.scaledHeight = inputFrameInfo.contentHeight;
+            }
+
             if (mCscWidth != mCurrentConfig.policy.scaledWidth || mCscHeight != mCurrentConfig.policy.scaledHeight) {
                 ALOGI("CSC buffers changing from %dx%d to %dx%d",
                       mCscWidth, mCscHeight, mCurrentConfig.policy.scaledWidth, mCurrentConfig.policy.scaledHeight);

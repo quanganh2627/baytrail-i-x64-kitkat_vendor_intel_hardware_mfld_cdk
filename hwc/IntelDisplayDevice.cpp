@@ -693,6 +693,7 @@ bool IntelDisplayDevice::updateLayersData(hwc_display_contents_1_t *list)
                 ALOGD_IF(ALLOW_HWC_PRINT, "Don't use skipped YUV layer");
                 layer->flags &= ~HWC_SKIP_LAYER;
                 layer->compositionType = HWC_OVERLAY;
+		mLayerList->detachPlane(i, plane);
                 continue;
             }
         }

@@ -208,6 +208,106 @@ static int make_sinkcompliant_buffers(void* input, void *output, int ipbytes)
   return outbytes;
 }
 
+static void tinymix_set_value(struct mixer *mixer, const char *control,
+                              char **values, unsigned int num_values)
+{
+    struct mixer_ctl *ctl;
+    enum mixer_ctl_type type;
+    unsigned int num_ctl_values;
+    unsigned int i;
+
+    if (isdigit(control[0]))
+        ctl = mixer_get_ctl(mixer, atoi(control));
+    else
+        ctl = mixer_get_ctl_by_name(mixer, control);
+
+    if (!ctl) {
+        fprintf(stderr, "Invalid mixer control\n");
+        return;
+    }
+
+    type = mixer_ctl_get_type(ctl);
+    num_ctl_values = mixer_ctl_get_num_values(ctl);
+
+    if ((isdigit(values[0][0])) || (values[0][0] == '-')) {
+        char *endptr = NULL;
+        long value;
+        /* Initialize a function pointer of mixer_ctl_set_... type */
+        int (*mixer_ctl_set)(struct mixer_ctl*, unsigned int, int) = NULL;
+        errno = 0;
+
+        if (num_values > num_ctl_values) {
+            fprintf(stderr,
+                    "Error: %d values given, but control only takes %d\n",
+                    num_values, num_ctl_values);
+            return;
+        }
+
+        for (i = 0; i < num_values; i++) {
+            value = strtol(values[i], &endptr, 10);
+
+            if (errno != 0) {
+                perror("strtol");
+                return;
+            }
+
+            if (*endptr == '%') {
+                mixer_ctl_set = mixer_ctl_set_percent;
+            } else {
+                mixer_ctl_set = mixer_ctl_set_value;
+            }
+
+            if (num_values == 1) {
+                /* Set all values the same */
+                for (i = 0; i < num_ctl_values; i++) {
+                    if (mixer_ctl_set(ctl, i, (int)value)) {
+                        fprintf(stderr, "Error: invalid value for index %d\n", i);
+                        return;
+                    }
+                }
+            } else {
+                /* Set multiple values */
+                if (mixer_ctl_set(ctl, i, (int)value)) {
+                    fprintf(stderr, "Error: invalid value for index %d\n", i);
+                    return;
+                }
+            }
+        }
+    } else {
+        if (type == MIXER_CTL_TYPE_ENUM) {
+            if (num_values != 1) {
+                fprintf(stderr, "Enclose strings in quotes and try again\n");
+                return;
+            }
+            if (mixer_ctl_set_enum_by_string(ctl, values[0]))
+                fprintf(stderr, "Error: invalid enum value\n");
+        } else {
+            fprintf(stderr, "Error: only enum types can be set with strings\n");
+        }
+    }
+}
+
+static void audio_set_channel(struct mixer *mixer)
+{
+    char *head_volume[] = {"87", "87"};
+    char **ihead_volume = head_volume;
+    tinymix_set_value(mixer, "0", ihead_volume, 2);
+    tinymix_set_value(mixer, "2", ihead_volume, 2);
+
+    char *head_switch[] = {"1", "1"};
+    char **ihead_switch = head_switch;
+    tinymix_set_value(mixer, "1", ihead_switch, 2);
+    tinymix_set_value(mixer, "3", ihead_switch, 2);
+
+    char *master_volume[] = {"87", "87"};
+    char **imaster_volume = master_volume;
+    tinymix_set_value(mixer, "10", imaster_volume, 1);
+
+    char *master_switch[] = {"1", "1"};
+    char **imaster_switch = master_switch;
+    tinymix_set_value(mixer, "11", imaster_switch, 1);
+}
+
 /* must be called with hw device and output stream mutexes locked */
 static int start_output_stream(struct stream_out *out)
 {
@@ -224,7 +324,7 @@ static int start_output_stream(struct stream_out *out)
         ALOGV("%s : Setting default card/ device %d,%d",__func__,adev->card,adev->device);
     }
 
-    ALOGV("%s enter %d,%d,%d,%d,%d",__func__,
+    ALOGE("%s enter %d,%d,%d,%d,%d",__func__,
           out->pcm_config.channels,
           out->pcm_config.rate,
           out->pcm_config.period_size,
@@ -243,8 +343,34 @@ static int start_output_stream(struct stream_out *out)
 
     /*TODO - this needs to be updated once the device connect intent sends
       card, device id*/
-    adev->card = get_card_number_by_name("IntelHDMI");
-    ALOGD("%s: HDMI card number = %d, device = %d",__func__,adev->card,adev->device);
+
+    //add mixer control
+    struct mixer *mixer;
+    struct mixer_ctl *ctl;
+    int card = 0;
+    mixer = mixer_open(card);
+    audio_set_channel(mixer);
+    ctl = mixer_get_ctl_by_name(mixer, "Headphone Jack");
+    int result = mixer_ctl_get_value(ctl, 0);
+
+    if (0 == result) {
+        adev->card = get_card_number_by_name("IntelHDMI");
+        out->pcm_config.format = 3;
+        out->pcm_config.start_threshold = 0;
+        out->pcm_config.stop_threshold = 0;
+        out->pcm_config.period_size = 1024;
+        ALOGD("%s: HDMI card number = %d, device = %d",__func__,adev->card,adev->device);
+
+    } else {
+        adev->card = get_card_number_by_name("MID");;
+        out->pcm_config.format = 0;
+        out->pcm_config.start_threshold = 4607;
+        out->pcm_config.stop_threshold = 4608;
+        out->pcm_config.period_size = 1152;
+        ALOGD("%s: MID card number = %d, device = %d",__func__,adev->card,adev->device);
+    }
+
+    mixer_close(mixer);
 
     out->pcm = pcm_open(adev->card, adev->device, PCM_OUT, &out->pcm_config);
 

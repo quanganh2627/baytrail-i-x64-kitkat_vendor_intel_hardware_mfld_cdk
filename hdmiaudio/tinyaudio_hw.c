@@ -353,22 +353,12 @@ static int start_output_stream(struct stream_out *out)
     ctl = mixer_get_ctl_by_name(mixer, "Headphone Jack");
     int result = mixer_ctl_get_value(ctl, 0);
 
-    if (0 == result) {
-        adev->card = get_card_number_by_name("IntelHDMI");
-        out->pcm_config.format = 3;
-        out->pcm_config.start_threshold = 0;
-        out->pcm_config.stop_threshold = 0;
-        out->pcm_config.period_size = 1024;
-        ALOGD("%s: HDMI card number = %d, device = %d",__func__,adev->card,adev->device);
-
-    } else {
-        adev->card = get_card_number_by_name("MID");;
-        out->pcm_config.format = 0;
-        out->pcm_config.start_threshold = 4607;
-        out->pcm_config.stop_threshold = 4608;
-        out->pcm_config.period_size = 1152;
-        ALOGD("%s: MID card number = %d, device = %d",__func__,adev->card,adev->device);
-    }
+    adev->card = get_card_number_by_name("IntelHDMI");
+    out->pcm_config.format = 3;
+    out->pcm_config.start_threshold = 0;
+    out->pcm_config.stop_threshold = 0;
+    out->pcm_config.period_size = 1024;
+    ALOGD("%s: HDMI card number = %d, device = %d",__func__,adev->card,adev->device);
 
     mixer_close(mixer);
 

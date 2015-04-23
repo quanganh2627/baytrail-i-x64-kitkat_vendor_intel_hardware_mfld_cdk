@@ -222,7 +222,7 @@ static void tinymix_set_value(struct mixer *mixer, const char *control,
         ctl = mixer_get_ctl_by_name(mixer, control);
 
     if (!ctl) {
-        fprintf(stderr, "Invalid mixer control\n");
+        ALOGE("Invalid mixer control");
         return;
     }
 
@@ -237,8 +237,8 @@ static void tinymix_set_value(struct mixer *mixer, const char *control,
         errno = 0;
 
         if (num_values > num_ctl_values) {
-            fprintf(stderr,
-                    "Error: %d values given, but control only takes %d\n",
+            ALOGE(
+                    "Error: %d values given, but control only takes %d",
                     num_values, num_ctl_values);
             return;
         }
@@ -261,14 +261,14 @@ static void tinymix_set_value(struct mixer *mixer, const char *control,
                 /* Set all values the same */
                 for (i = 0; i < num_ctl_values; i++) {
                     if (mixer_ctl_set(ctl, i, (int)value)) {
-                        fprintf(stderr, "Error: invalid value for index %d\n", i);
+                        ALOGE("Error: invalid value for index %d", i);
                         return;
                     }
                 }
             } else {
                 /* Set multiple values */
                 if (mixer_ctl_set(ctl, i, (int)value)) {
-                    fprintf(stderr, "Error: invalid value for index %d\n", i);
+                    ALOGE("Error: invalid value for index %d", i);
                     return;
                 }
             }
@@ -276,13 +276,13 @@ static void tinymix_set_value(struct mixer *mixer, const char *control,
     } else {
         if (type == MIXER_CTL_TYPE_ENUM) {
             if (num_values != 1) {
-                fprintf(stderr, "Enclose strings in quotes and try again\n");
+                ALOGE("Enclose strings in quotes and try again");
                 return;
             }
             if (mixer_ctl_set_enum_by_string(ctl, values[0]))
-                fprintf(stderr, "Error: invalid enum value\n");
+                ALOGE("Error: invalid enum value");
         } else {
-            fprintf(stderr, "Error: only enum types can be set with strings\n");
+            ALOGE("Error: only enum types can be set with strings");
         }
     }
 }
